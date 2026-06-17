@@ -33,6 +33,13 @@ assert.equal(projection.nodes.length, 2);
 assert.equal(projection.edges.length, 1);
 assert.ok(projection.visibleNodeIds.includes("sum_purpose"));
 assert.equal(projection.pool.byPayloadKind["need_zoom.surface_config.v1"], 1);
+assert.ok(Array.isArray(projection.surface.purposeTimeline), "purposeTimeline must be exposed");
+assert.ok(Array.isArray(projection.surface.guardVerdicts), "guardVerdicts must be exposed");
+assert.ok(projection.cxoOverview, "cxoOverview must be exposed");
+assert.ok(projection.actions, "actions must be exposed");
+assert.ok(projection.actions.some((a) => a.id === "post-mismatch"), "post-mismatch action must exist");
+assert.equal(projection.actions[0].payloadKind, "ui.review.feedback.v1", "action must target ui.review.feedback.v1");
+assert.equal(projection.actions[0].idempotencyKeyContract, "stable-ui-feedback-key", "action must have idempotency contract");
 
 const envelope = toEnvelope({ kind: "need_zoom.event.v1", type: "evidence.add" });
 assert.equal(envelope.kind, "jsonl.record.generic.v1");

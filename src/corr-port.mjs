@@ -78,13 +78,22 @@ export function projectNeedZoomSurface(inputRecords) {
   const nodes = payloads.filter((payload) => payload.kind === "need_zoom.node.v1").map(projectNode);
   const edges = payloads.filter((payload) => payload.kind === "need_zoom.edge.v1").map(projectEdge);
   const events = payloads.filter((payload) => payload.kind === "need_zoom.event.v1").map(projectEvent);
-  const currentPurpose = [...events].reverse().find((event) => event.type === "purpose.set" && event.label)?.label || "unset";
+  const purposeEvents = records.filter((r) => r.payload.kind === "need_zoom.event.v1" && r.payload.type === "purpose.set");
+  const guardResults = records.filter((r) => r.payloadKind === "need_zoom.guard_result.v1");
+  const currentPurpose = [...purposeEvents].reverse().find((r) => r.payload?.label)?.payload?.label || "unset";
+  const purposeTimeline = purposeEvents.map((r) => ({
+    label: r.payload?.label || null,
+    at: r.payload?.at || r.recordedAt,
+  }));
+  const guardVerdicts = projectGuardVerdicts(records, purposeTimeline);
+  const cxoOverview = projectCxoOverview(records, events);
   const received = Object.fromEntries(ROLES.map((role) => [role, 0]));
   for (const event of events) if (event.type === "cxo.receive" && received[event.to] != null) received[event.to] += 1;
   const scale = numberOr(query.scale, 1);
   const level = zoomLevel(scale);
   const focus = typeof query.focus === "string" ? query.focus : null;
   const visibleNodeIds = visibleNodes(nodes, edges, level, focus).map((node) => node.id);
+  const actions = projectActions(records);
   return {
     kind: "need_zoom.voronoi_surface.v1",
     surface: {
@@ -104,6 +113,8 @@ export function projectNeedZoomSurface(inputRecords) {
         action: query.action || "projection",
       },
       purpose: currentPurpose,
+      purposeTimeline,
+      guardVerdicts,
       rawCount: records.length,
     },
     facets,
@@ -113,6 +124,8 @@ export function projectNeedZoomSurface(inputRecords) {
     visibleEdges: edges.filter((edge) => visibleNodeIds.includes(edge.a) && visibleNodeIds.includes(edge.b)),
     events: events.slice(-16).reverse(),
     received,
+    cxoOverview,
+    actions,
     pool: {
       kind: "need_zoom.raw_pool.v1",
       rawCount: records.length,
@@ -168,6 +181,68 @@ function projectEvent(payload) {
     message: payload.message || null,
     at: payload.at || null,
   };
+}
+
+function projectGuardVerdicts(records, purposeTimeline) {
+  const verdicts = [];
+  const explicitResults = records.filter((r) => r.payloadKind === "need_zoom.guard_result.v1");
+  const signalsByPurpose = new Map();
+  for (const record of records) {
+    if (record.payloadKind === "need_zoom.event.v1" && record.payload?.type === "purpose.guard") {
+      const purpose = record.payload?.label || "unknown";
+      if (!signalsByPurpose.has(purpose)) signalsByPurpose.set(purpose, []);
+      signalsByPurpose.get(purpose).push(record);
+    }
+  }
+  for (const [purpose, signals] of signalsByPurpose.entries()) {
+    const resultForPurpose = explicitResults.find((r) => r.payload?.purpose === purpose);
+    verdicts.push({
+      purpose,
+      signal: signals.length > 0 ? "received" : null,
+      verdict: resultForPurpose ? resultForPurpose.payload?.verdict || "pending" : "missing",
+      at: resultForPurpose?.recordedAt || signals[signals.length - 1]?.recordedAt || null,
+    });
+  }
+  return verdicts;
+}
+
+function projectCxoOverview(records, events) {
+  const overview = Object.fromEntries(ROLES.map((role) => [
+    role,
+    {
+      role,
+      receivedCount: 0,
+      latestTopic: null,
+      latestMessage: null,
+      latestNode: null,
+      hasVisibleAffordance: false,
+    },
+  ]));
+  for (const event of events) {
+    if (event.type === "cxo.receive" && overview[event.to]) {
+      overview[event.to].receivedCount += 1;
+      if (event.topic) overview[event.to].latestTopic = event.topic;
+      if (event.message) overview[event.to].latestMessage = event.message;
+      if (event.node) overview[event.to].latestNode = event.node;
+    }
+  }
+  for (const role of ROLES) {
+    overview[role].hasVisibleAffordance = overview[role].receivedCount > 0;
+  }
+  return overview;
+}
+
+function projectActions(records) {
+  return [
+    {
+      id: "post-mismatch",
+      kind: "ui.action.v1",
+      targetEndpoint: "/api/raw",
+      payloadKind: "ui.review.feedback.v1",
+      idempotencyKeyContract: "stable-ui-feedback-key",
+      description: "Queue a review feedback post with deduplication support",
+    },
+  ];
 }
 
 function visibleNodes(nodes, edges, level, focus) {
