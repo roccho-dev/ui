@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roccho.dev/schemas/ui/jsonl.record.generic.v1.schema.json",
+  "type": "object",
+  "required": ["kind", "recordId", "recordedAt", "payloadKind", "payload", "meta"],
+  "properties": {
+    "kind": { "const": "jsonl.record.generic.v1" },
+    "recordId": { "type": "string", "minLength": 1 },
+    "recordedAt": { "type": "string", "minLength": 1 },
+    "payloadKind": { "type": "string", "minLength": 1 },
+    "payloadVersion": { "type": "string" },
+    "payload": { "type": "object" },
+    "meta": {
+      "type": "object",
+      "required": ["canonicalStatus", "approval"],
+      "properties": {
+        "canonicalStatus": { "type": "string" },
+        "approval": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

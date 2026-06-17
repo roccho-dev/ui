@@ -1,0 +1,14 @@
+{
+  "name": "ui-modeling-corr-port",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "check": "node --check src/index.mjs && node --check src/corr-port.mjs && node --check src/adapters/index.mjs && node tests/check-ui-modeling.mjs",
+    "test": "npm run check"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./adapters": "./src/adapters/index.mjs"
+  }
+}

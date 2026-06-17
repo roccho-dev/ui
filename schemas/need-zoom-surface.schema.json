@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roccho.dev/schemas/ui/need_zoom.voronoi_surface.v1.schema.json",
+  "type": "object",
+  "required": ["kind", "surface", "facets", "nodes", "edges", "visibleNodeIds", "events", "received", "pool"],
+  "properties": {
+    "kind": { "const": "need_zoom.voronoi_surface.v1" },
+    "surface": { "type": "object" },
+    "facets": { "type": "array" },
+    "nodes": { "type": "array" },
+    "edges": { "type": "array" },
+    "visibleNodeIds": { "type": "array" },
+    "visibleEdges": { "type": "array" },
+    "events": { "type": "array" },
+    "received": { "type": "object" },
+    "pool": { "type": "object" }
+  },
+  "additionalProperties": true
+}
