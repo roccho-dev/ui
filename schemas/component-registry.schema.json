@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roccho.dev/schemas/ui/ui.component.registry.v1.schema.json",
+  "title": "ui.component.registry.v1",
+  "type": "object",
+  "required": ["kind", "components"],
+  "properties": {
+    "kind": { "const": "ui.component.registry.v1" },
+    "version": { "type": "string" },
+    "title": { "type": "string" },
+    "components": {
+      "type": "array",
+      "items": { "$ref": "https://roccho.dev/schemas/ui/ui.component.entry.v1.schema.json" }
+    }
+  },
+  "additionalProperties": true
+}

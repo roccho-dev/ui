@@ -36,3 +36,22 @@ export const jsBox = makeAdapterBox({
   produces: "js.asset",
   assets: ["view.js"],
 });
+
+// A2UI/SDUI surface adapter: consumes the registry view model, not raw DOM.
+export const questionnaireHtmlBox = makeAdapterBox({
+  id: "adapter.questionnaire.html.box",
+  adapterKind: "html",
+  accepts: "ui.surface.viewmodel.v1",
+  produces: "html.document.fragment",
+  assets: ["questionnaire.html", "questionnaire.css"],
+});
+
+// Future non-browser adapter: descriptor only, addable without changing the
+// core registry schema (C09).
+export const cliBox = makeAdapterBox({
+  id: "adapter.cli.box",
+  adapterKind: "cli",
+  accepts: "ui.surface.viewmodel.v1",
+  produces: "text.lines",
+  assets: [],
+});

@@ -15,14 +15,14 @@
           name = "ui-modeling-corr-port-check";
           runtimeInputs = [ pkgs.nodejs ];
           text = ''
-            exec node ${self}/tests/check-ui-modeling.mjs "$@"
+            exec node ${self}/tests/run-all.mjs "$@"
           '';
         };
       });
 
       checks = forEachSystem (pkgs: {
         ui-modeling-corr-port = pkgs.runCommand "ui-modeling-corr-port-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-          node ${self}/tests/check-ui-modeling.mjs
+          node ${self}/tests/run-all.mjs
           touch "$out"
         '';
       });

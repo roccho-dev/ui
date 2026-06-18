@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roccho.dev/schemas/ui/ui.node.v1.schema.json",
+  "title": "ui.node.v1",
+  "description": "Recursive registry node. type resolves to a registry component; children are themselves ui.node.v1.",
+  "type": "object",
+  "required": ["type"],
+  "properties": {
+    "type": { "type": "string", "minLength": 1 },
+    "id": { "type": "string" },
+    "props": { "type": "object" },
+    "children": {
+      "type": "array",
+      "items": { "$ref": "https://roccho.dev/schemas/ui/ui.node.v1.schema.json" }
+    }
+  },
+  "additionalProperties": true
+}

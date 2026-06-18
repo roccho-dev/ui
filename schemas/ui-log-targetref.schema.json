@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roccho.dev/schemas/ui/ui.log.targetref.v1.schema.json",
+  "title": "ui.log.record.v1 with targetRef (non-authority)",
+  "type": "object",
+  "required": ["kind", "recordId", "recordedAt", "payloadKind", "payload", "targetRef", "meta"],
+  "properties": {
+    "kind": { "const": "jsonl.record.generic.v1" },
+    "recordId": { "type": "string", "minLength": 1 },
+    "recordedAt": { "type": "string", "minLength": 1 },
+    "payloadKind": { "type": "string", "minLength": 1 },
+    "payloadVersion": { "type": "string" },
+    "payload": { "type": "object" },
+    "targetRef": {
+      "type": "object",
+      "required": ["targetKind", "targetId"],
+      "properties": {
+        "kind": { "const": "ui.targetRef.v1" },
+        "targetKind": {
+          "enum": ["purpose", "orgMember", "cxo", "product", "contract", "evidence", "relation", "generation", "projectionNode", "component", "custom"]
+        },
+        "targetId": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "path": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "meta": {
+      "type": "object",
+      "required": ["canonicalStatus", "approval"],
+      "properties": {
+        "canonicalStatus": { "type": "string", "description": "UI log is projection input, never SSOT/merge/fire authority" },
+        "approval": { "const": false },
+        "authorizesFire": { "const": false },
+        "authorizesMerge": { "const": false }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

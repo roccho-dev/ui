@@ -233,6 +233,9 @@ function projectCxoOverview(records, events) {
 }
 
 function projectActions(records) {
+  const currentPurpose = [...records]
+    .reverse()
+    .find((r) => r.payload?.kind === "need_zoom.event.v1" && r.payload?.type === "purpose.set" && r.payload?.label)?.payload?.label;
   return [
     {
       id: "post-mismatch",
@@ -240,6 +243,13 @@ function projectActions(records) {
       targetEndpoint: "/api/raw",
       payloadKind: "ui.review.feedback.v1",
       idempotencyKeyContract: "stable-ui-feedback-key",
+      // Explicit target so the queued feedback routes to the model element it
+      // concerns even after UI changes (C06). Additive to the existing shape.
+      targetRef: {
+        kind: "ui.targetRef.v1",
+        targetKind: "purpose",
+        targetId: currentPurpose || "unset",
+      },
       description: "Queue a review feedback post with deduplication support",
     },
   ];

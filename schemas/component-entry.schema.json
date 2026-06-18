@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roccho.dev/schemas/ui/ui.component.entry.v1.schema.json",
+  "title": "ui.component.entry.v1",
+  "type": "object",
+  "required": ["kind", "id", "version", "family", "stability"],
+  "properties": {
+    "kind": { "const": "ui.component.entry.v1" },
+    "id": { "type": "string", "minLength": 1, "description": "recursive node type / SDUI component id used for adapter lookup" },
+    "version": { "type": "string", "minLength": 1 },
+    "family": { "type": "string", "minLength": 1, "description": "open family label; new families need no schema change" },
+    "stability": { "enum": ["experimental", "stable", "deprecated"] },
+    "description": { "type": "string" },
+    "acceptsInputKinds": { "type": "array", "items": { "type": "string" } },
+    "producesOutputKinds": { "type": "array", "items": { "type": "string" } },
+    "props": { "type": "array", "items": { "type": "string" } },
+    "state": { "type": "array", "items": { "type": "string" } },
+    "events": { "type": "array", "items": { "type": "string" } },
+    "actions": { "type": "array", "items": { "type": "string" } },
+    "childrenPolicy": { "enum": ["recursive", "none", "templated", "generated"] },
+    "adapterAssets": { "type": "object" },
+    "allowedSurfaceIds": { "type": ["array", "null"], "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}
