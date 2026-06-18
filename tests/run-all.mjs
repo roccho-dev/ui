@@ -2,4 +2,5 @@
 // Nix flake check so local and SSOT verification exercise the same surface.
 import "./check-ui-modeling.mjs";
 import "./check-registry.mjs";
+import "./check-purpose-atlas-a2ui-surface.mjs";
 console.log("ui-all-checks-pass");

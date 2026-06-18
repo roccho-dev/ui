@@ -20,6 +20,9 @@ produces renderer-neutral projections.
 - Recursive node-tree projection with deterministic handling of unknown types.
 - `targetRef` for UI logs/actions/requests so records route to model elements.
 - Port/adapter **descriptors** for HTML, CSS, JS, and future CLI/TUI surfaces.
+- `packages/purpose-atlas-a2ui-surface`: proposal package for a Purpose Atlas
+  UI whose shape is specified by native A2UI v0.9 records, not by a visual
+  golden.
 
 ## Non-Scope
 
@@ -168,6 +171,20 @@ registry schema.
 - `htmlBox`, `cssBox`, `jsBox` (need_zoom surface)
 - `questionnaireHtmlBox` (A2UI/SDUI view model)
 - `cliBox` (future text surface)
+
+## Purpose Atlas A2UI Surface
+
+`packages/purpose-atlas-a2ui-surface` carries the Purpose Atlas UI as a native
+A2UI-described exit surface. Its component tree is controlled by
+`public/a2ui/purpose-atlas.surface.jsonl`, which declares `AtlasShell`,
+`AtlasHeader`, `AtlasToolbar`, `AtlasCanvas`, `AtlasInspector`, and
+`AtlasToast`.
+
+This package replaces the golden-witness direction. The goal is that agents can
+construct and revise UI from repo-local JSONL/A2UI records. It is not a
+semantic authority for purpose, role, policy, guard, approval, merge, or graph
+projection. See
+[`docs/proposals/purpose-atlas-a2ui-described-surface-260618.md`](docs/proposals/purpose-atlas-a2ui-described-surface-260618.md).
 
 ## Provenance
 

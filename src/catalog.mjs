@@ -63,11 +63,108 @@ export const needZoomComponents = [
   defineComponent({ id: "need_zoom.event.v1", family: "need_zoom", stability: "stable", description: "surface event (purpose.set, cxo.receive, ...)", props: ["type", "label", "by", "to", "topic", "node", "message", "at"], childrenPolicy: "none", events: ["need_zoom.event.v1"], producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
 ];
 
+const ATLAS_ACTIONS = [
+  "atlas.reset",
+  "atlas.previous",
+  "atlas.next",
+  "atlas.togglePlay",
+  "atlas.stepChanged",
+  "atlas.modeChanged",
+  "atlas.fit",
+  "atlas.zoomIn",
+  "atlas.zoomOut",
+  "atlas.select",
+  "atlas.recordMismatch",
+  "atlas.requestOwner",
+  "atlas.holdDecision",
+  "atlas.stepForward",
+  "atlas.clearSelection",
+];
+
+// --- purpose_atlas: A2UI-described exit surface ---
+// These components are intentionally decomposed. The host can rewrite the UI by
+// changing A2UI updateComponents/DataModel records instead of treating one
+// browser island as a visual golden.
+export const purposeAtlasComponents = [
+  defineComponent({
+    id: "AtlasShell",
+    family: "purpose_atlas",
+    stability: "experimental",
+    description: "Purpose Atlas layout shell wiring header, toolbar, canvas, inspector, and toast regions",
+    props: ["header", "toolbar", "canvas", "inspector", "toast"],
+    childrenPolicy: "generated",
+    allowedSurfaceIds: ["purpose-atlas"],
+    producesOutputKinds: ["a2ui.v0_9.component", "html.custom-element"],
+  }),
+  defineComponent({
+    id: "AtlasHeader",
+    family: "purpose_atlas",
+    stability: "experimental",
+    description: "Purpose status header bound to current purpose, guard, counts, and responsibility composition",
+    props: ["title", "subtitle", "step", "maxStep", "guard", "counts", "composition", "protocol"],
+    state: ["/meta", "/ui", "/atlas"],
+    childrenPolicy: "none",
+    allowedSurfaceIds: ["purpose-atlas"],
+    producesOutputKinds: ["a2ui.v0_9.component", "html.custom-element"],
+  }),
+  defineComponent({
+    id: "AtlasToolbar",
+    family: "purpose_atlas",
+    stability: "experimental",
+    description: "Timeline, mode, playback, fit, zoom, and navigation command bar",
+    props: ["step", "maxStep", "playing", "viewMode", "events"],
+    state: ["/ui", "/events"],
+    actions: ATLAS_ACTIONS.slice(0, 9),
+    events: ["A2uiAction"],
+    childrenPolicy: "none",
+    allowedSurfaceIds: ["purpose-atlas"],
+    producesOutputKinds: ["a2ui.v0_9.component", "html.custom-element"],
+  }),
+  defineComponent({
+    id: "AtlasCanvas",
+    family: "purpose_atlas",
+    stability: "experimental",
+    description: "Purpose graph canvas bound to the resolved /atlas snapshot and UI viewport/selection state",
+    props: ["snapshot", "viewport", "selection", "viewMode"],
+    state: ["/atlas", "/ui"],
+    actions: ["atlas.select"],
+    events: ["A2uiAction"],
+    childrenPolicy: "none",
+    allowedSurfaceIds: ["purpose-atlas"],
+    producesOutputKinds: ["a2ui.v0_9.component", "html.custom-element"],
+  }),
+  defineComponent({
+    id: "AtlasInspector",
+    family: "purpose_atlas",
+    stability: "experimental",
+    description: "Selection, guard, event log, CXO, and operation inspector with targetable UI actions",
+    props: ["details", "guard", "eventLog", "cxo", "operations", "lastEvent"],
+    state: ["/inspector", "/atlas", "/operations"],
+    actions: ATLAS_ACTIONS.slice(10),
+    events: ["A2uiAction"],
+    childrenPolicy: "none",
+    allowedSurfaceIds: ["purpose-atlas"],
+    producesOutputKinds: ["a2ui.v0_9.component", "html.custom-element"],
+  }),
+  defineComponent({
+    id: "AtlasToast",
+    family: "purpose_atlas",
+    stability: "experimental",
+    description: "Transient non-authority UI feedback region",
+    props: ["toast"],
+    state: ["/toast"],
+    childrenPolicy: "none",
+    allowedSurfaceIds: ["purpose-atlas"],
+    producesOutputKinds: ["a2ui.v0_9.component", "html.custom-element"],
+  }),
+];
+
 export const defaultEntries = [
   ...primitiveComponents,
   ...slideComponents,
   ...questionnaireComponents,
   ...needZoomComponents,
+  ...purposeAtlasComponents,
 ];
 
 export function defaultRegistry() {

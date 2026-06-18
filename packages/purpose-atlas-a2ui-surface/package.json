@@ -1,0 +1,28 @@
+{
+  "name": "purpose-atlas-a2ui",
+  "version": "6.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Purpose Decision Atlas v6 refactored to A2UI v0.9 JSON and @a2ui/web_core.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test test/*.test.mjs",
+    "verify": "npm run test && npm run lint:a2ui && npm run build && python scripts/verify_a2ui.py",
+    "lint:a2ui": "node scripts/validate-a2ui.mjs"
+  },
+  "dependencies": {
+    "@a2ui/lit": "0.10.1",
+    "@a2ui/web_core": "0.10.1",
+    "lit": "3.3.3",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "vite": "8.0.16"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

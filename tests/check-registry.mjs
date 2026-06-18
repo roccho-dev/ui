@@ -47,7 +47,7 @@ for (const entry of registry.list()) {
 
 // --- A2UI/SDUI families are first-class (C03) ---
 const families = registry.families();
-for (const fam of ["primitive", "layout", "action", "slide", "questionnaire", "need_zoom"]) {
+for (const fam of ["primitive", "layout", "action", "slide", "questionnaire", "need_zoom", "purpose_atlas"]) {
   assert.ok(families.includes(fam), `family ${fam} must be present`);
 }
 assert.ok(registry.has("Choice"), "questionnaire Choice component registered");
