@@ -23,7 +23,18 @@ produces renderer-neutral projections.
 
 ## Non-Scope
 
-- HTTP collectors, Caddy configuration, durable supervision.
+`ui` is one of several SSOT repos that touch browser UI. It owns the component
+registry contract and renderer-neutral component-tree projection only. The
+adjacent responsibilities below belong to sibling repos — see
+[`docs/ownership-boundaries.md`](docs/ownership-boundaries.md) for the full
+inventory, overlap map, and per-responsibility owner.
+
+- HTTP collectors, Caddy configuration, durable supervision — `ops`.
+- Browser hosting / static host and `dist/` + `/boards/*` serving — `webmcp`.
+- Board composition and `board-view.ir.v1` projection authority — `board-view`.
+- IR → HTML command-board rendering and host artifacts — `render-worktrees-agents`.
+- SDUI policy / validation authority — `policy` (`packages/sdui-policy-gate`);
+  `ui` supplies the registry shape that gate consumes, it does not validate.
 - Browser-only renderer ownership (adapters/examples carry DOM).
 - Canonical business state, approval, merge, or fire authority.
 
