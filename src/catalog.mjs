@@ -63,11 +63,57 @@ export const needZoomComponents = [
   defineComponent({ id: "need_zoom.event.v1", family: "need_zoom", stability: "stable", description: "surface event (purpose.set, cxo.receive, ...)", props: ["type", "label", "by", "to", "topic", "node", "message", "at"], childrenPolicy: "none", events: ["need_zoom.event.v1"], producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
 ];
 
+// --- purpose_atlas: source-UI A2UI exit surface ---
+// This descriptor connects the golden-witness Purpose Atlas package to the
+// ui registry. It is an exit-surface adapter contract only: purpose, policy,
+// guard, role, and responsibility projection authority must remain upstream.
+export const purposeAtlasComponents = [
+  defineComponent({
+    id: "AtlasSourceSurface",
+    family: "purpose_atlas",
+    stability: "experimental",
+    description: "single allowlisted source-UI component for the Purpose Atlas A2UI exit surface",
+    props: ["snapshot", "step", "viewMode", "viewport", "selection", "onAction"],
+    state: ["/meta", "/ui", "/atlas", "/inspector", "/events", "/operations", "/toast", "/runtime"],
+    actions: [
+      "atlas.reset",
+      "atlas.previous",
+      "atlas.next",
+      "atlas.togglePlay",
+      "atlas.stepChanged",
+      "atlas.modeChanged",
+      "atlas.fit",
+      "atlas.zoomIn",
+      "atlas.zoomOut",
+      "atlas.select",
+      "atlas.recordMismatch",
+      "atlas.requestOwner",
+      "atlas.holdDecision",
+      "atlas.stepForward",
+      "atlas.clearSelection",
+    ],
+    events: ["A2uiAction"],
+    childrenPolicy: "none",
+    adapterAssets: {
+      package: ["packages/purpose-atlas-source-ui-golden"],
+      source: [
+        "src/components/atlas-source-surface.js",
+        "src/ui/cached-atlas-renderer.js",
+        "src/styles/source-ui.css",
+      ],
+      witness: ["golden/GOLDEN_LOCK.json", "scripts/verify_golden.py", "scripts/browser_verify.py"],
+    },
+    allowedSurfaceIds: ["purpose-atlas"],
+    producesOutputKinds: ["a2ui.v0_9.surface", "html.custom-element"],
+  }),
+];
+
 export const defaultEntries = [
   ...primitiveComponents,
   ...slideComponents,
   ...questionnaireComponents,
   ...needZoomComponents,
+  ...purposeAtlasComponents,
 ];
 
 export function defaultRegistry() {

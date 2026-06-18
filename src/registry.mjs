@@ -23,6 +23,7 @@ export const KNOWN_FAMILIES = [
   "slide",
   "questionnaire",
   "need_zoom",
+  "purpose_atlas",
 ];
 
 function isObject(value) {

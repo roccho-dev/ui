@@ -34,6 +34,7 @@ export {
   slideComponents,
   questionnaireComponents,
   needZoomComponents,
+  purposeAtlasComponents,
   defaultEntries,
   defaultRegistry,
 } from "./catalog.mjs";

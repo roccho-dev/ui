@@ -1,0 +1,3272 @@
+{
+  "status": "pass",
+  "candidate": "dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html",
+  "results": {
+    "desktop": {
+      "pass": true,
+      "checks": {
+        "noConsoleErrors": true,
+        "a2uiSurfaceCreated": true,
+        "sourceUiInitialProjection": true,
+        "a2uiNextAction": true,
+        "responsibilityProjection": true,
+        "hoverDoesNotRebuildScene": true,
+        "responsibilityRingSelection": true,
+        "operationDedupe": true,
+        "purposeTransition": true,
+        "finalEvent": true,
+        "zoomRoundTrip": true,
+        "mobileInspectorPolicy": true
+      },
+      "errors": [],
+      "architecture": {
+        "app": 1,
+        "root": 1,
+        "canvases": 2,
+        "clientDataModel": true,
+        "surfaceId": "purpose-atlas"
+      },
+      "initial": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 7,
+        "currentPurpose": "衛星軌道投入",
+        "guard": "missing",
+        "guardText": "launch readinessが条件未達成",
+        "nextOwner": "CTO",
+        "visibleNodes": 27,
+        "visibleEdges": 27,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CEO",
+            "ratio": 1
+          }
+        ],
+        "totalOpsRecorded": 0,
+        "tipVisible": true,
+        "lastEvent": "purpose.set",
+        "metaOrder": [
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 0,
+            "x": 153,
+            "y": 169,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 297,
+            "y": 262,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 416,
+            "y": 546,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 2,
+            "x": 442,
+            "y": 403,
+            "actor": "COO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 464,
+            "y": 242,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 474,
+            "y": 159,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 2,
+            "x": 476,
+            "y": 308,
+            "actor": "CPO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 2,
+          "sceneBuilds": 2,
+          "sceneBlits": 2,
+          "overlayFrames": 2,
+          "hoverChanges": 0,
+          "lastFrameMs": 84.2,
+          "maxFrameMs": 182.5,
+          "mode": "responsibility",
+          "dpr": 1
+        },
+        "zoom": 0.7545606617647059,
+        "viewport": {
+          "panX": 96.80920955882351,
+          "panY": 33.46312499999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 464,
+            "y": 318,
+            "localX": 455,
+            "localY": 174
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 544,
+            "y": 491,
+            "localX": 535,
+            "localY": 347
+          },
+          {
+            "id": "ceo_valuation_story",
+            "actor": "CTO",
+            "x": 466,
+            "y": 344,
+            "localX": 457,
+            "localY": 200
+          },
+          {
+            "id": "ceo_company_sale",
+            "actor": "CTO",
+            "x": 340,
+            "y": 357,
+            "localX": 331,
+            "localY": 212
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 813,
+            "y": 516,
+            "localX": 804,
+            "localY": 371
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 837,
+            "y": 465,
+            "localX": 828,
+            "localY": 320
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 466,
+            "y": 429,
+            "localX": 457,
+            "localY": 285
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 649,
+            "y": 551,
+            "localX": 640,
+            "localY": 407
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 795,
+            "y": 555,
+            "localX": 786,
+            "localY": 410
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 809,
+            "y": 586,
+            "localX": 800,
+            "localY": 441
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 763,
+            "y": 614,
+            "localX": 754,
+            "localY": 469
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 448,
+            "y": 440,
+            "localX": 439,
+            "localY": 295
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 767,
+            "y": 650,
+            "localX": 758,
+            "localY": 505
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 815,
+            "y": 622,
+            "localX": 806,
+            "localY": 477
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 457,
+            "y": 487,
+            "localX": 448,
+            "localY": 343
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 409,
+            "y": 550,
+            "localX": 400,
+            "localY": 405
+          },
+          {
+            "id": "cfo_margin_model",
+            "actor": "CPO",
+            "x": 779,
+            "y": 692,
+            "localX": 770,
+            "localY": 548
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 754,
+            "y": 680,
+            "localX": 745,
+            "localY": 536
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 434,
+            "y": 578,
+            "localX": 425,
+            "localY": 434
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 472,
+            "y": 516,
+            "localX": 463,
+            "localY": 372
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 694,
+            "y": 622,
+            "localX": 685,
+            "localY": 477
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 649,
+            "y": 670,
+            "localX": 640,
+            "localY": 525
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 717,
+            "y": 563,
+            "localX": 708,
+            "localY": 419
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 753,
+            "y": 756,
+            "localX": 744,
+            "localY": 612
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 748,
+            "y": 805,
+            "localX": 739,
+            "localY": 660
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 818,
+            "y": 686,
+            "localX": 809,
+            "localY": 541
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "actor": "CEO",
+            "x": 222,
+            "y": 327,
+            "localX": 213,
+            "localY": 182
+          }
+        ],
+        "activeNodes": 27,
+        "activeEdges": 27,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "t20": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 20,
+        "currentPurpose": "衛星軌道投入",
+        "guard": "ok",
+        "guardText": "全要件が接続・充足",
+        "nextOwner": "CEO",
+        "visibleNodes": 31,
+        "visibleEdges": 32,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CPO",
+            "ratio": 0.286
+          },
+          {
+            "actor": "COO",
+            "ratio": 0.286
+          },
+          {
+            "actor": "OPS",
+            "ratio": 0.286
+          },
+          {
+            "actor": "CTO",
+            "ratio": 0.071
+          },
+          {
+            "actor": "CFO",
+            "ratio": 0.071
+          }
+        ],
+        "totalOpsRecorded": 0,
+        "tipVisible": true,
+        "lastEvent": "edge.upsert",
+        "metaOrder": [
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 0,
+            "x": 153,
+            "y": 169,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 344,
+            "y": 247,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 408,
+            "y": 553,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 458,
+            "y": 191,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 499,
+            "y": 269,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 3,
+            "x": 569,
+            "y": 508,
+            "actor": "COO",
+            "status": "planned"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 3,
+            "x": 591,
+            "y": 417,
+            "actor": "CPO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 4,
+          "sceneBuilds": 4,
+          "sceneBlits": 4,
+          "overlayFrames": 4,
+          "hoverChanges": 0,
+          "lastFrameMs": 56.1,
+          "maxFrameMs": 182.5,
+          "mode": "responsibility",
+          "dpr": 1
+        },
+        "zoom": 0.7545606617647059,
+        "viewport": {
+          "panX": 96.80920955882351,
+          "panY": 33.46312499999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 452,
+            "y": 342,
+            "localX": 443,
+            "localY": 198
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 565,
+            "y": 443,
+            "localX": 556,
+            "localY": 299
+          },
+          {
+            "id": "ceo_valuation_story",
+            "actor": "CTO",
+            "x": 492,
+            "y": 365,
+            "localX": 483,
+            "localY": 221
+          },
+          {
+            "id": "ceo_company_sale",
+            "actor": "CTO",
+            "x": 375,
+            "y": 346,
+            "localX": 366,
+            "localY": 201
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 678,
+            "y": 513,
+            "localX": 669,
+            "localY": 369
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 708,
+            "y": 458,
+            "localX": 699,
+            "localY": 313
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 552,
+            "y": 512,
+            "localX": 543,
+            "localY": 367
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 637,
+            "y": 575,
+            "localX": 628,
+            "localY": 431
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 817,
+            "y": 521,
+            "localX": 808,
+            "localY": 377
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 811,
+            "y": 578,
+            "localX": 802,
+            "localY": 434
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 773,
+            "y": 603,
+            "localX": 764,
+            "localY": 458
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 461,
+            "y": 419,
+            "localX": 452,
+            "localY": 274
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 771,
+            "y": 649,
+            "localX": 762,
+            "localY": 504
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 702,
+            "y": 559,
+            "localX": 693,
+            "localY": 414
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 552,
+            "y": 566,
+            "localX": 543,
+            "localY": 421
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 445,
+            "y": 479,
+            "localX": 436,
+            "localY": 335
+          },
+          {
+            "id": "cfo_margin_model",
+            "actor": "CPO",
+            "x": 473,
+            "y": 494,
+            "localX": 464,
+            "localY": 350
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 755,
+            "y": 691,
+            "localX": 746,
+            "localY": 546
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 429,
+            "y": 584,
+            "localX": 420,
+            "localY": 439
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 456,
+            "y": 536,
+            "localX": 447,
+            "localY": 391
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 680,
+            "y": 640,
+            "localX": 671,
+            "localY": 495
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 632,
+            "y": 703,
+            "localX": 623,
+            "localY": 558
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 704,
+            "y": 604,
+            "localX": 695,
+            "localY": 459
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 758,
+            "y": 750,
+            "localX": 749,
+            "localY": 605
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 908,
+            "y": 735,
+            "localX": 899,
+            "localY": 590
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 687,
+            "y": 685,
+            "localX": 678,
+            "localY": 541
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "actor": "CPO",
+            "x": 237,
+            "y": 292,
+            "localX": 228,
+            "localY": 147
+          },
+          {
+            "id": "coo_vehicle_company",
+            "actor": "CPO",
+            "x": 315,
+            "y": 461,
+            "localX": 306,
+            "localY": 316
+          },
+          {
+            "id": "cto_launch_readiness",
+            "actor": "CTO",
+            "x": 323,
+            "y": 433,
+            "localX": 314,
+            "localY": 288
+          },
+          {
+            "id": "cpo_payload_validated",
+            "actor": "CPO",
+            "x": 356,
+            "y": 316,
+            "localX": 347,
+            "localY": 171
+          },
+          {
+            "id": "ops_orbit_telemetry",
+            "actor": "OPS",
+            "x": 348,
+            "y": 536,
+            "localX": 339,
+            "localY": 392
+          }
+        ],
+        "activeNodes": 31,
+        "activeEdges": 32,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "ring": {
+        "point": {
+          "id": "ceo_exit_thesis",
+          "actor": "CEO",
+          "x": 452,
+          "y": 342,
+          "localX": 443,
+          "localY": 198
+        },
+        "tip": true,
+        "focus": "responsibility",
+        "selection": {
+          "type": "responsibility",
+          "actor": "CEO",
+          "nodeId": "ceo_exit_thesis"
+        },
+        "operationsAfterDuplicate": 1
+      },
+      "t39": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 39,
+        "currentPurpose": "幸せな老後",
+        "guard": "ok",
+        "guardText": "全要件が接続・充足",
+        "nextOwner": "CEO",
+        "visibleNodes": 36,
+        "visibleEdges": 37,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CPO",
+            "ratio": 0.263
+          },
+          {
+            "actor": "COO",
+            "ratio": 0.211
+          },
+          {
+            "actor": "OPS",
+            "ratio": 0.211
+          },
+          {
+            "actor": "CEO",
+            "ratio": 0.158
+          },
+          {
+            "actor": "CFO",
+            "ratio": 0.105
+          },
+          {
+            "actor": "CTO",
+            "ratio": 0.053
+          }
+        ],
+        "totalOpsRecorded": 1,
+        "tipVisible": true,
+        "lastEvent": "purpose.set",
+        "metaOrder": [
+          {
+            "id": "ceo_happy_retirement",
+            "label": "幸せな老後",
+            "rank": 0,
+            "x": 142,
+            "y": 202,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "label": "継承と還元",
+            "rank": 1,
+            "x": 280,
+            "y": 305,
+            "actor": "CPO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 346,
+            "y": 227,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 415,
+            "y": 537,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_health_time",
+            "label": "健康と時間",
+            "rank": 2,
+            "x": 418,
+            "y": 299,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 455,
+            "y": 199,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 495,
+            "y": 282,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_asset_income",
+            "label": "資産防衛",
+            "rank": 3,
+            "x": 615,
+            "y": 500,
+            "actor": "CFO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "label": "2社目事業売却",
+            "rank": 4,
+            "x": 740,
+            "y": 411,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 5,
+            "x": 953,
+            "y": 411,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 8,
+            "x": 1116,
+            "y": 756,
+            "actor": "CPO",
+            "status": "planned"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 8,
+            "x": 1119,
+            "y": 891,
+            "actor": "COO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 30,
+          "sceneBuilds": 7,
+          "sceneBlits": 7,
+          "overlayFrames": 30,
+          "hoverChanges": 24,
+          "lastFrameMs": 70,
+          "maxFrameMs": 182.5,
+          "mode": "responsibility",
+          "dpr": 1
+        },
+        "zoom": 0.7545606617647059,
+        "viewport": {
+          "panX": 96.80920955882351,
+          "panY": 33.46312499999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 450,
+            "y": 348,
+            "localX": 441,
+            "localY": 204
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 544,
+            "y": 491,
+            "localX": 535,
+            "localY": 347
+          },
+          {
+            "id": "ceo_valuation_story",
+            "actor": "CTO",
+            "x": 489,
+            "y": 374,
+            "localX": 480,
+            "localY": 230
+          },
+          {
+            "id": "ceo_company_sale",
+            "actor": "CTO",
+            "x": 377,
+            "y": 331,
+            "localX": 368,
+            "localY": 186
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 946,
+            "y": 734,
+            "localX": 937,
+            "localY": 590
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 954,
+            "y": 692,
+            "localX": 945,
+            "localY": 548
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 948,
+            "y": 768,
+            "localX": 939,
+            "localY": 623
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 642,
+            "y": 569,
+            "localX": 633,
+            "localY": 424
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 795,
+            "y": 568,
+            "localX": 786,
+            "localY": 424
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 792,
+            "y": 621,
+            "localX": 783,
+            "localY": 477
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 754,
+            "y": 653,
+            "localX": 745,
+            "localY": 508
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 455,
+            "y": 452,
+            "localX": 446,
+            "localY": 308
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 951,
+            "y": 847,
+            "localX": 942,
+            "localY": 702
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 953,
+            "y": 823,
+            "localX": 944,
+            "localY": 679
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 967,
+            "y": 855,
+            "localX": 958,
+            "localY": 711
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 428,
+            "y": 514,
+            "localX": 419,
+            "localY": 369
+          },
+          {
+            "id": "cfo_margin_model",
+            "actor": "CPO",
+            "x": 965,
+            "y": 766,
+            "localX": 956,
+            "localY": 622
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 750,
+            "y": 707,
+            "localX": 741,
+            "localY": 563
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 434,
+            "y": 572,
+            "localX": 425,
+            "localY": 427
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 466,
+            "y": 524,
+            "localX": 457,
+            "localY": 380
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 692,
+            "y": 626,
+            "localX": 683,
+            "localY": 482
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 647,
+            "y": 673,
+            "localX": 638,
+            "localY": 529
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 715,
+            "y": 568,
+            "localX": 706,
+            "localY": 424
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 951,
+            "y": 920,
+            "localX": 942,
+            "localY": 775
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 954,
+            "y": 921,
+            "localX": 945,
+            "localY": 776
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 954,
+            "y": 892,
+            "localX": 945,
+            "localY": 748
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "actor": "CPO",
+            "x": 841,
+            "y": 474,
+            "localX": 832,
+            "localY": 330
+          },
+          {
+            "id": "coo_vehicle_company",
+            "actor": "CPO",
+            "x": 885,
+            "y": 709,
+            "localX": 876,
+            "localY": 565
+          },
+          {
+            "id": "cto_launch_readiness",
+            "actor": "CTO",
+            "x": 891,
+            "y": 672,
+            "localX": 882,
+            "localY": 527
+          },
+          {
+            "id": "cpo_payload_validated",
+            "actor": "CPO",
+            "x": 914,
+            "y": 606,
+            "localX": 905,
+            "localY": 461
+          },
+          {
+            "id": "ops_orbit_telemetry",
+            "actor": "OPS",
+            "x": 890,
+            "y": 812,
+            "localX": 881,
+            "localY": 668
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "actor": "CPO",
+            "x": 677,
+            "y": 475,
+            "localX": 668,
+            "localY": 331
+          },
+          {
+            "id": "cfo_asset_income",
+            "actor": "CPO",
+            "x": 582,
+            "y": 542,
+            "localX": 573,
+            "localY": 398
+          },
+          {
+            "id": "ceo_health_time",
+            "actor": "CPO",
+            "x": 432,
+            "y": 390,
+            "localX": 423,
+            "localY": 246
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "actor": "CPO",
+            "x": 328,
+            "y": 395,
+            "localX": 319,
+            "localY": 250
+          },
+          {
+            "id": "ceo_happy_retirement",
+            "actor": "CPO",
+            "x": 227,
+            "y": 316,
+            "localX": 218,
+            "localY": 172
+          }
+        ],
+        "activeNodes": 36,
+        "activeEdges": 37,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "final": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 40,
+        "currentPurpose": "幸せな老後",
+        "guard": "ok",
+        "guardText": "全要件が接続・充足",
+        "nextOwner": "CEO",
+        "visibleNodes": 36,
+        "visibleEdges": 37,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CPO",
+            "ratio": 0.263
+          },
+          {
+            "actor": "COO",
+            "ratio": 0.211
+          },
+          {
+            "actor": "OPS",
+            "ratio": 0.211
+          },
+          {
+            "actor": "CEO",
+            "ratio": 0.158
+          },
+          {
+            "actor": "CFO",
+            "ratio": 0.105
+          },
+          {
+            "actor": "CTO",
+            "ratio": 0.053
+          }
+        ],
+        "totalOpsRecorded": 1,
+        "tipVisible": true,
+        "lastEvent": "cxo.activity",
+        "metaOrder": [
+          {
+            "id": "ceo_happy_retirement",
+            "label": "幸せな老後",
+            "rank": 0,
+            "x": 142,
+            "y": 202,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "label": "継承と還元",
+            "rank": 1,
+            "x": 280,
+            "y": 305,
+            "actor": "CPO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 346,
+            "y": 227,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 415,
+            "y": 537,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_health_time",
+            "label": "健康と時間",
+            "rank": 2,
+            "x": 418,
+            "y": 299,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 455,
+            "y": 199,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 495,
+            "y": 282,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_asset_income",
+            "label": "資産防衛",
+            "rank": 3,
+            "x": 615,
+            "y": 500,
+            "actor": "CFO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "label": "2社目事業売却",
+            "rank": 4,
+            "x": 740,
+            "y": 411,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 5,
+            "x": 953,
+            "y": 411,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 8,
+            "x": 1116,
+            "y": 756,
+            "actor": "CPO",
+            "status": "planned"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 8,
+            "x": 1119,
+            "y": 891,
+            "actor": "COO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 31,
+          "sceneBuilds": 8,
+          "sceneBlits": 8,
+          "overlayFrames": 31,
+          "hoverChanges": 24,
+          "lastFrameMs": 75.9,
+          "maxFrameMs": 182.5,
+          "mode": "responsibility",
+          "dpr": 1
+        },
+        "zoom": 0.7545606617647059,
+        "viewport": {
+          "panX": 96.80920955882351,
+          "panY": 33.46312499999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 450,
+            "y": 348,
+            "localX": 441,
+            "localY": 204
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 544,
+            "y": 491,
+            "localX": 535,
+            "localY": 347
+          },
+          {
+            "id": "ceo_valuation_story",
+            "actor": "CTO",
+            "x": 489,
+            "y": 374,
+            "localX": 480,
+            "localY": 230
+          },
+          {
+            "id": "ceo_company_sale",
+            "actor": "CTO",
+            "x": 377,
+            "y": 331,
+            "localX": 368,
+            "localY": 186
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 946,
+            "y": 734,
+            "localX": 937,
+            "localY": 590
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 954,
+            "y": 692,
+            "localX": 945,
+            "localY": 548
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 948,
+            "y": 768,
+            "localX": 939,
+            "localY": 623
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 642,
+            "y": 569,
+            "localX": 633,
+            "localY": 424
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 795,
+            "y": 568,
+            "localX": 786,
+            "localY": 424
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 792,
+            "y": 621,
+            "localX": 783,
+            "localY": 477
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 754,
+            "y": 653,
+            "localX": 745,
+            "localY": 508
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 455,
+            "y": 452,
+            "localX": 446,
+            "localY": 308
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 951,
+            "y": 847,
+            "localX": 942,
+            "localY": 702
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 953,
+            "y": 823,
+            "localX": 944,
+            "localY": 679
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 967,
+            "y": 855,
+            "localX": 958,
+            "localY": 711
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 428,
+            "y": 514,
+            "localX": 419,
+            "localY": 369
+          },
+          {
+            "id": "cfo_margin_model",
+            "actor": "CPO",
+            "x": 965,
+            "y": 766,
+            "localX": 956,
+            "localY": 622
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 750,
+            "y": 707,
+            "localX": 741,
+            "localY": 563
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 434,
+            "y": 572,
+            "localX": 425,
+            "localY": 427
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 466,
+            "y": 524,
+            "localX": 457,
+            "localY": 380
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 692,
+            "y": 626,
+            "localX": 683,
+            "localY": 482
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 647,
+            "y": 673,
+            "localX": 638,
+            "localY": 529
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 715,
+            "y": 568,
+            "localX": 706,
+            "localY": 424
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 951,
+            "y": 920,
+            "localX": 942,
+            "localY": 775
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 954,
+            "y": 921,
+            "localX": 945,
+            "localY": 776
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 954,
+            "y": 892,
+            "localX": 945,
+            "localY": 748
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "actor": "CPO",
+            "x": 841,
+            "y": 474,
+            "localX": 832,
+            "localY": 330
+          },
+          {
+            "id": "coo_vehicle_company",
+            "actor": "CPO",
+            "x": 885,
+            "y": 709,
+            "localX": 876,
+            "localY": 565
+          },
+          {
+            "id": "cto_launch_readiness",
+            "actor": "CTO",
+            "x": 891,
+            "y": 672,
+            "localX": 882,
+            "localY": 527
+          },
+          {
+            "id": "cpo_payload_validated",
+            "actor": "CPO",
+            "x": 914,
+            "y": 606,
+            "localX": 905,
+            "localY": 461
+          },
+          {
+            "id": "ops_orbit_telemetry",
+            "actor": "OPS",
+            "x": 890,
+            "y": 812,
+            "localX": 881,
+            "localY": 668
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "actor": "CPO",
+            "x": 677,
+            "y": 475,
+            "localX": 668,
+            "localY": 331
+          },
+          {
+            "id": "cfo_asset_income",
+            "actor": "CPO",
+            "x": 582,
+            "y": 542,
+            "localX": 573,
+            "localY": 398
+          },
+          {
+            "id": "ceo_health_time",
+            "actor": "CPO",
+            "x": 432,
+            "y": 390,
+            "localX": 423,
+            "localY": 246
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "actor": "CPO",
+            "x": 328,
+            "y": 395,
+            "localX": 319,
+            "localY": 250
+          },
+          {
+            "id": "ceo_happy_retirement",
+            "actor": "CPO",
+            "x": 227,
+            "y": 316,
+            "localX": 218,
+            "localY": 172
+          }
+        ],
+        "activeNodes": 36,
+        "activeEdges": 37,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "zoom": [
+        0.7545606617647059,
+        0.890381580882353,
+        0.7545606617647059
+      ],
+      "hover": {
+        "sceneBuildsBefore": 4,
+        "sceneBuildsAfter": 4,
+        "overlayFramesBefore": 4,
+        "overlayFramesAfter": 27,
+        "hoverChanges": 23
+      }
+    },
+    "mobile": {
+      "pass": true,
+      "checks": {
+        "noConsoleErrors": true,
+        "a2uiSurfaceCreated": true,
+        "sourceUiInitialProjection": true,
+        "a2uiNextAction": true,
+        "responsibilityProjection": true,
+        "hoverDoesNotRebuildScene": true,
+        "responsibilityRingSelection": true,
+        "operationDedupe": true,
+        "purposeTransition": true,
+        "finalEvent": true,
+        "zoomRoundTrip": true,
+        "mobileInspectorPolicy": true
+      },
+      "errors": [],
+      "architecture": {
+        "app": 1,
+        "root": 1,
+        "canvases": 2,
+        "clientDataModel": true,
+        "surfaceId": "purpose-atlas"
+      },
+      "initial": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 7,
+        "currentPurpose": "衛星軌道投入",
+        "guard": "missing",
+        "guardText": "launch readinessが条件未達成",
+        "nextOwner": "CTO",
+        "visibleNodes": 27,
+        "visibleEdges": 27,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CEO",
+            "ratio": 1
+          }
+        ],
+        "totalOpsRecorded": 0,
+        "tipVisible": false,
+        "lastEvent": "purpose.set",
+        "metaOrder": [
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 0,
+            "x": 153,
+            "y": 169,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 297,
+            "y": 262,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 416,
+            "y": 546,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 2,
+            "x": 442,
+            "y": 403,
+            "actor": "COO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 464,
+            "y": 242,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 474,
+            "y": 159,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 2,
+            "x": 476,
+            "y": 308,
+            "actor": "CPO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 2,
+          "sceneBuilds": 2,
+          "sceneBlits": 2,
+          "overlayFrames": 2,
+          "hoverChanges": 0,
+          "lastFrameMs": 40.9,
+          "maxFrameMs": 162.4,
+          "mode": "responsibility",
+          "dpr": 1.5
+        },
+        "zoom": 0.38,
+        "viewport": {
+          "panX": 8,
+          "panY": 64.00468749999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 195,
+            "y": 366,
+            "localX": 188,
+            "localY": 135
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 236,
+            "y": 453,
+            "localX": 229,
+            "localY": 222
+          },
+          {
+            "id": "ceo_valuation_story",
+            "actor": "CTO",
+            "x": 196,
+            "y": 379,
+            "localX": 189,
+            "localY": 148
+          },
+          {
+            "id": "ceo_company_sale",
+            "actor": "CTO",
+            "x": 133,
+            "y": 385,
+            "localX": 126,
+            "localY": 154
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 371,
+            "y": 465,
+            "localX": 364,
+            "localY": 234
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 383,
+            "y": 440,
+            "localX": 376,
+            "localY": 208
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 196,
+            "y": 422,
+            "localX": 189,
+            "localY": 191
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 288,
+            "y": 483,
+            "localX": 281,
+            "localY": 252
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 362,
+            "y": 485,
+            "localX": 355,
+            "localY": 254
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 369,
+            "y": 501,
+            "localX": 362,
+            "localY": 269
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 346,
+            "y": 515,
+            "localX": 339,
+            "localY": 283
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 187,
+            "y": 427,
+            "localX": 180,
+            "localY": 196
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 348,
+            "y": 533,
+            "localX": 341,
+            "localY": 302
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 372,
+            "y": 519,
+            "localX": 365,
+            "localY": 288
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 192,
+            "y": 451,
+            "localX": 185,
+            "localY": 220
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 168,
+            "y": 483,
+            "localX": 161,
+            "localY": 251
+          },
+          {
+            "id": "cfo_margin_model",
+            "actor": "CPO",
+            "x": 354,
+            "y": 554,
+            "localX": 347,
+            "localY": 323
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 342,
+            "y": 548,
+            "localX": 335,
+            "localY": 317
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 180,
+            "y": 497,
+            "localX": 173,
+            "localY": 266
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 199,
+            "y": 466,
+            "localX": 192,
+            "localY": 234
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 311,
+            "y": 519,
+            "localX": 304,
+            "localY": 288
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 289,
+            "y": 543,
+            "localX": 282,
+            "localY": 312
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 323,
+            "y": 489,
+            "localX": 316,
+            "localY": 258
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 341,
+            "y": 587,
+            "localX": 334,
+            "localY": 355
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 338,
+            "y": 611,
+            "localX": 331,
+            "localY": 380
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 374,
+            "y": 551,
+            "localX": 367,
+            "localY": 320
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "actor": "CEO",
+            "x": 73,
+            "y": 370,
+            "localX": 66,
+            "localY": 139
+          }
+        ],
+        "activeNodes": 27,
+        "activeEdges": 27,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "t20": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 20,
+        "currentPurpose": "衛星軌道投入",
+        "guard": "ok",
+        "guardText": "全要件が接続・充足",
+        "nextOwner": "CEO",
+        "visibleNodes": 31,
+        "visibleEdges": 32,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CPO",
+            "ratio": 0.286
+          },
+          {
+            "actor": "COO",
+            "ratio": 0.286
+          },
+          {
+            "actor": "OPS",
+            "ratio": 0.286
+          },
+          {
+            "actor": "CTO",
+            "ratio": 0.071
+          },
+          {
+            "actor": "CFO",
+            "ratio": 0.071
+          }
+        ],
+        "totalOpsRecorded": 0,
+        "tipVisible": false,
+        "lastEvent": "edge.upsert",
+        "metaOrder": [
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 0,
+            "x": 153,
+            "y": 169,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 344,
+            "y": 247,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 408,
+            "y": 553,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 458,
+            "y": 191,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 499,
+            "y": 269,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 3,
+            "x": 569,
+            "y": 508,
+            "actor": "COO",
+            "status": "planned"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 3,
+            "x": 591,
+            "y": 417,
+            "actor": "CPO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 4,
+          "sceneBuilds": 4,
+          "sceneBlits": 4,
+          "overlayFrames": 4,
+          "hoverChanges": 0,
+          "lastFrameMs": 62.4,
+          "maxFrameMs": 162.4,
+          "mode": "responsibility",
+          "dpr": 1.5
+        },
+        "zoom": 0.38,
+        "viewport": {
+          "panX": 8,
+          "panY": 64.00468749999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 189,
+            "y": 378,
+            "localX": 182,
+            "localY": 147
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 246,
+            "y": 429,
+            "localX": 239,
+            "localY": 198
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 303,
+            "y": 464,
+            "localX": 296,
+            "localY": 233
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 319,
+            "y": 436,
+            "localX": 312,
+            "localY": 205
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 240,
+            "y": 464,
+            "localX": 233,
+            "localY": 232
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 283,
+            "y": 496,
+            "localX": 276,
+            "localY": 264
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 373,
+            "y": 468,
+            "localX": 366,
+            "localY": 237
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 370,
+            "y": 497,
+            "localX": 363,
+            "localY": 266
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 351,
+            "y": 509,
+            "localX": 344,
+            "localY": 278
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 194,
+            "y": 417,
+            "localX": 187,
+            "localY": 185
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 350,
+            "y": 533,
+            "localX": 343,
+            "localY": 301
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 315,
+            "y": 487,
+            "localX": 308,
+            "localY": 256
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 240,
+            "y": 491,
+            "localX": 233,
+            "localY": 259
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 186,
+            "y": 447,
+            "localX": 179,
+            "localY": 216
+          },
+          {
+            "id": "cfo_margin_model",
+            "actor": "CPO",
+            "x": 200,
+            "y": 455,
+            "localX": 193,
+            "localY": 223
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 342,
+            "y": 554,
+            "localX": 335,
+            "localY": 322
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 178,
+            "y": 500,
+            "localX": 171,
+            "localY": 268
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 192,
+            "y": 476,
+            "localX": 185,
+            "localY": 244
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 304,
+            "y": 528,
+            "localX": 297,
+            "localY": 297
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 280,
+            "y": 560,
+            "localX": 273,
+            "localY": 328
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 316,
+            "y": 510,
+            "localX": 309,
+            "localY": 278
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 343,
+            "y": 583,
+            "localX": 336,
+            "localY": 352
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 419,
+            "y": 576,
+            "localX": 412,
+            "localY": 345
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 308,
+            "y": 551,
+            "localX": 301,
+            "localY": 320
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "actor": "CPO",
+            "x": 81,
+            "y": 353,
+            "localX": 74,
+            "localY": 121
+          },
+          {
+            "id": "coo_vehicle_company",
+            "actor": "CPO",
+            "x": 121,
+            "y": 438,
+            "localX": 114,
+            "localY": 207
+          },
+          {
+            "id": "cto_launch_readiness",
+            "actor": "CTO",
+            "x": 125,
+            "y": 424,
+            "localX": 118,
+            "localY": 192
+          },
+          {
+            "id": "cpo_payload_validated",
+            "actor": "CPO",
+            "x": 141,
+            "y": 365,
+            "localX": 134,
+            "localY": 133
+          },
+          {
+            "id": "ops_orbit_telemetry",
+            "actor": "OPS",
+            "x": 137,
+            "y": 476,
+            "localX": 130,
+            "localY": 244
+          }
+        ],
+        "activeNodes": 29,
+        "activeEdges": 32,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "ring": {
+        "point": {
+          "id": "ceo_exit_thesis",
+          "actor": "CEO",
+          "x": 189,
+          "y": 378,
+          "localX": 182,
+          "localY": 147
+        },
+        "tip": true,
+        "focus": "responsibility",
+        "selection": {
+          "type": "responsibility",
+          "actor": "CEO",
+          "nodeId": "ceo_exit_thesis"
+        },
+        "operationsAfterDuplicate": 1
+      },
+      "t39": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 39,
+        "currentPurpose": "幸せな老後",
+        "guard": "ok",
+        "guardText": "全要件が接続・充足",
+        "nextOwner": "CEO",
+        "visibleNodes": 36,
+        "visibleEdges": 37,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CPO",
+            "ratio": 0.263
+          },
+          {
+            "actor": "COO",
+            "ratio": 0.211
+          },
+          {
+            "actor": "OPS",
+            "ratio": 0.211
+          },
+          {
+            "actor": "CEO",
+            "ratio": 0.158
+          },
+          {
+            "actor": "CFO",
+            "ratio": 0.105
+          },
+          {
+            "actor": "CTO",
+            "ratio": 0.053
+          }
+        ],
+        "totalOpsRecorded": 1,
+        "tipVisible": false,
+        "lastEvent": "purpose.set",
+        "metaOrder": [
+          {
+            "id": "ceo_happy_retirement",
+            "label": "幸せな老後",
+            "rank": 0,
+            "x": 142,
+            "y": 202,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "label": "継承と還元",
+            "rank": 1,
+            "x": 280,
+            "y": 305,
+            "actor": "CPO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 346,
+            "y": 227,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 415,
+            "y": 537,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_health_time",
+            "label": "健康と時間",
+            "rank": 2,
+            "x": 418,
+            "y": 299,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 455,
+            "y": 199,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 495,
+            "y": 282,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_asset_income",
+            "label": "資産防衛",
+            "rank": 3,
+            "x": 615,
+            "y": 500,
+            "actor": "CFO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "label": "2社目事業売却",
+            "rank": 4,
+            "x": 740,
+            "y": 411,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 5,
+            "x": 953,
+            "y": 411,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 8,
+            "x": 1116,
+            "y": 756,
+            "actor": "CPO",
+            "status": "planned"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 8,
+            "x": 1119,
+            "y": 891,
+            "actor": "COO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 8,
+          "sceneBuilds": 8,
+          "sceneBlits": 8,
+          "overlayFrames": 8,
+          "hoverChanges": 0,
+          "lastFrameMs": 59.9,
+          "maxFrameMs": 162.4,
+          "mode": "responsibility",
+          "dpr": 1.5
+        },
+        "zoom": 0.38,
+        "viewport": {
+          "panX": 8,
+          "panY": 41.50468749999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 188,
+            "y": 404,
+            "localX": 181,
+            "localY": 127
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 236,
+            "y": 476,
+            "localX": 229,
+            "localY": 199
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 438,
+            "y": 598,
+            "localX": 431,
+            "localY": 322
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 442,
+            "y": 577,
+            "localX": 435,
+            "localY": 300
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 439,
+            "y": 615,
+            "localX": 432,
+            "localY": 338
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 285,
+            "y": 515,
+            "localX": 278,
+            "localY": 238
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 362,
+            "y": 515,
+            "localX": 355,
+            "localY": 238
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 361,
+            "y": 541,
+            "localX": 354,
+            "localY": 265
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 342,
+            "y": 557,
+            "localX": 335,
+            "localY": 281
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 191,
+            "y": 456,
+            "localX": 184,
+            "localY": 180
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 441,
+            "y": 655,
+            "localX": 434,
+            "localY": 378
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 441,
+            "y": 643,
+            "localX": 434,
+            "localY": 366
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 449,
+            "y": 659,
+            "localX": 442,
+            "localY": 383
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 177,
+            "y": 487,
+            "localX": 170,
+            "localY": 211
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 340,
+            "y": 584,
+            "localX": 333,
+            "localY": 308
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 180,
+            "y": 516,
+            "localX": 173,
+            "localY": 240
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 196,
+            "y": 492,
+            "localX": 189,
+            "localY": 216
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 310,
+            "y": 544,
+            "localX": 303,
+            "localY": 267
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 288,
+            "y": 567,
+            "localX": 281,
+            "localY": 291
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 322,
+            "y": 515,
+            "localX": 315,
+            "localY": 238
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 441,
+            "y": 691,
+            "localX": 434,
+            "localY": 415
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 442,
+            "y": 692,
+            "localX": 435,
+            "localY": 416
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 442,
+            "y": 678,
+            "localX": 435,
+            "localY": 401
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "actor": "CPO",
+            "x": 303,
+            "y": 468,
+            "localX": 296,
+            "localY": 191
+          },
+          {
+            "id": "cfo_asset_income",
+            "actor": "CPO",
+            "x": 255,
+            "y": 501,
+            "localX": 248,
+            "localY": 225
+          },
+          {
+            "id": "ceo_health_time",
+            "actor": "CPO",
+            "x": 179,
+            "y": 425,
+            "localX": 172,
+            "localY": 148
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "actor": "CPO",
+            "x": 127,
+            "y": 427,
+            "localX": 120,
+            "localY": 151
+          },
+          {
+            "id": "ceo_happy_retirement",
+            "actor": "CPO",
+            "x": 76,
+            "y": 387,
+            "localX": 69,
+            "localY": 111
+          }
+        ],
+        "activeNodes": 28,
+        "activeEdges": 37,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "final": {
+        "version": "v6-a2ui-source-ui-refactor",
+        "t": 40,
+        "currentPurpose": "幸せな老後",
+        "guard": "ok",
+        "guardText": "全要件が接続・充足",
+        "nextOwner": "CEO",
+        "visibleNodes": 36,
+        "visibleEdges": 37,
+        "roleNodeCount": 0,
+        "responsibilityComposition": [
+          {
+            "actor": "CPO",
+            "ratio": 0.263
+          },
+          {
+            "actor": "COO",
+            "ratio": 0.211
+          },
+          {
+            "actor": "OPS",
+            "ratio": 0.211
+          },
+          {
+            "actor": "CEO",
+            "ratio": 0.158
+          },
+          {
+            "actor": "CFO",
+            "ratio": 0.105
+          },
+          {
+            "actor": "CTO",
+            "ratio": 0.053
+          }
+        ],
+        "totalOpsRecorded": 1,
+        "tipVisible": false,
+        "lastEvent": "cxo.activity",
+        "metaOrder": [
+          {
+            "id": "ceo_happy_retirement",
+            "label": "幸せな老後",
+            "rank": 0,
+            "x": 142,
+            "y": 202,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "label": "継承と還元",
+            "rank": 1,
+            "x": 280,
+            "y": 305,
+            "actor": "CPO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_company_sale",
+            "label": "法人売却",
+            "rank": 1,
+            "x": 346,
+            "y": 227,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_valuation_model",
+            "label": "評価モデル",
+            "rank": 2,
+            "x": 415,
+            "y": 537,
+            "actor": "CFO",
+            "status": "planned"
+          },
+          {
+            "id": "ceo_health_time",
+            "label": "健康と時間",
+            "rank": 2,
+            "x": 418,
+            "y": 299,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_exit_thesis",
+            "label": "売却仮説",
+            "rank": 2,
+            "x": 455,
+            "y": 199,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_valuation_story",
+            "label": "価値説明",
+            "rank": 2,
+            "x": 495,
+            "y": 282,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cfo_asset_income",
+            "label": "資産防衛",
+            "rank": 3,
+            "x": 615,
+            "y": 500,
+            "actor": "CFO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "label": "2社目事業売却",
+            "rank": 4,
+            "x": 740,
+            "y": 411,
+            "actor": "CEO",
+            "status": "active"
+          },
+          {
+            "id": "ceo_orbit_mission",
+            "label": "衛星軌道投入",
+            "rank": 5,
+            "x": 953,
+            "y": 411,
+            "actor": "CEO",
+            "status": "archived"
+          },
+          {
+            "id": "cpo_high_price_product",
+            "label": "高単価商品",
+            "rank": 8,
+            "x": 1116,
+            "y": 756,
+            "actor": "CPO",
+            "status": "planned"
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "label": "内部低コスト",
+            "rank": 8,
+            "x": 1119,
+            "y": 891,
+            "actor": "COO",
+            "status": "planned"
+          }
+        ],
+        "render": {
+          "frames": 9,
+          "sceneBuilds": 9,
+          "sceneBlits": 9,
+          "overlayFrames": 9,
+          "hoverChanges": 0,
+          "lastFrameMs": 32.8,
+          "maxFrameMs": 162.4,
+          "mode": "responsibility",
+          "dpr": 1.5
+        },
+        "zoom": 0.38,
+        "viewport": {
+          "panX": 8,
+          "panY": 41.50468749999999
+        },
+        "viewMode": "responsibility",
+        "focusType": null,
+        "responsibilityTestPoints": [
+          {
+            "id": "ceo_exit_thesis",
+            "actor": "CEO",
+            "x": 188,
+            "y": 404,
+            "localX": 181,
+            "localY": 127
+          },
+          {
+            "id": "ceo_buyer_hypothesis",
+            "actor": "CEO",
+            "x": 236,
+            "y": 476,
+            "localX": 229,
+            "localY": 199
+          },
+          {
+            "id": "cpo_pkg_atlas",
+            "actor": "CPO",
+            "x": 438,
+            "y": 598,
+            "localX": 431,
+            "localY": 322
+          },
+          {
+            "id": "cpo_pkg_ui",
+            "actor": "CPO",
+            "x": 442,
+            "y": 577,
+            "localX": 435,
+            "localY": 300
+          },
+          {
+            "id": "cpo_high_price_product",
+            "actor": "CPO",
+            "x": 439,
+            "y": 615,
+            "localX": 432,
+            "localY": 338
+          },
+          {
+            "id": "cpo_customer_proof",
+            "actor": "CPO",
+            "x": 285,
+            "y": 515,
+            "localX": 278,
+            "localY": 238
+          },
+          {
+            "id": "cto_pkg_core",
+            "actor": "CTO",
+            "x": 362,
+            "y": 515,
+            "localX": 355,
+            "localY": 238
+          },
+          {
+            "id": "cto_pkg_api",
+            "actor": "CTO",
+            "x": 361,
+            "y": 541,
+            "localX": 354,
+            "localY": 265
+          },
+          {
+            "id": "cto_audit_log",
+            "actor": "CTO",
+            "x": 342,
+            "y": 557,
+            "localX": 335,
+            "localY": 281
+          },
+          {
+            "id": "cto_tech_dd",
+            "actor": "CTO",
+            "x": 191,
+            "y": 456,
+            "localX": 184,
+            "localY": 180
+          },
+          {
+            "id": "coo_pkg_ops",
+            "actor": "COO",
+            "x": 441,
+            "y": 655,
+            "localX": 434,
+            "localY": 378
+          },
+          {
+            "id": "coo_sop",
+            "actor": "COO",
+            "x": 441,
+            "y": 643,
+            "localX": 434,
+            "localY": 366
+          },
+          {
+            "id": "coo_internal_low_cost",
+            "actor": "OPS",
+            "x": 449,
+            "y": 659,
+            "localX": 442,
+            "localY": 383
+          },
+          {
+            "id": "coo_handover",
+            "actor": "COO",
+            "x": 177,
+            "y": 487,
+            "localX": 170,
+            "localY": 211
+          },
+          {
+            "id": "cfo_monthly_close",
+            "actor": "CFO",
+            "x": 340,
+            "y": 584,
+            "localX": 333,
+            "localY": 308
+          },
+          {
+            "id": "cfo_valuation_model",
+            "actor": "CPO",
+            "x": 180,
+            "y": 516,
+            "localX": 173,
+            "localY": 240
+          },
+          {
+            "id": "cfo_finance_dd",
+            "actor": "CFO",
+            "x": 196,
+            "y": 492,
+            "localX": 189,
+            "localY": 216
+          },
+          {
+            "id": "review_pkg_core",
+            "actor": "REVIEW",
+            "x": 310,
+            "y": 544,
+            "localX": 303,
+            "localY": 267
+          },
+          {
+            "id": "review_quality_gate",
+            "actor": "REVIEW",
+            "x": 288,
+            "y": 567,
+            "localX": 281,
+            "localY": 291
+          },
+          {
+            "id": "review_risk_register",
+            "actor": "REVIEW",
+            "x": 322,
+            "y": 515,
+            "localX": 315,
+            "localY": 238
+          },
+          {
+            "id": "ops_agent_automation",
+            "actor": "OPS",
+            "x": 441,
+            "y": 691,
+            "localX": 434,
+            "localY": 415
+          },
+          {
+            "id": "ops_agent_monitoring",
+            "actor": "OPS",
+            "x": 442,
+            "y": 692,
+            "localX": 435,
+            "localY": 416
+          },
+          {
+            "id": "ops_agent_cost_bot",
+            "actor": "OPS",
+            "x": 442,
+            "y": 678,
+            "localX": 435,
+            "localY": 401
+          },
+          {
+            "id": "ceo_second_partial_sale",
+            "actor": "CPO",
+            "x": 303,
+            "y": 468,
+            "localX": 296,
+            "localY": 191
+          },
+          {
+            "id": "cfo_asset_income",
+            "actor": "CPO",
+            "x": 255,
+            "y": 501,
+            "localX": 248,
+            "localY": 225
+          },
+          {
+            "id": "ceo_health_time",
+            "actor": "CPO",
+            "x": 179,
+            "y": 425,
+            "localX": 172,
+            "localY": 148
+          },
+          {
+            "id": "cpo_legacy_giveback",
+            "actor": "CPO",
+            "x": 127,
+            "y": 427,
+            "localX": 120,
+            "localY": 151
+          },
+          {
+            "id": "ceo_happy_retirement",
+            "actor": "CPO",
+            "x": 76,
+            "y": 387,
+            "localX": 69,
+            "localY": 111
+          }
+        ],
+        "activeNodes": 28,
+        "activeEdges": 37,
+        "actorOrder": [
+          "CEO",
+          "CTO",
+          "CFO",
+          "CPO",
+          "COO",
+          "REVIEW",
+          "OPS"
+        ]
+      },
+      "zoom": [
+        0.38,
+        0.44839999999999997,
+        0.38
+      ],
+      "hover": {
+        "sceneBuildsBefore": 4,
+        "sceneBuildsAfter": 4,
+        "overlayFramesBefore": 4,
+        "overlayFramesAfter": 4,
+        "hoverChanges": 0
+      }
+    }
+  }
+}
