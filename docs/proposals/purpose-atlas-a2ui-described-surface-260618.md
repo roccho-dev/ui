@@ -63,3 +63,17 @@ This proposal is acceptable only if:
 - package tests and static verification pass under Nix;
 - the next adapter can replace browser-side demo `/atlas` with external
   `a2ui.context.surface.v1` without changing the UI component contract.
+
+## Verification Scope
+
+The root Nix check is the merge gate for `ui.git`. It verifies the registry,
+that all six Purpose Atlas components are registered, that the A2UI surface uses
+the expected catalog id and component list, that DataModel bindings stay under
+the allowed roots, that no executable payload keys/text are present, that
+component props are allowlisted, and that registry-declared actions match the
+15 action names used by the A2UI surface.
+
+The package-level `npm run verify` remains developer evidence for the embedded
+demo package: it runs the package's node tests, A2UI lint, Vite build, and
+static verification. It is not the root merge gate and must not be read as a
+semantic authority claim for `/atlas`.

@@ -1,1 +1,7 @@
 result
+node_modules/
+dist/
+evidence/
+packages/*/node_modules/
+packages/*/dist/
+packages/*/evidence/
