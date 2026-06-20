@@ -48,6 +48,14 @@ export {
 } from "./project.mjs";
 
 export {
+  buildMentionIndex,
+  makeOwnerRawInputDraft,
+  normalizeMentionRef,
+  parseMentionTokens,
+  projectAccessibleLogPanel,
+} from "./mention-a11y.mjs";
+
+export {
   TARGET_KINDS,
   FORBIDDEN_AUTHORITY_FIELDS,
   makeTargetRef,
