@@ -12,7 +12,7 @@ produces renderer-neutral projections.
 
 ## Scope
 
-- `ui.component.registry.v1`: the component registry contract (ids, versions,
+-  (Purpose Atlas A2UI v0.9 source UI root: )
   accepted input kinds, produced output kinds, props/state/events, adapter
   assets, stability).
 - A default catalog of A2UI/SDUI components: primitives, layout, action, slide,
@@ -165,9 +165,32 @@ Adapters are descriptors only. They declare what a host may mount; they do not
 own renderer state. CLI/TUI adapters can be added without changing the core
 registry schema.
 
-- `htmlBox`, `cssBox`, `jsBox` (need_zoom surface)
-- `questionnaireHtmlBox` (A2UI/SDUI view model)
-- `cliBox` (future text surface)
+- htmlBox, cssBox, jsBox (need_zoom surface)
+- purposeAtlasHtmlBox (Purpose Atlas A2UI v0.9 source UI root: index.html)
+- questionnaireHtmlBox (A2UI/SDUI view model)
+- cliBox (future text surface)
+
+## Purpose Atlas A2UI Root
+
+The current human-facing root is the Purpose Decision Atlas v6 A2UI witness:
+
+- browser root: index.html
+- source package: examples/purpose-atlas-v6-a2ui
+- A2UI surface JSONL: examples/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl
+- custom component: AtlasSourceSurface
+- adapter descriptor: purposeAtlasHtmlBox
+- golden/browser evidence: examples/purpose-atlas-v6-a2ui/evidence
+
+The root HTML is adapter material. The UI contract remains A2UI v0.9 surface
+JSONL, an allowlisted AtlasSourceSurface component, and the source/golden
+witness package under examples/purpose-atlas-v6-a2ui.
+
+Fixed local host command:
+
+  npm run host
+  purpose-atlas-host http://127.0.0.1:18083/
+
+Port 18083 is intentionally fixed for recognition and review. Do not rotate it per run.
 
 ## Provenance
 

@@ -37,6 +37,14 @@ export const jsBox = makeAdapterBox({
   assets: ["view.js"],
 });
 
+export const purposeAtlasHtmlBox = makeAdapterBox({
+  id: "adapter.purpose_atlas.a2ui.html.box",
+  adapterKind: "html",
+  accepts: "a2ui.surface.v0.9",
+  produces: "html.document",
+  assets: ["index.html"],
+});
+
 // A2UI/SDUI surface adapter: consumes the registry view model, not raw DOM.
 export const questionnaireHtmlBox = makeAdapterBox({
   id: "adapter.questionnaire.html.box",

@@ -8,6 +8,7 @@ import {
   htmlBox,
   jsBox,
   cssBox,
+  purposeAtlasHtmlBox,
   parseJsonl,
   payloadKindCounts,
   projectNeedZoomSurface,
@@ -70,7 +71,7 @@ assert.equal(envelope.kind, "jsonl.record.generic.v1");
 assert.equal(envelope.payloadKind, "need_zoom.event.v1");
 assert.equal(envelope.meta.approval, false);
 
-for (const box of [htmlBox, cssBox, jsBox]) {
+for (const box of [htmlBox, cssBox, jsBox, purposeAtlasHtmlBox]) {
   assert.equal(box.kind, "ui.adapter.box.v1");
   assert.equal(box.ownsState, false);
   assert.ok(box.assets.length >= 1);

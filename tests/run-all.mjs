@@ -3,4 +3,5 @@
 import "./check-ui-modeling.mjs";
 import "./check-registry.mjs";
 import "./check-mention-a11y.mjs";
+import "./check-purpose-atlas.mjs";
 console.log("ui-all-checks-pass");

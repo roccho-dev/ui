@@ -1,0 +1,178 @@
+{
+  "status": "pass",
+  "golden": {
+    "id": "purpose-decision-atlas-v6-ui-refactor/latest-source",
+    "source": "golden/source/ui-shell.html",
+    "form": "uncompressed files copied from latest source tree",
+    "integrity": {
+      "pass": true,
+      "goldenId": "purpose-decision-atlas-v6-ui-refactor/latest-source",
+      "uiSource": "golden/source/ui-shell.html",
+      "sourceForm": "uncompressed files copied from latest source tree",
+      "files": {
+        "ui-shell.html": "6d2c0e8d85d38282dc9956af5769d4439251bea46ec1943d655361e58f114f23",
+        "ui.css": "3f47bef169ae828f7ff263e76a20206434287991636078b6e3cb8affd09e19c8",
+        "ui-renderer.js": "51a3bac296fe7bd461e896e755eff5c08a959f56af9be8f90d069592334b16eb",
+        "model-core.js": "2a24d775734696f7c3567d1d4d7ff0ce067813f06b4dbd909bc9823709cad420",
+        "build_preview.py": "e7cfcb43a67197314e7797114ef561c4881609c72557dc1831edf7e6ece55d04",
+        "golden.desktop.t7.reference.png": "62b7ea34669b35d10108c0ae8167d11f19674ed47b4155dafb0ae5d1ee89bc49",
+        "golden.mobile.t7.reference.png": "8da444555b0c76564dd9fcaaa087406e246b006f0aab65f504a900c7cdd9b3b7"
+      },
+      "mismatches": []
+    }
+  },
+  "candidate": "dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html",
+  "semantic": {
+    "pass": true,
+    "requirement": "exact canonical equality",
+    "stepsCompared": 41,
+    "fieldsPerStep": 11,
+    "combinedProjectionSha256": "b4cd99919d463414b9a1914daf0fd03e419c549e457f93cfad8475b46ca567c4",
+    "mismatches": [],
+    "goldenErrors": [],
+    "candidateErrors": []
+  },
+  "visual": {
+    "desktop": {
+      "pass": true,
+      "checks": {
+        "noBrowserErrors": true,
+        "sameSemanticState": true,
+        "sameImageSize": true,
+        "ssimThreshold": true,
+        "pixelAgreementThreshold": true,
+        "textExact": true,
+        "geometryThreshold": true
+      },
+      "metrics": {
+        "sameSize": true,
+        "size": [
+          1440,
+          1050
+        ],
+        "ssim": 0.9999544742611902,
+        "mae": 0.007515652570873499,
+        "rmse": 0.5275661945343018,
+        "exactPixelRatio": 0.9997169312169312,
+        "pixelsWithin5Ratio": 0.9997493386243387,
+        "pixelsWithin15Ratio": 0.9997936507936508,
+        "pixelsWithin30Ratio": 0.9998644179894179,
+        "maxChannelDifference": 65.0
+      },
+      "geometry": {
+        "textExact": true,
+        "maximumBoxDeltaPx": 0.062,
+        "selectorsCompared": 17,
+        "mismatches": []
+      },
+      "goldenErrors": [],
+      "candidateErrors": [],
+      "files": {
+        "golden": "golden.desktop.t7.png",
+        "candidate": "candidate.desktop.t7.png",
+        "diff": "diff.desktop.t7.png"
+      }
+    },
+    "mobile": {
+      "pass": true,
+      "checks": {
+        "noBrowserErrors": true,
+        "sameSemanticState": true,
+        "sameImageSize": true,
+        "ssimThreshold": true,
+        "pixelAgreementThreshold": true,
+        "textExact": true,
+        "geometryThreshold": true
+      },
+      "metrics": {
+        "sameSize": true,
+        "size": [
+          780,
+          1688
+        ],
+        "ssim": 0.9999551903355544,
+        "mae": 0.00903030950576067,
+        "rmse": 0.5591996908187866,
+        "exactPixelRatio": 0.9996073338194191,
+        "pixelsWithin5Ratio": 0.9996513853445133,
+        "pixelsWithin15Ratio": 0.9997478429942885,
+        "pixelsWithin30Ratio": 0.9998344270263702,
+        "maxChannelDifference": 65.0
+      },
+      "geometry": {
+        "textExact": true,
+        "maximumBoxDeltaPx": 0.032,
+        "selectorsCompared": 17,
+        "mismatches": []
+      },
+      "goldenErrors": [],
+      "candidateErrors": [],
+      "files": {
+        "golden": "golden.mobile.t7.png",
+        "candidate": "candidate.mobile.t7.png",
+        "diff": "diff.mobile.t7.png"
+      }
+    }
+  },
+  "policy": {
+    "goldenId": "purpose-decision-atlas-v6-ui-refactor/latest-source",
+    "uiSource": "golden/source/ui-shell.html",
+    "sourceForm": "uncompressed files copied from latest source tree",
+    "sourceFilesSha256": {
+      "ui-shell.html": "6d2c0e8d85d38282dc9956af5769d4439251bea46ec1943d655361e58f114f23",
+      "ui.css": "3f47bef169ae828f7ff263e76a20206434287991636078b6e3cb8affd09e19c8",
+      "ui-renderer.js": "51a3bac296fe7bd461e896e755eff5c08a959f56af9be8f90d069592334b16eb",
+      "model-core.js": "2a24d775734696f7c3567d1d4d7ff0ce067813f06b4dbd909bc9823709cad420",
+      "build_preview.py": "e7cfcb43a67197314e7797114ef561c4881609c72557dc1831edf7e6ece55d04",
+      "golden.desktop.t7.reference.png": "62b7ea34669b35d10108c0ae8167d11f19674ed47b4155dafb0ae5d1ee89bc49",
+      "golden.mobile.t7.reference.png": "8da444555b0c76564dd9fcaaa087406e246b006f0aab65f504a900c7cdd9b3b7"
+    },
+    "semanticWitness": {
+      "steps": [
+        0,
+        40
+      ],
+      "count": 41,
+      "fields": [
+        "t",
+        "currentPurpose",
+        "guard",
+        "guardText",
+        "nextOwner",
+        "visibleNodes",
+        "visibleEdges",
+        "roleNodeCount",
+        "responsibilityComposition",
+        "lastEvent",
+        "metaOrder"
+      ],
+      "requirement": "exact canonical equality at every step"
+    },
+    "visualWitness": {
+      "state": "t7 responsibility",
+      "viewports": {
+        "desktop": {
+          "width": 1440,
+          "height": 1050,
+          "deviceScaleFactor": 1
+        },
+        "mobile": {
+          "width": 390,
+          "height": 844,
+          "deviceScaleFactor": 2
+        }
+      },
+      "thresholds": {
+        "globalSsimMin": 0.999,
+        "pixelsWithin15Min": 0.999,
+        "geometryMaxDeltaPx": 0.1,
+        "text": "exact"
+      }
+    },
+    "dataCanonicalSha256": {
+      "nodes": "cba717e3374507748235831de2b4a5599766087ca6796e6e9c9cbac11af46d8a",
+      "edges": "9b56473947bfe6f7dab68f9efa8dcb36142389b62e822232201032b023b35930",
+      "events": "8bdcfb66db4c56122244bc1417c3eedf776a6b18ef481cdf124efd9b191e5c4e"
+    }
+  }
+}

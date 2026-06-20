@@ -14,6 +14,7 @@ export {
   jsBox,
   makeAdapterBox,
   cliBox,
+  purposeAtlasHtmlBox,
   questionnaireHtmlBox,
 } from "./adapters/index.mjs";
 
@@ -34,6 +35,7 @@ export {
   slideComponents,
   questionnaireComponents,
   needZoomComponents,
+  purposeAtlasComponents,
   defaultEntries,
   defaultRegistry,
 } from "./catalog.mjs";
