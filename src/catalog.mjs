@@ -63,11 +63,28 @@ export const needZoomComponents = [
   defineComponent({ id: "need_zoom.event.v1", family: "need_zoom", stability: "stable", description: "surface event (purpose.set, cxo.receive, ...)", props: ["type", "label", "by", "to", "topic", "node", "message", "at"], childrenPolicy: "none", events: ["need_zoom.event.v1"], producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
 ];
 
+export const purposeAtlasComponents = [
+  defineComponent({
+    id: "AtlasSourceSurface",
+    family: "purpose_atlas",
+    stability: "stable",
+    description: "A2UI v0.9 custom component for Purpose Decision Atlas source UI",
+    props: ["snapshot", "step", "maxStep", "playing", "viewMode", "viewport", "selection", "events", "operations", "toast"],
+    state: ["/atlas", "/ui/step", "/ui/viewMode", "/ui/viewport", "/ui/selection", "/events", "/operations", "/toast"],
+    actions: ["atlas.reset", "atlas.previous", "atlas.next", "atlas.togglePlay", "atlas.stepChanged", "atlas.modeChanged", "atlas.fit", "atlas.zoomIn", "atlas.zoomOut", "atlas.select", "atlas.recordMismatch", "atlas.requestOwner", "atlas.holdDecision", "atlas.stepForward", "atlas.clearSelection"],
+    events: ["A2UIActionEvent"],
+    childrenPolicy: "none",
+    producesOutputKinds: ["a2ui.surface.v0.9", "html.document"],
+    adapterAssets: { html: ["index.html"], a2ui: ["examples/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl"] },
+  }),
+];
+
 export const defaultEntries = [
   ...primitiveComponents,
   ...slideComponents,
   ...questionnaireComponents,
   ...needZoomComponents,
+  ...purposeAtlasComponents,
 ];
 
 export function defaultRegistry() {

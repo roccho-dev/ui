@@ -5,6 +5,7 @@
 // never touches the DOM.
 
 import { defaultRegistry } from "./catalog.mjs";
+import { projectNeedZoomSurface } from "./corr-port.mjs";
 
 const SURFACE_KIND = "ui.surface.viewmodel.v1";
 

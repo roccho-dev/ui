@@ -1,0 +1,42 @@
+{
+  "status": "pass",
+  "package": {
+    "name": "purpose-atlas-v6-a2ui-source-ui-refactor",
+    "version": "6.2.0"
+  },
+  "protocol": "v0.9",
+  "webCore": "0.10.1",
+  "lit": "0.10.1",
+  "vite": "8.0.16",
+  "esbuild": "0.28.1",
+  "messages": 3,
+  "components": 1,
+  "actions": 15,
+  "baseNodes": 26,
+  "baseEdges": 27,
+  "timelineEvents": 40,
+  "canonicalSha256": {
+    "nodes": "cba717e3374507748235831de2b4a5599766087ca6796e6e9c9cbac11af46d8a",
+    "edges": "9b56473947bfe6f7dab68f9efa8dcb36142389b62e822232201032b023b35930",
+    "events": "8bdcfb66db4c56122244bc1417c3eedf776a6b18ef481cdf124efd9b191e5c4e"
+  },
+  "roleOnlyNodes": 0,
+  "testCases": 14,
+  "rendererImprovements": {
+    "offscreenWorldCache": true,
+    "twoCanvasLayers": true,
+    "pointerRafCoalescing": true,
+    "hoverOverlayOnly": true,
+    "desktopDprCap2MobileCap1_5": true,
+    "sceneBuildCounter": true
+  },
+  "imperativePatternCounts": {
+    "getElementById": 0,
+    "innerHTML": 0,
+    "eval": 0,
+    "newFunction": 0
+  },
+  "goldenSource": "golden/source/ui-shell.html",
+  "standaloneBytes": 315741,
+  "distBytes": 1721858
+}
