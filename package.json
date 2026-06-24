@@ -4,9 +4,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "check": "node --check src/index.mjs && node --check src/corr-port.mjs && node --check src/adapters/index.mjs && node --check src/registry.mjs && node --check src/catalog.mjs && node --check src/project.mjs && node --check src/log.mjs && node --check examples/project-registry.mjs && node tests/run-all.mjs",
+    "check": "node --check src/index.mjs && node --check src/corr-port.mjs && node --check src/adapters/index.mjs && node --check src/registry.mjs && node --check src/catalog.mjs && node --check src/project.mjs && node --check src/log.mjs && node --check examples/project-registry.mjs && node --check scripts/build-html.mjs && node tests/run-all.mjs",
     "test": "npm run check",
-    "example": "node examples/project-registry.mjs"
+    "example": "node examples/project-registry.mjs",
+    "build:html": "node scripts/build-html.mjs"
   },
   "exports": {
     ".": "./src/index.mjs",
