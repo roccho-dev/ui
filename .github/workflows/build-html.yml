@@ -1,12 +1,13 @@
 name: Build HTML
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
       - claude/ui-modeling-corr-port-260618
-      - proposal/**
+      - "proposal/**"
 
 permissions:
   contents: read
