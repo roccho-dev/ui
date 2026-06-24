@@ -1,0 +1,65 @@
+name: Purpose Atlas Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "preview/**"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  preview:
+    name: Package Purpose Atlas preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test root package
+        run: npm test
+
+      - name: Smoke host
+        run: |
+          npm run host > /tmp/purpose-atlas-host.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..20}; do
+            if curl -fsS http://127.0.0.1:18083/ -o /tmp/purpose-atlas-index.html; then
+              break
+            fi
+            sleep 1
+          done
+          test -s /tmp/purpose-atlas-index.html
+          grep -q "Purpose Decision Atlas v6" /tmp/purpose-atlas-index.html
+          cat /tmp/purpose-atlas-host.log
+
+      - name: Package preview files
+        run: |
+          rm -rf purpose-atlas-preview
+          mkdir -p purpose-atlas-preview/root purpose-atlas-preview/examples
+          cp index.html purpose-atlas-preview/root/index.html
+          cp README.md purpose-atlas-preview/root/README.md
+          cp package.json purpose-atlas-preview/root/package.json
+          cp -R examples/purpose-atlas-v6-a2ui/dist purpose-atlas-preview/examples/dist
+          cp -R examples/purpose-atlas-v6-a2ui/evidence purpose-atlas-preview/examples/evidence
+          cp examples/purpose-atlas-v6-a2ui/MANIFEST.sha256 purpose-atlas-preview/examples/MANIFEST.sha256
+          cp examples/purpose-atlas-v6-a2ui/README.md purpose-atlas-preview/examples/README.md
+          find purpose-atlas-preview -maxdepth 3 -type f | sort
+
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: purpose-atlas-a2ui-root-preview
+          path: purpose-atlas-preview/
+          if-no-files-found: error
