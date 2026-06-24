@@ -1,0 +1,49 @@
+name: Build HTML
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - claude/ui-modeling-corr-port-260618
+      - proposal/**
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-html:
+    name: Build static HTML
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test
+        run: npm test
+
+      - name: Build HTML
+        run: npm run build:html
+
+      - name: Verify built HTML
+        run: |
+          test -s dist/index.html
+          test -s dist/view-model.json
+          grep -q "ui static build" dist/index.html
+          ls -lah dist
+
+      - name: Upload built HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-built-html
+          path: dist/
+          if-no-files-found: error
