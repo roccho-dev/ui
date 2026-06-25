@@ -3,13 +3,6 @@ name: Nix Flake Check
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - "flake.nix"
-      - "flake.lock"
-      - "package.json"
-      - "src/**"
-      - "tests/**"
-      - ".github/workflows/nix-flake-check.yml"
 
 permissions:
   contents: read
