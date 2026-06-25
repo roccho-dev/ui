@@ -25,6 +25,11 @@
           node ${self}/tests/run-all.mjs
           touch "$out"
         '';
+
+        a2ui-shell-data-design-invariants = pkgs.runCommand "a2ui-shell-data-design-invariants" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          node ${self}/tests/check-a2ui-shell-data-boundary.mjs
+          touch "$out"
+        '';
       });
     };
 }

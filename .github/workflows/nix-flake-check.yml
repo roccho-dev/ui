@@ -1,0 +1,42 @@
+name: Nix Flake Check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "package.json"
+      - "src/**"
+      - "tests/**"
+      - ".github/workflows/nix-flake-check.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: nix-flake-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nix-flake-check:
+    name: nix flake check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Run flake check
+        run: nix flake check --print-build-logs
