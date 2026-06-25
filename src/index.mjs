@@ -65,3 +65,18 @@ export {
   toUiLog,
   makeUiAction,
 } from "./log.mjs";
+
+export {
+  GENERIC_A2UI_BUILDER_VERSION,
+  applyDataCartridge,
+  buildGenericA2uiPreview,
+  compileShell,
+  jsonlLines,
+  makeGenericA2uiFixture,
+  parseJsonlLines,
+  renderShellHtml,
+  sha256,
+  stableJson,
+  validateDataCartridgeRows,
+  validateShellRows,
+} from "./a2ui-shell-builder.mjs";
