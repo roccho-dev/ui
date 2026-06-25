@@ -5,6 +5,10 @@ boundary. It is the single source of truth (SSOT) for *what UI components
 exist*, *what they accept and produce*, and *how recursive UI node trees project
 into renderer-neutral view models*.
 
+This SSOT scope is limited to UI contracts, registry entries, projection
+contracts, and adapter descriptors. It is not source-of-truth state for ADR,
+domain, business, approval, merge, or fire decisions.
+
 This repo keeps runtime ingress and rendering out. Collectors, Caddy, and
 durable process supervision belong to operational repos. Browser DOM, HTML, and
 CSS belong to adapters/examples. `ui` accepts JSONL records as input and
@@ -185,6 +189,28 @@ The root HTML is adapter material. The UI contract remains A2UI v0.9 surface
 JSONL, an allowlisted AtlasSourceSurface component, and the source/golden
 witness package under examples/purpose-atlas-v6-a2ui.
 
+### Purpose Atlas authority boundary
+
+Purpose Decision Atlas v6 uses `core+port as lib`: core owns deterministic
+projection, replay, witness, and view-model logic; ports own the input boundary,
+A2UI build boundary, and render/verify boundary. Runtime input is expected to be
+`ADRS projected input` (`adrs projected input`) produced outside this repo and
+passed into the UI contract boundary.
+
+A2UI is `a2ui as build`. A2UI surface JSONL, preview HTML, runtime state,
+replay state, and witness output are build or verification artifacts, not
+ADR/domain authority.
+
+JSONL in this repo is `jsonl as attached data`. JSONL fixtures are allowed for
+tests, examples, preview, replay, and witness evidence, but fixtures must be
+`stateless` and `non-authoritative`. A fixture must not claim current business
+state, accepted ADR/domain decisions, CEO judgment completion, owner approval,
+canonical state, merge readiness, or fire/operation authority.
+
+`ui.git is not a state store`. Runtime operations such as mismatch, request
+owner, hold decision, replay state, and in-memory UI interactions are render
+behavior only. They do not store or approve canonical ADR/domain decisions.
+
 Fixed local host command:
 
   npm run host
@@ -201,3 +227,5 @@ verbatim:
 - `questionnaire-js-poc` → questionnaire flow integration; `fixtures/questionnaire.flow.jsonl`.
 
 The zips are reference/proposal inputs. This repo is the SSOT.
+This repo is the SSOT for the UI registry contract only; it is not the SSOT for
+ADR/domain state.

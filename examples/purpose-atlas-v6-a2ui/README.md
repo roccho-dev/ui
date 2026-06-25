@@ -28,6 +28,25 @@ evidence/browser-verification.json
     desktop/mobileのA2UI action・選択・cache・操作検証
 ```
 
+## Contract authority boundary
+
+Purpose Decision Atlas v6 treats `ui.git` as the UI contract and verification
+repo only. Runtime authority for ADR/domain state is expected to arrive as
+`ADRS projected input` (`adrs projected input`) from outside this repo.
+
+The package is `core+port as lib`: core owns deterministic atlas projection,
+replay, witness, and validation; ports own the input, `a2ui as build`, and
+render/verify boundaries.
+
+JSONL is `jsonl as attached data`. JSONL fixtures and embedded preview data are
+for tests, examples, replay, and witness evidence only. They are `stateless` and
+`non-authoritative`, and must be replaceable by ADRS projected input without
+changing the UI contract.
+
+`ui.git is not a state store`. Runtime operations such as mismatch, request
+owner, hold decision, replay position, and in-memory UI state are not accepted
+ADR/domain decisions.
+
 ## 取り込んだJS改善
 
 `src/ui/cached-atlas-renderer.js`に次を統合しています。
@@ -50,7 +69,7 @@ UI構造、文言、responsive CSSは最新sourceを基準に維持し、A2UI側
 | witness | 合格条件 | 同梱結果 |
 |---|---|---:|
 | source integrity | golden sourceのSHA-256一致 | PASS |
-| canonical data | nodes / edges / events hash一致 | 26 / 27 / 40 PASS |
+| fixture data | nodes / edges / events hash一致 | 26 / 27 / 40 PASS |
 | semantic replay | t0〜t40、11項目を完全一致 | 41 / 41 PASS |
 | desktop visual | 1440×1050、SSIM ≥ 0.999 | 0.999954 PASS |
 | mobile visual | 390×844、DPR 2、SSIM ≥ 0.999 | 0.999955 PASS |
@@ -156,7 +175,7 @@ src/domain/atlas-engine.js               pure replay / guard / layout / responsi
 src/components/atlas-source-surface.js   latest source UIのLit実装
 src/ui/cached-atlas-renderer.js           cache描画とinteraction
 src/styles/source-ui.css                  latest source CSSのShadow DOM適応版
-src/data/atlas-data.json                  canonical graph + 40 events
+src/data/atlas-data.json                  stateless fixture graph + 40 events
 golden/source/                            latest uncompressed source UI
 golden/GOLDEN_LOCK.json                   golden hashと比較policy
 scripts/verify_golden.py                  semantic + visual witness

@@ -8,14 +8,70 @@ import { defaultRegistry, purposeAtlasHtmlBox } from "../src/index.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const atlasRoot = path.join(root, "examples/purpose-atlas-v6-a2ui");
 const surfacePath = path.join(atlasRoot, "public/a2ui/purpose-atlas.surface.jsonl");
+const atlasDataPath = path.join(atlasRoot, "src/data/atlas-data.json");
+const dataContractPath = path.join(atlasRoot, "docs/A2UI-DATA-CONTRACT.md");
+const atlasReadmePath = path.join(atlasRoot, "README.md");
 const witnessPath = path.join(atlasRoot, "evidence/golden-witness.json");
 const browserWitnessPath = path.join(atlasRoot, "evidence/browser-verification.json");
+
+const contractPhrases = [
+  "ADRS projected input",
+  "adrs projected input",
+  "core+port as lib",
+  "a2ui as build",
+  "jsonl as attached data",
+  "stateless",
+  "non-authoritative",
+  "ui.git is not a state store",
+];
+
+const forbiddenAuthorityFields = [
+  "approval",
+  "approvalStatus",
+  "canonicalState",
+  "mergeReady",
+  "authorizesFire",
+  "authorizesMerge",
+  "ownerDecisionAccepted",
+  "decisionAccepted",
+];
+
+function assertContainsPhrases(label, text, phrases) {
+  for (const phrase of phrases) {
+    assert.ok(text.includes(phrase), `${label} must contain ${phrase}`);
+  }
+}
+
+function assertNoForbiddenKeys(label, value, trail = []) {
+  if (!value || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoForbiddenKeys(label, item, [...trail, index]));
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    assert.ok(
+      !forbiddenAuthorityFields.includes(key),
+      `${label} must not assert authority field ${[...trail, key].join(".")}`,
+    );
+    assertNoForbiddenKeys(label, value[key], [...trail, key]);
+  }
+}
 
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.match(html, /Purpose Decision Atlas v6/);
 assert.match(html, /__purposeAtlasSurfaceJsonl/);
 assert.match(html, /purpose-atlas-app/);
 assert.doesNotMatch(html, /need-zoom-purpose-lineage/);
+
+const rootReadme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+const atlasReadme = fs.readFileSync(atlasReadmePath, "utf8");
+const dataContract = fs.readFileSync(dataContractPath, "utf8");
+assertContainsPhrases("root README", rootReadme, contractPhrases);
+assertContainsPhrases("Purpose Atlas README", atlasReadme, contractPhrases);
+assertContainsPhrases("Purpose Atlas data contract", dataContract, contractPhrases);
+assert.match(dataContract, /inputAuthority: external to ui\.git/);
+assert.match(dataContract, /replaceable by ADRS\s+projected input/);
+assert.match(dataContract, /runtime behavior only/);
 
 const surfaceText = fs.readFileSync(surfacePath, "utf8");
 const surfaceLines = surfaceText.trim().split(/\n+/).map((line) => JSON.parse(line));
@@ -47,6 +103,10 @@ assert.deepEqual(actionNames, [
   "atlas.zoomOut",
 ].sort());
 assert.doesNotMatch(surfaceText, /functionCall|<script|innerHTML|eval\(/);
+assertNoForbiddenKeys("Purpose Atlas A2UI surface JSONL", surfaceLines);
+
+const atlasData = JSON.parse(fs.readFileSync(atlasDataPath, "utf8"));
+assertNoForbiddenKeys("Purpose Atlas fixture data", atlasData);
 
 const registry = defaultRegistry();
 const atlasEntry = registry.get("AtlasSourceSurface");
