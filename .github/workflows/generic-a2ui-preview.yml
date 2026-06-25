@@ -1,0 +1,29 @@
+name: Generic A2UI Preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/a2ui-shell-builder.mjs"
+      - "scripts/build-generic-a2ui-preview.mjs"
+      - "tests/check-generic-a2ui-shell-builder.mjs"
+      - ".github/workflows/generic-a2ui-preview.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/check-generic-a2ui-shell-builder.mjs
+      - run: node scripts/build-generic-a2ui-preview.mjs generic-a2ui-preview
+      - run: test -s generic-a2ui-preview/preview-a/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generic-a2ui-shell-preview
+          path: generic-a2ui-preview/
