@@ -18,6 +18,26 @@
             exec node ${self}/tests/run-all.mjs "$@"
           '';
         };
+
+        generic-a2ui-preview-html = pkgs.runCommand "generic-a2ui-preview-html" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
+          test -s "$out/shell/index.html"
+          test -s "$out/preview-a/index.html"
+          test -s "$out/preview-b/index.html"
+          test -s "$out/verification-receipt.json"
+        '';
+
+        purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+          work="$TMPDIR/purpose-atlas-v6-a2ui"
+          cp -R ${self}/examples/purpose-atlas-v6-a2ui "$work"
+          chmod -R u+w "$work"
+          python "$work/scripts/build_standalone.py"
+          mkdir -p "$out"
+          cp -R "$work/dist" "$out/dist"
+          test -s "$out/dist/index.html"
+          test -s "$out/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
+          test -s "$out/dist/a2ui/purpose-atlas.surface.jsonl"
+        '';
       });
 
       checks = forEachSystem (pkgs: {
@@ -34,6 +54,19 @@
         generic-a2ui-preview = pkgs.runCommand "generic-a2ui-preview" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/check-generic-a2ui-shell-builder.mjs
           node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
+        '';
+
+        purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+          work="$TMPDIR/purpose-atlas-v6-a2ui"
+          cp -R ${self}/examples/purpose-atlas-v6-a2ui "$work"
+          chmod -R u+w "$work"
+          python "$work/scripts/build_standalone.py"
+          test -s "$work/dist/index.html"
+          test -s "$work/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
+          test -s "$work/dist/a2ui/purpose-atlas.surface.jsonl"
+          mkdir -p "$out"
+          cp "$work/dist/index.html" "$out/index.html"
+          cp "$work/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html" "$out/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
         '';
       });
     };

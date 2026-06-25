@@ -32,21 +32,10 @@
     "mismatches": 0,
     "combinedProjectionSha256": "b4cd99919d463414b9a1914daf0fd03e419c549e457f93cfad8475b46ca567c4"
   },
-  "visualWitness": {
-    "desktop": {
-      "pass": true,
-      "ssim": 0.9999544742611902,
-      "pixelsWithin15Ratio": 0.9997936507936508,
-      "maximumBoxDeltaPx": 0.062,
-      "textExact": true
-    },
-    "mobile": {
-      "pass": true,
-      "ssim": 0.9999551903355544,
-      "pixelsWithin15Ratio": 0.9997478429942885,
-      "maximumBoxDeltaPx": 0.032,
-      "textExact": true
-    }
+  "htmlWitness": {
+    "pass": true,
+    "proofKind": "html-preview-output",
+    "pngScreenshotEvidenceRequired": false
   },
   "browserWitness": {
     "desktop": {

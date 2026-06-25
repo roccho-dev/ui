@@ -57,6 +57,14 @@ function assertNoForbiddenKeys(label, value, trail = []) {
   }
 }
 
+function collectFiles(dir, prefix = "") {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? collectFiles(full, relative) : [relative];
+  });
+}
+
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.match(html, /Purpose Decision Atlas v6/);
 assert.match(html, /__purposeAtlasSurfaceJsonl/);
@@ -120,6 +128,13 @@ const witness = JSON.parse(fs.readFileSync(witnessPath, "utf8"));
 const browserWitness = JSON.parse(fs.readFileSync(browserWitnessPath, "utf8"));
 assert.match(JSON.stringify(witness), /PASS|pass|true/);
 assert.match(JSON.stringify(browserWitness), /PASS|pass|true/);
+
+const atlasFiles = collectFiles(atlasRoot);
+assert.deepEqual(
+  atlasFiles.filter((file) => file.toLowerCase().endsWith(".png")),
+  [],
+  "Purpose Atlas preview evidence must remain HTML/JSONL based and must not depend on PNG artifacts",
+);
 
 console.log(JSON.stringify({
   status: "purpose-atlas-a2ui-check-pass",
