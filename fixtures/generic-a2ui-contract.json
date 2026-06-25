@@ -1,0 +1,11 @@
+{
+  "surfaceId": "generic-a2ui-shell-preview",
+  "requiredBindingPaths": ["/items", "/status", "/summary", "/title"],
+  "allowedUpdatePaths": ["/items", "/status", "/summary", "/title"],
+  "policy": {
+    "a2uiTreatment": "a2ui as build",
+    "jsonlTreatment": "jsonl as attached data",
+    "fixturePolicy": ["stateless", "non-authoritative"],
+    "generatedArtifactsAreAuthority": false
+  }
+}

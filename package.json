@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "check": "node --check src/index.mjs && node --check src/corr-port.mjs && node --check src/adapters/index.mjs && node --check src/registry.mjs && node --check src/catalog.mjs && node --check src/project.mjs && node --check src/log.mjs && node --check examples/project-registry.mjs && node --check scripts/serve-static.mjs && node tests/run-all.mjs",
+    "check": "node --check src/index.mjs && node --check src/corr-port.mjs && node --check src/adapters/index.mjs && node --check src/registry.mjs && node --check src/catalog.mjs && node --check src/project.mjs && node --check src/log.mjs && node --check src/a2ui-shell-builder.mjs && node --check examples/project-registry.mjs && node --check scripts/serve-static.mjs && node --check scripts/build-generic-a2ui-preview.mjs && node --check tests/check-generic-a2ui-shell-builder.mjs && node tests/run-all.mjs",
     "test": "npm run check",
     "example": "node examples/project-registry.mjs",
     "host": "node scripts/serve-static.mjs",

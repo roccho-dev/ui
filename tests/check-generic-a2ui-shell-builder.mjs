@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   applyDataCartridge,
   buildGenericA2uiPreview,
+  buildGenericA2uiPreviewFromJsonl,
   compileShell,
   makeGenericA2uiFixture,
   renderShellHtml,
@@ -13,6 +15,8 @@ import {
   validateShellRows,
 } from "../src/a2ui-shell-builder.mjs";
 
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const fixtureDir = path.join(root, "fixtures");
 const { contract, shellRows, dataA, dataB } = makeGenericA2uiFixture();
 
 assert.equal(validateShellRows(shellRows, contract), true);
@@ -45,6 +49,19 @@ assert.equal(built.receipt.generatedArtifactsAreAuthority, false);
 assert.notEqual(built.receipt.dataADigest, built.receipt.dataBDigest);
 assert.notEqual(built.receipt.previewAHtmlDigest, built.receipt.previewBHtmlDigest);
 
+const fixtureBuilt = buildGenericA2uiPreviewFromJsonl({
+  contract: JSON.parse(fs.readFileSync(path.join(fixtureDir, "generic-a2ui-contract.json"), "utf8")),
+  shellJsonl: fs.readFileSync(path.join(fixtureDir, "generic-a2ui-shell.v0.9.jsonl"), "utf8"),
+  dataAJsonl: fs.readFileSync(path.join(fixtureDir, "generic-a2ui-data-a.jsonl"), "utf8"),
+  dataBJsonl: fs.readFileSync(path.join(fixtureDir, "generic-a2ui-data-b.jsonl"), "utf8"),
+});
+assert.equal(fixtureBuilt.receipt.status, "PASS");
+assert.equal(fixtureBuilt.receipt.generatedArtifactsAreAuthority, false);
+assert.equal(fixtureBuilt.previewAHtmlDigest, built.previewAHtmlDigest);
+assert.equal(fixtureBuilt.previewBHtmlDigest, built.previewBHtmlDigest);
+assert.ok(fixtureBuilt.previewAHtml.includes("Data cartridge A is attached after shell build."));
+assert.ok(fixtureBuilt.previewBHtml.includes("Data cartridge B changes data only."));
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "generic-a2ui-preview-"));
 fs.writeFileSync(path.join(tmp, "index.html"), built.previewAHtml, "utf8");
 assert.ok(fs.existsSync(path.join(tmp, "index.html")));
@@ -52,5 +69,5 @@ assert.ok(fs.existsSync(path.join(tmp, "index.html")));
 console.log(JSON.stringify({
   status: "generic-a2ui-shell-builder-check-pass",
   shellDigest: shell.shellDigest,
-  filesChecked: 1,
+  filesChecked: 4,
 }, null, 2));
