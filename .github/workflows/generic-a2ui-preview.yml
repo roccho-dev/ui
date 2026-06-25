@@ -6,8 +6,11 @@ on:
     paths:
       - "src/a2ui-shell-builder.mjs"
       - "src/index.mjs"
+      - "fixtures/generic-a2ui-*.json"
+      - "fixtures/generic-a2ui-*.jsonl"
       - "scripts/build-generic-a2ui-preview.mjs"
       - "tests/check-generic-a2ui-shell-builder.mjs"
+      - "package.json"
       - "flake.nix"
       - ".github/workflows/generic-a2ui-preview.yml"
   push:
@@ -54,6 +57,8 @@ jobs:
           test -s generic-a2ui-preview/preview-a/index.html
           test -s generic-a2ui-preview/preview-b/index.html
           test -s generic-a2ui-preview/verification-receipt.json
+          grep -q '"proofKind": "jsonl-to-html"' generic-a2ui-preview/verification-receipt.json
+          grep -q '"sourceJsonlDigests"' generic-a2ui-preview/verification-receipt.json
           grep -q 'generatedArtifactsAreAuthority' generic-a2ui-preview/verification-receipt.json
           find generic-a2ui-preview -type f | sort
 
