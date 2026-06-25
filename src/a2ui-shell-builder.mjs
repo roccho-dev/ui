@@ -203,6 +203,19 @@ export function makeGenericA2uiFixture() {
 
 export function buildGenericA2uiPreview() {
   const { contract, shellRows, dataA, dataB } = makeGenericA2uiFixture();
+  return buildGenericA2uiPreviewFromRows(contract, shellRows, dataA, dataB);
+}
+
+export function buildGenericA2uiPreviewFromJsonl({ contract, shellJsonl, dataAJsonl, dataBJsonl }) {
+  return buildGenericA2uiPreviewFromRows(
+    contract,
+    parseJsonlLines(shellJsonl),
+    parseJsonlLines(dataAJsonl),
+    parseJsonlLines(dataBJsonl),
+  );
+}
+
+export function buildGenericA2uiPreviewFromRows(contract, shellRows, dataA, dataB) {
   const shell = compileShell(shellRows, contract);
   const stateA = applyDataCartridge(dataA, contract);
   const stateB = applyDataCartridge(dataB, contract);

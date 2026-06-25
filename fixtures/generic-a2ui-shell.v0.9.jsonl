@@ -1,0 +1,2 @@
+{"version":"v0.9","createSurface":{"surfaceId":"generic-a2ui-shell-preview","catalogId":"ui.generic.preview.catalog.v1","protocolVersion":"v0.9"}}
+{"version":"v0.9","updateComponents":{"surfaceId":"generic-a2ui-shell-preview","components":[{"id":"title","component":"Text","props":{"text":{"path":"/title"}}},{"id":"summary","component":"Card","props":{"title":"Summary","body":{"path":"/summary"}}},{"id":"items","component":"List","props":{"rows":{"path":"/items"}}},{"id":"status","component":"Text","props":{"text":{"path":"/status"}}}]}}
