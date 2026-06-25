@@ -30,6 +30,11 @@
           node ${self}/tests/check-a2ui-shell-data-boundary.mjs
           touch "$out"
         '';
+
+        generic-a2ui-preview = pkgs.runCommand "generic-a2ui-preview" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          node ${self}/tests/check-generic-a2ui-shell-builder.mjs
+          node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
+        '';
       });
     };
 }
