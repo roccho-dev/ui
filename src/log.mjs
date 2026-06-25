@@ -27,15 +27,20 @@ export const TARGET_KINDS = [
 // Fields a UI-originated record must never assert. Mirrors the authority
 // boundary enforced by policy/packages/sdui-policy-gate (C07).
 export const FORBIDDEN_AUTHORITY_FIELDS = [
+  "approval",
   "approvalEndpoint",
   "approvalStatus",
+  "authorizesFire",
+  "authorizesMerge",
   "canonicalAppend",
   "canonicalMutation",
   "canonicalState",
+  "decisionAccepted",
   "directAssignment",
   "fireAuthorization",
   "mergeApproval",
   "mergeReady",
+  "ownerDecisionAccepted",
   "policyRewrite",
   "statusApproval",
 ];

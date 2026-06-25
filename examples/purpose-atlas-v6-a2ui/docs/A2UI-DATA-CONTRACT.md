@@ -1,5 +1,58 @@
 # Purpose Atlas A2UI Data Contract
 
+## Authority boundary
+
+Purpose Decision Atlas v6 accepts `ADRS projected input` (`adrs projected input`)
+at the runtime input boundary. ADR/domain state authority is external to
+`ui.git`; this repo owns the UI contract, registry, ports, build, and
+verification boundary only.
+
+The implementation is `core+port as lib`:
+
+- core: deterministic projection, replay, witness, validation, and atlas
+  view-model logic
+- port: ADRS projected input boundary, A2UI build boundary, and render/verify
+  boundary
+
+A2UI is `a2ui as build`. A2UI surface JSONL and runtime surfaces are build
+outputs derived from the UI contract and input. They are not source-of-truth
+ADR/domain state.
+
+JSONL in this repo is `jsonl as attached data`. Fixtures and preview data are
+allowed for tests, examples, replay, and witness evidence only. They must be
+`stateless` and `non-authoritative`, and they must be replaceable by ADRS
+projected input without changing the UI contract.
+
+Contract terms:
+
+```text
+inputKind: ADRS projected input
+inputAuthority: external to ui.git
+uiContractAuthority: ui.git UI contract
+a2uiTreatment: a2ui as build
+jsonlTreatment: jsonl as attached data
+fixturePolicy: stateless, non-authoritative
+stateStorePolicy: ui.git is not a state store
+```
+
+`ui.git is not a state store`. `/ui`, `/atlas`, `/operations[]`, replay state,
+and runtime interaction state are render/runtime behavior only. They must not be
+treated as canonical ADR/domain decisions, CEO judgment completion, owner
+approval, merge readiness, fire authorization, or operation authority.
+
+Invalid fixture/build-output authority fields include:
+
+```text
+approval
+approvalStatus
+canonicalState
+mergeReady
+authorizesFire
+authorizesMerge
+ownerDecisionAccepted
+decisionAccepted
+```
+
 ## `/ui`
 
 ```json
