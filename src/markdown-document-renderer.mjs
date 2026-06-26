@@ -180,6 +180,17 @@ function renderBlock(block, diagnostics, path) {
   return "";
 }
 
+function rendererDigestFor(rendererVersion) {
+  return sha256({
+    kind: "ui.markdown-renderer.contract.v1",
+    rendererVersion,
+    documentModelKind: DOCUMENT_MODEL_KIND,
+    templateBlockKind: TEMPLATE_BLOCK_KIND,
+    outputKind: "markdown.bytes.v1",
+    supportedBlockKinds: Array.from(BLOCK_KINDS).sort(),
+  });
+}
+
 export function validateDocumentModel(model) {
   const diagnostics = [];
   if (!model || typeof model !== "object") {
@@ -198,6 +209,7 @@ export function validateDocumentModel(model) {
 export function renderMarkdownDocument(input = {}) {
   const model = input.model || input.documentModel || input;
   const template = normalizeTemplate(input.template || input.markdownTemplateJsonl);
+  const renderOptions = input.renderOptions || input.options || {};
   const rendererVersion = input.rendererVersion || MARKDOWN_DOCUMENT_RENDERER_VERSION;
   const diagnostics = [
     ...validateDocumentModel(model),
@@ -221,6 +233,8 @@ export function renderMarkdownDocument(input = {}) {
   const provenance = {
     kind: "ui.markdown-render.provenance.v1",
     rendererVersion,
+    rendererDigest: rendererDigestFor(rendererVersion),
+    renderOptionsDigest: sha256(renderOptions),
     outputKind: "markdown.bytes.v1",
     modelDigest: sha256(model || null),
     templateDigest: sha256(template),
