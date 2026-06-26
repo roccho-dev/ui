@@ -5,12 +5,23 @@ export const DOCUMENT_MODEL_KIND = "document.model.v1";
 export const TEMPLATE_BLOCK_KIND = "md.template.block.v1";
 
 const FORBIDDEN_AUTHORITY_FIELDS = new Set([
+  "adrRow",
+  "adrRows",
+  "acceptedAdrRow",
+  "acceptedAdrRows",
+  "artifactLifecycle",
+  "artifactOwner",
+  "artifactUpload",
   "approval",
   "approvalStatus",
   "canonicalState",
   "fireAuthorization",
+  "governancePolicyValidation",
   "mergeApproval",
   "mergeReady",
+  "policyDecision",
+  "policyValidation",
+  "uploadArtifact",
 ]);
 
 const BLOCK_KINDS = new Set([
@@ -167,7 +178,7 @@ function renderBlock(block, diagnostics, path) {
 
   if (kind === "code" || kind === "document.code.v1") {
     const language = String(block.language || "").replace(/[^A-Za-z0-9_-]/g, "");
-    const text = String(block.text ?? block.code ?? "").replaceAll("```", "`\u200b``");
+    const text = String(block.text ?? block.code ?? "").replaceAll("```", "`​``");
     return `\`\`\`${language}\n${text}\n\`\`\``;
   }
 
