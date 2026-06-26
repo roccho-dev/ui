@@ -37,13 +37,21 @@ assert.equal(result.provenance.kind, "ui.markdown-render.provenance.v1");
 assert.equal(result.provenance.rendererVersion, MARKDOWN_DOCUMENT_RENDERER_VERSION);
 assert.equal(result.provenance.outputKind, "markdown.bytes.v1");
 assert.equal(result.provenance.generatedArtifactsAreAuthority, false);
+assert.match(result.provenance.rendererDigest, /^[a-f0-9]{64}$/);
+assert.match(result.provenance.renderOptionsDigest, /^[a-f0-9]{64}$/);
 assert.match(result.provenance.modelDigest, /^[a-f0-9]{64}$/);
 assert.match(result.provenance.templateDigest, /^[a-f0-9]{64}$/);
 assert.match(result.provenance.markdownDigest, /^[a-f0-9]{64}$/);
 
 const repeat = renderMarkdownDocument({ model, template });
 assert.equal(repeat.markdown, result.markdown, "same input renders identical Markdown");
+assert.equal(repeat.provenance.rendererDigest, result.provenance.rendererDigest, "same renderer has stable digest");
+assert.equal(repeat.provenance.renderOptionsDigest, result.provenance.renderOptionsDigest, "same render options have stable digest");
 assert.equal(repeat.provenance.markdownDigest, result.provenance.markdownDigest, "same input has stable Markdown digest");
+
+const withOptions = renderMarkdownDocument({ model, template, renderOptions: { mode: "checked_handwritten" } });
+assert.notEqual(withOptions.provenance.renderOptionsDigest, result.provenance.renderOptionsDigest, "render option changes are traceable");
+assert.equal(withOptions.provenance.markdownDigest, result.provenance.markdownDigest, "unused trace options do not mutate Markdown bytes");
 
 const unknown = renderMarkdownDocument({
   model: {
@@ -86,5 +94,7 @@ assert.doesNotMatch(result.markdown, /<html/i, "README artifact renderer does no
 console.log(JSON.stringify({
   status: "markdown-document-renderer-check-pass",
   rendererVersion: MARKDOWN_DOCUMENT_RENDERER_VERSION,
+  rendererDigest: result.provenance.rendererDigest,
+  renderOptionsDigest: result.provenance.renderOptionsDigest,
   markdownDigest: result.provenance.markdownDigest,
 }, null, 2));
