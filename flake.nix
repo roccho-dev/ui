@@ -8,6 +8,10 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+      mkReadmeArtifact = pkgs:
+        pkgs.runCommand "ui-readme-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          node ${self}/scripts/build-readme-artifact.mjs --out "$out"
+        '';
     in
     {
       packages = forEachSystem (pkgs: {
@@ -18,6 +22,8 @@
             exec node ${self}/tests/run-all.mjs "$@"
           '';
         };
+
+        readme-artifact = mkReadmeArtifact pkgs;
 
         generic-a2ui-preview-html = pkgs.runCommand "generic-a2ui-preview-html" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
@@ -40,9 +46,20 @@
         '';
       });
 
-      checks = forEachSystem (pkgs: {
+      checks = forEachSystem (pkgs: let readmeArtifact = mkReadmeArtifact pkgs; in {
         ui-modeling-corr-port = pkgs.runCommand "ui-modeling-corr-port-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/run-all.mjs
+          touch "$out"
+        '';
+
+        readme-artifact = pkgs.runCommand "ui-readme-artifact-check" { } ''
+          test -s ${readmeArtifact}/README.md
+          test -s ${readmeArtifact}/manifest.json
+          test -s ${readmeArtifact}/sources.jsonl
+          test -s ${readmeArtifact}/receipt.json
+          grep -q '"nonAuthority": true' ${readmeArtifact}/manifest.json
+          grep -q '"artifactOwner": "repo-ci"' ${readmeArtifact}/manifest.json
+          grep -q '"source": "nix-output"' ${readmeArtifact}/receipt.json
           touch "$out"
         '';
 
