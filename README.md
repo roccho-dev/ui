@@ -29,29 +29,31 @@ produces renderer-neutral projections.
 
 `ui` is one of several SSOT repos that touch browser UI. It owns the component
 registry contract and renderer-neutral component-tree projection only. The
-adjacent responsibilities below belong to sibling repos — see
+adjacent responsibilities below belong to sibling repos - see
 [`docs/ownership-boundaries.md`](docs/ownership-boundaries.md) for the full
 inventory, overlap map, and per-responsibility owner.
 
-- HTTP collectors, Caddy configuration, durable supervision — `ops`.
-- Browser hosting / static host and `dist/` + `/boards/*` serving — `webmcp`.
-- Board composition and `board-view.ir.v1` projection authority — `board-view`.
-- IR → HTML command-board rendering and host artifacts — `render-worktrees-agents`.
-- SDUI policy / validation authority — `policy` (`packages/sdui-policy-gate`);
+- HTTP collectors, Caddy configuration, durable supervision - `ops`.
+- Browser hosting / static host and `dist/` + `/boards/*` serving - `webmcp`.
+- Board composition and `board-view.ir.v1` projection authority - `board-view`.
+- IR -> HTML command-board rendering and host artifacts - `render-worktrees-agents`.
+- SDUI policy / validation authority - `policy` (`packages/sdui-policy-gate`);
   `ui` supplies the registry shape that gate consumes, it does not validate.
-- Browser-only renderer ownership (adapters/examples carry DOM).
+- Browser-only renderer ownership (adapter fixture packages carry DOM).
 - Canonical business state, approval, merge, or fire authority.
 
 ## Core / Port / Adapter boundary
 
 | Layer | Files | Owns |
 |---|---|---|
-| Core | `src/registry.mjs`, `src/catalog.mjs`, `src/project.mjs`, `src/corr-port.mjs`, `src/log.mjs` | registry contract, catalog, projection, logs — **no DOM** |
+| Core | `src/registry.mjs`, `src/catalog.mjs`, `src/project.mjs`, `src/corr-port.mjs`, `src/log.mjs` | registry contract, catalog, projection, logs - **no DOM** |
 | Adapter descriptors | `src/adapters/index.mjs` | declarations of what a host may mount; no renderer state |
-| Examples | `examples/`, `fixtures/*.jsonl` | sample inputs and a headless projection run |
+| Tests / fixtures | `tests/fixtures/` | stateless test inputs, witness packages, and golden fixtures |
+| Generated artifacts | Nix / CI outputs | preview HTML, dist assets, evidence receipts, and manifests |
 
-The reference HTML/JS demos (the A2UI bundle and questionnaire PoC) are
-example/adapter material only. They are not registry authority.
+Tracked fixtures are input authority only for tests. Generated preview HTML,
+dist assets, evidence receipts, and manifests are build evidence and are not
+tracked as repository authority.
 
 ## The registry contract: `ui.component.registry.v1`
 
@@ -104,7 +106,7 @@ registry.has("FormField"); // true
 
 Adapters then add a handler keyed by `id`; the core registry is untouched.
 
-## How to use a component (project JSONL → view model)
+## How to use a component (project JSONL -> view model)
 
 ```js
 import { defaultRegistry, projectA2uiSurface, projectQuestionnaireFlow } from "ui-modeling-corr-port";
@@ -123,10 +125,10 @@ const flow = projectQuestionnaireFlow(flowRecords, registry);
 Unknown node types are deterministic: `projectNodeTree` annotates them
 `registered: false` and lists them in `unknownTypes`; it never throws.
 
-Run the headless example (no browser):
+Run the headless registry fixture (no browser):
 
 ```sh
-npm run example        # node examples/project-registry.mjs
+npm run fixture:registry
 ```
 
 ## Logs are targetable and non-authority
@@ -179,15 +181,15 @@ registry schema.
 The current human-facing root is the Purpose Decision Atlas v6 A2UI witness:
 
 - browser root: index.html
-- source package: examples/purpose-atlas-v6-a2ui
-- A2UI surface JSONL: examples/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl
+- source fixture package: tests/fixtures/purpose-atlas-v6-a2ui
+- A2UI surface JSONL: tests/fixtures/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl
 - custom component: AtlasSourceSurface
 - adapter descriptor: purposeAtlasHtmlBox
-- golden/browser evidence: examples/purpose-atlas-v6-a2ui/evidence
+- golden fixtures: tests/fixtures/purpose-atlas-v6-a2ui/golden; generated preview/evidence: Nix and CI artifacts
 
 The root HTML is adapter material. The UI contract remains A2UI v0.9 surface
 JSONL, an allowlisted AtlasSourceSurface component, and the source/golden
-witness package under examples/purpose-atlas-v6-a2ui.
+witness package under tests/fixtures/purpose-atlas-v6-a2ui.
 
 ### Purpose Atlas authority boundary
 
@@ -202,7 +204,7 @@ replay state, and witness output are build or verification artifacts, not
 ADR/domain authority.
 
 JSONL in this repo is `jsonl as attached data`. JSONL fixtures are allowed for
-tests, examples, preview, replay, and witness evidence, but fixtures must be
+tests, preview, replay, and witness evidence, but fixtures must be
 `stateless` and `non-authoritative`. A fixture must not claim current business
 state, accepted ADR/domain decisions, CEO judgment completion, owner approval,
 canonical state, merge readiness, or fire/operation authority.
@@ -223,8 +225,8 @@ Port 18083 is intentionally fixed for recognition and review. Do not rotate it p
 Component families are derived from reference material, not adopted as authority
 verbatim:
 
-- `a2ui_adapter_split_poc_bundle.zip` → primitive/layout/action/slide/questionnaire entries; `fixtures/a2ui-recursive.demo.jsonl`.
-- `questionnaire-js-poc` → questionnaire flow integration; `fixtures/questionnaire.flow.jsonl`.
+- `a2ui_adapter_split_poc_bundle.zip` -> primitive/layout/action/slide/questionnaire entries; `tests/fixtures/a2ui-recursive.demo.jsonl`.
+- `questionnaire-js-poc` -> questionnaire flow integration; `tests/fixtures/questionnaire.flow.jsonl`.
 
 The zips are reference/proposal inputs. This repo is the SSOT.
 This repo is the SSOT for the UI registry contract only; it is not the SSOT for

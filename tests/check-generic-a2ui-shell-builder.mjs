@@ -16,7 +16,7 @@ import {
 } from "../src/a2ui-shell-builder.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const fixtureDir = path.join(root, "fixtures");
+const fixtureDir = path.join(root, "tests", "fixtures");
 const { contract, shellRows, dataA, dataB } = makeGenericA2uiFixture();
 
 assert.equal(validateShellRows(shellRows, contract), true);

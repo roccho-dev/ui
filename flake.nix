@@ -12,6 +12,27 @@
         pkgs.runCommand "ui-readme-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-readme-artifact.mjs --out "$out"
         '';
+      mkPurposeAtlasPreview = pkgs:
+        pkgs.buildNpmPackage {
+          pname = "purpose-atlas-preview-html";
+          version = "6.2.0";
+          src = ./tests/fixtures/purpose-atlas-v6-a2ui;
+          npmDeps = pkgs.importNpmLock {
+            npmRoot = ./tests/fixtures/purpose-atlas-v6-a2ui;
+          };
+          npmConfigHook = pkgs.importNpmLock.npmConfigHook;
+          nativeBuildInputs = [ pkgs.python3 ];
+          npmBuildScript = "build";
+          installPhase = ''
+            runHook preInstall
+            mkdir -p "$out"
+            cp -R dist "$out/dist"
+            test -s "$out/dist/index.html"
+            test -s "$out/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
+            test -s "$out/dist/a2ui/purpose-atlas.surface.jsonl"
+            runHook postInstall
+          '';
+        };
     in
     {
       packages = forEachSystem (pkgs: {
@@ -33,20 +54,13 @@
           test -s "$out/verification-receipt.json"
         '';
 
-        purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-          work="$TMPDIR/purpose-atlas-v6-a2ui"
-          cp -R ${self}/examples/purpose-atlas-v6-a2ui "$work"
-          chmod -R u+w "$work"
-          python "$work/scripts/build_standalone.py"
-          mkdir -p "$out"
-          cp -R "$work/dist" "$out/dist"
-          test -s "$out/dist/index.html"
-          test -s "$out/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
-          test -s "$out/dist/a2ui/purpose-atlas.surface.jsonl"
-        '';
+        purpose-atlas-preview-html = mkPurposeAtlasPreview pkgs;
       });
 
-      checks = forEachSystem (pkgs: let readmeArtifact = mkReadmeArtifact pkgs; in {
+      checks = forEachSystem (pkgs: let
+        readmeArtifact = mkReadmeArtifact pkgs;
+        purposeAtlasPreview = mkPurposeAtlasPreview pkgs;
+      in {
         ui-modeling-corr-port = pkgs.runCommand "ui-modeling-corr-port-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/run-all.mjs
           touch "$out"
@@ -78,17 +92,13 @@
           node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
         '';
 
-        purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-          work="$TMPDIR/purpose-atlas-v6-a2ui"
-          cp -R ${self}/examples/purpose-atlas-v6-a2ui "$work"
-          chmod -R u+w "$work"
-          python "$work/scripts/build_standalone.py"
-          test -s "$work/dist/index.html"
-          test -s "$work/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
-          test -s "$work/dist/a2ui/purpose-atlas.surface.jsonl"
+        purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html-check" { } ''
+          test -s ${purposeAtlasPreview}/dist/index.html
+          test -s ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html
+          test -s ${purposeAtlasPreview}/dist/a2ui/purpose-atlas.surface.jsonl
           mkdir -p "$out"
-          cp "$work/dist/index.html" "$out/index.html"
-          cp "$work/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html" "$out/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
+          cp ${purposeAtlasPreview}/dist/index.html "$out/index.html"
+          cp ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html "$out/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
         '';
       });
     };

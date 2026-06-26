@@ -7,8 +7,8 @@ It is not a merge proposal.
 The artifact should contain:
 
 - `root/index.html`
-- `examples/dist/`
-- `examples/evidence/`
-- `examples/MANIFEST.sha256`
+- generated preview `dist/`
+- generated verification `evidence/`
+- generated manifest
 
 A separate `main` proposal is required before adopting Purpose Atlas as a durable `ui` responsibility.

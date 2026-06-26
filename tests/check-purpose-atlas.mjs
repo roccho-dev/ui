@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,13 +7,13 @@ import { fileURLToPath } from "node:url";
 import { defaultRegistry, purposeAtlasHtmlBox } from "../src/index.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const atlasRoot = path.join(root, "examples/purpose-atlas-v6-a2ui");
+const atlasRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui");
+const atlasDocsRoot = path.join(root, "docs/purpose-atlas-v6-a2ui");
 const surfacePath = path.join(atlasRoot, "public/a2ui/purpose-atlas.surface.jsonl");
 const atlasDataPath = path.join(atlasRoot, "src/data/atlas-data.json");
-const dataContractPath = path.join(atlasRoot, "docs/A2UI-DATA-CONTRACT.md");
-const atlasReadmePath = path.join(atlasRoot, "README.md");
-const witnessPath = path.join(atlasRoot, "evidence/golden-witness.json");
-const browserWitnessPath = path.join(atlasRoot, "evidence/browser-verification.json");
+const dataContractPath = path.join(atlasDocsRoot, "A2UI-DATA-CONTRACT.md");
+const atlasReadmePath = path.join(atlasDocsRoot, "README.md");
+const goldenLockPath = path.join(atlasRoot, "golden/GOLDEN_LOCK.json");
 
 const contractPhrases = [
   "ADRS projected input",
@@ -55,6 +56,10 @@ function assertNoForbiddenKeys(label, value, trail = []) {
     );
     assertNoForbiddenKeys(label, value[key], [...trail, key]);
   }
+}
+
+function sha256File(filePath) {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
 function collectFiles(dir, prefix = "") {
@@ -116,6 +121,15 @@ assertNoForbiddenKeys("Purpose Atlas A2UI surface JSONL", surfaceLines);
 const atlasData = JSON.parse(fs.readFileSync(atlasDataPath, "utf8"));
 assertNoForbiddenKeys("Purpose Atlas fixture data", atlasData);
 
+const goldenLock = JSON.parse(fs.readFileSync(goldenLockPath, "utf8"));
+for (const [file, expected] of Object.entries(goldenLock.sourceFilesSha256)) {
+  assert.equal(
+    sha256File(path.join(atlasRoot, "golden/source", file)),
+    expected,
+    `golden fixture source digest must match lock for ${file}`,
+  );
+}
+
 const registry = defaultRegistry();
 const atlasEntry = registry.get("AtlasSourceSurface");
 assert.equal(atlasEntry.family, "purpose_atlas");
@@ -124,10 +138,9 @@ assert.ok(atlasEntry.actions.includes("atlas.recordMismatch"));
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
 assert.deepEqual(purposeAtlasHtmlBox.assets, ["index.html"]);
 
-const witness = JSON.parse(fs.readFileSync(witnessPath, "utf8"));
-const browserWitness = JSON.parse(fs.readFileSync(browserWitnessPath, "utf8"));
-assert.match(JSON.stringify(witness), /PASS|pass|true/);
-assert.match(JSON.stringify(browserWitness), /PASS|pass|true/);
+assert.equal(fs.existsSync(path.join(atlasRoot, "dist")), false, "generated dist must not be tracked as fixture authority");
+assert.equal(fs.existsSync(path.join(atlasRoot, "evidence")), false, "generated evidence must not be tracked as fixture authority");
+assert.equal(fs.existsSync(path.join(atlasRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as fixture authority");
 
 const atlasFiles = collectFiles(atlasRoot);
 assert.deepEqual(

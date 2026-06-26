@@ -89,7 +89,7 @@ assert.equal(mystery.children[0].type, "Text");
 assert.equal(mystery.children[0].registered, true);
 
 // --- A2UI surface projection, no browser side effects (C08) ---
-const a2uiView = projectA2uiSurface(readJsonl("fixtures/a2ui-recursive.demo.jsonl"), registry);
+const a2uiView = projectA2uiSurface(readJsonl("tests/fixtures/a2ui-recursive.demo.jsonl"), registry);
 assert.equal(a2uiView.kind, "ui.surface.viewmodel.v1");
 assert.equal(a2uiView.hasTree, true);
 assert.deepEqual(a2uiView.errors, [], "demo projects without errors");
@@ -100,7 +100,7 @@ assert.ok(a2uiView.emittableEvents.includes("ActionEvent"), "Action ActionEvent 
 assert.equal(a2uiView.state.slideIndex, 0, "StatePatch merge applied without DOM");
 
 // --- questionnaire PoC integrated as registry components (C10) ---
-const flowView = projectQuestionnaireFlow(readJsonl("fixtures/questionnaire.flow.jsonl"), registry);
+const flowView = projectQuestionnaireFlow(readJsonl("tests/fixtures/questionnaire.flow.jsonl"), registry);
 assert.equal(flowView.tree.root.type, "QuestionFlow");
 assert.deepEqual(flowView.tree.unknownTypes, [], "questionnaire flow maps entirely to registered components");
 const questions = flowView.tree.root.children.filter((c) => c.type === "Question");
@@ -135,7 +135,7 @@ assert.throws(() => toUiLog({ kind: "x", mergeReady: true }, { targetRef: ref })
 assert.throws(() => toUiLog({ kind: "x", canonicalState: {} }, { targetRef: ref }), /must not assert authority field/);
 
 // sample targetRef log fixture validates and stays non-authority
-for (const rec of readJsonl("fixtures/ui-log-targetref.sample.jsonl")) {
+for (const rec of readJsonl("tests/fixtures/ui-log-targetref.sample.jsonl")) {
   assertTargetRef(rec.targetRef);
   assert.equal(rec.meta.approval, false);
   assert.equal(rec.meta.canonicalStatus, "ui-log-not-authority");
