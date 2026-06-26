@@ -80,3 +80,14 @@ export {
   validateDataCartridgeRows,
   validateShellRows,
 } from "./a2ui-shell-builder.mjs";
+
+export {
+  DOCUMENT_MODEL_KIND,
+  MARKDOWN_DOCUMENT_RENDERER_VERSION,
+  TEMPLATE_BLOCK_KIND,
+  parseMarkdownTemplateJsonl,
+  renderMarkdownDocument,
+  sha256 as markdownSha256,
+  stableJson as markdownStableJson,
+  validateDocumentModel,
+} from "./markdown-document-renderer.mjs";
