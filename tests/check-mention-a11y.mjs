@@ -14,7 +14,7 @@ import {
 } from "../src/index.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const text = fs.readFileSync(path.join(root, "fixtures/need-zoom.raw.jsonl"), "utf8");
+const text = fs.readFileSync(path.join(root, "tests/fixtures/need-zoom.raw.jsonl"), "utf8");
 const parsed = parseJsonl(text);
 const surface = projectNeedZoomSurface(parsed.records);
 

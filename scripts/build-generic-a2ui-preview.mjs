@@ -6,7 +6,7 @@ import { buildGenericA2uiPreviewFromJsonl, jsonlLines, sha256 } from "../src/a2u
 
 const outDir = path.resolve(process.argv[2] || "generic-a2ui-preview");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const fixtureDir = path.join(root, "fixtures");
+const fixtureDir = path.join(root, "tests", "fixtures");
 fs.mkdirSync(outDir, { recursive: true });
 
 function writeText(relativePath, text) {

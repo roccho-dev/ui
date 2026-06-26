@@ -19,7 +19,7 @@ outputs derived from the UI contract and input. They are not source-of-truth
 ADR/domain state.
 
 JSONL in this repo is `jsonl as attached data`. Fixtures and preview data are
-allowed for tests, examples, replay, and witness evidence only. They must be
+allowed for tests, replay, and witness evidence only. They must be
 `stateless` and `non-authoritative`, and they must be replaceable by ADRS
 projected input without changing the UI contract.
 

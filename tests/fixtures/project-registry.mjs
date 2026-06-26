@@ -1,7 +1,7 @@
-// Example: consume registry JSONL and produce a projected component/view
+// Test fixture: consume registry JSONL and produce a projected component/view
 // output, with no browser side effects (C14).
 //
-//   node examples/project-registry.mjs
+//   node tests/fixtures/project-registry.mjs
 //
 // It projects both the A2UI recursive demo and the standalone questionnaire
 // flow through the same default registry, proving the questionnaire is
@@ -17,9 +17,9 @@ import {
   projectQuestionnaireFlow,
   toUiLog,
   makeTargetRef,
-} from "../src/index.mjs";
+} from "../../src/index.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function readJsonl(rel) {
   return fs
@@ -33,11 +33,11 @@ function readJsonl(rel) {
 const registry = defaultRegistry();
 
 // 1) A2UI recursive surface (slide + questionnaire share one primitive tree).
-const a2uiRecords = readJsonl("fixtures/a2ui-recursive.demo.jsonl");
+const a2uiRecords = readJsonl("tests/fixtures/a2ui-recursive.demo.jsonl");
 const a2uiView = projectA2uiSurface(a2uiRecords, registry);
 
 // 2) Standalone questionnaire flow projected into registry components.
-const flowRecords = readJsonl("fixtures/questionnaire.flow.jsonl");
+const flowRecords = readJsonl("tests/fixtures/questionnaire.flow.jsonl");
 const flowView = projectQuestionnaireFlow(flowRecords, registry);
 
 // 3) A non-authority UI log record routed to a model element via targetRef.
@@ -49,7 +49,7 @@ const log = toUiLog(
 console.log(
   JSON.stringify(
     {
-      status: "ui-registry-example-ok",
+      status: "ui-registry-fixture-ok",
       registry: { kind: registry.kind, families: registry.families(), componentCount: registry.list().length },
       a2ui: {
         kind: a2uiView.kind,
