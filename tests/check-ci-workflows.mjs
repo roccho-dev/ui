@@ -11,26 +11,43 @@ const intentRows = fs.readFileSync(intentPath, "utf8")
   .trim()
   .split(/\n+/)
   .map((line) => JSON.parse(line));
-assert.equal(intentRows.length, 1);
+assert.equal(intentRows.length, 2);
 
-const intent = intentRows[0];
-assert.equal(intent.kind, "ui.ciIntent.v1");
-assert.equal(intent.command, "nix flake check --print-build-logs");
-assert.deepEqual(intent.entrypoints, [".github/workflows/nix-flake-check.yml"]);
-assert.match(intent.authority, /non-authority/);
+const primary = intentRows.find((row) => row.kind === "ui.ciIntent.v1");
+assert.ok(primary);
+assert.equal(primary.command, "nix flake check --print-build-logs");
+assert.deepEqual(primary.entrypoints, [".github/workflows/nix-flake-check.yml"]);
+assert.match(primary.authority, /non-authority/);
+
+const artifact = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "artifact_exporter");
+assert.ok(artifact);
+assert.equal(artifact.path, ".github/workflows/readme-artifact.yml");
+assert.equal(artifact.entrypoint, "nix build .#readme-artifact");
+assert.equal(artifact.authority, false);
+assert.equal(artifact.source, "nix-output");
+assert.equal(artifact.generation_mode, "checked_in");
+assert.equal(artifact.workflow_definition, "checked_in");
+assert.equal(artifact.artifact_source, "nix-output");
+assert.equal(artifact.artifact_generation, "generated");
 
 const workflowFiles = fs.readdirSync(workflowsDir)
   .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"))
   .map((name) => `.github/workflows/${name}`)
   .sort();
-assert.deepEqual(workflowFiles, [...intent.entrypoints].sort());
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path].sort());
 
-const workflowText = fs.readFileSync(path.join(root, intent.entrypoints[0]), "utf8");
-assert.match(workflowText, /name:\s*Nix Flake Check/);
-assert.match(workflowText, /nix flake check --print-build-logs/);
-assert.doesNotMatch(workflowText, /upload-artifact|setup-node|npm test|node scripts\/build-generic-a2ui-preview/);
+const primaryText = fs.readFileSync(path.join(root, primary.entrypoints[0]), "utf8");
+assert.match(primaryText, /name:\s*Nix Flake Check/);
+assert.match(primaryText, /nix flake check --print-build-logs/);
+assert.doesNotMatch(primaryText, /upload-artifact|setup-node|npm test|node scripts\/build-generic-a2ui-preview/);
 
-for (const forbiddenPath of intent.forbiddenEntryGlobs) {
+const artifactText = fs.readFileSync(path.join(root, artifact.path), "utf8");
+assert.match(artifactText, /name:\s*README artifact exporter/);
+assert.match(artifactText, /nix build --print-build-logs \.#readme-artifact/);
+assert.match(artifactText, /actions\/upload-artifact@v4/);
+assert.doesNotMatch(artifactText, /npm test|node scripts\/build-generic-a2ui-preview/);
+
+for (const forbiddenPath of primary.forbiddenEntryGlobs) {
   assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
 }
 
