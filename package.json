@@ -1,22 +1,30 @@
 {
-  "name": "ui-modeling-corr-port",
+  "name": "ui",
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "workspaces": [
+    "packages/core-port"
+  ],
+  "imports": {
+    "#core-port": "./packages/core-port/src/index.mjs",
+    "#core-port/*": "./packages/core-port/src/*.mjs"
+  },
   "scripts": {
-    "check": "node --check src/index.mjs && node --check src/corr-port.mjs && node --check src/adapters/index.mjs && node --check src/registry.mjs && node --check src/catalog.mjs && node --check src/project.mjs && node --check src/log.mjs && node --check src/a2ui-shell-builder.mjs && node --check src/markdown-document-renderer.mjs && node --check tests/fixtures/project-registry.mjs && node --check scripts/serve-static.mjs && node --check scripts/build-generic-a2ui-preview.mjs && node --check tests/check-generic-a2ui-shell-builder.mjs && node --check tests/check-ci-workflows.mjs && node --check tests/check-markdown-document-renderer.mjs && node tests/run-all.mjs",
+    "check": "node --check packages/core-port/src/index.mjs && node --check packages/core-port/src/corr-port.mjs && node --check packages/core-port/src/adapters/index.mjs && node --check packages/core-port/src/registry.mjs && node --check packages/core-port/src/catalog.mjs && node --check packages/core-port/src/project.mjs && node --check packages/core-port/src/log.mjs && node --check packages/core-port/src/mention-a11y.mjs && node --check packages/core-port/src/a2ui-shell-builder.mjs && node --check packages/core-port/src/markdown-document-renderer.mjs && node --check tests/fixtures/project-registry.mjs && node --check scripts/serve-static.mjs && node --check scripts/build-readme-artifact.mjs && node --check scripts/build-generic-a2ui-preview.mjs && node --check tests/check-generic-a2ui-shell-builder.mjs && node --check tests/check-ci-workflows.mjs && node --check tests/check-markdown-document-renderer.mjs && node tests/run-all.mjs",
     "test": "npm run check",
     "fixture:registry": "node tests/fixtures/project-registry.mjs",
     "host": "node scripts/serve-static.mjs",
     "host:purpose-atlas": "node scripts/serve-static.mjs"
   },
   "exports": {
-    ".": "./src/index.mjs",
-    "./adapters": "./src/adapters/index.mjs",
-    "./registry": "./src/registry.mjs",
-    "./catalog": "./src/catalog.mjs",
-    "./project": "./src/project.mjs",
-    "./log": "./src/log.mjs",
-    "./markdown-document-renderer": "./src/markdown-document-renderer.mjs"
+    ".": "./packages/core-port/src/index.mjs",
+    "./adapters": "./packages/core-port/src/adapters/index.mjs",
+    "./registry": "./packages/core-port/src/registry.mjs",
+    "./catalog": "./packages/core-port/src/catalog.mjs",
+    "./project": "./packages/core-port/src/project.mjs",
+    "./log": "./packages/core-port/src/log.mjs",
+    "./a2ui-shell-builder": "./packages/core-port/src/a2ui-shell-builder.mjs",
+    "./markdown-document-renderer": "./packages/core-port/src/markdown-document-renderer.mjs"
   }
 }

@@ -13,7 +13,7 @@ import {
   payloadKindCounts,
   projectNeedZoomSurface,
   toEnvelope,
-} from "../src/index.mjs";
+} from "#core-port";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const text = fs.readFileSync(path.join(root, "tests/fixtures/need-zoom.raw.jsonl"), "utf8");
