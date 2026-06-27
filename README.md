@@ -48,7 +48,8 @@ inventory, overlap map, and per-responsibility owner.
 |---|---|---|
 | Core package | `packages/core-port/src/registry.mjs`, `packages/core-port/src/catalog.mjs`, `packages/core-port/src/project.mjs`, `packages/core-port/src/corr-port.mjs`, `packages/core-port/src/log.mjs` | registry contract, catalog, projection, logs - **no DOM** |
 | Adapter descriptors | `packages/core-port/src/adapters/index.mjs` | declarations of what a host may mount; no renderer state |
-| Tests / fixtures | `tests/fixtures/` | stateless test inputs, witness packages, and golden fixtures |
+| Preview package | `packages/purpose-atlas-preview/` | buildable Purpose Atlas witness app - not core authority |
+| Tests / fixtures | `tests/fixtures/` | stateless test inputs, witness locks, and golden fixtures |
 | Generated artifacts | Nix / CI outputs | preview HTML, dist assets, evidence receipts, and manifests |
 
 Tracked fixtures are input authority only for tests. Generated preview HTML,
@@ -180,16 +181,16 @@ registry schema.
 
 The current human-facing root is the Purpose Decision Atlas v6 A2UI witness:
 
-- browser root: index.html
-- source fixture package: tests/fixtures/purpose-atlas-v6-a2ui
-- A2UI surface JSONL: tests/fixtures/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl
+- browser root: packages/purpose-atlas-preview/index.html
+- preview package: packages/purpose-atlas-preview
+- A2UI surface JSONL: packages/purpose-atlas-preview/public/a2ui/purpose-atlas.surface.jsonl
 - custom component: AtlasSourceSurface
 - adapter descriptor: purposeAtlasHtmlBox
 - golden fixtures: tests/fixtures/purpose-atlas-v6-a2ui/golden; generated preview/evidence: Nix and CI artifacts
 
 The root HTML is adapter material. The UI contract remains A2UI v0.9 surface
-JSONL, an allowlisted AtlasSourceSurface component, and the source/golden
-witness package under tests/fixtures/purpose-atlas-v6-a2ui.
+JSONL, an allowlisted AtlasSourceSurface component, and the preview package
+under packages/purpose-atlas-preview.
 
 ### Purpose Atlas authority boundary
 
