@@ -33,6 +33,7 @@ function sha256File(filePath) {
 }
 
 function collectFiles(dir, prefix = "") {
+  if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
     const full = path.join(dir, entry.name);
