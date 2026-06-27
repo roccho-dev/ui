@@ -73,8 +73,8 @@ function collectFiles(dir, prefix = "") {
 
 const html = fs.readFileSync(path.join(appRoot, "index.html"), "utf8");
 assert.match(html, /Purpose Decision Atlas v6/);
-assert.match(html, /__purposeAtlasSurfaceJsonl/);
 assert.match(html, /purpose-atlas-app/);
+assert.match(html, /src\/main\.js/);
 assert.doesNotMatch(html, /need-zoom-purpose-lineage/);
 
 const rootReadme = fs.readFileSync(path.join(root, "README.md"), "utf8");
