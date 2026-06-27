@@ -6,8 +6,7 @@
     "ui-shell.html": "5e967ba01245eee2eeb9de0c06923fdf3a302516841b24f4493b0fab84da9adc",
     "ui.css": "3e3664fd2254e31b7b6b9292125a1b0f387dfbeb8fba2811afe9fe21c29abda1",
     "ui-renderer.js": "b534d008eb7c3b11386458683566c3078c8619d23825a906e6d880ca2d5d8b3d",
-    "model-core.js": "52a05f2acbd583386626a58a746d77dd4a25158e0dbfdc81191d1c28b5fbf6f4",
-    "build_preview.py": "6eece402e9d79f45e5ecde444c0c2a87521666381ecd474e1a637d50f5b1b4df"
+    "model-core.js": "52a05f2acbd583386626a58a746d77dd4a25158e0dbfdc81191d1c28b5fbf6f4"
   },
   "semanticWitness": {
     "requirement": "reference source lock remains outside fixture input"
