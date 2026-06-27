@@ -1,4 +1,0 @@
-playwright>=1.52,<2
-Pillow>=11,<13
-numpy>=2,<3
-scikit-image>=0.25,<1
