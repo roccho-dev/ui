@@ -7,13 +7,14 @@ import { fileURLToPath } from "node:url";
 import { defaultRegistry, purposeAtlasHtmlBox } from "#core-port";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const atlasRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui");
+const appRoot = path.join(root, "packages/purpose-atlas-preview");
+const goldenRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui/golden");
 const atlasDocsRoot = path.join(root, "docs/purpose-atlas-v6-a2ui");
-const surfacePath = path.join(atlasRoot, "public/a2ui/purpose-atlas.surface.jsonl");
-const atlasDataPath = path.join(atlasRoot, "src/data/atlas-data.json");
+const surfacePath = path.join(appRoot, "public/a2ui/purpose-atlas.surface.jsonl");
+const atlasDataPath = path.join(appRoot, "src/data/atlas-data.json");
 const dataContractPath = path.join(atlasDocsRoot, "A2UI-DATA-CONTRACT.md");
 const atlasReadmePath = path.join(atlasDocsRoot, "README.md");
-const goldenLockPath = path.join(atlasRoot, "golden/GOLDEN_LOCK.json");
+const goldenLockPath = path.join(goldenRoot, "GOLDEN_LOCK.json");
 
 const contractPhrases = [
   "ADRS projected input",
@@ -70,10 +71,10 @@ function collectFiles(dir, prefix = "") {
   });
 }
 
-const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const html = fs.readFileSync(path.join(appRoot, "index.html"), "utf8");
 assert.match(html, /Purpose Decision Atlas v6/);
-assert.match(html, /__purposeAtlasSurfaceJsonl/);
 assert.match(html, /purpose-atlas-app/);
+assert.match(html, /src\/main\.js/);
 assert.doesNotMatch(html, /need-zoom-purpose-lineage/);
 
 const rootReadme = fs.readFileSync(path.join(root, "README.md"), "utf8");
@@ -119,12 +120,12 @@ assert.doesNotMatch(surfaceText, /functionCall|<script|innerHTML|eval\(/);
 assertNoForbiddenKeys("Purpose Atlas A2UI surface JSONL", surfaceLines);
 
 const atlasData = JSON.parse(fs.readFileSync(atlasDataPath, "utf8"));
-assertNoForbiddenKeys("Purpose Atlas fixture data", atlasData);
+assertNoForbiddenKeys("Purpose Atlas preview data", atlasData);
 
 const goldenLock = JSON.parse(fs.readFileSync(goldenLockPath, "utf8"));
 for (const [file, expected] of Object.entries(goldenLock.sourceFilesSha256)) {
   assert.equal(
-    sha256File(path.join(atlasRoot, "golden/source", file)),
+    sha256File(path.join(goldenRoot, "source", file)),
     expected,
     `golden fixture source digest must match lock for ${file}`,
   );
@@ -138,16 +139,18 @@ assert.ok(atlasEntry.actions.includes("atlas.recordMismatch"));
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
 assert.deepEqual(purposeAtlasHtmlBox.assets, ["index.html"]);
 
-assert.equal(fs.existsSync(path.join(atlasRoot, "dist")), false, "generated dist must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "evidence")), false, "generated evidence must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as fixture authority");
+assert.equal(fs.existsSync(path.join(appRoot, "dist")), false, "generated dist must not be tracked as package authority");
+assert.equal(fs.existsSync(path.join(appRoot, "evidence")), false, "generated evidence must not be tracked as package authority");
+assert.equal(fs.existsSync(path.join(appRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as package authority");
 
-const atlasFiles = collectFiles(atlasRoot);
+const appFiles = collectFiles(appRoot);
 assert.deepEqual(
-  atlasFiles.filter((file) => file.toLowerCase().endsWith(".png")),
+  appFiles.filter((file) => file.toLowerCase().endsWith(".png")),
   [],
   "Purpose Atlas preview evidence must remain HTML/JSONL based and must not depend on PNG artifacts",
 );
+assert.equal(fs.existsSync(path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui/package.json")), false, "fixtures must not contain a buildable app package");
+assert.equal(fs.existsSync(path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui/vite.config.js")), false, "fixtures must not contain Vite app config");
 
 console.log(JSON.stringify({
   status: "purpose-atlas-a2ui-check-pass",

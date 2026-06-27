@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "workspaces": [
-    "packages/core-port"
+    "packages/core-port",
+    "packages/purpose-atlas-preview"
   ],
   "imports": {
     "#core-port": "./packages/core-port/src/index.mjs",

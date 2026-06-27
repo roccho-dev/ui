@@ -75,7 +75,7 @@ export const purposeAtlasComponents = [
     events: ["A2UIActionEvent"],
     childrenPolicy: "none",
     producesOutputKinds: ["a2ui.surface.v0.9", "html.document"],
-    adapterAssets: { html: ["index.html"], a2ui: ["tests/fixtures/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl"] },
+    adapterAssets: { html: ["index.html"], a2ui: ["packages/purpose-atlas-preview/public/a2ui/purpose-atlas.surface.jsonl"] },
   }),
 ];
 
