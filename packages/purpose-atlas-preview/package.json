@@ -1,0 +1,26 @@
+{
+  "name": "purpose-atlas-preview",
+  "version": "6.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Purpose Decision Atlas v6 preview app package boundary.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build && python3 scripts/build_standalone.py",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --check src/main.js"
+  },
+  "dependencies": {
+    "@a2ui/lit": "0.10.1",
+    "@a2ui/web_core": "0.10.1",
+    "lit": "3.3.3",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "vite": "8.0.16"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
