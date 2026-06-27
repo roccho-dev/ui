@@ -45,3 +45,7 @@ tests/
 ## Dependency
 
 Can be prepared near PR2, but final merge should avoid conflicting renames with PR2.
+
+## Reconstruction note
+
+After PR2 landed, this branch is checked against the current target branch rather than the old stacked base.
