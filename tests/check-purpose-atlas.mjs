@@ -7,13 +7,14 @@ import { fileURLToPath } from "node:url";
 import { defaultRegistry, purposeAtlasHtmlBox } from "#core-port";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const atlasRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui");
+const atlasFixtureRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui");
+const previewPackageRoot = path.join(root, "packages/purpose-atlas-preview");
 const atlasDocsRoot = path.join(root, "docs/purpose-atlas-v6-a2ui");
-const surfacePath = path.join(atlasRoot, "public/a2ui/purpose-atlas.surface.jsonl");
-const atlasDataPath = path.join(atlasRoot, "src/data/atlas-data.json");
+const surfacePath = path.join(previewPackageRoot, "public/a2ui/purpose-atlas.surface.jsonl");
+const atlasDataPath = path.join(previewPackageRoot, "src/data/atlas-data.json");
 const dataContractPath = path.join(atlasDocsRoot, "A2UI-DATA-CONTRACT.md");
 const atlasReadmePath = path.join(atlasDocsRoot, "README.md");
-const goldenLockPath = path.join(atlasRoot, "golden/GOLDEN_LOCK.json");
+const goldenLockPath = path.join(atlasFixtureRoot, "golden/GOLDEN_LOCK.json");
 
 const contractPhrases = [
   "ADRS projected input",
@@ -86,6 +87,44 @@ assert.match(dataContract, /inputAuthority: external to ui\.git/);
 assert.match(dataContract, /replaceable by ADRS\s+projected input/);
 assert.match(dataContract, /runtime behavior only/);
 
+const previewPackageRequiredFiles = [
+  "package.json",
+  "package-lock.json",
+  "vite.config.js",
+  "index.html",
+  "public/a2ui/purpose-atlas.surface.jsonl",
+  "scripts/build_standalone.py",
+  "src/main.js",
+  "src/app.js",
+  "src/runtime/atlas-runtime.js",
+  "src/a2ui/apis.js",
+  "src/a2ui/catalog.js",
+  "src/a2ui/validate-messages.js",
+  "src/components/atlas-source-surface.js",
+  "src/ui/cached-atlas-renderer.js",
+  "src/domain/atlas-engine.js",
+  "src/data/atlas-data.json",
+  "src/styles/global.css",
+  "src/styles/source-ui.css",
+];
+for (const file of previewPackageRequiredFiles) {
+  assert.equal(fs.existsSync(path.join(previewPackageRoot, file)), true, `preview package must own ${file}`);
+}
+
+const legacyPreviewAppPaths = [
+  "package.json",
+  "package-lock.json",
+  "vite.config.js",
+  "index.html",
+  "public",
+  "scripts",
+  "src",
+  "test",
+];
+for (const file of legacyPreviewAppPaths) {
+  assert.equal(fs.existsSync(path.join(atlasFixtureRoot, file)), false, `fixture must not retain preview app path ${file}`);
+}
+
 const surfaceText = fs.readFileSync(surfacePath, "utf8");
 const surfaceLines = surfaceText.trim().split(/\n+/).map((line) => JSON.parse(line));
 assert.equal(surfaceLines[0].version, "v0.9");
@@ -124,7 +163,7 @@ assertNoForbiddenKeys("Purpose Atlas fixture data", atlasData);
 const goldenLock = JSON.parse(fs.readFileSync(goldenLockPath, "utf8"));
 for (const [file, expected] of Object.entries(goldenLock.sourceFilesSha256)) {
   assert.equal(
-    sha256File(path.join(atlasRoot, "golden/source", file)),
+    sha256File(path.join(atlasFixtureRoot, "golden/source", file)),
     expected,
     `golden fixture source digest must match lock for ${file}`,
   );
@@ -138,11 +177,11 @@ assert.ok(atlasEntry.actions.includes("atlas.recordMismatch"));
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
 assert.deepEqual(purposeAtlasHtmlBox.assets, ["index.html"]);
 
-assert.equal(fs.existsSync(path.join(atlasRoot, "dist")), false, "generated dist must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "evidence")), false, "generated evidence must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as fixture authority");
+assert.equal(fs.existsSync(path.join(atlasFixtureRoot, "dist")), false, "generated dist must not be tracked as fixture authority");
+assert.equal(fs.existsSync(path.join(atlasFixtureRoot, "evidence")), false, "generated evidence must not be tracked as fixture authority");
+assert.equal(fs.existsSync(path.join(atlasFixtureRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as fixture authority");
 
-const atlasFiles = collectFiles(atlasRoot);
+const atlasFiles = collectFiles(atlasFixtureRoot);
 assert.deepEqual(
   atlasFiles.filter((file) => file.toLowerCase().endsWith(".png")),
   [],
