@@ -1,16 +1,11 @@
 // Default component catalog for ui.component.registry.v1.
 //
-// These entries are derived from the A2UI recursive adapter split PoC
-// (primitives / slide / questionnaire adapters) and the need_zoom surface
-// modeling. They are renderer-neutral descriptors only: no DOM, no HTML.
-// Adding a new component (e.g. a future "form" or "chart" family) is one more
-// defineComponent() call and requires no schema change (C03).
+// These entries are renderer-neutral descriptors only: no DOM, no HTML.
 
 import { defineComponent, makeRegistry } from "./registry.mjs";
 
 const HTML_PRODUCES = ["html.element", "sdui.component.v1"];
 
-// --- primitives: shared recursive primitives (A2UI primitiveAdapter) ---
 export const primitiveComponents = [
   defineComponent({ id: "App", family: "primitive", stability: "stable", description: "recursive app root container", producesOutputKinds: HTML_PRODUCES }),
   defineComponent({ id: "Defs", family: "primitive", stability: "stable", description: "template definitions; not rendered directly", childrenPolicy: "templated", producesOutputKinds: [] }),
@@ -34,15 +29,11 @@ export const primitiveComponents = [
   defineComponent({ id: "SvgText", family: "primitive", stability: "stable", description: "svg text", props: ["x", "y", "text", "class"], childrenPolicy: "none", producesOutputKinds: ["svg.element"] }),
 ];
 
-// --- slide: deck/slide navigation (A2UI slideAdapter) ---
 export const slideComponents = [
   defineComponent({ id: "Deck", family: "slide", stability: "stable", description: "slide deck showing one slide at a time", props: ["indexPath"], state: ["/slideIndex"], actions: ["slide.next", "slide.prev", "slide.go"], producesOutputKinds: HTML_PRODUCES }),
   defineComponent({ id: "Slide", family: "slide", stability: "stable", description: "single slide", producesOutputKinds: HTML_PRODUCES }),
 ];
 
-// --- questionnaire/flow: exclusive question flow (A2UI questionnaireAdapter) ---
-// Integrates the standalone questionnaire PoC as a registry component family
-// rather than a separate monolithic UI island (C10).
 export const questionnaireComponents = [
   defineComponent({ id: "QuestionFlow", family: "questionnaire", stability: "stable", description: "exclusive question flow driven by current-question state", props: ["currentPath", "initial"], state: ["/questionnaire/current"], producesOutputKinds: HTML_PRODUCES }),
   defineComponent({ id: "Question", family: "questionnaire", stability: "stable", description: "single question node", producesOutputKinds: HTML_PRODUCES }),
@@ -52,15 +43,12 @@ export const questionnaireComponents = [
   defineComponent({ id: "AnswerSummary", family: "questionnaire", stability: "stable", description: "generated summary of recorded answers", props: ["path", "label"], state: ["/questionnaire/answers"], childrenPolicy: "generated", producesOutputKinds: HTML_PRODUCES }),
 ];
 
-// --- need_zoom: voronoi surface modeling components ---
-// These mirror the existing projectNeedZoomSurface payload kinds so the
-// need_zoom surface is describable as registry components too.
 export const needZoomComponents = [
   defineComponent({ id: "need_zoom.surface_config.v1", family: "need_zoom", stability: "stable", description: "surface world/zoom config", props: ["title", "w", "h", "cell"], childrenPolicy: "none", producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
   defineComponent({ id: "need_zoom.facet.v1", family: "need_zoom", stability: "stable", description: "facet color/label", props: ["id", "color", "label"], childrenPolicy: "none", producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
   defineComponent({ id: "need_zoom.node.v1", family: "need_zoom", stability: "stable", description: "voronoi node", props: ["id", "label", "facet", "lvl", "parent", "x", "y", "r", "risk", "summary"], childrenPolicy: "none", producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
   defineComponent({ id: "need_zoom.edge.v1", family: "need_zoom", stability: "stable", description: "voronoi edge", props: ["a", "b", "k", "w"], childrenPolicy: "none", producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
-  defineComponent({ id: "need_zoom.event.v1", family: "need_zoom", stability: "stable", description: "surface event (purpose.set, cxo.receive, ...)", props: ["type", "label", "by", "to", "topic", "node", "message", "at"], childrenPolicy: "none", events: ["need_zoom.event.v1"], producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
+  defineComponent({ id: "need_zoom.event.v1", family: "need_zoom", stability: "stable", description: "surface event", props: ["type", "label", "by", "to", "topic", "node", "message", "at"], childrenPolicy: "none", events: ["need_zoom.event.v1"], producesOutputKinds: ["need_zoom.voronoi_surface.v1"] }),
 ];
 
 export const purposeAtlasComponents = [
@@ -75,7 +63,7 @@ export const purposeAtlasComponents = [
     events: ["A2UIActionEvent"],
     childrenPolicy: "none",
     producesOutputKinds: ["a2ui.surface.v0.9", "html.document"],
-    adapterAssets: { html: ["index.html"], a2ui: ["tests/fixtures/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl"] },
+    adapterAssets: { html: ["index.html"], a2ui: ["tests/fixtures/purpose-atlas/surface.v0.9.jsonl"] },
   }),
 ];
 

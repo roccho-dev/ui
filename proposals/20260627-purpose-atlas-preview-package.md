@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Move the buildable Purpose Atlas preview app out of `tests/fixtures/` and into a package-shaped implementation boundary.
+Move the buildable Purpose Atlas preview app out of the old fixture app location and into a package-shaped implementation boundary.
 
 ## Scope
 
-- Move the Vite app, runtime, components, scripts, package files, and tests from `tests/fixtures/purpose-atlas-v6-a2ui/**` to `packages/purpose-atlas-preview/**`.
+- Move the Vite app, runtime, components, scripts, package files, and tests to `packages/purpose-atlas-preview/**`.
 - Keep the preview build working through Nix.
 - Keep generated `dist/`, evidence, and manifests out of git authority.
 
@@ -34,7 +34,6 @@ packages/purpose-atlas-preview/
     ui/
     styles/
   scripts/
-  test/
 ```
 
 ## Completion conditions
@@ -45,4 +44,4 @@ packages/purpose-atlas-preview/
 
 ## Dependency
 
-Best after PR1. Can be prepared in parallel, but final import paths must follow the core-port package shape.
+Best after PR1. Final import paths must follow the core-port package shape.
