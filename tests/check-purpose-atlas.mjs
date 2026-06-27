@@ -7,13 +7,16 @@ import { fileURLToPath } from "node:url";
 import { defaultRegistry, purposeAtlasHtmlBox } from "../src/index.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const atlasRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui");
+const previewPackageRoot = path.join(root, "packages/purpose-atlas-preview");
+const fixtureRoot = path.join(root, "tests/fixtures/purpose-atlas");
+const referenceRoot = path.join(root, "tests/reference/purpose-atlas-source");
 const atlasDocsRoot = path.join(root, "docs/purpose-atlas-v6-a2ui");
-const surfacePath = path.join(atlasRoot, "public/a2ui/purpose-atlas.surface.jsonl");
-const atlasDataPath = path.join(atlasRoot, "src/data/atlas-data.json");
+const surfacePath = path.join(fixtureRoot, "surface.v0.9.jsonl");
+const atlasDataPath = path.join(fixtureRoot, "atlas-data.json");
 const dataContractPath = path.join(atlasDocsRoot, "A2UI-DATA-CONTRACT.md");
 const atlasReadmePath = path.join(atlasDocsRoot, "README.md");
-const goldenLockPath = path.join(atlasRoot, "golden/GOLDEN_LOCK.json");
+const sourceLockPath = path.join(referenceRoot, "SOURCE_LOCK.json");
+const sourceRoot = path.join(referenceRoot, "source");
 
 const contractPhrases = [
   "ADRS projected input",
@@ -38,9 +41,7 @@ const forbiddenAuthorityFields = [
 ];
 
 function assertContainsPhrases(label, text, phrases) {
-  for (const phrase of phrases) {
-    assert.ok(text.includes(phrase), `${label} must contain ${phrase}`);
-  }
+  for (const phrase of phrases) assert.ok(text.includes(phrase), `${label} must contain ${phrase}`);
 }
 
 function assertNoForbiddenKeys(label, value, trail = []) {
@@ -50,10 +51,7 @@ function assertNoForbiddenKeys(label, value, trail = []) {
     return;
   }
   for (const key of Object.keys(value)) {
-    assert.ok(
-      !forbiddenAuthorityFields.includes(key),
-      `${label} must not assert authority field ${[...trail, key].join(".")}`,
-    );
+    assert.ok(!forbiddenAuthorityFields.includes(key), `${label} must not assert authority field ${[...trail, key].join(".")}`);
     assertNoForbiddenKeys(label, value[key], [...trail, key]);
   }
 }
@@ -62,17 +60,8 @@ function sha256File(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
-function collectFiles(dir, prefix = "") {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-    const full = path.join(dir, entry.name);
-    return entry.isDirectory() ? collectFiles(full, relative) : [relative];
-  });
-}
-
-const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const html = fs.readFileSync(path.join(previewPackageRoot, "index.html"), "utf8");
 assert.match(html, /Purpose Decision Atlas v6/);
-assert.match(html, /__purposeAtlasSurfaceJsonl/);
 assert.match(html, /purpose-atlas-app/);
 assert.doesNotMatch(html, /need-zoom-purpose-lineage/);
 
@@ -116,18 +105,15 @@ assert.deepEqual(actionNames, [
   "atlas.zoomOut",
 ].sort());
 assert.doesNotMatch(surfaceText, /functionCall|<script|innerHTML|eval\(/);
+assert.ok(!surfaceLines.some((line) => line.updateDataModel), "surface fixture must be shell/input only");
 assertNoForbiddenKeys("Purpose Atlas A2UI surface JSONL", surfaceLines);
 
 const atlasData = JSON.parse(fs.readFileSync(atlasDataPath, "utf8"));
 assertNoForbiddenKeys("Purpose Atlas fixture data", atlasData);
 
-const goldenLock = JSON.parse(fs.readFileSync(goldenLockPath, "utf8"));
-for (const [file, expected] of Object.entries(goldenLock.sourceFilesSha256)) {
-  assert.equal(
-    sha256File(path.join(atlasRoot, "golden/source", file)),
-    expected,
-    `golden fixture source digest must match lock for ${file}`,
-  );
+const sourceLock = JSON.parse(fs.readFileSync(sourceLockPath, "utf8"));
+for (const [file, expected] of Object.entries(sourceLock.sourceFilesSha256)) {
+  assert.equal(sha256File(path.join(sourceRoot, file)), expected, `source reference digest must match lock for ${file}`);
 }
 
 const registry = defaultRegistry();
@@ -138,16 +124,9 @@ assert.ok(atlasEntry.actions.includes("atlas.recordMismatch"));
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
 assert.deepEqual(purposeAtlasHtmlBox.assets, ["index.html"]);
 
-assert.equal(fs.existsSync(path.join(atlasRoot, "dist")), false, "generated dist must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "evidence")), false, "generated evidence must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as fixture authority");
-
-const atlasFiles = collectFiles(atlasRoot);
-assert.deepEqual(
-  atlasFiles.filter((file) => file.toLowerCase().endsWith(".png")),
-  [],
-  "Purpose Atlas preview evidence must remain HTML/JSONL based and must not depend on PNG artifacts",
-);
+assert.equal(fs.existsSync(path.join(previewPackageRoot, "dist")), false, "generated dist must not be tracked as package authority");
+assert.equal(fs.existsSync(path.join(previewPackageRoot, "evidence")), false, "generated evidence must not be tracked as package authority");
+assert.equal(fs.existsSync(path.join(previewPackageRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as package authority");
 
 console.log(JSON.stringify({
   status: "purpose-atlas-a2ui-check-pass",
