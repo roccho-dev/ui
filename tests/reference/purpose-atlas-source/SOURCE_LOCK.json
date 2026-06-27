@@ -1,7 +1,7 @@
 {
-  "goldenId": "purpose-decision-atlas-v6-ui-refactor/source-reference",
+  "goldenId": "purpose-decision-atlas-v6-ui-refactor/source-reference-sentinel",
   "uiSource": "source/ui-shell.html",
-  "sourceForm": "source reference files preserved outside fixtures",
+  "sourceForm": "minimal source-reference sentinel outside fixtures; not the full legacy source corpus",
   "sourceFilesSha256": {
     "ui-shell.html": "5e967ba01245eee2eeb9de0c06923fdf3a302516841b24f4493b0fab84da9adc",
     "ui.css": "3e3664fd2254e31b7b6b9292125a1b0f387dfbeb8fba2811afe9fe21c29abda1",
