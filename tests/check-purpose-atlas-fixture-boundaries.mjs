@@ -13,18 +13,7 @@ const atlasDataPath = path.join(fixtureRoot, "atlas-data.json");
 const sourceLockPath = path.join(referenceRoot, "SOURCE_LOCK.json");
 const sourceRoot = path.join(referenceRoot, "source");
 
-const forbiddenFixtureNames = new Set([
-  "dist",
-  "evidence",
-  "MANIFEST.sha256",
-  "package.json",
-  "package-lock.json",
-  "vite.config.js",
-  "index.html",
-  "src",
-  "scripts",
-  "test",
-]);
+const forbiddenFixtureNames = new Set(["dist", "evidence", "MANIFEST.sha256", "package.json", "package-lock.json", "vite.config.js", "index.html", "src", "scripts", "test"]);
 
 function collectNames(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -33,7 +22,6 @@ function collectNames(dir) {
     return entry.isDirectory() ? [entry.name, ...collectNames(child)] : [entry.name];
   });
 }
-
 function collectFiles(dir, prefix = "") {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -42,15 +30,9 @@ function collectFiles(dir, prefix = "") {
     return entry.isDirectory() ? collectFiles(child, relative) : [relative];
   });
 }
-
 function readJsonl(filePath) {
-  return fs.readFileSync(filePath, "utf8")
-    .trim()
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
+  return fs.readFileSync(filePath, "utf8").trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 }
-
 function sha256(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
@@ -68,10 +50,7 @@ assert.ok(Array.isArray(atlasData.base_nodes), "atlas-data fixture must contain 
 assert.ok(Array.isArray(atlasData.base_edges), "atlas-data fixture must contain base_edges input");
 assert.ok(Array.isArray(atlasData.events), "atlas-data fixture must contain events input");
 
-const fixtureNames = collectNames(fixtureRoot);
-for (const name of fixtureNames) {
-  assert.ok(!forbiddenFixtureNames.has(name), `tests/fixtures/purpose-atlas must not contain app/build artifact: ${name}`);
-}
+for (const name of collectNames(fixtureRoot)) assert.ok(!forbiddenFixtureNames.has(name), `tests/fixtures/purpose-atlas must not contain app/build artifact: ${name}`);
 
 assert.ok(fs.existsSync(sourceLockPath), "Purpose Atlas source lock must live under tests/reference/purpose-atlas-source");
 const sourceLock = JSON.parse(fs.readFileSync(sourceLockPath, "utf8"));
@@ -84,16 +63,9 @@ for (const [file, expected] of Object.entries(sourceLock.sourceFilesSha256)) {
   assert.ok(fs.existsSync(actualPath), `source reference file must exist: ${file}`);
   assert.equal(sha256(actualPath), expected, `source reference digest must match for ${file}`);
 }
-
 for (const file of collectFiles(goldenRoot)) {
   assert.ok(!file.includes("source/"), `golden must not contain old source reference files: ${file}`);
   assert.ok(!forbiddenFixtureNames.has(path.basename(file)), `golden must not contain app/build artifact: ${file}`);
 }
 
-console.log(JSON.stringify({
-  status: "purpose-atlas-fixture-boundaries-pass",
-  fixtureRoot: "tests/fixtures/purpose-atlas",
-  referenceRoot: "tests/reference/purpose-atlas-source",
-  surfaceRows: surfaceRows.length,
-  referenceFiles: Object.keys(sourceLock.sourceFilesSha256).length,
-}, null, 2));
+console.log(JSON.stringify({ status: "purpose-atlas-fixture-boundaries-pass", fixtureRoot: "tests/fixtures/purpose-atlas", referenceRoot: "tests/reference/purpose-atlas-source", surfaceRows: surfaceRows.length, referenceFiles: Object.keys(sourceLock.sourceFilesSha256).length }, null, 2));
