@@ -6,9 +6,9 @@
   "description": "Purpose Decision Atlas v6 preview app package boundary.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "vite build && python3 scripts/build_standalone.py",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --check src/main.js"
+    "test": "node --check src/main.js && node --check src/app.js && node --check src/runtime/atlas-runtime.js && node --check src/a2ui/apis.js && node --check src/a2ui/catalog.js && node --check src/a2ui/validate-messages.js && node --check src/components/atlas-source-surface.js && node --check src/ui/cached-atlas-renderer.js && node --check src/domain/atlas-engine.js"
   },
   "dependencies": {
     "@a2ui/lit": "0.10.1",

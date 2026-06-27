@@ -16,9 +16,9 @@
         pkgs.buildNpmPackage {
           pname = "purpose-atlas-preview-html";
           version = "6.2.0";
-          src = ./tests/fixtures/purpose-atlas-v6-a2ui;
+          src = ./packages/purpose-atlas-preview;
           npmDeps = pkgs.importNpmLock {
-            npmRoot = ./tests/fixtures/purpose-atlas-v6-a2ui;
+            npmRoot = ./packages/purpose-atlas-preview;
           };
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           nativeBuildInputs = [ pkgs.python3 ];
