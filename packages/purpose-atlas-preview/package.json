@@ -6,7 +6,7 @@
   "description": "Purpose Decision Atlas v6 preview app package boundary.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build && python3 scripts/build_standalone.py",
+    "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --check src/main.js"
   },
