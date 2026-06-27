@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { defaultRegistry, purposeAtlasHtmlBox } from "../packages/core-port/src/index.mjs";
+import { defaultRegistry, purposeAtlasHtmlBox } from "#core-port";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const previewPackageRoot = path.join(root, "packages/purpose-atlas-preview");
