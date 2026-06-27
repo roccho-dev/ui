@@ -13,7 +13,7 @@ import {
   renderShellHtml,
   validateDataCartridgeRows,
   validateShellRows,
-} from "../src/a2ui-shell-builder.mjs";
+} from "#core-port/a2ui-shell-builder";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = path.join(root, "tests", "fixtures");

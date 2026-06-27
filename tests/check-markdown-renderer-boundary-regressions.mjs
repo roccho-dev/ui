@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   DOCUMENT_MODEL_KIND,
   renderMarkdownDocument,
-} from "../src/index.mjs";
+} from "#core-port";
 
 function blockingCodes(result) {
   return result.diagnostics
@@ -68,7 +68,7 @@ assert.match(htmlProbe.markdown, /&lt;main&gt;README&lt;\/main&gt;/);
 assert.doesNotMatch(htmlProbe.markdown, /<main>/);
 assert.doesNotMatch(htmlProbe.markdown, /<!doctype|<html|<body/i, "README artifact path must not emit an HTML document");
 
-const rendererSource = readFileSync(new URL("../src/markdown-document-renderer.mjs", import.meta.url), "utf8");
+const rendererSource = readFileSync(new URL("../packages/core-port/src/markdown-document-renderer.mjs", import.meta.url), "utf8");
 const forbiddenSourcePatterns = [
   ["ADR row file read", /readFileSync|createReadStream|openSync/],
   ["governance policy validator", /validatePolicy|policyValidator|governancePolicyValidator/],

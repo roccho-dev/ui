@@ -1,6 +1,6 @@
 {
   "goldenId": "purpose-decision-atlas-v6-ui-refactor/latest-source",
-  "uiSource": "golden/source/ui-shell.html",
+  "uiSource": "source/ui-shell.html",
   "sourceForm": "uncompressed files copied from latest source tree",
   "sourceFilesSha256": {
     "ui-shell.html": "6d2c0e8d85d38282dc9956af5769d4439251bea46ec1943d655361e58f114f23",
@@ -10,10 +10,7 @@
     "build_preview.py": "e7cfcb43a67197314e7797114ef561c4881609c72557dc1831edf7e6ece55d04"
   },
   "semanticWitness": {
-    "steps": [
-      0,
-      40
-    ],
+    "steps": [0, 40],
     "count": 41,
     "fields": [
       "t",

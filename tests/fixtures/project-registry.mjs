@@ -17,7 +17,7 @@ import {
   projectQuestionnaireFlow,
   toUiLog,
   makeTargetRef,
-} from "../../src/index.mjs";
+} from "#core-port";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
