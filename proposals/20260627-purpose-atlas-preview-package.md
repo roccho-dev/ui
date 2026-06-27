@@ -2,19 +2,21 @@
 
 ## Purpose
 
-Move the buildable Purpose Atlas preview app out of the old fixture app location and into a package-shaped implementation boundary.
+Move the buildable Purpose Atlas preview package boundary out of the old fixture location and into `packages/purpose-atlas-preview/**`.
 
 ## Scope
 
-- Move the Vite app, runtime, components, scripts, package files, and tests to `packages/purpose-atlas-preview/**`.
+- Move the Vite app package files, runtime, components, scripts, package lock, and public A2UI surface to `packages/purpose-atlas-preview/**`.
 - Keep the preview build working through Nix.
 - Keep generated `dist/`, evidence, and manifests out of git authority.
+- Remove the legacy buildable app package files from the old fixture location.
 
 ## Non-scope
 
 - Do not move root core/port code in this PR.
-- Do not redefine fixture/golden/reference semantics here except as required for imports.
+- Do not perform the full fixture / golden / reference split here.
 - Do not adopt generated artifacts as tracked source.
+- Do not delete every old source/reference file here; #33 performs final old-path cleanup after #32 establishes the new fixture/reference boundary.
 
 ## Target tree
 
@@ -41,7 +43,8 @@ packages/purpose-atlas-preview/
 - `tests/fixtures/` no longer contains a buildable app package.
 - Preview HTML still builds through `.#purpose-atlas-preview-html`.
 - The app remains a preview/witness package, not UI core authority.
+- Remaining old source/reference cleanup is explicitly deferred to the final stacked cleanup PR.
 
 ## Dependency
 
-Best after PR1. Final import paths must follow the core-port package shape.
+After PR1. Final import paths follow the core-port package shape.

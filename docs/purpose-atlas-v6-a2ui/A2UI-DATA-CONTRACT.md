@@ -2,7 +2,6 @@
 
 - inputAuthority: external to ui.git
 - primary input: `ADRS projected input`
-- alternate spelling retained for checks: `adrs projected input`
 - preview package: `packages/purpose-atlas-preview/**`
 - shell fixture: `tests/fixtures/purpose-atlas/surface.v0.9.jsonl`
 - attached data fixture: `tests/fixtures/purpose-atlas/atlas-data.json`

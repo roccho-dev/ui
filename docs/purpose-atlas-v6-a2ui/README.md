@@ -11,7 +11,7 @@ Purpose Decision Atlas v6 is a non-authority A2UI witness.
 | Generated preview evidence | Nix and CI outputs |
 
 Purpose Decision Atlas v6 uses `core+port as lib`.
-Runtime input is expected to be `ADRS projected input` (`adrs projected input`) produced outside this repo.
+Runtime input is expected to be `ADRS projected input` produced outside this repo.
 A2UI is `a2ui as build`.
 JSONL in this repo is `jsonl as attached data`.
 Fixtures must be `stateless` and `non-authoritative`.

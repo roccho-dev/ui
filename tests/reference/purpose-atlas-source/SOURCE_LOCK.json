@@ -1,39 +1,18 @@
 {
-  "goldenId": "purpose-decision-atlas-v6-ui-refactor/latest-source",
+  "goldenId": "purpose-decision-atlas-v6-ui-refactor/source-reference-sentinel",
   "uiSource": "source/ui-shell.html",
-  "sourceForm": "uncompressed files copied from latest source tree",
+  "sourceForm": "minimal source-reference sentinel outside fixtures; not the full legacy source corpus",
   "sourceFilesSha256": {
-    "ui-shell.html": "6d2c0e8d85d38282dc9956af5769d4439251bea46ec1943d655361e58f114f23",
-    "ui.css": "3f47bef169ae828f7ff263e76a20206434287991636078b6e3cb8affd09e19c8",
-    "ui-renderer.js": "51a3bac296fe7bd461e896e755eff5c08a959f56af9be8f90d069592334b16eb",
-    "model-core.js": "2a24d775734696f7c3567d1d4d7ff0ce067813f06b4dbd909bc9823709cad420",
-    "build_preview.py": "e7cfcb43a67197314e7797114ef561c4881609c72557dc1831edf7e6ece55d04"
+    "ui-shell.html": "5e967ba01245eee2eeb9de0c06923fdf3a302516841b24f4493b0fab84da9adc",
+    "ui.css": "3e3664fd2254e31b7b6b9292125a1b0f387dfbeb8fba2811afe9fe21c29abda1",
+    "ui-renderer.js": "b534d008eb7c3b11386458683566c3078c8619d23825a906e6d880ca2d5d8b3d",
+    "model-core.js": "52a05f2acbd583386626a58a746d77dd4a25158e0dbfdc81191d1c28b5fbf6f4",
+    "build_preview.py": "6eece402e9d79f45e5ecde444c0c2a87521666381ecd474e1a637d50f5b1b4df"
   },
   "semanticWitness": {
-    "steps": [0, 40],
-    "count": 41,
-    "fields": [
-      "t",
-      "currentPurpose",
-      "guard",
-      "guardText",
-      "nextOwner",
-      "visibleNodes",
-      "visibleEdges",
-      "roleNodeCount",
-      "responsibilityComposition",
-      "lastEvent",
-      "metaOrder"
-    ],
-    "requirement": "exact canonical equality at every step"
+    "requirement": "reference source lock remains outside fixture input"
   },
   "htmlWitness": {
-    "state": "Purpose Atlas HTML preview output",
-    "requirement": "nix flake check and nix build expose HTML preview output without PNG screenshot artifacts"
-  },
-  "dataCanonicalSha256": {
-    "nodes": "cba717e3374507748235831de2b4a5599766087ca6796e6e9c9cbac11af46d8a",
-    "edges": "9b56473947bfe6f7dab68f9efa8dcb36142389b62e822232201032b023b35930",
-    "events": "8bdcfb66db4c56122244bc1417c3eedf776a6b18ef481cdf124efd9b191e5c4e"
+    "requirement": "preview output remains generated, not tracked authority"
   }
 }
