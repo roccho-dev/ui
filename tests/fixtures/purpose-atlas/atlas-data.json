@@ -1,5 +1,311 @@
 {
-  "base_nodes": [],
-  "base_edges": [],
-  "events": []
+  "base_nodes": [
+    {
+      "id": "objective.company_sale",
+      "label": "高価値法人構築と売却",
+      "layer": "ceo",
+      "kind": "purpose",
+      "role": "terminal_purpose",
+      "actorCategory": "CEO",
+      "size": 1.7,
+      "summary": "最上位の事業目的。低コスト・高利益率・監査可能なソフトウェア組織を作り、売却可能性を上げる。"
+    },
+    {
+      "id": "objective.agent_factory_replayable",
+      "label": "再現可能なAgent工場",
+      "layer": "ceo",
+      "kind": "milestone",
+      "actorCategory": "CEO",
+      "size": 1.35,
+      "summary": "人や会話UIが変わっても、目的・作業・証拠・判断を再生できる運用基盤。"
+    },
+    {
+      "id": "raw.parameterized_top_level_closure_policy",
+      "label": "ADRS raw: selected objective closure",
+      "layer": "cpo",
+      "kind": "policy",
+      "actorCategory": "CPO",
+      "size": 1.08,
+      "source_ref": "raw.adrs.parameterized_top_level_closure_policy.260627.01",
+      "summary": "最高目的を固定値ではなく selected_objective_id として評価する。"
+    },
+    {
+      "id": "raw.gen0_purpose_steering_contract",
+      "label": "ADRS raw: Gen0 purpose steering",
+      "layer": "review_agent",
+      "kind": "policy",
+      "actorCategory": "REVIEW",
+      "size": 1.08,
+      "source_ref": "raw.adrs.gen0_purpose_steering_contract.260627.01",
+      "summary": "Gen1 stop-okを承認にせず、Gen0が選択目的に対して批評・構築・dispatch・判断する。"
+    },
+    {
+      "id": "raw.intent_reality_reconciliation_contract",
+      "label": "ADRS raw: intent-reality reconciliation",
+      "layer": "ops_agent",
+      "kind": "policy",
+      "actorCategory": "OPS",
+      "size": 1.08,
+      "source_ref": "raw.adrs.intent_reality_reconciliation_contract.260627.01",
+      "summary": "incident・開発・保守・rollbackを intent と deployed reality の差分解消として同型化する。"
+    },
+    {
+      "id": "contract.selected_objective_slot",
+      "label": "selected_objective_id は入力",
+      "layer": "cpo",
+      "kind": "contract",
+      "actorCategory": "CPO",
+      "size": 1,
+      "summary": "閉じているかは選択目的ごとに評価し、固定の最高目的へハードコードしない。"
+    },
+    {
+      "id": "contract.gen0_readback_required",
+      "label": "Gen0 readback required",
+      "layer": "review_agent",
+      "kind": "contract",
+      "actorCategory": "REVIEW",
+      "size": 1,
+      "summary": "Gen1の完了主張は承認ではない。acceptにはGen0 readbackが必要。"
+    },
+    {
+      "id": "contract.intent_reality_gap",
+      "label": "intent_reality_gap",
+      "layer": "ops_agent",
+      "kind": "contract",
+      "actorCategory": "OPS",
+      "size": 1,
+      "summary": "実態が選択目的を満たさないなら、health checkが緑でも差分として扱う。"
+    },
+    {
+      "id": "law.green_checks_not_purpose_proof",
+      "label": "CI/mergeは目的証明ではない",
+      "layer": "review_agent",
+      "kind": "evidence",
+      "actorCategory": "REVIEW",
+      "size": 0.9,
+      "summary": "CI success、PR merge、local stop-okは目的充足の証明ではない。"
+    },
+    {
+      "id": "law.post_action_receipt_required",
+      "label": "post-action receipt required",
+      "layer": "ops_agent",
+      "kind": "evidence",
+      "actorCategory": "OPS",
+      "size": 0.9,
+      "summary": "closure claimには差分が閉じた/減ったことを示す行動後証拠が必要。"
+    },
+    {
+      "id": "repo.adrs",
+      "label": "ADRS: intent authority",
+      "layer": "ceo",
+      "kind": "role",
+      "actorCategory": "CEO",
+      "size": 0.88,
+      "summary": "契約・語彙・法律・required fieldsを持つ。"
+    },
+    {
+      "id": "repo.governance",
+      "label": "Governance: join/check",
+      "layer": "cfo",
+      "kind": "role",
+      "actorCategory": "CFO",
+      "size": 0.88,
+      "summary": "intent / reality / action / closure evidence を突合する。"
+    },
+    {
+      "id": "repo.ops",
+      "label": "Ops: deployed reality",
+      "layer": "ops_agent",
+      "kind": "role",
+      "actorCategory": "OPS",
+      "size": 0.88,
+      "summary": "deployed revision、log、metric、receipt、execution evidenceを持つ。"
+    }
+  ],
+  "base_edges": [
+    {
+      "id": "raw86_defines_slot",
+      "source": "raw.parameterized_top_level_closure_policy",
+      "target": "contract.selected_objective_slot",
+      "kind": "defines",
+      "weight": 0.9,
+      "label": "selected objective contract"
+    },
+    {
+      "id": "raw91_defines_gen0",
+      "source": "raw.gen0_purpose_steering_contract",
+      "target": "contract.gen0_readback_required",
+      "kind": "defines",
+      "weight": 0.9,
+      "label": "Gen0 judgment contract"
+    },
+    {
+      "id": "raw93_defines_gap",
+      "source": "raw.intent_reality_reconciliation_contract",
+      "target": "contract.intent_reality_gap",
+      "kind": "defines",
+      "weight": 0.9,
+      "label": "gap/action/closure contract"
+    },
+    {
+      "id": "slot_enables_factory",
+      "source": "contract.selected_objective_slot",
+      "target": "objective.agent_factory_replayable",
+      "kind": "enables",
+      "weight": 0.8,
+      "label": "objective can be rebound"
+    },
+    {
+      "id": "gen0_enables_factory",
+      "source": "contract.gen0_readback_required",
+      "target": "objective.agent_factory_replayable",
+      "kind": "enables",
+      "weight": 0.8,
+      "label": "worker self-approval blocked"
+    },
+    {
+      "id": "gap_operationalizes_factory",
+      "source": "contract.intent_reality_gap",
+      "target": "objective.agent_factory_replayable",
+      "kind": "operationalizes",
+      "weight": 0.8,
+      "label": "all work uses same loop"
+    },
+    {
+      "id": "factory_contributes_sale",
+      "source": "objective.agent_factory_replayable",
+      "target": "objective.company_sale",
+      "kind": "contributes_to",
+      "weight": 0.85,
+      "label": "auditability improves sale readiness"
+    },
+    {
+      "id": "ci_law_supports_gen0",
+      "source": "law.green_checks_not_purpose_proof",
+      "target": "contract.gen0_readback_required",
+      "kind": "evidence_for",
+      "weight": 0.75,
+      "label": "no self-approval by CI"
+    },
+    {
+      "id": "receipt_law_supports_gap",
+      "source": "law.post_action_receipt_required",
+      "target": "contract.intent_reality_gap",
+      "kind": "evidence_for",
+      "weight": 0.75,
+      "label": "closure needs receipt"
+    },
+    {
+      "id": "adrs_owns_raw86",
+      "source": "repo.adrs",
+      "target": "raw.parameterized_top_level_closure_policy",
+      "kind": "defines",
+      "weight": 0.65,
+      "label": "ADRS raw"
+    },
+    {
+      "id": "adrs_owns_raw91",
+      "source": "repo.adrs",
+      "target": "raw.gen0_purpose_steering_contract",
+      "kind": "defines",
+      "weight": 0.65,
+      "label": "ADRS raw"
+    },
+    {
+      "id": "adrs_owns_raw93",
+      "source": "repo.adrs",
+      "target": "raw.intent_reality_reconciliation_contract",
+      "kind": "defines",
+      "weight": 0.65,
+      "label": "ADRS raw"
+    },
+    {
+      "id": "governance_checks_gap",
+      "source": "repo.governance",
+      "target": "contract.intent_reality_gap",
+      "kind": "evidence_for",
+      "weight": 0.6,
+      "label": "join diagnostics"
+    },
+    {
+      "id": "ops_evidence_gap",
+      "source": "repo.ops",
+      "target": "contract.intent_reality_gap",
+      "kind": "evidence_for",
+      "weight": 0.6,
+      "label": "deployed receipts"
+    }
+  ],
+  "events": [
+    {
+      "t": 1,
+      "type": "purpose.set",
+      "terminal": "objective.company_sale",
+      "label": "terminal purpose: 高価値法人構築と売却"
+    },
+    {
+      "t": 2,
+      "type": "contract.upsert",
+      "node": "objective.company_sale",
+      "role": "terminal_purpose",
+      "requires": [
+        "objective.agent_factory_replayable"
+      ],
+      "label": "sale readiness requires replayable factory"
+    },
+    {
+      "t": 3,
+      "type": "contract.upsert",
+      "node": "objective.agent_factory_replayable",
+      "role": "selected_objective",
+      "requires": [
+        "contract.selected_objective_slot",
+        "contract.gen0_readback_required",
+        "contract.intent_reality_gap"
+      ],
+      "label": "agent factory closure contract"
+    },
+    {
+      "t": 4,
+      "type": "cxo.activity",
+      "member": "CPO",
+      "node": "raw.parameterized_top_level_closure_policy",
+      "activity": "selected_objective_id を評価入力へ"
+    },
+    {
+      "t": 5,
+      "type": "cxo.activity",
+      "member": "REVIEW",
+      "node": "raw.gen0_purpose_steering_contract",
+      "activity": "Gen1 stop-ok を承認から分離"
+    },
+    {
+      "t": 6,
+      "type": "cxo.activity",
+      "member": "OPS",
+      "node": "raw.intent_reality_reconciliation_contract",
+      "activity": "intent と deployed reality の差分を作業源へ"
+    },
+    {
+      "t": 7,
+      "type": "cxo.activity",
+      "member": "CEO",
+      "node": "objective.company_sale",
+      "activity": "ADRS raw を売却準備目的へ接続"
+    },
+    {
+      "t": 8,
+      "type": "cxo.activity",
+      "member": "CFO",
+      "node": "repo.governance",
+      "activity": "証拠突合と残リスク保存を監査可能にする"
+    },
+    {
+      "t": 9,
+      "type": "cxo.activity",
+      "member": "OPS",
+      "node": "repo.ops",
+      "activity": "post-action receipt をclosure条件にする"
+    }
+  ]
 }
