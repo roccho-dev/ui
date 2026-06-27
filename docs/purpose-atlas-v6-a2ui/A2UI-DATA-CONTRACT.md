@@ -17,4 +17,4 @@ JSONL in this repo is `jsonl as attached data`.
 Fixtures must be `stateless` and `non-authoritative`.
 `ui.git is not a state store`.
 
-Runtime behavior only: mismatch recording, request owner, hold decision, replay state, selection, zoom, playback, and in-memory UI interactions do not approve or store canonical ADR/domain decisions.
+runtime behavior only: mismatch recording, request owner, hold decision, replay state, selection, zoom, playback, and in-memory UI interactions do not approve or store canonical ADR/domain decisions.
