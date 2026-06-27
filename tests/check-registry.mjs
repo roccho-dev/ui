@@ -17,7 +17,7 @@ import {
   toUiLog,
   makeUiAction,
   TARGET_KINDS,
-} from "../src/index.mjs";
+} from "#core-port";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function readJsonl(rel) {

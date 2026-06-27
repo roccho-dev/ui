@@ -1,6 +1,6 @@
 # ui
 
-`ui` owns the **A2UI / SDUI component registry** and the core/port library
+`ui` owns the **A2UI / SDUI component registry** and the core/port package
 boundary. It is the single source of truth (SSOT) for *what UI components
 exist*, *what they accept and produce*, and *how recursive UI node trees project
 into renderer-neutral view models*.
@@ -46,8 +46,8 @@ inventory, overlap map, and per-responsibility owner.
 
 | Layer | Files | Owns |
 |---|---|---|
-| Core | `src/registry.mjs`, `src/catalog.mjs`, `src/project.mjs`, `src/corr-port.mjs`, `src/log.mjs` | registry contract, catalog, projection, logs - **no DOM** |
-| Adapter descriptors | `src/adapters/index.mjs` | declarations of what a host may mount; no renderer state |
+| Core package | `packages/core-port/src/registry.mjs`, `packages/core-port/src/catalog.mjs`, `packages/core-port/src/project.mjs`, `packages/core-port/src/corr-port.mjs`, `packages/core-port/src/log.mjs` | registry contract, catalog, projection, logs - **no DOM** |
+| Adapter descriptors | `packages/core-port/src/adapters/index.mjs` | declarations of what a host may mount; no renderer state |
 | Tests / fixtures | `tests/fixtures/` | stateless test inputs, witness packages, and golden fixtures |
 | Generated artifacts | Nix / CI outputs | preview HTML, dist assets, evidence receipts, and manifests |
 

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { defaultRegistry, purposeAtlasHtmlBox } from "../src/index.mjs";
+import { defaultRegistry, purposeAtlasHtmlBox } from "#core-port";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const atlasRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui");

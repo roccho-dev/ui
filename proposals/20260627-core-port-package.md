@@ -7,8 +7,8 @@ Move the reusable UI core and port code into a real package and remove the root 
 ## Scope
 
 - Move root `src/**` to `packages/core-port/src/**`.
-- Add or update `packages/core-port/package.json`.
-- Update imports in tests, scripts, flake outputs, and README references.
+- Add `packages/core-port/package.json` for the reusable `ui-modeling-corr-port` package.
+- Update root scripts, tests, build scripts, and README references.
 - Keep behavior unchanged.
 
 ## Non-scope
@@ -23,24 +23,29 @@ Move the reusable UI core and port code into a real package and remove the root 
 packages/core-port/
   package.json
   src/
-    index.mjs
-    registry.mjs
-    catalog.mjs
-    project.mjs
-    corr-port.mjs
-    log.mjs
+    adapters/index.mjs
     a2ui-shell-builder.mjs
-    adapters/
-      descriptors.mjs
+    catalog.mjs
+    corr-port.mjs
+    index.mjs
+    log.mjs
+    markdown-document-renderer.mjs
+    mention-a11y.mjs
+    project.mjs
+    registry.mjs
 ```
 
 ## Completion conditions
 
 - Root `src/` no longer exists.
 - `packages/core-port/src/**` owns the reusable core/port code.
-- Existing checks pass.
+- Existing checks are still wired through `npm test` and `nix flake check`.
 - No Purpose Atlas app implementation is introduced into core-port.
 
 ## Dependency
 
 This PR should land before the preview app and fixture split PRs.
+
+## Implementation note
+
+This branch now carries the package move itself, not only the delegation plan.
