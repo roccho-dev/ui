@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(root, "tests/fixtures/purpose-atlas");
 const referenceRoot = path.join(root, "tests/reference/purpose-atlas-source");
+const previewPackageRoot = path.join(root, "packages/purpose-atlas-preview");
 const surfacePath = path.join(fixtureRoot, "surface.v0.9.jsonl");
 const atlasDataPath = path.join(fixtureRoot, "atlas-data.json");
 const sourceLockPath = path.join(referenceRoot, "SOURCE_LOCK.json");
@@ -30,6 +31,15 @@ function collectNames(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const child = path.join(dir, entry.name);
     return entry.isDirectory() ? [entry.name, ...collectNames(child)] : [entry.name];
+  });
+}
+
+function collectFiles(dir, prefix = "") {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const child = path.join(dir, entry.name);
+    return entry.isDirectory() ? collectFiles(child, relative) : [relative];
   });
 }
 
@@ -62,6 +72,9 @@ for (const name of collectNames(fixtureRoot)) {
   assert.ok(!forbiddenFixtureNames.has(name), `tests/fixtures/purpose-atlas must not contain app/build artifact: ${name}`);
 }
 
+assert.equal(fs.existsSync(path.join(previewPackageRoot, "public/a2ui/purpose-atlas.surface.jsonl")), false, "preview package public surface must be generated from fixture");
+assert.equal(fs.existsSync(path.join(previewPackageRoot, "src/data/atlas-data.json")), false, "preview package atlas data must be generated from fixture");
+
 assert.ok(fs.existsSync(sourceLockPath), "Purpose Atlas source lock must live under tests/reference/purpose-atlas-source");
 const sourceLock = JSON.parse(fs.readFileSync(sourceLockPath, "utf8"));
 assert.ok(sourceLock.sourceFilesSha256?.["ui-shell.html"], "source reference lock must keep source file digests");
@@ -72,6 +85,7 @@ for (const [file, expected] of Object.entries(sourceLock.sourceFilesSha256)) {
   assert.ok(fs.existsSync(actualPath), `source reference file must exist: ${file}`);
   assert.equal(sha256(actualPath), expected, `source reference digest must match for ${file}`);
 }
+assert.deepEqual(collectFiles(referenceRoot).filter((file) => file.endsWith(".py")), [], "source reference sentinel must not add Python files");
 
 console.log(JSON.stringify({
   status: "purpose-atlas-fixture-boundaries-pass",
