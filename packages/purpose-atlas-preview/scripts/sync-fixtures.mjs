@@ -9,6 +9,7 @@ const fixtureRoot = process.env.PURPOSE_ATLAS_FIXTURE_ROOT || path.join(repoRoot
 function copyFixture(fileName, to) {
   const source = path.join(fixtureRoot, fileName);
   const target = path.join(packageRoot, to);
+  if (!fs.existsSync(source) && fs.existsSync(target)) return;
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);
 }
