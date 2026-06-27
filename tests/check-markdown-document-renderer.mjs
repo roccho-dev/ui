@@ -5,7 +5,7 @@ import {
   MARKDOWN_DOCUMENT_RENDERER_VERSION,
   parseMarkdownTemplateJsonl,
   renderMarkdownDocument,
-} from "../src/index.mjs";
+} from "#core-port";
 
 const model = {
   kind: DOCUMENT_MODEL_KIND,

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildGenericA2uiPreviewFromJsonl, jsonlLines, sha256 } from "../src/a2ui-shell-builder.mjs";
+import { buildGenericA2uiPreviewFromJsonl, jsonlLines, sha256 } from "#core-port/a2ui-shell-builder";
 
 const outDir = path.resolve(process.argv[2] || "generic-a2ui-preview");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
