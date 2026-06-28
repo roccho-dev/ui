@@ -1,0 +1,24 @@
+{
+  "kind": "ui.shared-component-registry.v1",
+  "id": "shared-sdui-registry.geo-map.v1",
+  "components": [
+    { "id": "A2uiSduiSurface", "family": "core" },
+    { "id": "app", "family": "layout" },
+    { "id": "box", "family": "layout" },
+    { "id": "text", "family": "primitive" },
+    { "id": "button", "family": "action" },
+    { "id": "repeat", "family": "data" },
+    { "id": "metric", "family": "primitive" },
+    { "id": "port", "family": "port" }
+  ],
+  "ports": [
+    { "id": "geoMap", "implementation": "GeoMapPort" },
+    { "id": "atlasStage", "implementation": "AtlasStagePort" }
+  ],
+  "actions": [
+    "property.select",
+    "geoMap.marker.click",
+    "atlas.select",
+    "atlas.fit"
+  ]
+}
