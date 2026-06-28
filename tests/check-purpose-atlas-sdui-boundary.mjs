@@ -28,7 +28,7 @@ assert.match(sduiTree, /"port":"atlasStage"/, 'map-first SDUI must keep the atla
 assert.match(sduiTree, /"type":"slider"/, 'ADRS merge slide navigation must use an SDUI slider');
 assert.match(sduiTree, /"when":"selectedNode"/, 'detail panel must render only after a target is selected');
 assert.match(sduiTree, /"when":"notSelected"/, 'empty hint must render only before selection');
-assert.match(sduiTree, /G0閉包: \{\{snapshot\.currentPurpose\}\}/, 'terminal objective context must remain visible in the map HUD');
+assert.match(sduiTree, /G0閉包: 高価値法人構築と売却/, 'terminal objective context must remain visible in the map HUD');
 assert.match(sduiTree, /ADRS merge slide/, 'user-facing timeline copy must describe slide semantics');
 assert.match(sduiTree, /nodeを選択すると詳細を表示/, 'default map must tell the user how to open the detail panel');
 assert.doesNotMatch(sduiTree, /Purpose Decision Atlas · SDUI/, 'long top explanation must not be part of the default map-first tree');
