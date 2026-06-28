@@ -67,13 +67,19 @@ A GeoMap PR must upload `property-map-geo-artifact` containing:
 | no relative import in file-open proof | true |
 | no CDN dependency in offline proof | true |
 | no raw JSON `<pre>` preview | true |
+| bottom sheet mode on mobile | true |
+| visible map ratio | >= 0.6 |
+| sheet does not cover markers | true |
 | property markers before click | >= 10 |
+| visible property markers before click | >= 10 |
 | selected detail before click | false |
 | marker click updates selection | true |
 | selected detail after click | true |
 | nearby POI markers after click | >= 9 |
+| visible nearby POI markers after click | >= 9 |
 | radius overlays after click | >= 1 |
 | property-to-POI links after click | >= 9 |
+| visible property-to-POI links after click | >= 9 |
 | GeoMapPort is executed | true |
 | map library calls remain inside GeoMapPort | true |
 | SDUI source contains no map library calls | true |
