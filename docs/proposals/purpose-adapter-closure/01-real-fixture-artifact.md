@@ -26,5 +26,13 @@ The current artifact builder can produce a purpose artifact without reading the 
 - The proof fails if a port other than `atlasStage` appears.
 - The proof report contains source digest, generated digest, checked actions, checked ports, and status.
 
+## Implementation closure
+- `build.mjs` now reads `tests/fixtures/purpose-atlas/surface.v0.9.jsonl` for the purpose artifact.
+- The generated purpose surface JSONL is derived from that fixture, and the fixture is copied into the artifact source folder.
+- The preview is rendered as an HTML surface preview with the SDUI tree and proof chips, not a JSON-only page.
+- The proof report includes source digest, generated surface digest, generated data-model digest, checked actions, checked ports, checked paths, and pass status.
+- The proof path validates the requirement contract and rejects actions, ports, or paths outside the allowlist.
+- Purpose negative controls intentionally inject a bad action and a bad port to ensure the proof fails when the validator is weakened.
+
 ## Dependency
 None. This must land before schema or UI expansion.
