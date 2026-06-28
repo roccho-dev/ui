@@ -24,7 +24,7 @@ const ports = collect(document, 'port');
 const actions = collect(document, 'action');
 assert.ok(ports.includes('geoMap'));
 assert.ok(actions.includes('property.select'));
-assert.equal(document.tree.children[0].children[0].port, 'geoMap');
+assert.equal(document.tree.children[0].port, 'geoMap');
 assert.equal(hasRawHtml(document), false);
 
 const propertiesRow = dataRows.find((row) => row.updateDataModel?.path === '/properties');
