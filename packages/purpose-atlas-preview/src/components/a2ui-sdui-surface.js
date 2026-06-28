@@ -29,6 +29,25 @@ function text(ctx, value) {
 }
 function cls(ctx, node) { return text(ctx, node.className || node.class || '').trim(); }
 function selectionKey(value) { return value?.nodeId ? `${value.type || 'node'}:${value.nodeId}:${value.actor || ''}` : ''; }
+function activeNodes(snapshot, kind) { return (snapshot.nodes || []).filter((node) => (!kind || node.kind === kind) && node.status !== 'archived'); }
+function firstNode(snapshot, kind) { return activeNodes(snapshot, kind)[0] || null; }
+function asText(value) { return Array.isArray(value) ? value.join(' / ') : value == null ? '' : String(value); }
+function nodeById(snapshot, id) { return (snapshot.nodes || []).find((item) => item.id === id) || null; }
+function relatedWorkOrder(snapshot, gap) {
+  const orders = activeNodes(snapshot, 'work_order');
+  if (!gap) return orders[0] || null;
+  return orders.find((node) => node.primary_gap_id === gap.id || node.gap_id === gap.id || node.gapId === gap.id) || orders[0] || null;
+}
+function relatedReceipt(snapshot, workOrder) {
+  const receipts = activeNodes(snapshot, 'receipt');
+  if (!workOrder) return receipts[0] || null;
+  return receipts.find((node) => node.work_order_id === workOrder.id || node.workOrderId === workOrder.id) || receipts[0] || null;
+}
+function relatedResidual(snapshot, receipt) {
+  const residuals = activeNodes(snapshot, 'residual');
+  if (!receipt) return residuals[0] || null;
+  return residuals.find((node) => node.receipt_id === receipt.id || node.receiptId === receipt.id) || residuals[0] || null;
+}
 
 export class A2uiSduiSurfaceElement extends A2uiLitElement {
   static properties = {hoverSelection: {state: true}, renderStats: {state: true}, toastVisible: {state: true}};
@@ -88,8 +107,49 @@ export class A2uiSduiSurfaceElement extends A2uiLitElement {
   invoke(action) { this.props[action]?.(); }
   ctx(extra = {}) {
     const focus = this.selection || this.hoverSelection;
-    const node = (this.snapshot.nodes || []).find((item) => item.id === focus?.nodeId);
-    return {props: {...this.props, focus, inspectorTitle: node?.label || this.snapshot.currentPurpose || '目的未設定', guardText: this.snapshot.guard?.text || '', guardOwner: this.snapshot.guard?.owner || 'CEO', guardStatus: this.snapshot.guard?.status || 'warn', nodeCount: this.snapshot.counts?.nodes || 0, edgeCount: this.snapshot.counts?.edges || 0, renderSceneBuilds: this.renderStats.sceneBuilds || 0}, ...extra};
+    const selected = nodeById(this.snapshot, focus?.nodeId);
+    const selectedGap = selected?.kind === 'gap' ? selected : firstNode(this.snapshot, 'gap');
+    const workOrder = selected?.kind === 'work_order' ? selected : relatedWorkOrder(this.snapshot, selectedGap);
+    const receipt = selected?.kind === 'receipt' ? selected : relatedReceipt(this.snapshot, workOrder);
+    const residual = selected?.kind === 'residual' ? selected : relatedResidual(this.snapshot, receipt);
+    const node = selected || nodeById(this.snapshot, focus?.nodeId);
+    return {
+      props: {
+        ...this.props,
+        focus,
+        selected,
+        selectedKind: selected?.kind || '',
+        selectedRoute: selected?.route || selectedGap?.route || '',
+        selectedSummary: selected?.summary || selectedGap?.summary || '',
+        selectedIdeal: selectedGap?.ideal || selectedGap?.ideal_ref || '',
+        selectedCurrent: selectedGap?.current || selectedGap?.current_ref || '',
+        selectedDelta: selectedGap?.delta || selectedGap?.summary || '',
+        selectedOwnerRole: selectedGap?.owner_role || selectedGap?.actorCategory || '',
+        selectedProofRequirement: selectedGap?.proof_requirement || selectedGap?.proof || '',
+        selectedWorkOrderLabel: workOrder?.label || '',
+        selectedWorkOrderScope: asText(workOrder?.scope || workOrder?.scope_text),
+        selectedWorkOrderNonScope: asText(workOrder?.non_scope || workOrder?.non_scope_text),
+        selectedWorkOrderRoute: workOrder?.route || '',
+        selectedWorkOrderDependency: asText(workOrder?.dependency || workOrder?.dependencies),
+        selectedWorkOrderClosureCriteria: asText(workOrder?.closure_criteria || workOrder?.closure_criteria_text),
+        receiptStatus: receipt?.status || '',
+        receiptClosed: asText(receipt?.closed || receipt?.closed_text),
+        receiptReduced: asText(receipt?.reduced || receipt?.reduced_text),
+        receiptResiduals: asText(receipt?.residuals || receipt?.residual_text),
+        residualLabel: residual?.label || residual?.id || '',
+        residualNextInput: residual?.next_input || residual?.next || '',
+        closureObjectKind: selected?.kind || selectedGap?.kind || '',
+        inspectorTitle: node?.label || this.snapshot.currentPurpose || '目的未設定',
+        guardText: this.snapshot.guard?.text || '',
+        guardOwner: this.snapshot.guard?.owner || 'CEO',
+        guardStatus: this.snapshot.guard?.status || 'warn',
+        nodeCount: this.snapshot.counts?.nodes || 0,
+        edgeCount: this.snapshot.counts?.edges || 0,
+        activeGapCount: activeNodes(this.snapshot, 'gap').length,
+        renderSceneBuilds: this.renderStats.sceneBuilds || 0,
+      },
+      ...extra,
+    };
   }
   renderNode(node, ctx) {
     if (!node) return nothing;
@@ -109,7 +169,7 @@ export class A2uiSduiSurfaceElement extends A2uiLitElement {
     return html`<style>${css}</style>${this.renderNode(this.document.tree, this.ctx())}<div class=${`sdui-toast ${this.toastVisible ? 'show' : ''}`}>${this.props.toast?.message || ''}</div><div class="sdui-machine" aria-hidden="true"><span id="visibleNodes">${this.snapshot.counts?.nodes || 0}</span><span id="visibleEdges">${this.snapshot.counts?.edges || 0}</span><span id="guardText">${this.snapshot.guard?.text || ''}</span></div>`;
   }
   debugState() {
-    return {version: 'v6-a2ui-sdui-layout-css', t: this.snapshot.t, currentPurpose: this.snapshot.currentPurpose || null, guard: this.snapshot.guard?.status, visibleNodes: this.snapshot.counts?.nodes || 0, visibleEdges: this.snapshot.counts?.edges || 0, tipVisible: Boolean(this.selection), ...(this.renderer?.debugState() || {})};
+    return {version: 'v6-a2ui-sdui-closure-ui', t: this.snapshot.t, currentPurpose: this.snapshot.currentPurpose || null, guard: this.snapshot.guard?.status, visibleNodes: this.snapshot.counts?.nodes || 0, visibleEdges: this.snapshot.counts?.edges || 0, activeGapCount: activeNodes(this.snapshot, 'gap').length, tipVisible: Boolean(this.selection), selectedKind: this.selection?.nodeId ? nodeById(this.snapshot, this.selection.nodeId)?.kind || null : null, ...(this.renderer?.debugState() || {})};
   }
 }
 if (!customElements.get('a2ui-sdui-surface')) customElements.define('a2ui-sdui-surface', A2uiSduiSurfaceElement);
