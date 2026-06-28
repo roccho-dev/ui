@@ -16,6 +16,8 @@ jobs:
       - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
+      - uses: cachix/install-nix-action@v31
+      - run: nix build --print-build-logs .#purpose-atlas-preview-html -o purpose-atlas-ui-result
       - uses: actions/upload-artifact@v4
         with:
           name: live-adapter-artifact
@@ -28,3 +30,7 @@ jobs:
         with:
           name: adapter-artifact-index
           path: adapter-result/adapter-artifact-index.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: purpose-atlas-ui-preview
+          path: purpose-atlas-ui-result/dist
