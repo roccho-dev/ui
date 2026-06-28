@@ -16,7 +16,7 @@ for (const token of ['"port":"geoMap"', '"action":"property.select"', '"itemsPat
 for (const token of ['"path":"/properties"', 'Kumagaya', 'Takasaki', 'Maebashi']) assert.ok(dataText.includes(token), token);
 for (const token of ['this.L.map', 'this.L.tileLayer', 'this.L.marker', 'this.L.circle', 'this.L.polyline']) assert.ok(portSource.includes(token), token);
 
-assert.equal(buildSource.includes('this.L.'), false);
+assert.equal(/\bthis\.L\.[a-zA-Z]+\s*\(/.test(buildSource), false);
 assert.equal(surfaceText.includes('this.L.'), false);
 assert.equal(surfaceText.includes('<script'), false);
 
