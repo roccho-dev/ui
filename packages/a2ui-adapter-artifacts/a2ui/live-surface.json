@@ -1,1 +1,113 @@
-{"version":"sdui.document.v1","styles":{"css":":host{display:block}.live-app{display:grid;gap:12px;padding:12px}.live-card{border:1px solid #334;padding:10px;border-radius:12px}.live-row{display:flex;gap:8px}.live-port{min-height:80px}"},"tree":{"type":"box","className":"live-app","children":[{"type":"box","className":"live-card","children":[{"type":"text","text":{"path":"/meta/adapterLabel"}},{"type":"text","text":{"path":"/requirements/purpose/businessGoal"}},{"type":"box","className":"live-row","children":[{"type":"button","text":"review","action":"live.requestReview"},{"type":"button","text":"decision","action":"live.recordDecision"}]}]},{"type":"box","className":"live-card","children":[{"type":"text","text":"proposal board"},{"type":"repeat","itemsPath":"/proposals/items","limit":4,"template":{"type":"box","className":"live-row","children":[{"type":"text","text":"{{item.title}}"},{"type":"button","text":"select","action":"live.selectProposal"}]}}]},{"type":"port","port":"activityTimeline","className":"live-port"},{"type":"port","port":"repoStatus","className":"live-port"},{"type":"port","port":"evidenceList","className":"live-port"}]}}
+{
+  "version": "sdui.document.v1",
+  "styles": {
+    "css": ":host{display:block}.live-shell{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr)360px;gap:14px;padding:14px;background:#07111f;color:#eef5ff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.live-main,.live-side{display:grid;gap:12px;align-content:start}.live-hero,.live-board,.live-card,.live-port{border:1px solid rgba(161,188,236,.18);border-radius:18px;background:rgba(10,18,32,.92);box-shadow:0 18px 42px rgba(0,0,0,.22);padding:14px}.live-eyebrow{display:block;color:#8df0bd;font-size:11px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}.live-title{display:block;margin-top:4px;font-size:24px;font-weight:950;line-height:1.1}.live-summary{display:block;margin-top:8px;color:#b8cae9;font-size:13px;line-height:1.5}.live-actions,.live-row,.live-pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.live-actions{margin-top:12px}.live-section{display:block;margin-bottom:10px;color:#dce9ff;font-size:12px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}.live-proposal,.live-next,.live-risk,.live-evidence{display:grid;grid-template-columns:minmax(0,1fr)auto;gap:8px;align-items:center;margin-top:8px;padding:10px;border:1px solid rgba(161,188,236,.14);border-radius:14px;background:rgba(255,255,255,.035)}.live-name{display:block;font-size:13px;font-weight:900}.live-meta,.live-note{display:block;color:#9fb4d8;font-size:11px;line-height:1.4}.live-pill{display:inline-flex;min-height:24px;align-items:center;padding:0 8px;border:1px solid rgba(141,240,189,.25);border-radius:999px;background:rgba(141,240,189,.09);color:#caffdf;font-size:11px;font-weight:900;white-space:nowrap}button{font:inherit;min-height:32px;border:1px solid rgba(161,188,236,.18);border-radius:999px;background:rgba(255,255,255,.06);color:#eef5ff;padding:0 11px;font-size:12px;font-weight:900;cursor:pointer}button:hover{background:rgba(127,176,255,.16)}.live-port[data-sdui-port]{min-height:88px}.port-list{margin:0;padding-left:18px;color:#b8cae9;font-size:12px;line-height:1.65}.repo-grid{display:grid;gap:7px;font-size:12px}.repo-grid b{color:#eef5ff}.live-detail{border-color:rgba(141,240,189,.35);background:rgba(141,240,189,.08)}@media(max-width:900px){.live-shell{grid-template-columns:1fr}.live-side{grid-row:auto}}"
+  },
+  "tree": {
+    "type": "box",
+    "className": "live-shell",
+    "children": [
+      {
+        "type": "box",
+        "className": "live-main",
+        "children": [
+          {
+            "type": "box",
+            "className": "live-hero",
+            "children": [
+              { "type": "text", "className": "live-eyebrow", "text": "live control plane" },
+              { "type": "text", "className": "live-title", "text": "{{session.title}}" },
+              { "type": "text", "className": "live-summary", "text": "{{requirements.purpose.businessGoal}} / {{requirements.purpose.topGoal}}" },
+              {
+                "type": "box",
+                "className": "live-actions",
+                "children": [
+                  { "type": "button", "text": "review", "action": "live.requestReview" },
+                  { "type": "button", "text": "decision", "action": "live.recordDecision" }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "className": "live-board",
+            "children": [
+              { "type": "text", "className": "live-section", "text": "proposal → evidence → next action" },
+              {
+                "type": "repeat",
+                "itemsPath": "/proposals",
+                "limit": 6,
+                "template": {
+                  "type": "box",
+                  "className": "live-proposal",
+                  "children": [
+                    {
+                      "type": "box",
+                      "children": [
+                        { "type": "text", "className": "live-name", "text": "{{item.title}}" },
+                        { "type": "text", "className": "live-meta", "text": "{{item.status}} / {{item.goalFit}}" }
+                      ]
+                    },
+                    { "type": "button", "text": "select", "action": "live.selectProposal" }
+                  ]
+                }
+              },
+              { "type": "text", "className": "live-section", "text": "next actions" },
+              {
+                "type": "repeat",
+                "itemsPath": "/nextActions",
+                "limit": 4,
+                "template": {
+                  "type": "box",
+                  "className": "live-next",
+                  "children": [
+                    { "type": "text", "className": "live-name", "text": "{{item.label}}" },
+                    { "type": "text", "className": "live-pill", "text": "next" }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "className": "live-card live-detail",
+            "when": "/ui/selection/proposalId",
+            "children": [
+              { "type": "text", "className": "live-section", "text": "selected detail" },
+              { "type": "text", "className": "live-summary", "text": { "path": "/ui/selection/proposalId" } }
+            ]
+          },
+          { "type": "port", "port": "activityTimeline", "className": "live-port" }
+        ]
+      },
+      {
+        "type": "box",
+        "className": "live-side",
+        "children": [
+          { "type": "port", "port": "repoStatus", "className": "live-port" },
+          { "type": "port", "port": "evidenceList", "className": "live-port" },
+          {
+            "type": "box",
+            "className": "live-card",
+            "children": [
+              { "type": "text", "className": "live-section", "text": "risks" },
+              {
+                "type": "repeat",
+                "itemsPath": "/risks",
+                "limit": 5,
+                "template": {
+                  "type": "box",
+                  "className": "live-risk",
+                  "children": [
+                    { "type": "text", "className": "live-name", "text": "{{item.label}}" },
+                    { "type": "text", "className": "live-pill", "text": "risk" }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
