@@ -1,1 +1,10 @@
-{"schemaVersion":"core-port.ports.v1","ports":[{"id":"activityTimeline","family":"live","description":"live timeline port"},{"id":"evidenceList","family":"live","description":"live evidence port"},{"id":"repoStatus","family":"live","description":"live repo status port"},{"id":"atlasStage","family":"purpose","description":"canvas graph port for Purpose Atlas"}]}
+{
+  "schemaVersion": "core-port.ports.v1",
+  "ports": [
+    { "id": "activityTimeline", "family": "live", "description": "live timeline port" },
+    { "id": "evidenceList", "family": "live", "description": "live evidence port" },
+    { "id": "repoStatus", "family": "live", "description": "live repo status port" },
+    { "id": "atlasStage", "family": "purpose", "description": "canvas graph port for Purpose Atlas" },
+    { "id": "geoMap", "family": "map", "description": "Leaflet-backed map port. Leaflet stays inside GeoMapPort." }
+  ]
+}
