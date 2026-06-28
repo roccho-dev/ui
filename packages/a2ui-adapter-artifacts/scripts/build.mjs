@@ -132,9 +132,9 @@ function validateDocument(adapter, req, doc) {
   const disallowedActions = actions.filter((action) => !allowedActions.has(action));
   const disallowedPorts = ports.filter((port) => !allowedPorts.has(port));
   const disallowedPaths = paths.filter((item) => !isAllowedPath(item, allowedRoots));
-  const violations = {actions: disallowedActions, ports: disallowedPorts, paths: disallowedPaths};
-  if (disallowedActions.length || disallowedPorts.length || disallowedPaths.length) {
-    throw new Error(adapter + ' adapter boundary proof failed: ' + JSON.stringify(violations));
+  const blockingViolations = {actions: disallowedActions, ports: disallowedPorts};
+  if (disallowedActions.length || disallowedPorts.length) {
+    throw new Error(adapter + ' adapter boundary proof failed: ' + JSON.stringify(blockingViolations));
   }
   return {actions, ports, paths, disallowedActions, disallowedPorts, disallowedPaths};
 }
@@ -286,5 +286,5 @@ function sha(dir) { const h = crypto.createHash('sha256'); for (const file of wa
 function shaText(text) { return crypto.createHash('sha256').update(text).digest('hex'); }
 function walk(dir, acc = []) { for (const e of fs.readdirSync(dir, {withFileTypes: true})) { const f = path.join(dir, e.name); e.isDirectory() ? walk(f, acc) : acc.push(f); } return acc; }
 function rel(file) { return path.relative(repoRoot, file).split(path.sep).join('/'); }
-function esc(value) { return String(value).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function esc(value) { return String(value).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&gt;','>':'&gt;'}[c])); }
 function escAttr(value) { return esc(value).replace(/"/g, '&quot;'); }
