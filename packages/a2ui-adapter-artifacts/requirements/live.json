@@ -1,1 +1,32 @@
-{"id":"live.adapter.v0","version":"0.1.0","adapterId":"live","purpose":{"directGoal":"live adapter proof","businessGoal":"repeatable proposal and evidence production","topGoal":"high-value company build and eventual sale"},"outputContract":{"surfaceId":"live-workbench","catalogId":"https://visualize-layers.dev/a2ui/catalogs/core-port/live/v0","rootComponent":"A2uiSduiSurface"},"inputContract":{"requiredTopLevel":["session","decisions","risks","nextActions","proposals","artifacts","repo"]},"policies":{"allowedActions":["live.requestReview","live.recordDecision","live.selectProposal"],"allowedPathRoots":["/meta","/ui","/requirements","/live","/workflow","/proposals","/evidence","/artifacts","/repo"],"allowedPorts":["activityTimeline","evidenceList","repoStatus"]},"invariants":[{"id":"requirements-not-in-core","text":"Requirement text must not live in the shared registry"},{"id":"adapter-not-renderer","text":"Adapter must remain a thin map"}],"evaluation":[{"id":"valid-a2ui","method":"policy-check"}]}
+{
+  "id": "live.adapter.v0",
+  "version": "0.1.0",
+  "adapterId": "live",
+  "purpose": {
+    "directGoal": "live adapter proof",
+    "businessGoal": "repeatable proposal and evidence production",
+    "topGoal": "high-value company build and eventual sale"
+  },
+  "outputContract": {
+    "surfaceId": "live-workbench",
+    "catalogId": "https://visualize-layers.dev/a2ui/catalogs/core-port/live/v0",
+    "rootComponent": "A2uiSduiSurface"
+  },
+  "inputContract": {
+    "requiredTopLevel": ["session", "decisions", "risks", "nextActions", "proposals", "evidence", "artifacts", "repo"]
+  },
+  "policies": {
+    "allowedActions": ["live.requestReview", "live.recordDecision", "live.selectProposal"],
+    "allowedPathRoots": ["/meta", "/ui", "/requirements", "/runtime", "/session", "/decisions", "/risks", "/nextActions", "/proposals", "/evidence", "/artifacts", "/repo", "/live", "/workflow"],
+    "allowedPorts": ["activityTimeline", "evidenceList", "repoStatus"]
+  },
+  "invariants": [
+    { "id": "requirements-not-in-core", "text": "Requirement text must not live in the shared registry" },
+    { "id": "adapter-not-renderer", "text": "Adapter must remain a thin map" },
+    { "id": "ui-body-preview-artifact", "text": "Live adapter CI must upload an actual UI body HTML, not only a JSON proof page" }
+  ],
+  "evaluation": [
+    { "id": "valid-a2ui", "method": "policy-check" },
+    { "id": "ui-body-html-present", "method": "artifact-check" }
+  ]
+}
