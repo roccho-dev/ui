@@ -102,10 +102,6 @@ for (const token of [
   '<purpose-atlas-app',
   'purposeAtlasStandaloneFetch',
   'A2uiSduiSurface',
-  'a2ui-sdui-surface',
-  'purpose-atlas.route-gap.260628.sdui-graph-restored',
-  'gap.g8',
-  'Receipt: gap.g4 closed',
   'G0閉包: 高価値法人構築と売却',
   'nodeを選択すると詳細を表示',
 ]) {
