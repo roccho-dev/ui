@@ -13,15 +13,43 @@ write(path.join(outRoot, 'adapter-artifact-index.json'), JSON.stringify(index, n
 console.log(JSON.stringify(index, null, 2));
 
 function build(adapter) {
-  const req = readJson(path.join(pkgRoot, 'requirements', adapter + '.json'));
+  const reqPath = path.join(pkgRoot, 'requirements', adapter + '.json');
+  const req = readJson(reqPath);
   const src = adapter === 'purpose' ? purposeSource(req) : docSource(adapter, req, path.join(pkgRoot, 'a2ui/live-surface.json'));
   assertContract(adapter, req, src);
-  const checked = checkBoundary(adapter, req, src.validateRoot);
+  const broken = process.env.ADAPTER_ARTIFACT_BROKEN_ADAPTER === adapter ? process.env.ADAPTER_ARTIFACT_BROKEN_CASE : '';
+  const validationRoot = brokenRoot(src.validateRoot, broken);
+  const checked = checkBoundary(adapter, req, validationRoot);
   if (adapter === 'purpose') checked.negativeControls = negativeControls(req, src.validateRoot);
   const surfaceText = src.records.map(JSON.stringify).join('\n') + '\n';
-  const model = {meta: {adapterId: adapter, adapterLabel: adapter + ' adapter proof', sourcePath: src.path, sourceKind: src.kind}, requirements: {id: req.id, version: req.version, purpose: req.purpose}, ui: {}, runtime: {clientDataModelEnabled: true}};
+  const inputShape = makeInputShape(req, broken);
+  const model = {meta: {adapterId: adapter, adapterLabel: adapter + ' adapter proof', sourcePath: src.path, sourceKind: src.kind}, requirements: {id: req.id, version: req.version, purpose: req.purpose}, inputShape, ui: {}, runtime: {clientDataModelEnabled: true}};
   const modelText = JSON.stringify(model, null, 2) + '\n';
-  const proof = {status: adapter + '-adapter-proof-pass', adapter, source: {kind: src.kind, path: src.path, sha256: shaText(src.text)}, generated: {surfaceSha256: shaText(surfaceText), dataModelSha256: shaText(modelText)}, surface: {surfaceId: src.surfaceId, catalogId: src.catalogId, rootComponent: src.rootComponent, rootComponentId: src.rootComponentId}, checked, checks: {sourceSurfaceExists: true, rootComponentMatchesRequirement: true, actionsAllowlisted: true, portsAllowlisted: true, previewIsHtml: true}, boundaries: {coreRegistryShared: true, requirementPackExternalized: true, adapterIsThinMap: true, surfaceDesignHasNoDomainData: true}};
+  const sourceDigest = 'sha256:' + shaText(src.text);
+  const projectionDigest = 'sha256:' + shaText(surfaceText + modelText);
+  const checkedInputs = [rel(reqPath), src.path, ...Object.keys(inputShape).map((key) => 'input:' + key)];
+  const checkedOutputs = [`dist/a2ui/${adapter}.surface.jsonl`, `dist/a2ui/${adapter}.data-model-update.jsonl`, `dist/data/${adapter}.data-model.json`, 'preview/index.html', `proof/${adapter}-adapter-proof-report.json`];
+  const workOrder = {id: adapter + '.closure-work-order', sourceDigest, currentProjectionDigest: broken === 'stale-work-order' ? 'sha256:stale' : projectionDigest, expectedOutputs: checkedOutputs};
+  const receipt = makeReceipt(adapter, projectionDigest, broken);
+  const proof = {
+    status: adapter + '-adapter-proof-pass',
+    adapter,
+    source: {kind: src.kind, path: src.path, digest: sourceDigest, sha256: sourceDigest},
+    generated: {surfaceSha256: shaText(surfaceText), dataModelSha256: shaText(modelText)},
+    projection: {digest: projectionDigest},
+    surface: {surfaceId: src.surfaceId, catalogId: src.catalogId, rootComponent: src.rootComponent, rootComponentId: src.rootComponentId},
+    checked,
+    checkedInputs,
+    checkedOutputs,
+    workOrder,
+    receipt,
+    closedGaps: receipt.closedGaps,
+    residuals: receipt.residuals,
+    checks: {sourceSurfaceExists: true, rootComponentMatchesRequirement: true, actionsAllowlisted: true, portsAllowlisted: true, currentProjectionDigest: true, receiptResidualHandling: true, previewIsHtml: true},
+    boundaries: {coreRegistryShared: true, requirementPackExternalized: true, adapterIsThinMap: true, surfaceDesignHasNoDomainData: true},
+  };
+  if (broken === 'missing-source-digest') delete proof.source.digest;
+  validateProof(adapter, req, proof, inputShape);
   const base = path.join(outRoot, adapter + '-adapter-artifact');
   write(path.join(base, 'dist/a2ui', adapter + '.surface.jsonl'), surfaceText);
   write(path.join(base, 'dist/a2ui', adapter + '.data-model-update.jsonl'), JSON.stringify({version: 'v0.9', updateDataModel: {surfaceId: req.outputContract.surfaceId, path: '/', value: model}}) + '\n');
@@ -69,10 +97,39 @@ function checkBoundary(adapter, req, root) {
   return {actions, ports, paths};
 }
 
+function makeInputShape(req, broken) {
+  const shape = Object.fromEntries((req.inputContract?.requiredTopLevel || []).map((key) => [key, []]));
+  if (broken === 'missing-input-shape') delete shape[req.inputContract.requiredTopLevel[0]];
+  return shape;
+}
+
+function makeReceipt(adapter, projectionDigest, broken) {
+  const receipt = {
+    status: adapter === 'purpose' ? 'reduced' : 'closed',
+    projectionDigest,
+    closedGaps: adapter === 'purpose' ? ['gap-real-fixture-artifact', 'gap-purpose-proof-replayable'] : ['gap-live-adapter-artifact'],
+    residuals: adapter === 'purpose' ? [{id: 'runtime-state-loop-not-in-scope', owner: 'consumer-runtime', next: 'external runtime closes live state loop'}] : [],
+    residualHandling: {returnPath: 'ADRS/raw JSONL next projection', owner: 'ADRS', nextProjection: 'purpose closure projection'},
+  };
+  if (broken === 'missing-residual-handling') delete receipt.residualHandling;
+  return receipt;
+}
+
+function validateProof(adapter, req, proof, inputShape) {
+  const missing = (req.inputContract?.requiredTopLevel || []).filter((key) => !(key in inputShape));
+  if (!proof.source?.digest?.startsWith('sha256:')) throw new Error(adapter + ' proof missing source digest');
+  if (!proof.projection?.digest?.startsWith('sha256:')) throw new Error(adapter + ' proof missing projection digest');
+  if (missing.length) throw new Error(adapter + ' proof missing input shape: ' + missing.join(', '));
+  if (proof.workOrder.currentProjectionDigest !== proof.projection.digest) throw new Error(adapter + ' proof has stale work order projection digest');
+  if (proof.receipt.residuals.length && !proof.receipt.residualHandling) throw new Error(adapter + ' proof missing residual handling');
+  if (!proof.checkedOutputs.includes(`proof/${adapter}-adapter-proof-report.json`)) throw new Error(adapter + ' proof output list missing proof report');
+}
+
 function negativeControls(req, root) {
   return [mustReject('rejects-disallowed-purpose-action', req, withExtra(root, {type: 'button', text: 'bad action', action: 'atlas.disallowedAction'})), mustReject('rejects-disallowed-purpose-port', req, withExtra(root, {type: 'port', port: 'wrongStage'}))];
 }
 function mustReject(id, req, root) { try { checkBoundary('purpose-negative-control', req, root); } catch (e) { return {id, status: 'pass', rejected: true, message: e.message}; } throw new Error('negative control did not fail: ' + id); }
+function brokenRoot(root, broken) { if (!['unexpected-action', 'unexpected-port'].includes(broken)) return root; return withExtra(root, broken === 'unexpected-action' ? {type: 'button', text: 'bad action', action: 'atlas.disallowedAction'} : {type: 'port', port: 'wrongStage'}); }
 function withExtra(root, extra) { const copy = JSON.parse(JSON.stringify(root)); const target = copy.document || copy; target.tree = {type: 'box', children: [target.tree, extra]}; return copy; }
 
 function collectActions(value, root, acc = new Set()) {
