@@ -4,10 +4,10 @@
 
 Proposal / requirement ledger for the Purpose Atlas SDUI migration.
 
-This proposal assumes the following PRs are expected to merge first:
+Merge posture correction:
 
-- #37 `Probe Purpose Atlas JSONL to HTML build`
-- #38 `Move Purpose Atlas layout and CSS into A2UI SDUI`
+- #37 `Probe Purpose Atlas JSONL to HTML build` is not a merge premise. It is a closed/non-merge probe reference for the JSONL-to-preview-HTML path.
+- #38 `Move Purpose Atlas layout and CSS into A2UI SDUI` is the active SDUI migration premise.
 
 This file is not an ADRS authority record. It is a UI-side expectation ledger and review checklist for mergeable Purpose Atlas work.
 
@@ -28,7 +28,7 @@ This UI repository owns the projection surface, renderer boundary, preview build
 | # | Requirement | Background / why it exists | UI repo acceptance |
 | ---: | --- | --- | --- |
 | 1 | UI is a projection/control plane, not the authority. | The source of meaning must stay in ADRS/governance so generated UI cannot become an unreviewed policy source. | Proposal wording and code boundaries keep UI as non-authority projection. |
-| 2 | #37 and #38 are merge premises. | #37 proves the HTML preview path from surface/data fixtures; #38 moves layout/CSS into SDUI and creates the active migration base. | This follow-up is reviewed as after/alongside #37/#38, not as a replacement. |
+| 2 | #37 is reference-only and #38 is the merge premise. | #37 was a probe and should not be merged; #38 creates the active SDUI migration base. | Follow-up UI work is reviewed against #38, with #37 only as historical evidence. |
 | 3 | Surface JSONL owns layout, chrome, and CSS. | The product owner wants UI layout/design separated from renderer code and adjustable through surface fixture changes. | Layout/chrome/CSS do not drift back into `A2uiSduiSurface` or atlas renderer code. |
 | 4 | Renderer owns SDUI execution only. | SOLID boundary: rendering engine should interpret a document, not embed product layout. | Component renderer remains generic: bindings, conditionals, primitive nodes, actions, ports. |
 | 5 | Atlas graph drawing remains a port. | The map is specialized and should not be reimplemented as generic boxes. | `atlasStage` remains a required port and keeps the existing graph renderer path. |
@@ -72,11 +72,11 @@ This UI repository owns the projection surface, renderer boundary, preview build
 
 ## Required merge posture
 
-This ledger should be used as the review checklist for Purpose Atlas SDUI merge work. The expected merge order is:
+This ledger should be used as the review checklist for Purpose Atlas SDUI merge work. The expected merge posture is:
 
-1. Merge #37 for the JSONL-to-HTML preview proof path.
+1. Do not merge #37; keep it as closed probe/reference only.
 2. Merge #38 for SDUI layout/CSS migration.
-3. Apply follow-up UI surface/data refinements against the SDUI base.
+3. Apply follow-up UI surface/data refinements against the #38 SDUI base.
 4. Keep ADRS/governance/compiler/receipt authority in their own repos and PRs.
 
 ## Non-goals for this UI PR line
