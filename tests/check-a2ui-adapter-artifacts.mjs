@@ -16,10 +16,22 @@ for (const adapter of ['live','purpose']) {
   assert.equal(fs.existsSync(path.join(base, 'dist/a2ui', `${adapter}.data-model-update.jsonl`)), true);
   assert.equal(fs.existsSync(path.join(base, 'dist/data', `${adapter}.data-model.json`)), true);
   assert.equal(fs.existsSync(path.join(base, 'preview/index.html')), true);
+  assert.equal(fs.existsSync(path.join(base, 'preview', `${adapter}-ui-body.html`)), true);
   const proof = JSON.parse(fs.readFileSync(path.join(base, 'proof', `${adapter}-adapter-proof-report.json`), 'utf8'));
   assert.equal(proof.status, `${adapter}-adapter-proof-pass`);
   assert.equal(Object.values(proof.boundaries).every(Boolean), true);
 }
+const liveReq = JSON.parse(fs.readFileSync(path.join(pkg, 'requirements/live.json'), 'utf8'));
+const liveModel = JSON.parse(fs.readFileSync(path.join(tmp, 'live-adapter-artifact/dist/data/live.data-model.json'), 'utf8'));
+for (const key of liveReq.inputContract.requiredTopLevel) assert.equal(Object.hasOwn(liveModel, key), true, `live data model missing ${key}`);
+const liveHtml = fs.readFileSync(path.join(tmp, 'live-adapter-artifact/preview/index.html'), 'utf8');
+assert.match(liveHtml, /live control plane/);
+assert.match(liveHtml, /proposal → evidence → next action/);
+assert.match(liveHtml, /data-sdui-port="repoStatus"/);
+assert.match(liveHtml, /data-sdui-port="evidenceList"/);
+assert.match(liveHtml, /data-proof="live-ui-body"/);
+assert.doesNotMatch(liveHtml, /<pre>/);
+assert.doesNotMatch(liveHtml, /selected detail/);
 const index = JSON.parse(fs.readFileSync(path.join(tmp, 'adapter-artifact-index.json'), 'utf8'));
 assert.equal(index.status, 'adapter-ci-artifacts-ready');
 assert.equal(index.allPresent, true);
