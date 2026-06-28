@@ -31,44 +31,5 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Probe check-ui-modeling
-        run: node tests/check-ui-modeling.mjs
-
-      - name: Probe check-registry
-        run: node tests/check-registry.mjs
-
-      - name: Probe check-mention-a11y
-        run: node tests/check-mention-a11y.mjs
-
-      - name: Probe check-purpose-atlas
-        run: node tests/check-purpose-atlas.mjs
-
-      - name: Probe check-purpose-atlas-fixture-boundaries
-        run: node tests/check-purpose-atlas-fixture-boundaries.mjs
-
-      - name: Probe check-purpose-atlas-final-layout
-        run: node tests/check-purpose-atlas-final-layout.mjs
-
-      - name: Probe check-a2ui-shell-data-boundary
-        run: node tests/check-a2ui-shell-data-boundary.mjs
-
-      - name: Probe check-generic-a2ui-shell-builder
-        run: node tests/check-generic-a2ui-shell-builder.mjs
-
-      - name: Probe check-markdown-document-renderer
-        run: node tests/check-markdown-document-renderer.mjs
-
-      - name: Probe check-markdown-renderer-boundary-regressions
-        run: node tests/check-markdown-renderer-boundary-regressions.mjs
-
-      - name: Probe check-ci-workflows
-        run: node tests/check-ci-workflows.mjs
-
-      - name: Probe ui-modeling check
-        run: nix build .#checks.x86_64-linux.ui-modeling-corr-port --print-build-logs
-
-      - name: Probe Purpose Atlas preview check
-        run: nix build .#checks.x86_64-linux.purpose-atlas-preview-html --print-build-logs
-
       - name: Run flake check
         run: nix flake check --print-build-logs
