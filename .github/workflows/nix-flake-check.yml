@@ -37,29 +37,32 @@ jobs:
       - name: Probe check-registry
         run: node tests/check-registry.mjs
 
-      - name: Probe Purpose Atlas files
-        run: node tests/debug-purpose-atlas-files.mjs
-
-      - name: Probe Purpose Atlas docs
-        run: node tests/debug-purpose-atlas-docs.mjs
-
-      - name: Probe Purpose Atlas generated
-        run: node tests/debug-purpose-atlas-generated.mjs
-
-      - name: Probe Purpose Atlas data
-        run: node tests/debug-purpose-atlas-data.mjs
-
-      - name: Probe Purpose Atlas registry
-        run: node tests/debug-purpose-atlas-registry.mjs
-
-      - name: Probe Purpose Atlas reference
-        run: node tests/debug-purpose-atlas-reference.mjs
-
-      - name: Probe Purpose Atlas tail
-        run: node tests/debug-purpose-atlas-tail.mjs
+      - name: Probe check-mention-a11y
+        run: node tests/check-mention-a11y.mjs
 
       - name: Probe check-purpose-atlas
         run: node tests/check-purpose-atlas.mjs
+
+      - name: Probe check-purpose-atlas-fixture-boundaries
+        run: node tests/check-purpose-atlas-fixture-boundaries.mjs
+
+      - name: Probe check-purpose-atlas-final-layout
+        run: node tests/check-purpose-atlas-final-layout.mjs
+
+      - name: Probe check-a2ui-shell-data-boundary
+        run: node tests/check-a2ui-shell-data-boundary.mjs
+
+      - name: Probe check-generic-a2ui-shell-builder
+        run: node tests/check-generic-a2ui-shell-builder.mjs
+
+      - name: Probe check-markdown-document-renderer
+        run: node tests/check-markdown-document-renderer.mjs
+
+      - name: Probe check-markdown-renderer-boundary-regressions
+        run: node tests/check-markdown-renderer-boundary-regressions.mjs
+
+      - name: Probe check-ci-workflows
+        run: node tests/check-ci-workflows.mjs
 
       - name: Probe ui-modeling check
         run: nix build .#checks.x86_64-linux.ui-modeling-corr-port --print-build-logs
