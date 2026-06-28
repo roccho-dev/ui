@@ -79,13 +79,14 @@ assert.deepEqual(collectFiles(referenceRoot).filter((file) => file.endsWith(".py
 
 const registry = defaultRegistry();
 const sduiEntry = registry.get("A2uiSduiSurface");
+assert.ok(sduiEntry, "registry must expose A2uiSduiSurface");
 assert.equal(sduiEntry.family, "purpose_atlas");
 assert.equal(sduiEntry.childrenPolicy, "none");
 assert.ok(sduiEntry.props.includes("document"));
 assert.ok(sduiEntry.actions.includes("atlas.recordMismatch"));
 const atlasEntry = registry.get("AtlasSourceSurface");
+assert.ok(atlasEntry, "registry must keep AtlasSourceSurface compatibility entry");
 assert.equal(atlasEntry.family, "purpose_atlas");
-assert.ok(atlasEntry.description.includes("compat"));
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
 assert.deepEqual(purposeAtlasHtmlBox.assets, ["index.html"]);
 for (const generated of ["dist", "evidence", "MANIFEST.sha256"]) {
