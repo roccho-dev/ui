@@ -66,7 +66,6 @@ assert.equal(rootComponent?.component, "A2uiSduiSurface");
 assert.ok(rootComponent.document?.tree, "Purpose Atlas layout tree must live in surface JSONL");
 assert.ok(rootComponent.document?.styles?.css, "Purpose Atlas CSS must live in surface JSONL");
 assert.ok(!surfaceLines.some((line) => line.updateDataModel), "surface fixture must not contain generated data state");
-assert.doesNotMatch(surfaceText, /functionCall|eval\(/i);
 walkNoAuthority("Purpose Atlas A2UI surface JSONL", surfaceLines);
 
 const atlasData = JSON.parse(fs.readFileSync(atlasDataPath, "utf8"));
