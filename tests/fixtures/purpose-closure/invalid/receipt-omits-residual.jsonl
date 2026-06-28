@@ -1,0 +1,10 @@
+{"type":"purpose_node","id":"purpose.company_sale","title":"高価値法人構築と売却","authoritative":false,"source":{"kind":"projection"}}
+{"type":"finding_node","id":"finding.schema_missing","summary":"schema/check未実装","authoritative":false,"source":{"kind":"projection"}}
+{"type":"gap_node","id":"gap.closure_schema","purpose_id":"purpose.company_sale","ideal":"i","current":"c","delta":"d","owner_role":"ui","proof_required":"p","authoritative":false,"source":{"kind":"projection"}}
+{"type":"subgap_node","id":"gap.closure_schema.fixture","parent_gap_id":"gap.closure_schema","delta":"d","authoritative":false,"source":{"kind":"projection"}}
+{"type":"task_node","id":"task.add_schema_check","primary_gap_id":"gap.closure_schema","summary":"s","authoritative":false,"source":{"kind":"projection"}}
+{"type":"work_order","id":"wo.close_46_residual","primary_gap_id":"gap.closure_schema","scope":["fixture"],"non_scope":["ui"],"closure_criteria":["pass"],"authoritative":false,"source":{"kind":"projection"}}
+{"type":"route_edge","id":"route.purpose_to_gap","from":"purpose.company_sale","to":"gap.closure_schema","relation":"has_gap","authoritative":false,"source":{"kind":"projection"}}
+{"type":"dependency_edge","id":"dep.task_to_work_order","from":"task.add_schema_check","to":"wo.close_46_residual","relation":"part_of","authoritative":false,"source":{"kind":"projection"}}
+{"type":"receipt_node","id":"receipt.close_46_reduced","work_order_id":"wo.close_46_residual","status":"reduced","residual_handling":{"kind":"return_to_projection_loop"},"authoritative":false,"source":{"kind":"projection"}}
+{"type":"residual_gap","id":"residual.ui_projection","source_receipt_id":"receipt.close_46_reduced","purpose_id":"purpose.company_sale","delta":"d","returned_as_next_input":true,"authoritative":false,"source":{"kind":"projection"}}
