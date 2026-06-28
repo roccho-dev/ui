@@ -37,6 +37,18 @@ jobs:
       - name: Probe check-registry
         run: node tests/check-registry.mjs
 
+      - name: Probe Purpose Atlas files
+        run: node tests/debug-purpose-atlas-files.mjs
+
+      - name: Probe Purpose Atlas surface
+        run: node tests/debug-purpose-atlas-surface.mjs
+
+      - name: Probe Purpose Atlas registry
+        run: node tests/debug-purpose-atlas-registry.mjs
+
+      - name: Probe Purpose Atlas reference
+        run: node tests/debug-purpose-atlas-reference.mjs
+
       - name: Probe check-purpose-atlas
         run: node tests/check-purpose-atlas.mjs
 
