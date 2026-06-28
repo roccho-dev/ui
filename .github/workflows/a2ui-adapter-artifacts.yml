@@ -13,37 +13,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - id: build
-        run: |
-          mkdir -p adapter-result adapter-build-log
-          set +e
-          node packages/a2ui-adapter-artifacts/scripts/build.mjs > adapter-build-log/build.log 2>&1
-          status=$?
-          cat adapter-build-log/build.log
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
+      - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
+        env:
+          GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: adapter-build-log
-          path: adapter-build-log/build.log
-      - uses: actions/upload-artifact@v4
-        if: steps.build.outputs.status == '0'
         with:
           name: live-adapter-artifact
           path: adapter-result/live-adapter-artifact
       - uses: actions/upload-artifact@v4
-        if: steps.build.outputs.status == '0'
         with:
           name: purpose-adapter-artifact
           path: adapter-result/purpose-adapter-artifact
       - uses: actions/upload-artifact@v4
-        if: steps.build.outputs.status == '0'
+        with:
+          name: property-map-geo-artifact
+          path: adapter-result/property-map-geo-artifact
+      - uses: actions/upload-artifact@v4
         with:
           name: adapter-artifact-index
           path: adapter-result/adapter-artifact-index.json
-      - name: Fail on adapter artifact build error
-        if: steps.build.outputs.status != '0'
-        run: exit ${{ steps.build.outputs.status }}
