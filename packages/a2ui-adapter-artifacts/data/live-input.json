@@ -1,1 +1,44 @@
-{"session":{"id":"local-live-adapter-proof","title":"live adapter proof after PR38 path"},"decisions":[{"id":"d1","t":1,"label":"registry is common contract"},{"id":"d2","t":2,"label":"requirements are external packs"}],"risks":[{"id":"r-any","label":"document schema must not stay any"}],"nextActions":[{"id":"next-ci","label":"upload live and purpose artifacts"}],"proposals":[{"id":"p-live","title":"live adapter requirement pack","status":"proof","goalFit":"direct"},{"id":"p-purpose","title":"purpose adapter from PR38 surface","status":"proof","goalFit":"direct"}],"artifacts":[{"id":"a-live","kind":"ci-artifact","label":"live-adapter-artifact"},{"id":"a-purpose","kind":"ci-artifact","label":"purpose-adapter-artifact"}],"repo":{"name":"roccho-dev/ui","base":"proposals","afterPr":38,"mergePolicy":"merge after checks pass"}}
+{
+  "session": {
+    "id": "local-live-adapter-proof",
+    "title": "live adapter control plane"
+  },
+  "decisions": [
+    { "id": "d1", "t": 1, "label": "registry is common contract" },
+    { "id": "d2", "t": 2, "label": "requirements are external packs" },
+    { "id": "d3", "t": 3, "label": "UI body preview is CI evidence" }
+  ],
+  "risks": [
+    { "id": "r-fixture", "label": "data is still fixture-backed" },
+    { "id": "r-github", "label": "GitHub PR and Issue data are not connected yet" },
+    { "id": "r-refresh", "label": "automatic refresh is not connected yet" }
+  ],
+  "nextActions": [
+    { "id": "next-ci", "label": "upload live UI body as adapter artifact" },
+    { "id": "next-data", "label": "replace fixture rows with projected live rows" }
+  ],
+  "proposals": [
+    { "id": "p-live", "title": "live adapter requirement pack", "status": "proof", "goalFit": "direct" },
+    { "id": "p-purpose", "title": "purpose adapter from PR38 surface", "status": "proof", "goalFit": "direct" },
+    { "id": "p-ui-body", "title": "live UI body artifact lane", "status": "next", "goalFit": "direct" }
+  ],
+  "evidence": [
+    { "id": "e-live-ui", "label": "live UI body HTML", "status": "fixture-proof", "artifact": "preview/live-ui-body.html" },
+    { "id": "e-adapter-ci", "label": "adapter artifact CI upload", "status": "success", "artifact": "live-adapter-artifact" },
+    { "id": "e-purpose", "label": "purpose adapter artifact remains separate", "status": "success", "artifact": "purpose-adapter-artifact" }
+  ],
+  "artifacts": [
+    { "id": "a-live", "kind": "ci-artifact", "label": "live-adapter-artifact" },
+    { "id": "a-purpose", "kind": "ci-artifact", "label": "purpose-adapter-artifact" },
+    { "id": "a-index", "kind": "ci-artifact", "label": "adapter-artifact-index" }
+  ],
+  "repo": {
+    "name": "roccho-dev/ui",
+    "base": "proposals",
+    "afterPr": 40,
+    "mergePolicy": "merge after checks pass"
+  },
+  "ui": {
+    "selection": null
+  }
+}
