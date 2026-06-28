@@ -15,7 +15,7 @@ console.log(JSON.stringify(index, null, 2));
 function build(adapter) {
   const req = json(path.join(pkgRoot, 'requirements', adapter + '.json'));
   const doc = adapter === 'live' ? json(path.join(pkgRoot, 'a2ui/live-surface.json')) : purposeDoc();
-  const input = adapter === 'live' ? json(path.join(pkgRoot, 'data/live-input.json')) : {};
+  const input = adapter === 'live' ? json(path.join(pkgRoot, 'data/live-input.json')) : {base_nodes: [], base_edges: [], events: []};
   const model = makeModel(adapter, req, input);
   assertInputContract(req, model);
   assertSurfacePolicy(req, doc);
@@ -77,7 +77,7 @@ function renderSduiHtml({adapter, doc, model}) {
   const css = cleanCss(doc.styles?.css || '');
   const body = renderNode(doc.tree, {model});
   const title = `${adapter} UI body`;
-  return `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${esc(title)}</title>\n<style>${css}</style>\n</head>\n<body>\n<div id="app" data-adapter="${esc(adapter)}" data-proof="live-ui-body">\n${body}\n</div>\n<script id="a2ui-data-model" type="application/json">${esc(JSON.stringify(model))}</script>\n</body>\n</html>\n`;
+  return `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${esc(title)}</title>\n<style>${css}</style>\n</head>\n<body>\n<div id="app" data-adapter="${esc(adapter)}" data-proof="${esc(adapter)}-ui-body">\n${body}\n</div>\n<script id="a2ui-data-model" type="application/json">${esc(JSON.stringify(model))}</script>\n</body>\n</html>\n`;
 }
 function cleanCss(css) {
   const text = String(css || '');
