@@ -29,7 +29,16 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          nix_path: nixpkgs=channel=nixos-unstable
+
+      - name: Probe check-ui-modeling
+        run: node tests/check-ui-modeling.mjs
+
+      - name: Probe check-registry
+        run: node tests/check-registry.mjs
+
+      - name: Probe check-purpose-atlas
+        run: node tests/check-purpose-atlas.mjs
 
       - name: Probe ui-modeling check
         run: nix build .#checks.x86_64-linux.ui-modeling-corr-port --print-build-logs
