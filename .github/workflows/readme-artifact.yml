@@ -46,3 +46,21 @@ jobs:
             result/sources.jsonl
             result/receipt.json
           if-no-files-found: error
+
+      - name: Build Purpose Atlas preview
+        run: nix build --print-build-logs -o purpose-result .#purpose-atlas-preview-html
+
+      - name: Verify Purpose Atlas preview
+        run: |
+          set -euo pipefail
+          mkdir -p purpose-atlas-preview-artifact
+          cp -R purpose-result/dist purpose-atlas-preview-artifact/dist
+          cp tests/fixtures/purpose-atlas/atlas-data.json purpose-atlas-preview-artifact/atlas-data.json
+          node tests/check-purpose-atlas-upload-artifact.mjs purpose-atlas-preview-artifact
+
+      - name: Upload Purpose Atlas preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: purpose-atlas-preview
+          path: purpose-atlas-preview-artifact
+          if-no-files-found: error
