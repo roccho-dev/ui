@@ -13,18 +13,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
+      - id: build
+        run: |
+          mkdir -p adapter-result
+          set +e
+          node packages/a2ui-adapter-artifacts/scripts/build.mjs > adapter-result/build.log 2>&1
+          status=$?
+          cat adapter-result/build.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
       - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adapter-build-log
+          path: adapter-result/build.log
+      - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.status == '0'
         with:
           name: live-adapter-artifact
           path: adapter-result/live-adapter-artifact
       - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.status == '0'
         with:
           name: purpose-adapter-artifact
           path: adapter-result/purpose-adapter-artifact
       - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.status == '0'
         with:
           name: adapter-artifact-index
           path: adapter-result/adapter-artifact-index.json
+      - name: Fail on adapter artifact build error
+        if: steps.build.outputs.status != '0'
+        run: exit ${{ steps.build.outputs.status }}
