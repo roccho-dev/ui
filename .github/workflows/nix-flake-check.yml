@@ -40,6 +40,15 @@ jobs:
       - name: Probe Purpose Atlas files
         run: node tests/debug-purpose-atlas-files.mjs
 
+      - name: Probe Purpose Atlas docs
+        run: node tests/debug-purpose-atlas-docs.mjs
+
+      - name: Probe Purpose Atlas generated
+        run: node tests/debug-purpose-atlas-generated.mjs
+
+      - name: Probe Purpose Atlas data
+        run: node tests/debug-purpose-atlas-data.mjs
+
       - name: Probe Purpose Atlas registry
         run: node tests/debug-purpose-atlas-registry.mjs
 
