@@ -31,5 +31,11 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
+      - name: Probe ui-modeling check
+        run: nix build .#checks.x86_64-linux.ui-modeling-corr-port --print-build-logs
+
+      - name: Probe Purpose Atlas preview check
+        run: nix build .#checks.x86_64-linux.purpose-atlas-preview-html --print-build-logs
+
       - name: Run flake check
         run: nix flake check --print-build-logs
