@@ -27,6 +27,7 @@
             mkdir -p public/a2ui src/data
             cp ${self}/tests/fixtures/purpose-atlas/surface.v0.9.jsonl public/a2ui/purpose-atlas.surface.jsonl
             cp ${self}/tests/fixtures/purpose-atlas/atlas-data.json src/data/atlas-data.json
+            npm run test
           '';
           installPhase = ''
             runHook preInstall
