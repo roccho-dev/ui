@@ -19,5 +19,11 @@
     "geoMap.marker.click",
     "atlas.select",
     "atlas.fit"
-  ]
+  ],
+  "canonicalUi": {
+    "visibleHtml": "preview/index.html",
+    "forbiddenVisibleHtml": ["preview/file-open-offline-proof.html", "preview/file-open-cdn-fixed.html"],
+    "markerStyle": "house-label",
+    "sheetStyle": "property-comparison-bottom-sheet"
+  }
 }
