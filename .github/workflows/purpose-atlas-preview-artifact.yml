@@ -24,13 +24,12 @@ jobs:
       - name: Build A2UI preview HTML
         run: nix build --print-build-logs .#purpose-atlas-preview-html
 
-      - name: Pack and verify preview artifact
+      - name: Pack preview artifact
         run: |
           mkdir -p purpose-atlas-preview-artifact
           cp -R result/dist purpose-atlas-preview-artifact/dist
           cp tests/fixtures/purpose-atlas/atlas-data.json purpose-atlas-preview-artifact/atlas-data.json
           cp tests/fixtures/purpose-atlas/surface.v0.9.jsonl purpose-atlas-preview-artifact/source.surface.v0.9.jsonl
-          node tests/check-purpose-atlas-upload-artifact.mjs purpose-atlas-preview-artifact
 
       - name: Upload preview artifact
         uses: actions/upload-artifact@v4
@@ -38,3 +37,6 @@ jobs:
           name: purpose-atlas-approved-preview
           path: purpose-atlas-preview-artifact
           if-no-files-found: error
+
+      - name: Verify preview artifact
+        run: node tests/check-purpose-atlas-upload-artifact.mjs purpose-atlas-preview-artifact
