@@ -15,11 +15,11 @@ jobs:
           node-version: 24
       - id: build
         run: |
-          mkdir -p adapter-result
+          mkdir -p adapter-result adapter-build-log
           set +e
-          node packages/a2ui-adapter-artifacts/scripts/build.mjs > adapter-result/build.log 2>&1
+          node packages/a2ui-adapter-artifacts/scripts/build.mjs > adapter-build-log/build.log 2>&1
           status=$?
-          cat adapter-result/build.log
+          cat adapter-build-log/build.log
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
         env:
@@ -28,7 +28,7 @@ jobs:
         if: always()
         with:
           name: adapter-build-log
-          path: adapter-result/build.log
+          path: adapter-build-log/build.log
       - uses: actions/upload-artifact@v4
         if: steps.build.outputs.status == '0'
         with:
