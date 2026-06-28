@@ -29,6 +29,7 @@ function text(ctx, value) {
 }
 function cls(ctx, node) { return text(ctx, node.className || node.class || '').trim(); }
 function selectionKey(value) { return value?.nodeId ? `${value.type || 'node'}:${value.nodeId}:${value.actor || ''}` : ''; }
+function activeGapNodes(snapshot) { return (snapshot.nodes || []).filter((node) => node.kind === 'gap' && node.status !== 'archived'); }
 
 export class A2uiSduiSurfaceElement extends A2uiLitElement {
   static properties = {hoverSelection: {state: true}, renderStats: {state: true}, toastVisible: {state: true}};
@@ -88,8 +89,36 @@ export class A2uiSduiSurfaceElement extends A2uiLitElement {
   invoke(action) { this.props[action]?.(); }
   ctx(extra = {}) {
     const focus = this.selection || this.hoverSelection;
+    const selected = this.selection?.nodeId ? (this.snapshot.nodes || []).find((item) => item.id === this.selection.nodeId) || null : null;
     const node = (this.snapshot.nodes || []).find((item) => item.id === focus?.nodeId);
-    return {props: {...this.props, focus, inspectorTitle: node?.label || this.snapshot.currentPurpose || '目的未設定', guardText: this.snapshot.guard?.text || '', guardOwner: this.snapshot.guard?.owner || 'CEO', guardStatus: this.snapshot.guard?.status || 'warn', nodeCount: this.snapshot.counts?.nodes || 0, edgeCount: this.snapshot.counts?.edges || 0, renderSceneBuilds: this.renderStats.sceneBuilds || 0}, ...extra};
+    const gaps = activeGapNodes(this.snapshot);
+    const step = Number(this.props.step ?? 0);
+    const maxStep = Number(this.props.maxStep ?? this.snapshot.maxStep ?? 0);
+    const selectedKicker = selected ? `${selected.kind || 'node'} · ${selected.generation || ''}`.trim() : 'Node';
+    return {
+      props: {
+        ...this.props,
+        focus,
+        selected,
+        selectedNode: Boolean(selected),
+        notSelected: !selected,
+        selectedLabel: selected?.label || 'none',
+        selectedKicker,
+        gapCount: gaps.length,
+        visibleGaps: gaps,
+        slide: Math.max(1, step),
+        maxStepPlusOne: maxStep,
+        lastEventLabel: this.snapshot.lastEventLabel || 'projection.header',
+        inspectorTitle: node?.label || this.snapshot.currentPurpose || '目的未設定',
+        guardText: this.snapshot.guard?.text || '',
+        guardOwner: this.snapshot.guard?.owner || 'CEO',
+        guardStatus: this.snapshot.guard?.status || 'warn',
+        nodeCount: this.snapshot.counts?.nodes || 0,
+        edgeCount: this.snapshot.counts?.edges || 0,
+        renderSceneBuilds: this.renderStats.sceneBuilds || 0,
+      },
+      ...extra,
+    };
   }
   renderNode(node, ctx) {
     if (!node) return nothing;
@@ -109,7 +138,7 @@ export class A2uiSduiSurfaceElement extends A2uiLitElement {
     return html`<style>${css}</style>${this.renderNode(this.document.tree, this.ctx())}<div class=${`sdui-toast ${this.toastVisible ? 'show' : ''}`}>${this.props.toast?.message || ''}</div><div class="sdui-machine" aria-hidden="true"><span id="visibleNodes">${this.snapshot.counts?.nodes || 0}</span><span id="visibleEdges">${this.snapshot.counts?.edges || 0}</span><span id="guardText">${this.snapshot.guard?.text || ''}</span></div>`;
   }
   debugState() {
-    return {version: 'v6-a2ui-sdui-layout-css', t: this.snapshot.t, currentPurpose: this.snapshot.currentPurpose || null, guard: this.snapshot.guard?.status, visibleNodes: this.snapshot.counts?.nodes || 0, visibleEdges: this.snapshot.counts?.edges || 0, tipVisible: Boolean(this.selection), ...(this.renderer?.debugState() || {})};
+    return {version: 'v6-a2ui-sdui-repro-layout', t: this.snapshot.t, currentPurpose: this.snapshot.currentPurpose || null, guard: this.snapshot.guard?.status, visibleNodes: this.snapshot.counts?.nodes || 0, visibleEdges: this.snapshot.counts?.edges || 0, tipVisible: Boolean(this.selection), selectedLabel: this.selection?.nodeId || null, activeGaps: activeGapNodes(this.snapshot).map((node) => node.id), ...(this.renderer?.debugState() || {})};
   }
 }
 if (!customElements.get('a2ui-sdui-surface')) customElements.define('a2ui-sdui-surface', A2uiSduiSurfaceElement);
