@@ -13,13 +13,26 @@ function read(relativePath) {
 const surfaceText = read('tests/fixtures/purpose-atlas/surface.v0.9.jsonl');
 const surfaceLines = surfaceText.trim().split(/\n+/).map((line) => JSON.parse(line));
 const rootComponent = surfaceLines.find((line) => line.updateComponents).updateComponents.components[0];
+const sduiDocument = rootComponent.document;
+const sduiTree = JSON.stringify(sduiDocument.tree);
+const sduiCss = sduiDocument.styles.css;
 
 assert.equal(rootComponent.component, 'A2uiSduiSurface', 'surface JSONL must select the generic A2UI SDUI surface');
-assert.ok(rootComponent.document?.tree, 'surface JSONL must carry layout tree as the source of truth');
-assert.ok(rootComponent.document?.styles?.css, 'surface JSONL must carry CSS as the source of truth');
-assert.match(rootComponent.document.styles.css, /\.sdui-app/);
-assert.match(rootComponent.document.styles.css, /\.sdui-stage/);
+assert.ok(sduiDocument?.tree, 'surface JSONL must carry layout tree as the source of truth');
+assert.ok(sduiDocument?.styles?.css, 'surface JSONL must carry CSS as the source of truth');
+assert.match(sduiCss, /\.sdui-app/);
+assert.match(sduiCss, /\.sdui-stage/);
 assert.doesNotMatch(surfaceText, /functionCall|eval\(/i);
+
+assert.match(sduiTree, /"port":"atlasStage"/, 'map-first SDUI must keep the atlasStage graph port');
+assert.match(sduiTree, /"type":"slider"/, 'ADRS merge slide navigation must use an SDUI slider');
+assert.match(sduiTree, /"when":"selection\.nodeId"/, 'detail panel must render only after a target is selected');
+assert.match(sduiTree, /G0 \{\{snapshot\.currentPurpose\}\}/, 'terminal objective context must remain visible in the map HUD');
+assert.match(sduiTree, /ADRS merge slide/, 'user-facing timeline copy must describe slide semantics');
+assert.doesNotMatch(sduiTree, /Purpose Decision Atlas · SDUI/, 'long top explanation must not be part of the default map-first tree');
+assert.doesNotMatch(sduiTree, /"className":"sdui-shell"/, 'default map-first layout must not reserve a permanent side shell');
+assert.match(sduiCss, /grid-template-rows:minmax\(0,1fr\)auto/, 'map must own the primary viewport row');
+assert.match(sduiCss, /\.sdui-stage-port,\.sdui-stage canvas\{position:absolute;inset:0/, 'atlasStage must fill the map stage');
 
 assert.equal(fs.existsSync(path.join(overlayRoot, 'packages/purpose-atlas-preview/src/styles/source-ui.css')), false, 'legacy source-ui.css must be removed; SDUI JSONL owns CSS');
 
