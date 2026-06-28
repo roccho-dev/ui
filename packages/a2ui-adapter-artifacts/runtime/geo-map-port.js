@@ -29,7 +29,16 @@ export class GeoMapPort {
       const lng = Number(property.geo?.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
       coords.push([lat, lng]);
-      const marker = this.L.marker([lat, lng], {kind: 'property', id: property.id, title: property.name, rank: property.rank, selected: property.id === selectedId}).addTo(this.layers.properties);
+      const marker = this.L.marker([lat, lng], {
+        kind: 'property',
+        id: property.id,
+        title: property.name,
+        rank: property.rank,
+        rent_yen: property.rent_yen,
+        area_sqm: property.area_sqm,
+        address: property.address,
+        selected: property.id === selectedId,
+      }).addTo(this.layers.properties);
       marker.on('click', () => onSelect?.(property.id));
       if (property.id === selectedId) this.renderNearby(property, poiKeys);
     }
