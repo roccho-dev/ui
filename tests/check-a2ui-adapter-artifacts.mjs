@@ -19,6 +19,29 @@ for (const adapter of ['live','purpose']) {
   const proof = JSON.parse(fs.readFileSync(path.join(base, 'proof', `${adapter}-adapter-proof-report.json`), 'utf8'));
   assert.equal(proof.status, `${adapter}-adapter-proof-pass`);
   assert.equal(Object.values(proof.boundaries).every(Boolean), true);
+  assert.ok(proof.source.digest.startsWith('sha256:'));
+  assert.ok(proof.projection.digest.startsWith('sha256:'));
+  assert.ok(Array.isArray(proof.checkedInputs));
+  assert.ok(Array.isArray(proof.checkedOutputs));
+  assert.ok(proof.checkedOutputs.includes(`proof/${adapter}-adapter-proof-report.json`));
+  assert.equal(proof.workOrder.currentProjectionDigest, proof.projection.digest);
+  if (adapter === 'purpose') {
+    assert.ok(proof.closedGaps.includes('gap-purpose-proof-replayable'));
+    assert.ok(proof.residuals.some((item) => item.id === 'runtime-state-loop-not-in-scope'));
+    assert.ok(proof.receipt.residualHandling.returnPath.includes('ADRS'));
+    assert.ok(proof.checked.negativeControls.every((item) => item.status === 'pass'));
+  }
+}
+for (const broken of ['missing-source-digest', 'unexpected-action', 'unexpected-port', 'missing-input-shape', 'stale-work-order', 'missing-residual-handling']) {
+  const badOut = fs.mkdtempSync(path.join(os.tmpdir(), `ui-a2ui-adapter-bad-${broken}-`));
+  let failed = false;
+  try {
+    execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build.mjs'], {cwd: root, stdio: 'pipe', env: {...process.env, UI_REPO_ROOT: root, ADAPTER_ARTIFACT_OUT: badOut, ADAPTER_ARTIFACT_BROKEN_ADAPTER: 'purpose', ADAPTER_ARTIFACT_BROKEN_CASE: broken}});
+  } catch (error) {
+    failed = true;
+    assert.notEqual(error.status, 0, `${broken} must exit non-zero`);
+  }
+  assert.equal(failed, true, `${broken} must fail proof gate`);
 }
 const index = JSON.parse(fs.readFileSync(path.join(tmp, 'adapter-artifact-index.json'), 'utf8'));
 assert.equal(index.status, 'adapter-ci-artifacts-ready');
