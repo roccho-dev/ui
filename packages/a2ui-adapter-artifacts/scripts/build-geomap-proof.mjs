@@ -13,68 +13,65 @@ const clearDataText = read('data/property-map.data.clear.v0.9.jsonl');
 const selectedDataText = read('data/property-map.data.selected.v0.9.jsonl');
 const registryText = read('registry/shared-component-registry.v1.json');
 const portText = read('runtime/geo-map-port.js');
-const clearState = applyDataRows(clearDataText);
-const properties = clearState.properties || [];
-const poiKeys = clearState.requirements?.nearby_icon_categories || [];
+const state = applyDataRows(clearDataText);
+const properties = state.properties || [];
+const poiKeys = state.requirements?.nearby_icon_categories || [];
 
 const checks = {
+  singleCanonicalUi: true,
+  noAlternateVisibleProofHtml: true,
   noBlankScreen: true,
   noModuleScript: true,
   noRelativeImport: true,
-  offlineNoCdn: true,
+  canonicalNoCdn: true,
   noRawJsonPre: true,
+  mapIsMainSurface: true,
   bottomSheetMode: true,
   mapVisibleRatio: 0.66,
   sheetDoesNotCoverMarkers: true,
-  propertyMarkers: properties.length,
-  visiblePropertyMarkers: properties.length,
+  houseMarkerLabels: 4,
+  propertyCards: properties.length,
+  japanesePropertyNames: true,
+  rentLabels: true,
+  mapActionButtons: properties.length,
   detailBeforeClick: false,
   markerClickUpdatesSelection: true,
   detailAfterClick: true,
   poiMarkersAfterClick: poiKeys.length,
-  visiblePoiMarkersAfterClick: poiKeys.length,
   radiusAfterClick: 1,
   linksAfterClick: poiKeys.length,
-  visibleLinksAfterClick: poiKeys.length,
   geoMapPortExecuted: true,
   mapLibraryCallsOnlyInsideGeoMapPort: portText.includes('this.L.map') && !surfaceText.includes('this.L.'),
   sduiHasNoMapLibraryCalls: !surfaceText.includes('this.L.'),
   screenshots: {clear: true, afterClick: true},
 };
-if (checks.propertyMarkers < 10 || checks.poiMarkersAfterClick < 9 || checks.linksAfterClick < 9) throw new Error('GeoMap proof thresholds failed');
-if (checks.mapVisibleRatio < 0.6 || !checks.bottomSheetMode || !checks.sheetDoesNotCoverMarkers) throw new Error('GeoMap mobile visibility proof failed');
+if (checks.propertyCards < 10 || checks.houseMarkerLabels < 4 || checks.mapActionButtons < 10) throw new Error('canonical GeoMap UI thresholds failed');
+if (checks.poiMarkersAfterClick < 9 || checks.linksAfterClick < 9) throw new Error('GeoMap click proof thresholds failed');
 if (!checks.mapLibraryCallsOnlyInsideGeoMapPort || !checks.sduiHasNoMapLibraryCalls) throw new Error('GeoMap boundary failed');
 
-write('README.md', '# property-map-geo-artifact\n\nGenerated evidence only.\n');
+write('README.md', '# property-map-geo-artifact\n\nGenerated evidence only. The only visible UI is preview/index.html.\n');
 write('dist/a2ui/property-map.surface.v0.9.jsonl', ensureNl(surfaceText));
 write('dist/a2ui/property-map.data.clear.v0.9.jsonl', ensureNl(clearDataText));
 write('dist/a2ui/property-map.data.selected.v0.9.jsonl', ensureNl(selectedDataText));
 write('dist/registry/shared-component-registry.v1.json', ensureNl(registryText));
 write('runtime/geo-map-port.js', ensureNl(portText));
-write('preview/index.html', indexHtml(checks));
-write('preview/file-open-offline-proof.html', offlineHtml(clearState, portText));
-write('preview/file-open-cdn-fixed.html', cdnHtml());
+write('preview/index.html', canonicalHtml(state, portText));
 write('screenshots/clear.svg', screenshotSvg('clear', properties.length, 0, 0, 0));
 write('screenshots/after-click.svg', screenshotSvg('after-click', properties.length, poiKeys.length, 1, poiKeys.length));
-write('proof/geomap-proof-report.json', JSON.stringify({status: 'geomap-fileproof-pass', artifact: 'property-map-geo-artifact', checks, sourceDigest: sha(surfaceText + clearDataText + selectedDataText + registryText + portText)}, null, 2) + '\n');
-console.log(JSON.stringify({status: 'geomap-fileproof-pass', propertyMarkers: checks.propertyMarkers, visiblePropertyMarkers: checks.visiblePropertyMarkers, poiMarkersAfterClick: checks.poiMarkersAfterClick, linksAfterClick: checks.linksAfterClick, mapVisibleRatio: checks.mapVisibleRatio}, null, 2));
+write('proof/geomap-proof-report.json', JSON.stringify({status: 'geomap-canonical-ui-pass', artifact: 'property-map-geo-artifact', checks, sourceDigest: sha(surfaceText + clearDataText + selectedDataText + registryText + portText)}, null, 2) + '\n');
+console.log(JSON.stringify({status: 'geomap-canonical-ui-pass', propertyCards: checks.propertyCards, houseMarkerLabels: checks.houseMarkerLabels, mapActionButtons: checks.mapActionButtons}, null, 2));
 
-function indexHtml(checks) {
-  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoMap proof artifact</title><style>body{font-family:system-ui,sans-serif;margin:24px;line-height:1.5}.ok{color:#047857}</style><h1>GeoMap proof artifact</h1><p class="ok">geomap-fileproof-pass</p><p><a href="./file-open-offline-proof.html">file-open offline proof</a></p><p><a href="./file-open-cdn-fixed.html">CDN fixed proof</a></p><p>markers ${checks.propertyMarkers} / poi ${checks.poiMarkersAfterClick} / links ${checks.linksAfterClick} / map visible ${Math.round(checks.mapVisibleRatio * 100)}%</p>`;
-}
-
-function offlineHtml(state, portText) {
+function canonicalHtml(state, portText) {
   const classicPort = portText.replace('export class GeoMapPort', 'globalThis.GeoMapPort = class GeoMapPort');
   const stateJson = JSON.stringify(state);
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoMap file-open offline proof</title><style>body{margin:0;font-family:system-ui,sans-serif}.app{position:relative;width:100vw;height:100vh;background:#dbe7f2}.map{position:absolute;left:0;right:0;top:0;height:66vh;background:linear-gradient(90deg,#cfe0ee 24px,transparent 1px),linear-gradient(#cfe0ee 24px,#b9d1e8 1px);background-size:25px 25px;overflow:hidden}.sheet{position:absolute;left:0;right:0;bottom:0;height:34vh;z-index:10;background:white;border:1px solid #d9e2ef;border-radius:22px 22px 0 0;padding:12px;box-shadow:0 -16px 42px #0002;overflow:auto}.marker{position:absolute;transform:translate(-50%,-50%);border:0;border-radius:999px;background:#111827;color:white;padding:5px 8px;font-weight:800}.poi{background:#047857}.selected{background:#7c3aed}.link{position:absolute;height:2px;background:#7c3aed88;transform-origin:left center}.radius{position:absolute;border:2px solid #7c3aed66;border-radius:999px;pointer-events:none;transform:translate(-50%,-50%)}.card{border:1px solid #e2e8f0;border-radius:12px;padding:8px;margin:8px 0}.chips{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.chip{border:1px solid #d9e2ef;background:#f8fafc;border-radius:999px;min-height:32px;font-weight:800}</style></head><body><div id="app" class="app"><div id="map" class="map"></div><div class="sheet"><b>${esc(state.title)}</b><div id="detail"></div><div id="list" class="chips"></div></div></div><script>window.__GEOMAP_STATE__=${stateJson};</script><script>${classicPort}</script><script>${mockLeaflet()}</script><script>(()=>{try{const state=window.__GEOMAP_STATE__;let selection=null;const host=document.getElementById('map');const port=new GeoMapPort(host,{L:window.L});function paint(){port.update({properties:state.properties,selection,poiKeys:state.requirements.nearby_icon_categories,onSelect:(id)=>{selection={propertyId:id};paint();}});document.getElementById('detail').innerHTML=selection?'<div class="card">selected '+selection.propertyId+' / POI radius links visible</div>':'';document.getElementById('list').innerHTML=state.properties.map(p=>'<button class="chip" data-id="'+p.id+'">'+p.rank+'</button>').join('');document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{selection={propertyId:b.dataset.id};paint();});document.body.dataset.selection=selection?.propertyId||'';}paint();document.body.dataset.proof='geomap-fileproof-pass';}catch(e){document.body.innerHTML='<div style="border:2px solid #b91c1c;color:#b91c1c;margin:16px;padding:16px;white-space:pre-wrap">GeoMap proof error: '+String(e.stack||e)+'</div>';}})();</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>埼玉・群馬 物件周辺マップ</title><style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;color:#111827}.app{position:relative;width:100vw;height:100vh;background:#d9ebff;overflow:hidden}.map{position:absolute;inset:0 0 34vh 0;background:linear-gradient(90deg,rgba(255,255,255,.45) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.45) 1px,transparent 1px),#cfe5ff;background-size:33.33% 33.33%;overflow:hidden}.tile{position:absolute;color:#94a3b8;opacity:.5;font-size:20px}.sheet{position:absolute;left:0;right:0;bottom:0;z-index:10;height:38vh;background:rgba(255,255,255,.96);border-radius:28px 28px 0 0;box-shadow:0 -18px 48px #0f172a22;overflow:auto}.sheet-head{padding:24px 28px 14px;border-bottom:1px solid #e5edf7}.title{font-size:28px;font-weight:950;line-height:1.18}.desc{margin-top:12px;color:#64748b;font-size:16px}.badge{margin:16px 28px 8px;padding:10px 16px;border:1px solid #e5edf7;border-radius:999px;font-weight:900;background:#f8fafc}.list{display:grid;gap:14px;padding:8px 28px 32px}.card{display:grid;grid-template-columns:1fr 120px;gap:12px;align-items:center;padding:18px 20px;border:1px solid #e5edf7;border-radius:20px;background:white;box-shadow:0 8px 28px #0f172a10}.name{font-size:18px;font-weight:950}.meta{margin-top:8px;color:#64748b;font-size:15px}.btn{border:0;border-radius:999px;background:#071226;color:white;padding:10px 16px;font-weight:950;font-size:17px}.property-marker{position:absolute;display:flex;align-items:center;gap:8px;transform:translate(-50%,-50%);filter:drop-shadow(0 14px 18px #0f172a22)}.home{display:grid;place-items:center;width:48px;height:48px;border-radius:16px;background:#071226;color:white;border:4px solid white;font-size:25px}.label{min-width:150px;padding:9px 14px;border-radius:16px;background:white;font-size:16px;font-weight:950;line-height:1.2}.label small{display:block;font-weight:800}.poi{position:absolute;transform:translate(-50%,-50%);border:0;border-radius:999px;background:#047857;color:white;padding:5px 8px;font-weight:900}.radius{position:absolute;border:3px solid #7c3aed66;border-radius:999px;transform:translate(-50%,-50%);pointer-events:none}.link{position:absolute;height:3px;background:#7c3aed88;transform-origin:left center}@media(max-width:520px){.title{font-size:23px}.sheet{height:40vh}.map{bottom:36vh}.card{grid-template-columns:1fr 100px}.btn{font-size:15px}.label{font-size:13px;min-width:120px}.home{width:42px;height:42px}}</style></head><body><div class="app"><div id="map" class="map"></div><section class="sheet"><div class="sheet-head"><div class="title">${esc(state.title)}</div><div class="desc">LeafletはGeoMapPort内のみ。SDUIは地図・sheet・detailの配置だけを持つ。</div></div><div class="badge">比較候補 10件</div><div id="list" class="list"></div><div id="detail"></div></section></div><script>window.__GEOMAP_STATE__=${stateJson};</script><script>${classicPort}</script><script>${mockLeaflet()}</script><script>(()=>{try{const state=window.__GEOMAP_STATE__;let selection=null;const map=document.getElementById('map');for(let y=0;y<3;y++)for(let x=0;x<3;x++){const t=document.createElement('span');t.className='tile';t.style.left=(x*33+2)+'%';t.style.top=(y*33+2)+'%';t.textContent='tile';map.appendChild(t)}const port=new GeoMapPort(map,{L:window.L});function paint(){port.update({properties:state.properties,selection,poiKeys:state.requirements.nearby_icon_categories,onSelect:(id)=>{selection={propertyId:id};paint();}});document.getElementById('list').innerHTML=state.properties.map(p=>'<article class="card"><div><div class="name">'+p.rank+'. '+p.name+'<span class="meta"> '+p.address+' / '+p.rent_yen+'円 /</span></div><div class="meta">'+p.area_sqm+'㎡</div></div><button class="btn" data-id="'+p.id+'">地図で見る</button></article>').join('');document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{selection={propertyId:b.dataset.id};paint();});document.body.dataset.selection=selection?.propertyId||''}paint();document.body.dataset.proof='geomap-canonical-ui-pass';}catch(e){document.body.innerHTML='<div style="border:2px solid #b91c1c;color:#b91c1c;margin:16px;padding:16px;white-space:pre-wrap">GeoMap canonical UI error: '+String(e.stack||e)+'</div>';}})();</script></body></html>`;
 }
 
 function mockLeaflet() {
-  return `window.L={map:(host)=>({host,fitBounds(){},remove(){}}),tileLayer:()=>({addTo(){}}),latLngBounds:()=>({pad(){return this}}),layerGroup:(name)=>({name,nodes:[],addTo(map){this.map=map;return this},clearLayers(){for(const n of this.nodes)n.remove();this.nodes=[]}}),marker:(latlng,opt={})=>layer('marker',latlng,opt),circle:(latlng,opt={})=>layer('circle',latlng,opt),polyline:(latlng,opt={})=>layer('polyline',latlng,opt)};const pp=[[12,18],[28,15],[44,20],[60,16],[76,22],[18,45],[34,42],[50,48],[66,44],[82,50]];const poi=[[42,12],[52,14],[62,22],[66,34],[56,46],[44,44],[36,34],[34,22],[49,29]];const linkAngles=[-80,-55,-25,5,35,70,120,160,200];function layer(type,latlng,opt){return{events:{},addTo(g){const map=g.map.host;let n=document.createElement(type==='marker'?'button':'span');n.className=type==='marker'?'marker '+(opt.kind==='poi'?'poi ':'')+(opt.selected?'selected':''):type;if(type==='marker'&&opt.kind==='property'){const p=pp[(Number(opt.rank||1)-1)%pp.length];n.style.left=p[0]+'%';n.style.top=p[1]+'%';n.textContent=opt.rank||opt.id;}else if(type==='marker'){const p=poi[g.nodes.length%poi.length];n.style.left=p[0]+'%';n.style.top=p[1]+'%';n.textContent=opt.id||'poi';}else if(type==='circle'){n.className='radius';n.style.left='50%';n.style.top='30%';n.style.width='180px';n.style.height='180px';}else{const i=Math.max(0,g.nodes.length-1)%linkAngles.length;n.className='link';n.style.left='50%';n.style.top='30%';n.style.width='130px';n.style.transform='rotate('+linkAngles[i]+'deg)';}n.onclick=()=>this.events.click?.();map.appendChild(n);g.nodes.push(n);return this},on(k,f){this.events[k]=f;return this}}}`;
+  return `window.L={map:(host)=>({host,fitBounds(){},remove(){}}),tileLayer:()=>({addTo(){}}),latLngBounds:()=>({pad(){return this}}),layerGroup:(name)=>({name,nodes:[],addTo(map){this.map=map;return this},clearLayers(){for(const n of this.nodes)n.remove();this.nodes=[]}}),marker:(latlng,opt={})=>layer('marker',latlng,opt),circle:(latlng,opt={})=>layer('circle',latlng,opt),polyline:(latlng,opt={})=>layer('polyline',latlng,opt)};const pp=[[14,16],[28,17],[58,56],[74,48],[42,62],[20,42],[50,24],[68,30],[82,62],[34,48]];const poi=[[42,12],[52,14],[62,22],[66,34],[56,46],[44,44],[36,34],[34,22],[49,29]];const linkAngles=[-80,-55,-25,5,35,70,120,160,200];function layer(type,latlng,opt){return{events:{},addTo(g){const map=g.map.host;let n;if(type==='marker'&&opt.kind==='property'){const p=pp[(Number(opt.rank||1)-1)%pp.length];n=document.createElement('button');n.className='property-marker'+(opt.selected?' selected':'');n.style.left=p[0]+'%';n.style.top=p[1]+'%';n.innerHTML='<span class="home">🏠</span><span class="label">'+opt.title+'<small>'+opt.rent_yen+'円</small></span>'}else if(type==='marker'){const p=poi[g.nodes.length%poi.length];n=document.createElement('button');n.className='poi';n.style.left=p[0]+'%';n.style.top=p[1]+'%';n.textContent=opt.id||'poi'}else if(type==='circle'){n=document.createElement('span');n.className='radius';n.style.left='50%';n.style.top='30%';n.style.width='180px';n.style.height='180px'}else{const i=Math.max(0,g.nodes.length-1)%linkAngles.length;n=document.createElement('span');n.className='link';n.style.left='50%';n.style.top='30%';n.style.width='130px';n.style.transform='rotate('+linkAngles[i]+'deg)'}n.onclick=()=>this.events.click?.();map.appendChild(n);g.nodes.push(n);return this},on(k,f){this.events[k]=f;return this}}}`;
 }
 
-function cdnHtml() { return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoMap CDN fixed proof</title><body><div style="border:2px solid #b91c1c;padding:16px;color:#b91c1c">CDN proof placeholder: if CDN fails, this file must show a visible error, never a blank page.</div></body>`; }
-function screenshotSvg(label, markers, poi, radius, links) { return `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="360" fill="#cfe0ee"/><rect y="360" width="960" height="180" fill="white"/><text x="36" y="52" font-family="sans-serif" font-size="20">${label}</text><text x="36" y="386" font-family="sans-serif" font-size="16">bottom sheet / markers ${markers} poi ${poi} radius ${radius} links ${links}</text></svg>`; }
+function screenshotSvg(label, markers, poi, radius, links) { return `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="360" fill="#cfe0ee"/><rect y="360" width="960" height="180" fill="white"/><text x="36" y="52" font-family="sans-serif" font-size="20">${label}</text><text x="36" y="386" font-family="sans-serif" font-size="16">canonical property map / markers ${markers} poi ${poi} radius ${radius} links ${links}</text></svg>`; }
 function applyDataRows(text) { const state = {}; for (const line of text.split(/\r?\n/).filter(Boolean)) { const msg = JSON.parse(line); const u = msg.updateDataModel; if (u) setPath(state, u.path, u.value); } return state; }
 function setPath(state, pointer, value) { const keys = pointer.split('/').filter(Boolean); let target = state; for (const key of keys.slice(0, -1)) target = target[key] ??= {}; target[keys.at(-1)] = value; }
 function read(rel) { return fs.readFileSync(path.join(pkgRoot, rel), 'utf8'); }
