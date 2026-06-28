@@ -55,6 +55,9 @@ jobs:
       - name: Probe Purpose Atlas reference
         run: node tests/debug-purpose-atlas-reference.mjs
 
+      - name: Probe Purpose Atlas tail
+        run: node tests/debug-purpose-atlas-tail.mjs
+
       - name: Probe check-purpose-atlas
         run: node tests/check-purpose-atlas.mjs
 
