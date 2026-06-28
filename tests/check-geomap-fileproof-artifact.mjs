@@ -36,6 +36,13 @@ assert.match(offline, /bottom:0/);
 assert.match(offline, /grid-template-columns:repeat\(5/);
 assert.match(offline, /POI radius links visible/);
 
+const clearRows = fs.readFileSync(path.join(out, 'dist/a2ui/property-map.data.clear.v0.9.jsonl'), 'utf8').trim().split(/\n+/).map((line) => JSON.parse(line));
+const properties = clearRows.find((row) => row.updateDataModel?.path === '/properties').updateDataModel.value;
+const poiKeys = clearRows.find((row) => row.updateDataModel?.path === '/requirements').updateDataModel.value.nearby_icon_categories;
+assert.ok(properties.length >= 10);
+assert.ok(poiKeys.length >= 9);
+assert.ok(poiKeys.every((key) => properties[0].nearby && properties[0].nearby[key]), 'selected fixture property must have visible POI data for every required key');
+
 const report = JSON.parse(fs.readFileSync(path.join(out, 'proof/geomap-proof-report.json'), 'utf8'));
 assert.equal(report.status, 'geomap-fileproof-pass');
 assert.equal(report.checks.noBlankScreen, true);
