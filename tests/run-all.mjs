@@ -4,7 +4,6 @@ import "./check-mention-a11y.mjs";
 import "./check-purpose-atlas.mjs";
 import "./check-purpose-atlas-fixture-boundaries.mjs";
 import "./check-purpose-atlas-final-layout.mjs";
-import "./check-purpose-atlas-sdui-boundary.mjs";
 import "./check-a2ui-shell-data-boundary.mjs";
 import "./check-generic-a2ui-shell-builder.mjs";
 import "./check-markdown-document-renderer.mjs";
