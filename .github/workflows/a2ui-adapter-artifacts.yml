@@ -1,0 +1,30 @@
+name: A2UI adapter artifacts
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  adapter-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
+        env:
+          ADAPTER_ARTIFACT_OUT: adapter-result
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-adapter-artifact
+          path: adapter-result/live-adapter-artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: purpose-adapter-artifact
+          path: adapter-result/purpose-adapter-artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adapter-artifact-index
+          path: adapter-result/adapter-artifact-index.json

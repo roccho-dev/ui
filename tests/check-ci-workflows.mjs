@@ -6,12 +6,8 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowsDir = path.join(root, ".github", "workflows");
 const intentPath = path.join(root, "ci.intent.v1.jsonl");
-
-const intentRows = fs.readFileSync(intentPath, "utf8")
-  .trim()
-  .split(/\n+/)
-  .map((line) => JSON.parse(line));
-assert.equal(intentRows.length, 2);
+const intentRows = fs.readFileSync(intentPath, "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
+assert.equal(intentRows.length, 3);
 
 const primary = intentRows.find((row) => row.kind === "ui.ciIntent.v1");
 assert.ok(primary);
@@ -30,11 +26,16 @@ assert.equal(artifact.workflow_definition, "checked_in");
 assert.equal(artifact.artifact_source, "nix-output");
 assert.equal(artifact.artifact_generation, "generated");
 
-const workflowFiles = fs.readdirSync(workflowsDir)
-  .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"))
-  .map((name) => `.github/workflows/${name}`)
-  .sort();
-assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path].sort());
+const adapterArtifact = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "adapter_artifact_exporter");
+assert.ok(adapterArtifact);
+assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml");
+assert.equal(adapterArtifact.entrypoint, "node packages/a2ui-adapter-artifacts/scripts/build.mjs");
+assert.equal(adapterArtifact.authority, false);
+assert.equal(adapterArtifact.source, "node-output");
+assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "adapter-artifact-index"]);
+
+const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path].sort());
 
 const primaryText = fs.readFileSync(path.join(root, primary.entrypoints[0]), "utf8");
 assert.match(primaryText, /name:\s*Nix Flake Check/);
@@ -47,11 +48,13 @@ assert.match(artifactText, /nix build --print-build-logs \.#readme-artifact/);
 assert.match(artifactText, /actions\/upload-artifact@v4/);
 assert.doesNotMatch(artifactText, /npm test|node scripts\/build-generic-a2ui-preview/);
 
+const adapterText = fs.readFileSync(path.join(root, adapterArtifact.path), "utf8");
+assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
+assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/);
+assert.match(adapterText, /actions\/upload-artifact@v4/);
+for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
+
 for (const forbiddenPath of primary.forbiddenEntryGlobs) {
   assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
 }
-
-console.log(JSON.stringify({
-  status: "ui-ci-workflows-check-pass",
-  entrypoints: workflowFiles,
-}, null, 2));
+console.log(JSON.stringify({ status: "ui-ci-workflows-check-pass", entrypoints: workflowFiles }, null, 2));
