@@ -7,24 +7,9 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(root, "tests/fixtures/purpose-atlas");
 const referenceRoot = path.join(root, "tests/reference/purpose-atlas-source");
-const previewPackageRoot = path.join(root, "packages/purpose-atlas-preview");
-const surfacePath = path.join(fixtureRoot, "surface.v0.9.jsonl");
-const atlasDataPath = path.join(fixtureRoot, "atlas-data.json");
-const sourceLockPath = path.join(referenceRoot, "SOURCE_LOCK.json");
+const previewRoot = path.join(root, "packages/purpose-atlas-preview");
 const sourceRoot = path.join(referenceRoot, "source");
-
-const forbiddenFixtureNames = new Set([
-  "dist",
-  "evidence",
-  "MANIFEST.sha256",
-  "package.json",
-  "package-lock.json",
-  "vite.config.js",
-  "index.html",
-  "src",
-  "scripts",
-  "test",
-]);
+const forbiddenFixtureNames = new Set(["dist", "evidence", "MANIFEST.sha256", "package.json", "package-lock.json", "vite.config.js", "index.html", "src", "scripts", "test"]);
 
 function collectNames(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -33,7 +18,6 @@ function collectNames(dir) {
     return entry.isDirectory() ? [entry.name, ...collectNames(child)] : [entry.name];
   });
 }
-
 function collectFiles(dir, prefix = "") {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -42,55 +26,33 @@ function collectFiles(dir, prefix = "") {
     return entry.isDirectory() ? collectFiles(child, relative) : [relative];
   });
 }
+function sha256(filePath) { return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex"); }
 
-function readJsonl(filePath) {
-  return fs.readFileSync(filePath, "utf8")
-    .trim()
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
+const surfacePath = path.join(fixtureRoot, "surface.v0.9.jsonl");
+assert.ok(fs.existsSync(surfacePath));
+const surfaceText = fs.readFileSync(surfacePath, "utf8");
+for (const token of ['"version":"v0.9"', '"surfaceId":"purpose-atlas"', '"component":"A2uiSduiSurface"', '"document"', '"tree"', '"css"']) {
+  assert.ok(surfaceText.includes(token), `surface fixture must contain ${token}`);
 }
+assert.equal(surfaceText.includes('"updateDataModel"'), false, "surface fixture must be shell/input only");
 
-function sha256(filePath) {
-  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
-}
-
-assert.ok(fs.existsSync(surfacePath), "Purpose Atlas A2UI surface fixture must live under tests/fixtures/purpose-atlas");
-const surfaceRows = readJsonl(surfacePath);
-assert.equal(surfaceRows[0]?.version, "v0.9");
-assert.equal(surfaceRows[0]?.createSurface?.surfaceId, "purpose-atlas");
-assert.ok(surfaceRows.some((row) => row.updateComponents), "surface fixture must contain component bindings");
-assert.ok(!surfaceRows.some((row) => row.updateDataModel), "surface fixture must be shell/input only, not generated state output");
-
-assert.ok(fs.existsSync(atlasDataPath), "Purpose Atlas data fixture must live under tests/fixtures/purpose-atlas");
-const atlasData = JSON.parse(fs.readFileSync(atlasDataPath, "utf8"));
-assert.ok(Array.isArray(atlasData.base_nodes), "atlas-data fixture must contain base_nodes input");
-assert.ok(Array.isArray(atlasData.base_edges), "atlas-data fixture must contain base_edges input");
-assert.ok(Array.isArray(atlasData.events), "atlas-data fixture must contain events input");
-
+const atlasData = JSON.parse(fs.readFileSync(path.join(fixtureRoot, "atlas-data.json"), "utf8"));
+assert.ok(Array.isArray(atlasData.base_nodes));
+assert.ok(Array.isArray(atlasData.base_edges));
+assert.ok(Array.isArray(atlasData.events));
 for (const name of collectNames(fixtureRoot)) {
-  assert.ok(!forbiddenFixtureNames.has(name), `tests/fixtures/purpose-atlas must not contain app/build artifact: ${name}`);
+  assert.equal(forbiddenFixtureNames.has(name), false, `tests/fixtures/purpose-atlas must not contain app/build artifact: ${name}`);
+}
+for (const generated of ["public/a2ui/purpose-atlas.surface.jsonl", "src/data/atlas-data.json"]) {
+  assert.equal(fs.existsSync(path.join(previewRoot, generated)), false, `${generated} must be generated from fixture`);
 }
 
-assert.equal(fs.existsSync(path.join(previewPackageRoot, "public/a2ui/purpose-atlas.surface.jsonl")), false, "preview package public surface must be generated from fixture");
-assert.equal(fs.existsSync(path.join(previewPackageRoot, "src/data/atlas-data.json")), false, "preview package atlas data must be generated from fixture");
-
-assert.ok(fs.existsSync(sourceLockPath), "Purpose Atlas source lock must live under tests/reference/purpose-atlas-source");
-const sourceLock = JSON.parse(fs.readFileSync(sourceLockPath, "utf8"));
-assert.ok(sourceLock.sourceFilesSha256?.["ui-shell.html"], "source reference lock must keep source file digests");
-assert.ok(sourceLock.semanticWitness, "source reference lock must keep semantic witness metadata");
-assert.ok(sourceLock.htmlWitness, "source reference lock must keep HTML witness metadata");
+const sourceLock = JSON.parse(fs.readFileSync(path.join(referenceRoot, "SOURCE_LOCK.json"), "utf8"));
+assert.ok(sourceLock.sourceFilesSha256?.["ui-shell.html"]);
+assert.ok(sourceLock.semanticWitness);
+assert.ok(sourceLock.htmlWitness);
 for (const [file, expected] of Object.entries(sourceLock.sourceFilesSha256)) {
-  const actualPath = path.join(sourceRoot, file);
-  assert.ok(fs.existsSync(actualPath), `source reference file must exist: ${file}`);
-  assert.equal(sha256(actualPath), expected, `source reference digest must match for ${file}`);
+  assert.equal(sha256(path.join(sourceRoot, file)), expected, `source reference digest mismatch for ${file}`);
 }
-assert.deepEqual(collectFiles(referenceRoot).filter((file) => file.endsWith(".py")), [], "source reference sentinel must not add Python files");
-
-console.log(JSON.stringify({
-  status: "purpose-atlas-fixture-boundaries-pass",
-  fixtureRoot: "tests/fixtures/purpose-atlas",
-  referenceRoot: "tests/reference/purpose-atlas-source",
-  surfaceRows: surfaceRows.length,
-  referenceFiles: Object.keys(sourceLock.sourceFilesSha256).length,
-}, null, 2));
+assert.deepEqual(collectFiles(referenceRoot).filter((file) => file.endsWith(".py")), []);
+console.log(JSON.stringify({ status: "purpose-atlas-fixture-boundaries-pass", fixtureRoot: "tests/fixtures/purpose-atlas" }, null, 2));
