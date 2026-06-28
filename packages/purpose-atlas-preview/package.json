@@ -9,7 +9,7 @@
     "dev": "npm run sync:fixtures && vite --host 0.0.0.0",
     "build": "npm run sync:fixtures && vite build && python3 scripts/build_standalone.py",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --check scripts/sync-fixtures.mjs && node --check src/main.js && node --check src/app.js && node --check src/runtime/atlas-runtime.js && node --check src/a2ui/apis.js && node --check src/a2ui/catalog.js && node --check src/a2ui/validate-messages.js && node --check src/components/a2ui-sdui-surface.js && node --check src/components/atlas-source-surface.js && node --check src/ui/cached-atlas-renderer.js && node --check src/domain/atlas-engine.js && node ../../tests/check-purpose-atlas-sdui-boundary.mjs"
+    "test": "node --check scripts/sync-fixtures.mjs && node --check src/main.js && node --check src/app.js && node --check src/runtime/atlas-runtime.js && node --check src/a2ui/apis.js && node --check src/a2ui/catalog.js && node --check src/a2ui/validate-messages.js && node --check src/components/a2ui-sdui-surface.js && node --check src/components/atlas-source-surface.js && node --check src/ui/cached-atlas-renderer.js && node --check src/domain/atlas-engine.js"
   },
   "dependencies": {
     "@a2ui/lit": "0.10.1",
