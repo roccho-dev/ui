@@ -1,0 +1,95 @@
+{
+  "kind": "property-map.zip-parity.seed.v1",
+  "title": "埼玉・群馬 物件比較PoC / runtime修復・格安レンタカーkey・初期費用対応",
+  "version": "2026-05-07-ageo-deep-dive",
+  "requirements": {
+    "nearby_icon_categories": [
+      "supermarket",
+      "mall",
+      "local_station",
+      "shinkansen_station",
+      "general_hospital",
+      "bus_stop",
+      "park",
+      "gymnasium",
+      "children_hall",
+      "daily_use_rental_car"
+    ],
+    "daily_use_rental_car_required_key": "nearby.daily_use_rental_car",
+    "regional_access_required_nodes": [
+      "大宮駅",
+      "熊谷駅"
+    ]
+  },
+  "principles": [
+    {
+      "key": "KISS",
+      "text": "地図・比較・物件詳細・JSON編集の4画面要素だけ。"
+    },
+    {
+      "key": "DRY / SSOT",
+      "text": "物件・POI・距離・UI並び順はJSONから描画。重複テーブルは持たない。"
+    },
+    {
+      "key": "YAGNI",
+      "text": "経路API、写真、クラスタ、保存DB、ジオコーディングは入れない。"
+    },
+    {
+      "key": "Small PoC",
+      "text": "物件フォーカスと近接候補への切替UXだけ検証する。"
+    }
+  ],
+  "properties": [
+    {"id":"lafore_asuka_f_1f_ageo_kami","rank":1,"name":"ラフォーレASUKA F棟 1階","address":"埼玉県上尾市大字上","prefecture":"埼玉県","city":"上尾市","lat":36.0009,"lng":139.5748,"rent":42000,"area":54.6,"layout":"3DK"},
+    {"id":"sejour_jeunesse_2f_ageo_idoki","rank":2,"name":"セジュールジュネス 2階","address":"埼玉県上尾市井戸木3丁目","prefecture":"埼玉県","city":"上尾市","lat":35.9971,"lng":139.5576,"rent":50500,"area":53.59,"layout":"3DK"},
+    {"id":"castle_corp_105_ageo_idoki","rank":3,"name":"キャッスルコーポ 105号室","address":"埼玉県上尾市井戸木4丁目","prefecture":"埼玉県","city":"上尾市","lat":35.9942,"lng":139.5604,"rent":50000,"area":50.09,"layout":"3DK"},
+    {"id":"calm_heights_idoki_2f_okegawa","rank":4,"name":"カームハイツ 2階","address":"埼玉県上尾市井戸木4丁目","prefecture":"埼玉県","city":"上尾市","lat":35.9954,"lng":139.558,"rent":47000,"area":46.37,"layout":"3DK"},
+    {"id":"is_corporas_a_102_kitakounosu","rank":5,"name":"アイエスコーポラスA棟 102","address":"埼玉県鴻巣市赤見台4丁目","prefecture":"埼玉県","city":"鴻巣市","lat":36.08355,"lng":139.480746,"rent":46000,"area":50.81,"layout":"3DK"},
+    {"id":"sunrise_miyamae_a_101_kitakounosu","rank":6,"name":"サンライズ宮前A 101","address":"埼玉県鴻巣市宮前","prefecture":"埼玉県","city":"鴻巣市","lat":36.0769,"lng":139.5059,"rent":50000,"area":56.0,"layout":"3K"},
+    {"id":"famille_castle_b_202_kitakounosu","rank":7,"name":"ファミールキャッスルB 202","address":"埼玉県鴻巣市箕田","prefecture":"埼玉県","city":"鴻巣市","lat":36.079,"lng":139.5105,"rent":46000,"area":56.4,"layout":"3DK"},
+    {"id":"sunheights_yajima_d_2f_kitakounosu","rank":8,"name":"サンハイツヤジマD棟 2階","address":"埼玉県鴻巣市稲荷町","prefecture":"埼玉県","city":"鴻巣市","lat":36.080925,"lng":139.482393,"rent":48000,"area":50.78,"layout":"2LDK"},
+    {"id":"monticello_fukiage_2ldk_2f","rank":9,"name":"モンティセロ 2階","address":"埼玉県鴻巣市荊原","prefecture":"埼玉県","city":"鴻巣市","lat":36.103597,"lng":139.439277,"rent":57200,"area":58.86,"layout":"2LDK"},
+    {"id":"gyoda_heights_1gou_4f_2ldk","rank":10,"name":"行田ハイツ1号棟 4階","address":"埼玉県行田市宮本","prefecture":"埼玉県","city":"行田市","lat":36.1413,"lng":139.4584,"rent":52000,"area":55.25,"layout":"2LDK"},
+    {"id":"heights_ogino_a_201_gyoda","rank":11,"name":"ハイツ荻野A棟 201","address":"埼玉県行田市棚田町1丁目","prefecture":"埼玉県","city":"行田市","lat":36.1239,"lng":139.4338,"rent":52000,"area":50.78,"layout":"2LDK"},
+    {"id":"vanbelle_kataoka_3f_2ldk_100486885916","rank":12,"name":"ヴァンベールかたおか 3階 2LDK","address":"群馬県高崎市片岡町3丁目2235","prefecture":"群馬県","city":"高崎市","lat":36.3162804,"lng":138.9892654,"rent":45000,"area":55.52,"layout":"2LDK"},
+    {"id":"star_alice_ii_203","rank":13,"name":"スターアリスII 203","address":"群馬県高崎市上佐野町","prefecture":"群馬県","city":"高崎市","lat":36.3047,"lng":139.0186,"rent":50500,"area":61.98,"layout":"2LDK"},
+    {"id":"star_alice_v_201","rank":14,"name":"スターアリスV 201","address":"群馬県高崎市上佐野町126-1","prefecture":"群馬県","city":"高崎市","lat":36.303382,"lng":139.017071,"rent":49400,"area":58.12,"layout":"2LDK"},
+    {"id":"priere_b_201_honjo_midori","rank":15,"name":"プリエールB 201","address":"埼玉県本庄市緑2丁目16-21","prefecture":"埼玉県","city":"本庄市","lat":36.227098,"lng":139.175355,"rent":52200,"area":58.53,"layout":"2LDK"},
+    {"id":"ur_kitamoto_5f_3dk_5403_active","rank":16,"name":"UR北本 5階 3DK","address":"埼玉県北本市栄7丁目","prefecture":"埼玉県","city":"北本市","lat":36.011,"lng":139.548,"rent":48800,"area":54.03,"layout":"3DK"},
+    {"id":"ur_kitamoto_4f","rank":17,"name":"UR北本 4階","address":"埼玉県北本市栄","prefecture":"埼玉県","city":"北本市","lat":36.011,"lng":139.548,"rent":48900,"area":52.35,"layout":"3K"},
+    {"id":"daiichi_yajima_mansion_103","rank":18,"name":"第一ヤジママンション 103","address":"群馬県高崎市高砂町71-11","prefecture":"群馬県","city":"高崎市","lat":36.333,"lng":139.012,"rent":50000,"area":59.0,"layout":"2DK"},
+    {"id":"gloire_ito","rank":19,"name":"グロワールいとう","address":"群馬県高崎市","prefecture":"群馬県","city":"高崎市","lat":36.33,"lng":139.03,"rent":42500,"area":53.46,"layout":"2LDK"},
+    {"id":"matsuzawa_heights_3","rank":20,"name":"第二松沢ハイツIII","address":"群馬県高崎市","prefecture":"群馬県","city":"高崎市","lat":36.316,"lng":139.02,"rent":44000,"area":47.86,"layout":"2LDK"},
+    {"id":"villa_keyaki","rank":21,"name":"ヴィラけやき","address":"埼玉県北本市東間4丁目65付近","prefecture":"埼玉県","city":"北本市","lat":36.03,"lng":139.54,"rent":46000,"area":49.0,"layout":"2LDK"},
+    {"id":"legend_suehiro","rank":22,"name":"レジェンド末広 A/B","address":"埼玉県桶川市末広2丁目","prefecture":"埼玉県","city":"桶川市","lat":36.0,"lng":139.565,"rent":51000,"area":52.99,"layout":"3DK"},
+    {"id":"eldim_kita_b","rank":23,"name":"エルディム北B","address":"埼玉県羽生市","prefecture":"埼玉県","city":"羽生市","lat":36.172,"lng":139.536,"rent":49100,"area":52.99,"layout":"2LDK"},
+    {"id":"ki_mansion_305","rank":24,"name":"KIマンション 305","address":"埼玉県熊谷市","prefecture":"埼玉県","city":"熊谷市","lat":36.143,"lng":139.385,"rent":50000,"area":50.05,"layout":"3DK"},
+    {"id":"city_heim_kokatsu_b","rank":25,"name":"シティーハイムコカツB棟","address":"埼玉県久喜市","prefecture":"埼玉県","city":"久喜市","lat":36.09,"lng":139.61,"rent":45000,"area":50.3,"layout":"3DK"},
+    {"id":"eternal_heim","rank":26,"name":"エターナルハイム 3階","address":"群馬県高崎市","prefecture":"群馬県","city":"高崎市","lat":36.319,"lng":139.035,"rent":50000,"area":56.68,"layout":"2LDK"},
+    {"id":"cest_la_vie_isesaki_a","rank":27,"name":"セラヴィ伊勢崎A","address":"群馬県伊勢崎市","prefecture":"群馬県","city":"伊勢崎市","lat":36.333,"lng":139.215,"rent":53000,"area":58.32,"layout":"2SLDK"},
+    {"id":"cosmo_heights_matsuki","rank":28,"name":"コスモハイツ松木","address":"埼玉県北本市東間4丁目","prefecture":"埼玉県","city":"北本市","lat":36.028,"lng":139.538,"rent":48000,"area":42.04,"layout":"2LDK/2DK"}
+  ],
+  "watchlist_properties": [
+    {"id":"second_tominaga_heights_1f_ageo_imaizumi","rank":1,"name":"第二富永ハイツ 1階","address":"埼玉県上尾市今泉1丁目","prefecture":"埼玉県","city":"上尾市","lat":35.9705,"lng":139.575,"rent":51000,"area":45.5,"layout":"3DK"},
+    {"id":"izumidai_heights_2f_ageo_izumidai","rank":2,"name":"泉台ハイツ 2階","address":"埼玉県上尾市泉台2丁目","prefecture":"埼玉県","city":"上尾市","lat":35.999,"lng":139.552,"rent":59000,"area":51.27,"layout":"3DK"},
+    {"id":"copo_shima_c_1f_ageo_kami","rank":3,"name":"コーポ・シマC棟 1階","address":"埼玉県上尾市大字上","prefecture":"埼玉県","city":"上尾市","lat":36.002,"lng":139.575,"rent":49000,"area":44.0,"layout":"2DK"},
+    {"id":"free_leben","rank":4,"name":"フリーレーベン","address":"埼玉県深谷市/岡部周辺","prefecture":"埼玉県","city":"深谷市","lat":36.204,"lng":139.241,"rent":53300,"area":58.17,"layout":"2LDK"},
+    {"id":"forest_park_2","rank":5,"name":"フォレストパーク2","address":"埼玉県本庄市","prefecture":"埼玉県","city":"本庄市","lat":36.24,"lng":139.175,"rent":40000,"area":55.87,"layout":"3DK"},
+    {"id":"mansion_tsutsumi","rank":6,"name":"マンション堤","address":"埼玉県熊谷市","prefecture":"埼玉県","city":"熊谷市","lat":36.141,"lng":139.39,"rent":50000,"area":50.0,"layout":"2LDK"}
+  ],
+  "quarantined_properties": [
+    {"id":"free_leben","rank":6,"name":"フリーレーベン","address":"埼玉県深谷市/岡部周辺","prefecture":"埼玉県","city":"深谷市","lat":36.204,"lng":139.241,"rent":53300,"area":58.17,"layout":"2LDK"},
+    {"id":"forest_park_2","rank":7,"name":"フォレストパーク2","address":"埼玉県本庄市","prefecture":"埼玉県","city":"本庄市","lat":36.24,"lng":139.175,"rent":40000,"area":55.87,"layout":"3DK"},
+    {"id":"mansion_tsutsumi","rank":9,"name":"マンション堤","address":"埼玉県熊谷市","prefecture":"埼玉県","city":"熊谷市","lat":36.141,"lng":139.39,"rent":50000,"area":50.0,"layout":"2LDK"},
+    {"id":"leo_dream","rank":15,"name":"レオドリーム 2階","address":"群馬県前橋市","prefecture":"群馬県","city":"前橋市","lat":36.433,"lng":139.07,"rent":46000,"area":51.75,"layout":"2LDK"},
+    {"id":"ur_haraichi_5f","rank":17,"name":"UR原市 5階","address":"埼玉県上尾市原市","prefecture":"埼玉県","city":"上尾市","lat":35.971,"lng":139.623,"rent":53600,"area":50.85,"layout":"2LDK"},
+    {"id":"ur_nishi_ageo_1","rank":18,"name":"UR西上尾第一 5階","address":"埼玉県上尾市","prefecture":"埼玉県","city":"上尾市","lat":35.974,"lng":139.558,"rent":52500,"area":48.2,"layout":"3K"},
+    {"id":"ur_nishi_ageo_2","rank":19,"name":"UR西上尾第二 4階","address":"埼玉県上尾市","prefecture":"埼玉県","city":"上尾市","lat":35.975,"lng":139.55,"rent":55700,"area":54.03,"layout":"2LDK"},
+    {"id":"ur_oyamadai_5f","rank":20,"name":"UR尾山台 5階","address":"埼玉県上尾市尾山台","prefecture":"埼玉県","city":"上尾市","lat":35.954,"lng":139.64,"rent":55400,"area":50.85,"layout":"3DK"},
+    {"id":"iceberg_2","rank":21,"name":"アイスバーグII","address":"埼玉県行田市","prefecture":"埼玉県","city":"行田市","lat":36.138,"lng":139.456,"rent":60500,"area":57.26,"layout":"2LDK"}
+  ],
+  "counts": {
+    "requirement_matrix": 87,
+    "content_blocks": 11
+  }
+}
