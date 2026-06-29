@@ -31,9 +31,10 @@ assert.ok(adapterArtifact);
 assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml");
 assert.match(adapterArtifact.entrypoint, /build\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-proof\.mjs/);
+assert.match(adapterArtifact.entrypoint, /build-geomap-zip-parity\.mjs/);
 assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
-assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "adapter-artifact-index"]);
+assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "adapter-artifact-index"]);
 
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
 assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path].sort());
@@ -53,6 +54,7 @@ const adapterText = fs.readFileSync(path.join(root, adapterArtifact.path), "utf8
 assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-proof\.mjs/);
+assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-zip-parity\.mjs/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
 for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
 
