@@ -1,0 +1,60 @@
+{
+  "kind": "property-map.zip-visual-oracle.v1",
+  "sourceArchive": "property_map_saitama_gunma_sdui_ageo_deep_dive_repo.zip",
+  "title": "埼玉・群馬 物件比較PoC / runtime修復・格安レンタカーkey・初期費用対応",
+  "tabs": [
+    {"view":"compare","label":"比較"},
+    {"view":"detail","label":"詳細"},
+    {"view":"costs","label":"費用"},
+    {"view":"requirements","label":"要件"},
+    {"view":"watchlist","label":"監視"},
+    {"view":"quarantine","label":"退避"},
+    {"view":"data","label":"JSON"}
+  ],
+  "views": {
+    "compare": ["GeneratedHighlights", "CompareControls", "PropertyTable", "RegionalAccessMatrix", "QualityGateTable", "PrincipleChips"],
+    "detail": ["FocusHero", "FocusMetrics", "FocusRegionalAccess", "InitialCostPanel", "DecisionPanel", "SourceAuditPanel", "NearbyPropertyRail", "PoiGrid"],
+    "costs": ["InitialCostTable", "ContentBlocks"],
+    "requirements": ["ContentBlocks", "MinimumActiveConditions", "JudgementBands", "RequirementMatrix"],
+    "watchlist": ["WatchlistTable"],
+    "quarantine": ["QuarantineTable"],
+    "data": ["DataEditor", "SduiEditor", "PrinciplesPanel"]
+  },
+  "components": ["CompareControls", "ContentBlocks", "DataEditor", "DecisionPanel", "FocusHero", "FocusMetrics", "FocusRegionalAccess", "GeneratedHighlights", "InitialCostPanel", "InitialCostTable", "JudgementBands", "MinimumActiveConditions", "NearbyPropertyRail", "PoiGrid", "PrincipleChips", "PrinciplesPanel", "PropertyTable", "QualityGateTable", "QuarantineTable", "RegionalAccessMatrix", "RequirementMatrix", "SduiEditor", "SourceAuditPanel", "WatchlistTable"],
+  "counts": {
+    "properties": 28,
+    "watchlist_properties": 6,
+    "quarantined_properties": 9,
+    "requirement_matrix": 87,
+    "content_blocks": 11
+  },
+  "requiredDataKeys": [
+    "properties[].nearby.daily_use_rental_car",
+    "properties[].initial_cost",
+    "watchlist_properties[].nearby.daily_use_rental_car",
+    "quarantined_properties[].nearby.daily_use_rental_car",
+    "properties[].access.regional_nodes.omiya",
+    "properties[].access.regional_nodes.kumagaya"
+  ],
+  "canonicalRequiredKey": "nearby.daily_use_rental_car",
+  "routeExpansionContract": {
+    "purpose": "熊谷〜大宮間および路線外でも大宮/熊谷アクセスが良い候補をSDUIで比較可能にする",
+    "required_nodes": ["omiya", "kumagaya"],
+    "sort_keys": ["omiya", "kumagaya"],
+    "detail_component": "FocusRegionalAccess",
+    "compare_component": "RegionalAccessMatrix"
+  },
+  "visualContract": {
+    "initialSheetState": "collapsed",
+    "screenTitle": "比較",
+    "screenSub": "28件・食品スーパー近さを優先・モール8kmは足切り",
+    "toggleText": "開く",
+    "sheetPeekPx": 96,
+    "tabLabels": ["比較", "詳細", "費用", "要件", "監視", "退避", "JSON"]
+  },
+  "sourceDigests": {
+    "propertyDataSha256": "224e8353016165908503c3503dbe34b2671af41cf5b03523b19373aa713caf20",
+    "sduiSchemaSha256": "f793b9f66fcb8120d40abcbf51b39f4c8a90dea403f0e005e2d6dd2bf8386460",
+    "templateSha256": "ee8a3293d56d38e5b38c351db580140762dd803873ec01f3cbfabd91ee244f1f"
+  }
+}
