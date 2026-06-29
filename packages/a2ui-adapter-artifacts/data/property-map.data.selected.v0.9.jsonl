@@ -1,0 +1,3 @@
+{"version":"v0.9","updateDataModel":{"surfaceId":"property-map-geo","path":"/ui","value":{"selection":{"propertyId":"p1"}}}}
+{"version":"v0.9","updateDataModel":{"surfaceId":"property-map-geo","path":"/selectedProperty","value":{"id":"p1","name":"グロワールいとう","rent_yen":42500,"area_sqm":53.46,"address":"群馬県高崎市"}}}
+{"version":"v0.9","updateDataModel":{"surfaceId":"property-map-geo","path":"/selectedPois","value":["スーパー","ショッピング","最寄駅","新幹線","病院","バス停","公園","体育館","児童館"]}}
