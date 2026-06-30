@@ -34,5 +34,4 @@ jobs:
             packages/ui-projection-evidence/artifact-boundary-proof.v1.json
             packages/ui-receipts/receipt.v1.json
             packages/ui-receipts/residuals.v1.jsonl
-            packages/ui-governance-check-adoption/gov-package-validation.intent.v1.json
             gov-package-validation-report.json
