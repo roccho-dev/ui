@@ -1,0 +1,3 @@
+{"version":"v0.9","createSurface":{"surfaceId":"property-map-zip-parity","catalogId":"property-map.zip-parity.v1","sendDataModel":true}}
+{"version":"v0.9","updateDataModel":{"surfaceId":"property-map-zip-parity","path":"/","value":{"source":"data/property-map-zip-parity.seed.v1.json","transform":"zipSeedToA2uiDataModel"}}}
+{"version":"v0.9","componentPlan":{"surfaceId":"property-map-zip-parity","root":"MapSheetShell","port":"geoMap","sheet":"ViewStack","tabs":"SheetTabs"}}

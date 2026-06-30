@@ -19,6 +19,9 @@ jobs:
       - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
         env:
           GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs
+        env:
+          GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
       - uses: actions/upload-artifact@v4
         with:
           name: live-adapter-artifact
@@ -31,6 +34,10 @@ jobs:
         with:
           name: property-map-geo-artifact
           path: adapter-result/property-map-geo-artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: property-map-zip-parity-artifact
+          path: adapter-result/property-map-zip-parity-artifact
       - uses: actions/upload-artifact@v4
         with:
           name: adapter-artifact-index
