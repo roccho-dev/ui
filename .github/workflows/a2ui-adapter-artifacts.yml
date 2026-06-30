@@ -29,6 +29,13 @@ jobs:
           GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
           GEOMAP_ZIP_PARITY_RENDER: "1"
           GEOMAP_ZIP_PARITY_INTERACTION: "1"
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs
+        env:
+          GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/check-geomap-final-gate.mjs
+        env:
+          GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
+          GEOMAP_RUNTIME_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -49,6 +56,11 @@ jobs:
         with:
           name: property-map-zip-parity-artifact
           path: adapter-result/property-map-zip-parity-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: property-map-geo-runtime-hardening-artifact
+          path: adapter-result/property-map-geo-runtime-hardening-artifact
       - uses: actions/upload-artifact@v4
         if: always()
         with:

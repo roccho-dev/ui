@@ -32,9 +32,11 @@ assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml
 assert.match(adapterArtifact.entrypoint, /build\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-proof\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-zip-parity\.mjs/);
+assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
+assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
-assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "adapter-artifact-index"]);
+assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
 
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
 assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path].sort());
@@ -52,9 +54,15 @@ assert.doesNotMatch(artifactText, /npm test|node scripts\/build-generic-a2ui-pre
 
 const adapterText = fs.readFileSync(path.join(root, adapterArtifact.path), "utf8");
 assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
+assert.match(adapterText, /fonts-noto-cjk/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-proof\.mjs/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-zip-parity\.mjs/);
+assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-runtime-hardening\.mjs/);
+assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/check-geomap-final-gate\.mjs/);
+assert.match(adapterText, /GEOMAP_ZIP_PARITY_RENDER/);
+assert.match(adapterText, /GEOMAP_ZIP_PARITY_INTERACTION/);
+assert.match(adapterText, /GEOMAP_RUNTIME_ARTIFACT_OUT/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
 for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
 
