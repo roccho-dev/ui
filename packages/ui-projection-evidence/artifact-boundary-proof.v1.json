@@ -1,0 +1,43 @@
+{
+  "kind": "ui.artifactBoundaryProof.v1",
+  "id": "ui-artifact-boundary-proof-260630",
+  "repo_locator": "github:roccho-dev/ui",
+  "state": "implemented",
+  "readme_as_artifact": {
+    "builder": "scripts/build-readme-artifact.mjs",
+    "manifest_required_fields": ["nonAuthority", "artifactOwner"],
+    "expected_non_authority": true,
+    "expected_artifact_owner": "repo-ci",
+    "authority": false
+  },
+  "generated_artifact_boundaries": [
+    {
+      "artifact": "purpose-atlas-preview",
+      "generated_by": "nix build .#purpose-atlas-preview-html",
+      "tracked_as_authority": false
+    },
+    {
+      "artifact": "property-map-geo-artifact",
+      "generated_by": "node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs",
+      "tracked_as_authority": false
+    },
+    {
+      "artifact": "property-map-zip-parity-artifact",
+      "generated_by": "node packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs",
+      "tracked_as_authority": false
+    }
+  ],
+  "source_authority_paths": [
+    "dist/a2ui source JSONL generated from checked inputs",
+    "shared component registry",
+    "GeoMapPort runtime boundary",
+    "data model JSONL"
+  ],
+  "protected_non_goals": [
+    "Do not make UI source authority.",
+    "Do not treat generated artifacts as ADRS meaning.",
+    "Do not claim projection adoption without proof."
+  ],
+  "checked_by": ["tests/check-ui-package-evidence.mjs", "tests/check-ci-workflows.mjs"],
+  "receipt_ref": "packages/ui-receipts/receipt.v1.json"
+}
