@@ -15,17 +15,26 @@ jobs:
     name: validate UI package response evidence
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
+      - name: Checkout UI
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Checkout governance checks
+        uses: actions/checkout@v4
         with:
-          node-version: 24
+          repository: roccho-dev/governance
+          ref: proposals
+          path: governance-export
+          persist-credentials: false
 
-      - name: Run governance package checks
+      - name: Run exported package checks
+        run: |
+          PYTHONPATH=governance-export/tools python3 governance-export/tools/check-package-export.py check \
+            --responses packages/ui-claims/package-responses.v1.jsonl \
+            --report gov-package-validation-report.json
+
+      - name: Run UI package evidence checks
         run: node tests/check-ui-package-evidence.mjs
 
       - name: Upload UI package evidence
@@ -39,4 +48,5 @@ jobs:
             packages/ui-receipts/receipt.v1.json
             packages/ui-receipts/residuals.v1.jsonl
             packages/ui-governance-check-adoption/gov-package-validation.intent.v1.json
+            gov-package-validation-report.json
           if-no-files-found: error
