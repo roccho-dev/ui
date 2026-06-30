@@ -1,0 +1,1 @@
+{"kind":"ui.packageResidual.v1","id":"governance-export-contract-pending","state":"open","owner":"governance","return_path":"governance package check export to UI gov-package-validation workflow","blocking_for_ui_local_package_evidence":false,"blocking_for_cross_repo_finality":true,"next":"Use the exported governance package check when the governance export layer lands."}
