@@ -1,0 +1,60 @@
+{
+  "kind": "ui.projectionEvidence.v1",
+  "id": "ui-projection-evidence-260630",
+  "repo_locator": "github:roccho-dev/ui",
+  "package_id": "ui-projection-evidence",
+  "state": "implemented",
+  "role": "UI projection and control-plane evidence only",
+  "source_authority": false,
+  "projection_surfaces": [
+    {
+      "id": "readme-artifact",
+      "builder": "scripts/build-readme-artifact.mjs",
+      "ci": ".github/workflows/readme-artifact.yml",
+      "evidence": ["README.md", "manifest.json", "sources.jsonl", "receipt.json"],
+      "authority": false
+    },
+    {
+      "id": "purpose-atlas-preview",
+      "builder": "packages/purpose-atlas-preview",
+      "ci": ".github/workflows/readme-artifact.yml",
+      "evidence": ["dist/index.html", "dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html", "dist/a2ui/purpose-atlas.surface.jsonl"],
+      "authority": false
+    },
+    {
+      "id": "a2ui-adapter-artifacts",
+      "builder": "packages/a2ui-adapter-artifacts/scripts/build.mjs",
+      "ci": ".github/workflows/a2ui-adapter-artifacts.yml",
+      "evidence": ["live-adapter-artifact", "purpose-adapter-artifact", "adapter-artifact-index"],
+      "authority": false
+    },
+    {
+      "id": "property-map-geo-artifact",
+      "builder": "packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs",
+      "ci": ".github/workflows/a2ui-adapter-artifacts.yml",
+      "evidence": ["preview/index.html", "screenshots/clear.svg", "screenshots/after-click.svg", "proof/geomap-proof-report.json"],
+      "authority": false
+    },
+    {
+      "id": "property-map-zip-parity-artifact",
+      "builder": "packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs",
+      "ci": ".github/workflows/a2ui-adapter-artifacts.yml",
+      "evidence": ["dist/a2ui/property-map.surface.v0.9.jsonl", "dist/a2ui/property-map.data.clear.v0.9.jsonl", "dist/a2ui/property-map.data.selected.v0.9.jsonl", "preview/index.html", "proof/geomap-proof-report.json"],
+      "authority": false
+    }
+  ],
+  "checked_by": [
+    "tests/check-ui-package-evidence.mjs",
+    "tests/run-all.mjs",
+    "nix flake check --print-build-logs",
+    ".github/workflows/gov-package-validation.yml"
+  ],
+  "receipt_ref": "packages/ui-receipts/receipt.v1.json",
+  "residual_ref": "packages/ui-receipts/residuals.v1.jsonl",
+  "overclaim_boundary": {
+    "ui_is_meaning_authority": false,
+    "generated_artifacts_are_source_authority": false,
+    "projection_evidence_can_close_adrs_meaning": false,
+    "projection_evidence_can_prove_ui_rendering_contracts": true
+  }
+}
