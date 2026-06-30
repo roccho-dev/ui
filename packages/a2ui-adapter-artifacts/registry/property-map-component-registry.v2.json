@@ -44,6 +44,21 @@
     "port",
     "jsonEditor"
   ],
+  "viewResolution": {
+    "viewsPath": "/sdui/views",
+    "activeViewPath": "/ui/activeView",
+    "resolve": "/sdui/views/\u003CactiveView\u003E",
+    "requiredViews": [
+      "compare",
+      "detail",
+      "costs",
+      "requirements",
+      "watchlist",
+      "quarantine",
+      "data"
+    ],
+    "rule": "ViewStack may render only components declared in this registry."
+  },
   "components": [
     {
       "id": "MapSheetShell",
@@ -51,7 +66,8 @@
       "props": [
         "titlePath",
         "tabsPath",
-        "activeViewPath"
+        "activeViewPath",
+        "selectedIdPath"
       ],
       "slots": [
         "map",
@@ -72,7 +88,9 @@
       "family": "layout",
       "props": [
         "viewsPath",
-        "activeViewPath"
+        "activeViewPath",
+        "resolve",
+        "renderOnlyRegistryComponents"
       ]
     },
     {

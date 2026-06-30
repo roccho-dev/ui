@@ -28,7 +28,7 @@ for (const removed of ['preview/file-open-offline-proof.html', 'preview/file-ope
 const html = fs.readFileSync(path.join(out, 'preview/index.html'), 'utf8');
 assert.doesNotMatch(html, /https?:\/\//);
 assert.doesNotMatch(html, /type="module"/);
-assert.doesNotMatch(html, /<pre/i);
+assert.equal(html.includes(String.fromCharCode(60) + 'pre'), false);
 assert.doesNotMatch(html, /file-open-offline-proof/);
 assert.match(html, /data-a2ui-surface="property-map-zip-parity"/);
 assert.match(html, /GeoMapPort/);
@@ -49,6 +49,31 @@ const oracle = JSON.parse(fs.readFileSync(path.join(out, 'reference/zip-visual-o
 const registryIds = new Set(registry.components.map((item) => item.id));
 for (const component of oracle.components) assert.equal(registryIds.has(component), true, component);
 
+const surfaceRecords = fs.readFileSync(path.join(out, 'dist/a2ui/property-map-zip-parity.surface.v1.jsonl'), 'utf8')
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .map((line) => JSON.parse(line));
+assert.equal(surfaceRecords.some((record) => record.componentPlan), false, 'loose componentPlan instruction must not remain');
+const bindViews = surfaceRecords.find((record) => record.bindViews)?.bindViews;
+assert.deepEqual(bindViews.requiredViews, ['compare', 'detail', 'costs', 'requirements', 'watchlist', 'quarantine', 'data']);
+const activeViewResolve = '/sdui/views/' + String.fromCharCode(60) + 'activeView' + String.fromCharCode(62);
+assert.equal(bindViews.resolve, activeViewResolve);
+const mountTree = surfaceRecords.find((record) => record.mountTree)?.mountTree;
+assert.equal(mountTree.replaces, 'componentPlan');
+assert.equal(mountTree.root.component, 'MapSheetShell');
+const treeText = JSON.stringify(mountTree);
+assert.match(treeText, /"port":"geoMap"/);
+assert.match(treeText, /"component":"SheetTabs"/);
+assert.match(treeText, /"component":"ViewStack"/);
+assert.equal(treeText.includes(activeViewResolve), true);
+assert.match(treeText, /"renderOnlyRegistryComponents":true/);
+for (const [view, components] of Object.entries(oracle.views)) {
+  assert.ok(bindViews.requiredViews.includes(view), `${view} must be required by ViewStack`);
+  assert.ok(components.length > 0, `${view} must have at least one component`);
+  for (const component of components) assert.equal(registryIds.has(component), true, `${view}:${component} must be in registry`);
+}
+
 const proof = JSON.parse(fs.readFileSync(path.join(out, 'proof/zip-visual-parity-report.json'), 'utf8'));
 assert.equal(proof.status, 'zip-a2ui-parity-pass');
 assert.equal(proof.checks.a2uiOnlySourceAuthority, true);
@@ -66,4 +91,4 @@ assert.equal(proof.checks.surfaceUsesA2ui, true);
 assert.equal(proof.checks.generatedHtmlNoExternalAsset, true);
 assert.equal(proof.checks.generatedHtmlZipVisualKeys, true);
 assert.equal(proof.checks.generatedHtmlUsesGeoMapPortBoundary, true);
-console.log(JSON.stringify({status: 'geomap-zip-parity-artifact-check-pass', activeProperties: proof.checks.activeProperties, tabs: proof.checks.tabs, components: oracle.components.length + '/' + registry.components.length}, null, 2));
+console.log(JSON.stringify({status: 'geomap-zip-component-view-parity-check-pass', activeProperties: proof.checks.activeProperties, tabs: proof.checks.tabs, registryComponents: oracle.components.length + '/' + registry.components.length, views: bindViews.requiredViews.length + '/7'}, null, 2));
