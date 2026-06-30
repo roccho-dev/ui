@@ -1,0 +1,42 @@
+name: Governance package validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - proposals
+
+permissions:
+  contents: read
+
+jobs:
+  gov-package-validation:
+    name: validate UI package response evidence
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Run governance package checks
+        run: node tests/check-ui-package-evidence.mjs
+
+      - name: Upload UI package evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-package-evidence
+          path: |
+            packages/ui-claims/package-responses.v1.jsonl
+            packages/ui-projection-evidence/projection-evidence.v1.json
+            packages/ui-projection-evidence/artifact-boundary-proof.v1.json
+            packages/ui-receipts/receipt.v1.json
+            packages/ui-receipts/residuals.v1.jsonl
+            packages/ui-governance-check-adoption/gov-package-validation.intent.v1.json
+          if-no-files-found: error
