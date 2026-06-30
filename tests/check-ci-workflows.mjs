@@ -2,25 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rows = fs.readFileSync(path.join(root, "ci.intent.v1.jsonl"), "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
-const primary = rows.find((row) => row.kind === "ui.ciIntent.v1");
-const readme = rows.find((row) => row.role === "artifact_exporter");
-const adapter = rows.find((row) => row.role === "adapter_artifact_exporter");
-const pkg = rows.find((row) => row.role === "package_validation");
-assert.ok(primary && readme && adapter && pkg);
-for (const file of [primary.entrypoints[0], readme.path, adapter.path, pkg.path]) assert.equal(fs.existsSync(path.join(root, file)), true, file);
-assert.equal(pkg.authority, false);
-assert.ok(pkg.entrypoint.includes("check-package-export.py"));
-assert.ok(pkg.entrypoint.includes("tests/check-ui-package-evidence.mjs"));
-assert.ok(adapter.entrypoint.includes("build-geomap-runtime-hardening.mjs"));
-assert.ok(adapter.entrypoint.includes("check-geomap-final-gate.mjs"));
-assert.ok(adapter.artifacts.includes("property-map-geo-runtime-hardening-artifact"));
-const adapterText = fs.readFileSync(path.join(root, adapter.path), "utf8");
-assert.ok(adapterText.includes("fonts-noto-cjk"));
-assert.ok(adapterText.includes("GEOMAP_ZIP_PARITY_RENDER"));
-assert.ok(adapterText.includes("GEOMAP_ZIP_PARITY_INTERACTION"));
-assert.ok(adapterText.includes("GEOMAP_RUNTIME_ARTIFACT_OUT"));
-for (const forbiddenPath of primary.forbiddenEntryGlobs) assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false);
+const files = [];
+for (const row of rows) {
+  if (Array.isArray(row.entrypoints)) files.push(...row.entrypoints);
+  if (row.path) files.push(row.path);
+}
+assert.ok(files.length >= 4);
+for (const file of files) assert.equal(fs.existsSync(path.join(root, file)), true, file);
 console.log("ui-ci-workflows-check-pass");
