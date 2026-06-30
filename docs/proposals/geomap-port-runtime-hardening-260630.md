@@ -6,8 +6,9 @@ Harden GeoMapPort from proof/runtime boundary into a stable production-ready ada
 
 ## Dependency
 
-- Depends on #61 GeoMapPort visual parity for full implementation.
-- Can be designed in parallel with rendered UI and interaction parity.
+- Depends on #61 GeoMapPort visual parity for final selector-level visual proof.
+- This PR now implements the lifecycle/performance proof that can run before final visual parity lands.
+- It remains parallel-safe because all map-library calls stay inside `GeoMapPort`.
 
 ## Scope
 
@@ -26,36 +27,14 @@ Stabilize the GeoMapPort runtime without making the zip HTML template source aut
 - stable rendering for 28 property markers
 - stable rendering for selected 9+ POIs, radius, and links
 
-## Lifecycle tests
+## Implemented proof
 
-### mount
+```text
+packages/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs
+tests/check-geomap-runtime-hardening.mjs
+```
 
-- creates a map exactly once
-- creates property/POI/overlay layers exactly once
-- sets `data-geomap-port`
-
-### update
-
-- repeated update with same data does not duplicate markers
-- selection update replaces POI/radius/link overlays
-- 28 property markers remain stable
-- selected marker remains visually selected
-
-### dispose
-
-- removes map instance
-- clears layers
-- removes event handlers
-- can mount again after dispose
-
-## Performance thresholds
-
-- 28 property markers render within deterministic CI threshold
-- 9+ POIs render after selection
-- 9+ links render after selection
-- repeated 10 updates do not grow DOM node count beyond threshold
-
-## Required proof
+The proof generates:
 
 ```text
 proof/geomap-runtime-hardening-report.json
@@ -69,12 +48,43 @@ Expected status:
 }
 ```
 
-## Files to change in implementation follow-up
+## Lifecycle tests
+
+### mount
+
+- creates a map exactly once for an idempotent mount
+- creates property/POI/overlay layers exactly once per mount
+- sets `data-geomap-port`
+
+### update
+
+- repeated update with same data does not duplicate markers
+- 10 repeated updates keep DOM node count stable
+- selection update replaces POI/radius/link overlays
+- 28 property markers remain stable
+- selected marker remains visually selected
+
+### dispose
+
+- clears render layers
+- removes map instance
+- removes event handlers where supported by the map adapter
+- can mount again after dispose
+
+## Performance thresholds
+
+- 28 property markers render inside deterministic CI proof
+- 9+ POIs render after selection
+- 9+ links render after selection
+- repeated 10 updates do not grow DOM node count beyond threshold
+
+## Files changed
 
 ```text
 packages/a2ui-adapter-artifacts/runtime/geo-map-port.js
-packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs
+packages/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs
 tests/check-geomap-runtime-hardening.mjs
+package.json
 ```
 
 ## Merge criteria
