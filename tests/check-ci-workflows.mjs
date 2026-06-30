@@ -39,9 +39,10 @@ assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-a
 const packageValidation = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "package_validation");
 assert.ok(packageValidation);
 assert.equal(packageValidation.path, ".github/workflows/gov-package-validation.yml");
-assert.equal(packageValidation.entrypoint, "node tests/check-ui-package-evidence.mjs");
+assert.match(packageValidation.entrypoint, /governance-export\/tools\/check-package-export\.py/);
+assert.match(packageValidation.entrypoint, /node tests\/check-ui-package-evidence\.mjs/);
 assert.equal(packageValidation.authority, false);
-assert.equal(packageValidation.source, "ui-package-response-output");
+assert.equal(packageValidation.source, "governance-export plus ui-package-response-output");
 assert.deepEqual(packageValidation.artifacts, ["ui-package-evidence"]);
 
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
@@ -68,6 +69,8 @@ for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegE
 
 const packageValidationText = fs.readFileSync(path.join(root, packageValidation.path), "utf8");
 assert.match(packageValidationText, /name:\s*Governance package validation/);
+assert.match(packageValidationText, /repository:\s*roccho-dev\/governance/);
+assert.match(packageValidationText, /governance-export\/tools\/check-package-export\.py/);
 assert.match(packageValidationText, /node tests\/check-ui-package-evidence\.mjs/);
 assert.match(packageValidationText, /actions\/upload-artifact@v4/);
 for (const name of packageValidation.artifacts) assert.match(packageValidationText, new RegExp(`name:\\s*${name}`));
