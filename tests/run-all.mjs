@@ -13,4 +13,5 @@ import "./check-purpose-closure-projection.mjs";
 import "./check-markdown-document-renderer.mjs";
 import "./check-markdown-renderer-boundary-regressions.mjs";
 import "./check-ci-workflows.mjs";
+import "./check-ui-package-evidence.mjs";
 console.log("ui-all-checks-pass");
