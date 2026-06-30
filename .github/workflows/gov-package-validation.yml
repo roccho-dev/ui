@@ -1,0 +1,37 @@
+name: Governance package validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - proposals
+
+permissions:
+  contents: read
+
+jobs:
+  gov-package-validation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: roccho-dev/governance
+          ref: proposals
+          path: governance-export
+      - run: |
+          PYTHONPATH=governance-export/tools python3 governance-export/tools/check-package-export.py check \
+            --responses packages/ui-claims/package-responses.v1.jsonl \
+            --report gov-package-validation-report.json
+      - run: node tests/check-ui-package-evidence.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-package-evidence
+          path: |
+            packages/ui-claims/package-responses.v1.jsonl
+            packages/ui-projection-evidence/projection-evidence.v1.json
+            packages/ui-projection-evidence/artifact-boundary-proof.v1.json
+            packages/ui-receipts/receipt.v1.json
+            packages/ui-receipts/residuals.v1.jsonl
+            gov-package-validation-report.json
