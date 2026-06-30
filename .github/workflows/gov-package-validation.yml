@@ -1,0 +1,18 @@
+name: Governance package validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - proposals
+
+permissions:
+  contents: read
+
+jobs:
+  gov-package-validation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tests/check-ui-package-evidence.mjs
