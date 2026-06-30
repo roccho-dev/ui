@@ -8,6 +8,7 @@ import "./check-a2ui-shell-data-boundary.mjs";
 import "./check-generic-a2ui-shell-builder.mjs";
 import "./check-a2ui-adapter-artifacts.mjs";
 import "./check-geomap-fileproof-artifact.mjs";
+import "./check-geomap-zip-parity-artifact.mjs";
 import "./check-purpose-closure-projection.mjs";
 import "./check-markdown-document-renderer.mjs";
 import "./check-markdown-renderer-boundary-regressions.mjs";
