@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowsDir = path.join(root, ".github", "workflows");
 const intentPath = path.join(root, "ci.intent.v1.jsonl");
 const intentRows = fs.readFileSync(intentPath, "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
-assert.equal(intentRows.length, 3);
+assert.equal(intentRows.length, 4);
 
 const primary = intentRows.find((row) => row.kind === "ui.ciIntent.v1");
 assert.ok(primary);
@@ -36,8 +36,16 @@ assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
 assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "adapter-artifact-index"]);
 
+const packageValidation = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "package_validation");
+assert.ok(packageValidation);
+assert.equal(packageValidation.path, ".github/workflows/gov-package-validation.yml");
+assert.equal(packageValidation.entrypoint, "node tests/check-ui-package-evidence.mjs");
+assert.equal(packageValidation.authority, false);
+assert.equal(packageValidation.source, "ui-package-response-output");
+assert.deepEqual(packageValidation.artifacts, ["ui-package-evidence"]);
+
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
-assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path].sort());
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path].sort());
 
 const primaryText = fs.readFileSync(path.join(root, primary.entrypoints[0]), "utf8");
 assert.match(primaryText, /name:\s*Nix Flake Check/);
@@ -57,6 +65,12 @@ assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-zip-parity\.mjs/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
 for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
+
+const packageValidationText = fs.readFileSync(path.join(root, packageValidation.path), "utf8");
+assert.match(packageValidationText, /name:\s*Governance package validation/);
+assert.match(packageValidationText, /node tests\/check-ui-package-evidence\.mjs/);
+assert.match(packageValidationText, /actions\/upload-artifact@v4/);
+for (const name of packageValidation.artifacts) assert.match(packageValidationText, new RegExp(`name:\\s*${name}`));
 
 for (const forbiddenPath of primary.forbiddenEntryGlobs) {
   assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
