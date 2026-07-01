@@ -20,6 +20,7 @@ const screenshots = [
   'screenshots/interaction-detail-after-marker.png',
 ];
 const obsolete = ['preview/file-open-offline-proof.html', 'preview/file-open-cdn-fixed.html', 'dist/index.html'];
+const previewHtml = fs.readFileSync(path.join(zipArtifact, 'preview/index.html'), 'utf8');
 const checks = {
   staticReportPass: reports.static.status === 'zip-a2ui-parity-pass',
   renderedReportPass: reports.rendered.status === 'zip-a2ui-rendered-ui-pass',
@@ -29,6 +30,8 @@ const checks = {
   singleVisibleHtml: fs.existsSync(path.join(zipArtifact, 'preview/index.html')) && obsolete.every((rel) => !fs.existsSync(path.join(zipArtifact, rel))),
   a2uiAuthority: reports.static.checks?.a2uiOnlySourceAuthority === true && reports.static.checks?.zipHtmlTemplateNotSourceAuthority === true,
   renderedCounts: reports.rendered.checks?.propertyMarkersVisible >= 4 && reports.rendered.checks?.mapLabelsVisible >= 4 && reports.rendered.checks?.poiMarkersAfterSelect >= 9,
+  leafletOsmMap: previewHtml.includes('leaflet@1.9.4/dist/leaflet.js') && previewHtml.includes('tile.openstreetmap.org') && reports.rendered.checks?.leafletProvider === true && reports.rendered.checks?.osmTilesLoaded === true && reports.rendered.checks?.osmAttributionVisible === true,
+  noFallbackMap: reports.rendered.checks?.fallbackUsed === false && !/local-readable-basemap|dom-fallback|about:blank/.test(previewHtml),
   interactionCounts: reports.interaction.checks?.tabsClickProof === true && reports.interaction.checks?.dataApplyResetProof === true,
   runtimeCounts: reports.runtime.metrics?.propertyMarkers === 28 && reports.runtime.metrics?.poiMarkersAfterSelection >= 9,
 };
