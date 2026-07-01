@@ -10,6 +10,7 @@ import "./check-a2ui-adapter-artifacts.mjs";
 import "./check-geomap-fileproof-artifact.mjs";
 import "./check-geomap-zip-parity-artifact.mjs";
 import "./check-purpose-closure-projection.mjs";
+import "./check-ui-package-evidence.mjs";
 import "./check-markdown-document-renderer.mjs";
 import "./check-markdown-renderer-boundary-regressions.mjs";
 import "./check-ci-workflows.mjs";
