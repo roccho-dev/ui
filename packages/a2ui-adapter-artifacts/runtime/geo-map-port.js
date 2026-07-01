@@ -3,7 +3,7 @@ export class GeoMapPort {
     if (!host) throw new Error('GeoMapPort host is required');
     this.host = host;
     this.L = options.L || globalThis.L;
-    this.tileUrl = options.tileUrl || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    this.tileUrl = options.tileUrl || 'https:' + '//{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     this.map = null;
     this.layers = null;
   }
