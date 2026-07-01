@@ -31,7 +31,7 @@ export class GeoMapPort {
   }
 
   createLayerGroup(name) {
-    const group = this.L.layerGroup(name);
+    const group = this.L.layerGroup();
     group.name = name;
     return group.addTo(this.map);
   }
