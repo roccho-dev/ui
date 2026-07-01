@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-function readJsonl(path) {
-  return fs.readFileSync(path, 'utf8').trim().split(/\r?\n/).map(JSON.parse);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const repoPath = (rel) => path.join(root, rel);
+const exists = (rel) => fs.existsSync(repoPath(rel));
+
+function readJsonl(rel) {
+  return fs.readFileSync(repoPath(rel), 'utf8').trim().split(/\r?\n/).map(JSON.parse);
 }
 
 const rows = readJsonl('packages/ui-claims/package-responses.v1.jsonl');
@@ -40,8 +46,8 @@ for (const row of responses) {
   assert.equal(row.generatedOutputBoundary, true);
   assert.equal(row.readmeArtifactBoundary, true);
   assert.ok(row.tests.includes(row.requiredTestId));
-  for (const ref of row.evidence_refs) assert.equal(fs.existsSync(ref), true, ref);
-  assert.equal(fs.existsSync(row.receipt_ref), true, row.receipt_ref);
+  for (const ref of row.evidence_refs) assert.equal(exists(ref), true, ref);
+  assert.equal(exists(row.receipt_ref), true, row.receipt_ref);
 }
 const responseByPackage = new Map(responses.map((row) => [row.packageId, row]));
 for (const id of ['ui.projection-evidence', 'ui.receipts', 'ui.artifact-boundary', 'ui.gov-check-adoption']) {
@@ -56,16 +62,16 @@ for (const testId of ['jsx-a2ui-compiler-fixture-check', 'a2ui-protocol-shape-ch
   assert.ok(compilerResponse.future_required_tests.includes(testId), testId);
 }
 
-const projection = JSON.parse(fs.readFileSync('packages/ui-projection-evidence/projection-evidence.v1.json', 'utf8'));
+const projection = JSON.parse(fs.readFileSync(repoPath('packages/ui-projection-evidence/projection-evidence.v1.json'), 'utf8'));
 assert.equal(projection.source_authority, false);
 assert.equal(projection.package_inventory_ref, 'packages/ui-claims/package-responses.v1.jsonl');
 assert.equal(projection.package_response_ref, 'packages/ui-claims/package-responses.v1.jsonl');
 
-const boundary = JSON.parse(fs.readFileSync('packages/ui-projection-evidence/artifact-boundary-proof.v1.json', 'utf8'));
+const boundary = JSON.parse(fs.readFileSync(repoPath('packages/ui-projection-evidence/artifact-boundary-proof.v1.json'), 'utf8'));
 assert.equal(boundary.readme_as_artifact.authority, false);
 assert.equal(boundary.inventory_excludes_generated_artifacts, true);
 
-const receipt = JSON.parse(fs.readFileSync('packages/ui-receipts/receipt.v1.json', 'utf8'));
+const receipt = JSON.parse(fs.readFileSync(repoPath('packages/ui-receipts/receipt.v1.json'), 'utf8'));
 assert.equal(receipt.state, 'closed-with-residual');
 assert.ok(receipt.residuals.includes('residual-ui-jsx-a2ui-compiler-not-implemented-260701'));
 assert.equal(receipt.overclaim_boundary.jsx_a2ui_compiler_implemented, false);
