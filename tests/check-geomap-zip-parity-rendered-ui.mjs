@@ -16,9 +16,18 @@ for (const file of ['screenshots/rendered-collapsed.png', 'screenshots/rendered-
   assert.ok(data.length > 10000, file + ' must be a real browser PNG');
   assert.equal(data.subarray(1, 4).toString('ascii'), 'PNG');
 }
+const preview = fs.readFileSync(path.join(out, 'preview/index.html'), 'utf8');
+assert.match(preview, /leaflet@1\.9\.4\/dist\/leaflet\.js/);
+assert.match(preview, /tile\.openstreetmap\.org/);
+assert.doesNotMatch(preview, /local-readable-basemap|data-map-tile|dom-fallback|about:blank/);
 const report = JSON.parse(fs.readFileSync(path.join(out, 'proof/rendered-ui-report.json'), 'utf8'));
 assert.equal(report.status, 'zip-a2ui-rendered-ui-pass');
 assert.equal(report.checks.noJsErrors, true);
+assert.equal(report.checks.leafletProvider, true);
+assert.equal(report.checks.leafletContainerVisible, true);
+assert.equal(report.checks.osmTilesLoaded, true);
+assert.equal(report.checks.osmAttributionVisible, true);
+assert.equal(report.checks.fallbackUsed, false);
 assert.equal(report.checks.initialCollapsedSheetPass, true);
 assert.equal(report.checks.openSheetPass, true);
 assert.equal(report.checks.detailInteractionPass, true);
@@ -31,4 +40,4 @@ assert.ok(report.checks.poiMarkersAfterSelect >= 9);
 assert.ok(report.checks.radiusAfterSelect >= 1);
 assert.ok(report.checks.linksAfterSelect >= 9);
 assert.equal(report.checks.screenshotsGenerated, true);
-console.log(JSON.stringify({status: 'geomap-zip-rendered-ui-check-pass', report: report.status}, null, 2));
+console.log(JSON.stringify({status: 'geomap-zip-rendered-ui-check-pass', report: report.status, provider: 'leaflet-osm'}, null, 2));
