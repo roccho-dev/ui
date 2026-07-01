@@ -36,7 +36,8 @@ assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
-assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.deepEqual(adapterArtifact.retired_artifacts, ["purpose-adapter-artifact"]);
 
 const packageValidation = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "package_validation");
 assert.ok(packageValidation);
@@ -79,6 +80,7 @@ assert.match(adapterText, /GEOMAP_ZIP_PARITY_INTERACTION/);
 assert.match(adapterText, /GEOMAP_RUNTIME_ARTIFACT_OUT/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
 for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
+for (const name of adapterArtifact.retired_artifacts) assert.doesNotMatch(adapterText, new RegExp(`name:\\s*${name}`));
 
 const packageValidationText = fs.readFileSync(path.join(root, packageValidation.path), "utf8");
 assert.match(packageValidationText, /name:\s*Governance package validation/);
