@@ -79,7 +79,7 @@
       "status": "reduced",
       "closed": ["selected gap fields", "work order fields", "receipt/residual distinction"],
       "reduced": ["manual visual confirmation remains useful"],
-      "residuals": ["external runtime polling remains non-scope"]
+      "residuals": ["external runtime polling remains non-scope", "Purpose Atlas runtime UI remains future-retirement preview"]
     },
     {
       "id": "residual.external-runtime-polling",
@@ -93,6 +93,21 @@
       "summary": "UI projection must not own external runtime polling.",
       "receipt_id": "receipt.closure-ui-projection",
       "next_input": "external runtime loop remains outside ui.git"
+    },
+    {
+      "id": "residual.future-purpose-atlas-ui-retirement",
+      "label": "Residual: Purpose Atlas UI retirement",
+      "layer": "product_owner",
+      "kind": "residual",
+      "route": "residual",
+      "generation": "G6",
+      "actorCategory": "PRODUCT",
+      "size": 0.92,
+      "summary": "Purpose Atlas runtime UI is a preview surface and not a permanent product UI.",
+      "receipt_id": "receipt.closure-ui-projection",
+      "next_input": "future PR retires preview UI after the replacement projection viewer exists",
+      "retirement_state": "future",
+      "false_positive_guard": "must not present preview UI as final product surface"
     }
   ],
   "base_edges": [
@@ -101,6 +116,7 @@
     {"id": "task_to_work_order.closure-ui", "source": "task.closure-ui-fields", "target": "wo.closure-ui-projection", "kind": "operationalizes", "label": "task becomes work order", "weight": 0.78},
     {"id": "work_order_to_receipt.closure-ui", "source": "wo.closure-ui-projection", "target": "receipt.closure-ui-projection", "kind": "operationalizes", "label": "work order returns receipt", "weight": 0.74},
     {"id": "receipt_to_residual.closure-ui", "source": "receipt.closure-ui-projection", "target": "residual.external-runtime-polling", "kind": "informs", "label": "receipt returns residual", "weight": 0.68},
+    {"id": "receipt_to_residual.future-purpose-atlas-ui-retirement", "source": "receipt.closure-ui-projection", "target": "residual.future-purpose-atlas-ui-retirement", "kind": "informs", "label": "receipt marks future UI retirement", "weight": 0.62},
     {"id": "purpose_to_finding.closure-ui", "source": "finding.ui-projection-doc-only", "target": "objective.company_sale", "kind": "contributes_to", "label": "closure UI supports purpose", "weight": 0.82}
   ],
   "events": [
