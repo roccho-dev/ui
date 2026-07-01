@@ -21,7 +21,7 @@ assert.equal(report.checks.selectedOverlayReplacement, true);
 assert.equal(report.checks.selectedMarkerStable, true);
 assert.equal(report.checks.disposeClearsLayers, true);
 assert.equal(report.checks.disposeRemountPass, true);
-assert.equal(report.checks.fileOpenTileFallback, true);
+assert.equal(report.checks.leafletOsmNoFallback, true);
 assert.equal(report.checks.mapLibraryCallsOnlyInsideGeoMapPort, true);
 assert.equal(report.checks.hostNodeCountGrowthWithinThreshold, true);
 assert.equal(report.metrics.propertyMarkers, 28);
