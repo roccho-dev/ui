@@ -21,6 +21,25 @@ jobs:
       - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
+      - name: Retire false-positive purpose adapter artifact from upload surface
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const retiredName = 'purpose-adapter-artifact';
+          const retiredPath = 'adapter-result/purpose-adapter-artifact';
+          const indexPath = 'adapter-result/adapter-artifact-index.json';
+          if (fs.existsSync(retiredPath)) fs.renameSync(retiredPath, 'adapter-result/.retired-purpose-adapter-artifact');
+          const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+          const retired = {
+            name: retiredName,
+            reason: 'false-positive-placeholder-preview',
+            replacement: 'purpose-atlas-preview'
+          };
+          index.artifacts = (index.artifacts || []).filter((item) => item.name !== retired.name);
+          index.retiredArtifacts = [...(index.retiredArtifacts || []), retired];
+          index.allPresent = index.artifacts.every((item) => item.files > 0);
+          fs.writeFileSync(indexPath, JSON.stringify(index, null, 2) + '\n');
+          NODE
       - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
         env:
           GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-artifact
@@ -41,11 +60,6 @@ jobs:
         with:
           name: live-adapter-artifact
           path: adapter-result/live-adapter-artifact
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: purpose-adapter-artifact
-          path: adapter-result/purpose-adapter-artifact
       - uses: actions/upload-artifact@v4
         if: always()
         with:
