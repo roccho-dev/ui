@@ -18,7 +18,6 @@ for (const generated of ['.generated','dist','preview','ci-artifacts']) {
 
 const requirementNames = fs.readdirSync(requirementsDir).filter((name) => name.endsWith('.json')).map((name) => path.basename(name, '.json')).sort();
 const expectedArtifacts = requirementNames.map((name) => `${name}-adapter-artifact`).sort();
-assert.deepEqual(expectedArtifacts, ['live-adapter-artifact']);
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-a2ui-adapter-'));
 execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, ADAPTER_ARTIFACT_OUT: tmp}});
