@@ -2,25 +2,14 @@
   "base_nodes": [
     {
       "id": "objective.company_sale",
-      "label": "高価値法人構築と売却",
+      "label": "Company sale objective",
       "layer": "ceo",
       "kind": "purpose",
       "route": "purpose",
       "generation": "G0",
       "actorCategory": "CEO",
       "size": 1.55,
-      "summary": "最上位目的。目的差分を閉じ続けるUI/proof/schema/docsを法人価値へつなげる。"
-    },
-    {
-      "id": "finding.ui-projection-doc-only",
-      "label": "Finding: #47 was doc-only",
-      "layer": "review_agent",
-      "kind": "finding",
-      "route": "finding",
-      "generation": "G5",
-      "actorCategory": "REVIEW",
-      "size": 1,
-      "summary": "#47はUI projection設計を入れたが、closure objectを表示する実装が残った。"
+      "summary": "Top objective for a valuable, sellable company."
     },
     {
       "id": "gap.closure-ui-projection",
@@ -31,38 +20,27 @@
       "generation": "G5",
       "actorCategory": "REVIEW",
       "size": 1.16,
-      "summary": "Purpose Atlas上でclosure objectを読めない差分。",
-      "ideal": "selected gap / work order / receipt / residualが同じ選択パネルで判別できる",
-      "current": "mapとselected-node detailはあるがclosure object表示が薄い",
-      "delta": "closure projection fieldsをSDUI surfaceとthin renderer propsへ通す",
+      "summary": "The current viewer must expose closure object meaning.",
+      "ideal": "selected gap, work order, receipt, and residual are readable together",
+      "current": "map and selected-node detail exist but closure object meaning is thin",
+      "delta": "project closure fields into the SDUI surface and renderer props",
       "owner_role": "ui-adapter",
-      "proof_requirement": "surface JSONLとtestで各closure object tokenを検査"
-    },
-    {
-      "id": "task.closure-ui-fields",
-      "label": "Task: expose closure fields",
-      "layer": "cto",
-      "kind": "task",
-      "route": "task",
-      "generation": "G5",
-      "actorCategory": "CTO",
-      "size": 0.96,
-      "summary": "selected nodeからgap/work order/receipt/residual表示用のpropsを作る。"
+      "proof_requirement": "surface JSONL and tests cover each closure object token"
     },
     {
       "id": "wo.closure-ui-projection",
-      "label": "Work order: close #47 UI residual",
+      "label": "Work order: close UI residual",
       "layer": "cto",
       "kind": "work_order",
       "route": "work_order",
       "generation": "G5",
       "actorCategory": "CTO",
       "size": 1.05,
-      "summary": "#47のUI projection residualを実装で閉じる。",
+      "summary": "Close the UI projection residual by implementation proof.",
       "primary_gap_id": "gap.closure-ui-projection",
       "scope": ["SDUI selected panel", "thin renderer derived props", "closure UI test"],
-      "non_scope": ["UI as source of truth", "merge automation", "external runtime polling"],
-      "dependency": ["tests/fixtures/purpose-atlas/surface.v0.9.jsonl", "packages/purpose-atlas-preview/src/components/a2ui-sdui-surface.js"],
+      "non_scope": ["UI as source of truth", "external runtime polling"],
+      "dependency": ["tests/fixtures/purpose-atlas/surface.v0.9.jsonl"],
       "closure_criteria": ["selected gap fields visible", "work order fields visible", "receipt residual path visible"]
     },
     {
@@ -79,7 +57,7 @@
       "status": "reduced",
       "closed": ["selected gap fields", "work order fields", "receipt/residual distinction"],
       "reduced": ["manual visual confirmation remains useful"],
-      "residuals": ["external runtime polling remains non-scope", "Purpose Atlas runtime UI remains future-retirement preview"]
+      "residuals": ["external runtime polling remains non-scope"]
     },
     {
       "id": "residual.external-runtime-polling",
@@ -93,33 +71,15 @@
       "summary": "UI projection must not own external runtime polling.",
       "receipt_id": "receipt.closure-ui-projection",
       "next_input": "external runtime loop remains outside ui.git"
-    },
-    {
-      "id": "residual.future-purpose-atlas-ui-retirement",
-      "label": "Residual: Purpose Atlas UI retirement",
-      "layer": "product_owner",
-      "kind": "residual",
-      "route": "residual",
-      "generation": "G6",
-      "actorCategory": "PRODUCT",
-      "size": 0.92,
-      "summary": "Purpose Atlas runtime UI is a preview surface and not a permanent product UI.",
-      "receipt_id": "receipt.closure-ui-projection",
-      "next_input": "future PR retires preview UI after the replacement projection viewer exists",
-      "retirement_state": "future",
-      "false_positive_guard": "must not present preview UI as final product surface"
     }
   ],
   "base_edges": [
-    {"id": "finding_to_gap.closure-ui", "source": "finding.ui-projection-doc-only", "target": "gap.closure-ui-projection", "kind": "evidence_for", "label": "finding defines gap", "weight": 0.8},
-    {"id": "gap_to_task.closure-ui", "source": "gap.closure-ui-projection", "target": "task.closure-ui-fields", "kind": "informs", "label": "gap informs task", "weight": 0.72},
-    {"id": "task_to_work_order.closure-ui", "source": "task.closure-ui-fields", "target": "wo.closure-ui-projection", "kind": "operationalizes", "label": "task becomes work order", "weight": 0.78},
-    {"id": "work_order_to_receipt.closure-ui", "source": "wo.closure-ui-projection", "target": "receipt.closure-ui-projection", "kind": "operationalizes", "label": "work order returns receipt", "weight": 0.74},
+    {"id": "gap_to_work_order.closure-ui", "source": "gap.closure-ui-projection", "target": "wo.closure-ui-projection", "kind": "operationalizes", "label": "gap becomes work order", "weight": 0.78},
+    {"id": "work_order_to_receipt.closure-ui", "source": "wo.closure-ui-projection", "target": "receipt.closure-ui-projection", "kind": "returns", "label": "work order returns receipt", "weight": 0.74},
     {"id": "receipt_to_residual.closure-ui", "source": "receipt.closure-ui-projection", "target": "residual.external-runtime-polling", "kind": "informs", "label": "receipt returns residual", "weight": 0.68},
-    {"id": "receipt_to_residual.future-purpose-atlas-ui-retirement", "source": "receipt.closure-ui-projection", "target": "residual.future-purpose-atlas-ui-retirement", "kind": "informs", "label": "receipt marks future UI retirement", "weight": 0.62},
-    {"id": "purpose_to_finding.closure-ui", "source": "finding.ui-projection-doc-only", "target": "objective.company_sale", "kind": "contributes_to", "label": "closure UI supports purpose", "weight": 0.82}
+    {"id": "purpose_to_gap.closure-ui", "source": "objective.company_sale", "target": "gap.closure-ui-projection", "kind": "requires", "label": "purpose requires closure UI", "weight": 0.82}
   ],
   "events": [
-    {"type": "purpose.set", "t": 1, "terminal": "objective.company_sale", "label": "高価値法人構築と売却"}
+    {"type": "purpose.set", "t": 1, "terminal": "objective.company_sale", "label": "Company sale objective"}
   ]
 }
