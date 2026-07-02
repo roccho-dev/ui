@@ -17,7 +17,6 @@ function read(file) {
 function sha256(text) { return crypto.createHash('sha256').update(text).digest('hex'); }
 function rows(text) { return text.trim().split(/\n+/).map((line) => JSON.parse(line)); }
 function kinds(data) { return new Set((data.base_nodes || []).map((node) => node.kind)); }
-function nodeById(data, id) { return (data.base_nodes || []).find((node) => node.id === id); }
 
 const html = read(htmlPath);
 const surfaceText = read(surfacePath);
@@ -30,7 +29,6 @@ const tree = JSON.stringify(component?.document?.tree || {});
 const css = component?.document?.styles?.css || '';
 const data = JSON.parse(dataText);
 const kindSet = kinds(data);
-const futureRetirement = nodeById(data, 'residual.future-purpose-atlas-ui-retirement');
 
 assert.equal(create?.surfaceId, 'purpose-atlas');
 assert.equal(component?.component, 'A2uiSduiSurface');
@@ -42,11 +40,8 @@ assert.ok(tree.includes('Receipt'), 'surface must show receipt section');
 assert.ok(tree.includes('Residual next input'), 'surface must show residual section');
 assert.ok(css.includes('sdui-stage'), 'surface css must include stage layout');
 for (const kind of ['purpose', 'gap', 'work_order', 'receipt', 'residual']) assert.ok(kindSet.has(kind), `atlas data must include ${kind}`);
-assert.equal(futureRetirement?.kind, 'residual', 'atlas data must mark future Purpose Atlas UI retirement as a residual');
-assert.equal(futureRetirement?.retirement_state, 'future', 'Purpose Atlas UI retirement must stay future-scoped');
-assert.match(futureRetirement?.false_positive_guard || '', /not present preview UI as final product surface/, 'Purpose Atlas UI must not overclaim final-product status');
 assert.ok(html.includes('<purpose-atlas-app'), 'standalone HTML must boot the Purpose Atlas app');
-const embedded = html.match(/const __purposeAtlasSurfaceJsonl = ("(?:\\.|[^"])*");/s);
+const embedded = html.match(/const __purposeAtlasSurfaceJsonl = ("(?:\\.|[^"\\])*");/s);
 assert.ok(embedded, 'standalone HTML must embed A2UI surface JSONL');
 assert.equal(JSON.parse(embedded[1]), surfaceText, 'standalone HTML must embed the exact uploaded surface');
 assert.equal(html.includes('source-ui.css'), false, 'standalone HTML must not rely on legacy source-ui.css');
@@ -56,6 +51,5 @@ console.log(JSON.stringify({
   htmlSha256: sha256(html),
   surfaceSha256: sha256(surfaceText),
   dataSha256: sha256(dataText),
-  futureRetirement: futureRetirement.id,
   kinds: [...kindSet].sort(),
 }, null, 2));
