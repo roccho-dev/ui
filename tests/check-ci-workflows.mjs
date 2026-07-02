@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowsDir = path.join(root, ".github", "workflows");
 const intentPath = path.join(root, "ci.intent.v1.jsonl");
 const intentRows = fs.readFileSync(intentPath, "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
-assert.equal(intentRows.length, 4);
+assert.equal(intentRows.length, 5);
 
 const primary = intentRows.find((row) => row.kind === "ui.ciIntent.v1");
 assert.ok(primary);
@@ -52,8 +52,17 @@ assert.equal(packageValidation.artifact_source, "tracked-package-evidence");
 assert.equal(packageValidation.artifact_generation, "checked-in-inputs plus ci-validation");
 assert.deepEqual(packageValidation.artifacts, ["ui-package-evidence"]);
 
+const prGovernance = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "pr_governance");
+assert.ok(prGovernance);
+assert.equal(prGovernance.path, ".github/workflows/pr-governance.yml");
+assert.match(prGovernance.entrypoint, /check-pr-governance\.mjs/);
+assert.match(prGovernance.entrypoint, /check-pr-body-governance\.mjs/);
+assert.equal(prGovernance.authority, false);
+assert.equal(prGovernance.source, "pull-request body plus checked-in templates");
+assert.deepEqual(prGovernance.guards, ["linked_issue", "merge_condition", "ci_or_test_evidence", "human_approval", "non_scope"]);
+
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
-assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path].sort());
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path].sort());
 
 const primaryText = fs.readFileSync(path.join(root, primary.entrypoints[0]), "utf8");
 assert.match(primaryText, /name:\s*Nix Flake Check/);
@@ -92,6 +101,12 @@ assert.match(packageValidationText, /actions\/upload-artifact@v4/);
 assert.match(packageValidationText, /packages\/ui-projection-evidence\/projection-evidence\.v1\.json/);
 assert.match(packageValidationText, /packages\/ui-receipts\/receipt\.v1\.json/);
 for (const name of packageValidation.artifacts) assert.match(packageValidationText, new RegExp(`name:\\s*${name}`));
+
+const prGovernanceText = fs.readFileSync(path.join(root, prGovernance.path), "utf8");
+assert.match(prGovernanceText, /name:\s*PR governance/);
+assert.match(prGovernanceText, /pull_request:/);
+assert.match(prGovernanceText, /node tests\/check-pr-governance\.mjs/);
+assert.match(prGovernanceText, /node tests\/check-pr-body-governance\.mjs/);
 
 for (const forbiddenPath of primary.forbiddenEntryGlobs) {
   assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
