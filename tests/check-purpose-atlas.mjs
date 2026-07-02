@@ -9,6 +9,7 @@ import { defaultRegistry, purposeAtlasHtmlBox } from "#core-port";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(root, "tests/fixtures/purpose-atlas");
 const oldFixtureRoot = path.join(root, "tests/fixtures/purpose-atlas-v6-a2ui");
+const retiredPreviewPackageRoot = path.join(root, "packages/purpose-atlas-preview");
 const referenceRoot = path.join(root, "tests/reference/purpose-atlas-source");
 const sourceRoot = path.join(referenceRoot, "source");
 const surfacePath = path.join(fixtureRoot, "surface.v0.9.jsonl");
@@ -33,6 +34,8 @@ function walkNoRetirementMarker(value, trail = []) {
     walkNoRetirementMarker(value[key], [...trail, key]);
   }
 }
+
+assert.equal(fs.existsSync(retiredPreviewPackageRoot), false, "retired Purpose Atlas preview package must be physically absent");
 
 const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 assert.deepEqual(rootPackage.workspaces, ["packages/core-port"], "current npm workspace must expose the core port only");
@@ -91,4 +94,4 @@ assert.equal(registry.get("AtlasSourceSurface")?.family, "purpose_atlas");
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
 assert.deepEqual(purposeAtlasHtmlBox.assets, ["tests/fixtures/purpose-atlas/surface.v0.9.jsonl"]);
 
-console.log(JSON.stringify({ status: "purpose-atlas-current-projection-check-pass", rootComponent: "A2uiSduiSurface" }, null, 2));
+console.log(JSON.stringify({ status: "purpose-atlas-current-projection-check-pass", rootComponent: "A2uiSduiSurface", retiredPreviewPackageAbsent: true }, null, 2));
