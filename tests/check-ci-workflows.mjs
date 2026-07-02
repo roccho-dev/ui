@@ -36,7 +36,8 @@ assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
-assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.equal(Object.hasOwn(adapterArtifact, "retired_artifacts"), false);
 
 const packageValidation = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "package_validation");
 assert.ok(packageValidation);
@@ -78,7 +79,8 @@ assert.match(adapterText, /GEOMAP_ZIP_PARITY_RENDER/);
 assert.match(adapterText, /GEOMAP_ZIP_PARITY_INTERACTION/);
 assert.match(adapterText, /GEOMAP_RUNTIME_ARTIFACT_OUT/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
-for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
+const uploadNames = [...adapterText.matchAll(/name:\s*([^\n]+)/g)].map((match) => match[1].trim()).filter((name) => name.endsWith("-artifact") || name === "adapter-artifact-index").sort();
+assert.deepEqual(uploadNames, [...adapterArtifact.artifacts].sort());
 
 const packageValidationText = fs.readFileSync(path.join(root, packageValidation.path), "utf8");
 assert.match(packageValidationText, /name:\s*Governance package validation/);

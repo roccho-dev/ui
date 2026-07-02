@@ -44,11 +44,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: purpose-adapter-artifact
-          path: adapter-result/purpose-adapter-artifact
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
           name: property-map-geo-artifact
           path: adapter-result/property-map-geo-artifact
       - uses: actions/upload-artifact@v4
