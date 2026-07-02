@@ -2,20 +2,27 @@
 
 ## Purpose
 
-This PR exists to cover the remaining gap after #76: the retired `packages/purpose-atlas-preview` implementation still physically exists in the repository.
+This PR covers the remaining gap after #76: the retired `packages/purpose-atlas-preview` implementation still physically existed in the repository after its public Nix and workflow surfaces were removed.
 
-## Boundary
+## Implemented change
 
-This is a handoff shell PR. This commit does not remove files, change code, or perform the implementation.
+- Removed the retired `packages/purpose-atlas-preview` package files.
+- Removed the stale `tests/check-purpose-atlas-upload-artifact.mjs` check for the retired preview artifact path.
+- Kept the promoted current purpose visualization contract in `core-port` and fixture-based checks.
+- Kept the current-fact absence check in `tests/check-purpose-atlas.mjs`.
+- Added no tombstones, future-retirement markers, old-name-only guards, or history reducers.
 
-## Required completion
+## Completion evidence required before merge
 
-- Physically remove the retired `packages/purpose-atlas-preview` package if it is no longer current.
-- Remove or update references that become invalid after the package deletion.
-- Keep the promoted/current purpose visualization contract in `core-port` and fixture-based checks.
-- Add only current-fact deletion checks.
-- Do not add tombstones, future-retirement markers, old-name-only guards, or history reducers.
+This PR can only be considered complete when all of the following are true:
+
+1. `packages/purpose-atlas-preview` is absent from the changed tree.
+2. `tests/check-purpose-atlas.mjs` fails if the retired preview package directory exists.
+3. The current purpose projection contract still checks `A2uiSduiSurface`, `purpose-atlas`, closure object text, gap/work order/receipt/residual data kinds, and minimum review actions.
+4. Root package workspace remains `packages/core-port` only.
+5. Nix and workflow public surfaces do not rebuild or upload the retired preview package.
+6. CI is green.
 
 ## Merge condition
 
-Do not merge this handoff shell as-is. Merge only after the physical deletion and current-fact checks are implemented and CI is green.
+Keep this PR open for explicit human merge approval after the evidence above is checked.
