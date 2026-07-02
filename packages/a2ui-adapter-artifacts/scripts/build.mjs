@@ -7,7 +7,7 @@ const pkgRoot = path.join(repoRoot, 'packages/a2ui-adapter-artifacts');
 const outRoot = path.resolve(process.env.ADAPTER_ARTIFACT_OUT || path.join(pkgRoot, '.generated'));
 fs.rmSync(outRoot, {recursive: true, force: true});
 fs.mkdirSync(outRoot, {recursive: true});
-const artifacts = ['live', 'purpose'].map(build);
+const artifacts = ['live'].map(build);
 const index = {status: 'adapter-ci-artifacts-ready', artifacts, allPresent: artifacts.every((item) => item.files > 0)};
 write(path.join(outRoot, 'adapter-artifact-index.json'), JSON.stringify(index, null, 2) + '\n');
 console.log(JSON.stringify(index, null, 2));
@@ -15,12 +15,11 @@ console.log(JSON.stringify(index, null, 2));
 function build(adapter) {
   const reqPath = path.join(pkgRoot, 'requirements', adapter + '.json');
   const req = readJson(reqPath);
-  const src = adapter === 'purpose' ? purposeSource(req) : docSource(adapter, req, path.join(pkgRoot, 'a2ui/live-surface.json'));
+  const src = docSource(adapter, req, path.join(pkgRoot, 'a2ui/live-surface.json'));
   assertContract(adapter, req, src);
   const broken = process.env.ADAPTER_ARTIFACT_BROKEN_ADAPTER === adapter ? process.env.ADAPTER_ARTIFACT_BROKEN_CASE : '';
   const validationRoot = brokenRoot(src.validateRoot, broken);
   const checked = checkBoundary(adapter, req, validationRoot);
-  if (adapter === 'purpose') checked.negativeControls = negativeControls(req, src.validateRoot);
   const surfaceText = src.records.map(JSON.stringify).join('\n') + '\n';
   const inputShape = makeInputShape(req, broken);
   const model = {meta: {adapterId: adapter, adapterLabel: adapter + ' adapter proof', sourcePath: src.path, sourceKind: src.kind}, requirements: {id: req.id, version: req.version, purpose: req.purpose}, inputShape, ui: {}, runtime: {clientDataModelEnabled: true}};
@@ -57,19 +56,7 @@ function build(adapter) {
   write(path.join(base, 'preview/index.html'), preview(adapter, req, src, checked));
   write(path.join(base, 'proof', adapter + '-adapter-proof-report.json'), JSON.stringify(proof, null, 2) + '\n');
   write(path.join(base, 'source', adapter + '.requirement-pack.json'), JSON.stringify(req, null, 2) + '\n');
-  if (adapter === 'purpose') write(path.join(base, 'source/purpose-atlas.surface.v0.9.jsonl'), src.text.endsWith('\n') ? src.text : src.text + '\n');
   return {name: adapter + '-adapter-artifact', path: adapter + '-adapter-artifact', files: count(base), sha256: shaDir(base)};
-}
-
-function purposeSource(req) {
-  const file = path.join(repoRoot, 'tests/fixtures/purpose-atlas/surface.v0.9.jsonl');
-  const text = fs.readFileSync(file, 'utf8');
-  const records = text.split(/\r?\n/).filter(Boolean).map((line, i) => parseJson(line, file + ':' + (i + 1)));
-  const create = records.find((r) => r.createSurface?.surfaceId === req.outputContract.surfaceId);
-  const update = records.find((r) => r.updateComponents?.surfaceId === req.outputContract.surfaceId);
-  const component = update?.updateComponents?.components?.find((c) => c.id === 'root' || c.component === req.outputContract.rootComponent);
-  if (!create || !update || !component?.document) throw new Error('purpose source surface is incomplete: ' + rel(file));
-  return {kind: 'surface-jsonl-fixture', path: rel(file), text, records, document: component.document, validateRoot: component, surfaceId: create.createSurface.surfaceId, catalogId: create.createSurface.catalogId, rootComponent: component.component, rootComponentId: component.id};
 }
 
 function docSource(adapter, req, file) {
@@ -105,11 +92,11 @@ function makeInputShape(req, broken) {
 
 function makeReceipt(adapter, projectionDigest, broken) {
   const receipt = {
-    status: adapter === 'purpose' ? 'reduced' : 'closed',
+    status: 'closed',
     projectionDigest,
-    closedGaps: adapter === 'purpose' ? ['gap-real-fixture-artifact', 'gap-purpose-proof-replayable'] : ['gap-live-adapter-artifact'],
-    residuals: adapter === 'purpose' ? [{id: 'runtime-state-loop-not-in-scope', owner: 'consumer-runtime', next: 'external runtime closes live state loop'}] : [],
-    residualHandling: {returnPath: 'ADRS/raw JSONL next projection', owner: 'ADRS', nextProjection: 'purpose closure projection'},
+    closedGaps: ['gap-live-adapter-artifact'],
+    residuals: [],
+    residualHandling: {returnPath: 'ADRS/raw JSONL next projection', owner: 'ADRS', nextProjection: 'live adapter projection'},
   };
   if (broken === 'missing-residual-handling') delete receipt.residualHandling;
   return receipt;
@@ -125,11 +112,7 @@ function validateProof(adapter, req, proof, inputShape) {
   if (!proof.checkedOutputs.includes(`proof/${adapter}-adapter-proof-report.json`)) throw new Error(adapter + ' proof output list missing proof report');
 }
 
-function negativeControls(req, root) {
-  return [mustReject('rejects-disallowed-purpose-action', req, withExtra(root, {type: 'button', text: 'bad action', action: 'atlas.disallowedAction'})), mustReject('rejects-disallowed-purpose-port', req, withExtra(root, {type: 'port', port: 'wrongStage'}))];
-}
-function mustReject(id, req, root) { try { checkBoundary('purpose-negative-control', req, root); } catch (e) { return {id, status: 'pass', rejected: true, message: e.message}; } throw new Error('negative control did not fail: ' + id); }
-function brokenRoot(root, broken) { if (!['unexpected-action', 'unexpected-port'].includes(broken)) return root; return withExtra(root, broken === 'unexpected-action' ? {type: 'button', text: 'bad action', action: 'atlas.disallowedAction'} : {type: 'port', port: 'wrongStage'}); }
+function brokenRoot(root, broken) { if (!['unexpected-action', 'unexpected-port'].includes(broken)) return root; return withExtra(root, broken === 'unexpected-action' ? {type: 'button', text: 'bad action', action: 'live.disallowedAction'} : {type: 'port', port: 'wrongStage'}); }
 function withExtra(root, extra) { const copy = JSON.parse(JSON.stringify(root)); const target = copy.document || copy; target.tree = {type: 'box', children: [target.tree, extra]}; return copy; }
 
 function collectActions(value, root, acc = new Set()) {
