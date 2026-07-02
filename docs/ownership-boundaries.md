@@ -14,7 +14,7 @@ composes a specific board, validates policy, or owns canonical state.
 ## Browser UI SSOT inventory
 
 Verified against each repo's `README.md` / sources on the `nixos-vm` SSOT
-(`/home/nixos/repos/*.git`) on 2026-06-18.
+(`/home/nixos/repos/.bare/*.git`) on 2026-06-18.
 
 | Repo / ref | Verified UI responsibility |
 |---|---|
