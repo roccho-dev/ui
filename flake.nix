@@ -12,33 +12,6 @@
         pkgs.runCommand "ui-readme-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-readme-artifact.mjs --out "$out"
         '';
-      mkPurposeAtlasPreview = pkgs:
-        pkgs.buildNpmPackage {
-          pname = "purpose-atlas-preview-html";
-          version = "6.2.0";
-          src = ./packages/purpose-atlas-preview;
-          npmDeps = pkgs.importNpmLock {
-            npmRoot = ./packages/purpose-atlas-preview;
-          };
-          npmConfigHook = pkgs.importNpmLock.npmConfigHook;
-          nativeBuildInputs = [ pkgs.python3 ];
-          npmBuildScript = "build";
-          preBuild = ''
-            mkdir -p public/a2ui src/data
-            cp ${self}/tests/fixtures/purpose-atlas/surface.v0.9.jsonl public/a2ui/purpose-atlas.surface.jsonl
-            cp ${self}/tests/fixtures/purpose-atlas/atlas-data.json src/data/atlas-data.json
-            npm run test
-          '';
-          installPhase = ''
-            runHook preInstall
-            mkdir -p "$out"
-            cp -R dist "$out/dist"
-            test -s "$out/dist/index.html"
-            test -s "$out/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
-            test -s "$out/dist/a2ui/purpose-atlas.surface.jsonl"
-            runHook postInstall
-          '';
-        };
     in
     {
       packages = forEachSystem (pkgs: {
@@ -59,13 +32,10 @@
           test -s "$out/preview-b/index.html"
           test -s "$out/verification-receipt.json"
         '';
-
-        purpose-atlas-preview-html = mkPurposeAtlasPreview pkgs;
       });
 
       checks = forEachSystem (pkgs: let
         readmeArtifact = mkReadmeArtifact pkgs;
-        purposeAtlasPreview = mkPurposeAtlasPreview pkgs;
       in {
         ui-modeling-corr-port = pkgs.runCommand "ui-modeling-corr-port-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/run-all.mjs
@@ -96,15 +66,6 @@
         generic-a2ui-preview = pkgs.runCommand "generic-a2ui-preview" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/check-generic-a2ui-shell-builder.mjs
           node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
-        '';
-
-        purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html-check" { } ''
-          test -s ${purposeAtlasPreview}/dist/index.html
-          test -s ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html
-          test -s ${purposeAtlasPreview}/dist/a2ui/purpose-atlas.surface.jsonl
-          mkdir -p "$out"
-          cp ${purposeAtlasPreview}/dist/index.html "$out/index.html"
-          cp ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html "$out/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
         '';
       });
     };
