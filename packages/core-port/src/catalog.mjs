@@ -54,7 +54,7 @@ export const needZoomComponents = [
 const purposeAtlasProps = ["document", "snapshot", "step", "maxStep", "playing", "viewMode", "viewport", "selection", "events", "operations", "toast"];
 const purposeAtlasState = ["/atlas", "/ui/step", "/ui/viewMode", "/ui/viewport", "/ui/selection", "/events", "/operations", "/toast"];
 const purposeAtlasActions = ["atlas.reset", "atlas.previous", "atlas.next", "atlas.togglePlay", "atlas.stepChanged", "atlas.modeChanged", "atlas.fit", "atlas.zoomIn", "atlas.zoomOut", "atlas.select", "atlas.recordMismatch", "atlas.requestOwner", "atlas.holdDecision", "atlas.stepForward", "atlas.clearSelection"];
-const purposeAtlasAssets = { html: ["index.html"], a2ui: ["tests/fixtures/purpose-atlas/surface.v0.9.jsonl"] };
+const purposeAtlasAssets = { a2ui: ["tests/fixtures/purpose-atlas/surface.v0.9.jsonl"] };
 
 export const purposeAtlasComponents = [
   defineComponent({
