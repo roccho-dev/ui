@@ -23,3 +23,5 @@ jobs:
           persist-credentials: false
       - name: Validate checked-in governance files
         run: node tests/check-pr-governance.mjs
+      - name: Validate pull request text
+        run: node tests/check-pr-body-governance.mjs
