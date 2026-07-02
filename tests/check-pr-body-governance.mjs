@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+const NO_PULL_REQUEST_EVENT = Symbol("no-pull-request-event");
+
 const REQUIRED = [
   {
     id: "linked_issue",
@@ -49,7 +51,8 @@ function readBody(args) {
 
   if (process.env.GITHUB_EVENT_PATH && fs.existsSync(process.env.GITHUB_EVENT_PATH)) {
     const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-    return event.pull_request?.body || "";
+    if (!event.pull_request) return NO_PULL_REQUEST_EVENT;
+    return event.pull_request.body || "";
   }
 
   return null;
@@ -58,6 +61,10 @@ function readBody(args) {
 const isDirect = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirect) {
   const body = readBody(process.argv.slice(2));
+  if (body === NO_PULL_REQUEST_EVENT) {
+    console.log(JSON.stringify({ status: "pr-body-governance-skip", reason: "not-a-pull-request-event" }, null, 2));
+    process.exit(0);
+  }
   assert.notEqual(body, null, "pass --body-env, --body-file, or GITHUB_EVENT_PATH");
   const gaps = findPrBodyGovernanceGaps(body);
   if (gaps.length > 0) {
