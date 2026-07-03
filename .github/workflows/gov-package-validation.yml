@@ -25,12 +25,14 @@ jobs:
             --responses packages/ui-claims/package-responses.v1.jsonl \
             --report gov-package-validation-report.json
       - run: node tests/check-ui-package-evidence.mjs
+      - run: node tests/check-ui-gov-package-output.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: ui-package-evidence
           path: |
             packages/ui-claims/package-responses.v1.jsonl
             packages/ui-projection-evidence/projection-evidence.v1.json
+            packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl
             packages/ui-projection-evidence/artifact-boundary-proof.v1.json
             packages/ui-receipts/receipt.v1.json
             packages/ui-receipts/residuals.v1.jsonl
