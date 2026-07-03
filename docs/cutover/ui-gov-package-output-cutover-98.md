@@ -14,6 +14,10 @@ Blocked. Do not merge this cutover until governance final-gate cutover is comple
 
 Prepare the UI-local `gov-package-output` required-check cutover without changing branch protection or claiming final governance closure early.
 
+## Scope
+
+This plan records the UI-local cutover boundary, preconditions, evidence expectations, merge blockers, and rollback expectations for #98.
+
 ## Preconditions before merge
 
 - governance `gov-final-scope-purpose-join / gate` exists under the final check name.
