@@ -7,7 +7,11 @@
 | Responsibility | Path |
 |---|---|
 | Core package | `packages/core-port/src/**` |
-| Purpose Atlas preview package | `packages/purpose-atlas-preview/**` |
+| A2UI adapter artifact producer | `packages/a2ui-adapter-artifacts/**` |
+| UI package claims | `packages/ui-claims/**` |
+| UI projection evidence | `packages/ui-projection-evidence/**` |
+| UI receipts and residuals | `packages/ui-receipts/**` |
+| UI gov-package-output producer surface | `.#gov-package-output` |
 | Purpose Atlas fixture input | `tests/fixtures/purpose-atlas/**` |
 | Purpose Atlas source reference | `tests/reference/purpose-atlas-source/**` |
 | Generated preview/evidence | Nix and CI outputs |
@@ -21,7 +25,9 @@ JSONL in this repo is `jsonl as attached data`.
 Fixtures must be `stateless` and `non-authoritative`.
 `ui.git is not a state store`.
 
-Generated preview HTML, dist assets, evidence receipts, and manifests are build evidence only and are not tracked as repository authority.
+Generated preview HTML, dist assets, evidence receipts, gov-package-output packets, and manifests are build evidence only and are not tracked as repository authority.
+
+The `.#gov-package-output` package uses the governance producer input to expose UI package evidence for upstream join. It is not a final active admission claim, branch-protection cutover, or ADRS meaning source.
 
 ## GeoMap canonical UI contract
 
