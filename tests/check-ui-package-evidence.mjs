@@ -66,6 +66,24 @@ const projection = JSON.parse(fs.readFileSync(repoPath('packages/ui-projection-e
 assert.equal(projection.source_authority, false);
 assert.equal(projection.package_inventory_ref, 'packages/ui-claims/package-responses.v1.jsonl');
 assert.equal(projection.package_response_ref, 'packages/ui-claims/package-responses.v1.jsonl');
+assert.equal(projection.readme_projection_receipt_ref, 'packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl');
+assert.equal(projection.projection_surfaces.some((surface) => surface.id === 'readme-projection-receipt' && surface.authority === false), true);
+
+const readmeProjectionReceipts = readJsonl('packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl');
+assert.equal(readmeProjectionReceipts.length, 3);
+for (const row of readmeProjectionReceipts) {
+  assert.equal(row.kind, 'readmeProjectionReceipt.v1');
+  assert.equal(row.repoId, 'roccho-dev/ui');
+  assert.equal(row.authority, false);
+  assert.equal(row.nonAuthority, true);
+  assert.equal(row.projectionMode, 'proposal-preview');
+  assert.equal(row.receiptRef, 'packages/ui-receipts/receipt.v1.json');
+  assert.equal(exists(row.receiptRef), true, row.receiptRef);
+  assert.ok(row.nextAction.length > 0);
+}
+const readmeReceiptBySurface = new Map(readmeProjectionReceipts.map((row) => [row.surface, row]));
+assert.equal(readmeReceiptBySurface.get('README.md')?.delta, 'none');
+assert.equal(readmeReceiptBySurface.get('preview artifacts')?.authority, false);
 
 const boundary = JSON.parse(fs.readFileSync(repoPath('packages/ui-projection-evidence/artifact-boundary-proof.v1.json'), 'utf8'));
 assert.equal(boundary.readme_as_artifact.authority, false);
@@ -74,7 +92,12 @@ assert.equal(boundary.inventory_excludes_generated_artifacts, true);
 const receipt = JSON.parse(fs.readFileSync(repoPath('packages/ui-receipts/receipt.v1.json'), 'utf8'));
 assert.equal(receipt.state, 'closed-with-residual');
 assert.ok(receipt.residuals.includes('residual-ui-jsx-a2ui-compiler-not-implemented-260701'));
+assert.ok(receipt.closed_gaps.includes('ui-readme-projection-receipt-output'));
+assert.ok(receipt.closed_gaps.includes('ui-gov-package-output-producer-surface'));
+assert.ok(receipt.evidence_refs.includes('packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl'));
 assert.equal(receipt.overclaim_boundary.jsx_a2ui_compiler_implemented, false);
+assert.equal(receipt.overclaim_boundary.final_org_admission_claimed, false);
+assert.equal(receipt.overclaim_boundary.preview_output_is_final_evidence, false);
 
 const residuals = readJsonl('packages/ui-receipts/residuals.v1.jsonl');
 const compilerResidual = residuals.find((item) => item.id === 'residual-ui-jsx-a2ui-compiler-not-implemented-260701');
