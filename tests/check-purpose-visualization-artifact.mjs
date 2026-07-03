@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ui-purpose-visualization-"));
+execFileSync(process.execPath, ["scripts/build-purpose-visualization-artifact.mjs", tmp], { cwd: root, stdio: "inherit" });
+const htmlPath = path.join(tmp, "purpose-visualization-html", "index.html");
+const manifestPath = path.join(tmp, "purpose-visualization-evidence", "manifest.json");
+assert.equal(fs.existsSync(htmlPath), true);
+assert.equal(fs.existsSync(path.join(tmp, "purpose-visualization-html", "source", "purpose-atlas.surface.jsonl")), true);
+assert.equal(fs.existsSync(path.join(tmp, "purpose-visualization-html", "source", "purpose-closure.valid.jsonl")), true);
+const html = fs.readFileSync(htmlPath, "utf8");
+for (const token of ["Purpose Decision Atlas v6", "Purpose visualization", "Purpose closure object", "Selected gap", "Work order", "Receipt", "receipt states are separated", "Residual next input", "returned residuals", "高価値法人構築と売却", "runtime executed"]) assert.ok(html.includes(token), `missing token ${token}`);
+assert.equal(html.includes("purpose-atlas-preview"), false);
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+assert.equal(manifest.status, "purpose-visualization-artifact-ready");
+assert.equal(manifest.generatedArtifactsAreAuthority, false);
+assert.equal(manifest.outputPaths.html, "purpose-visualization-html/index.html");
+assert.equal(manifest.outputPaths.screenshots, "purpose-visualization-screenshots/*.png");
+console.log(JSON.stringify({ status: "purpose-visualization-artifact-check-pass" }, null, 2));
