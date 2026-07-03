@@ -11,9 +11,10 @@ assert.equal(intentRows.length, 5);
 
 const primary = intentRows.find((row) => row.kind === "ui.ciIntent.v1");
 assert.ok(primary);
-assert.equal(primary.command, "nix flake check --print-build-logs");
+assert.equal(primary.command, "nix flake check --print-build-logs && nix build --print-build-logs .#gov-package-output --out-link result-gov-package-output");
 assert.deepEqual(primary.entrypoints, [".github/workflows/nix-flake-check.yml"]);
 assert.match(primary.authority, /non-authority/);
+assert.deepEqual(primary.artifacts, ["ui-gov-package-output"]);
 
 const artifact = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "artifact_exporter");
 assert.ok(artifact);
@@ -67,7 +68,10 @@ assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterA
 const primaryText = fs.readFileSync(path.join(root, primary.entrypoints[0]), "utf8");
 assert.match(primaryText, /name:\s*Nix Flake Check/);
 assert.match(primaryText, /nix flake check --print-build-logs/);
-assert.doesNotMatch(primaryText, /upload-artifact|setup-node|npm test|node scripts\/build-generic-a2ui-preview/);
+assert.match(primaryText, /nix build --print-build-logs \.#gov-package-output --out-link result-gov-package-output/);
+assert.match(primaryText, /actions\/upload-artifact@v4/);
+assert.match(primaryText, /name:\s*ui-gov-package-output/);
+assert.doesNotMatch(primaryText, /setup-node|npm test|node scripts\/build-generic-a2ui-preview/);
 
 const artifactText = fs.readFileSync(path.join(root, artifact.path), "utf8");
 assert.match(artifactText, /name:\s*README artifact exporter/);
