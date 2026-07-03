@@ -62,13 +62,13 @@
             "roccho-dev/governance:tools/check-package-gov-package-output-provenance.py"
           ];
           sourcePaths = [
-            { role = "packageInventoryAndAssertions"; path = "packages/ui-claims/package-responses.v1.jsonl"; required = true; }
-            { role = "packageReceipt"; path = "packages/ui-receipts/receipt.v1.json"; required = true; }
-            { role = "packageResiduals"; path = "packages/ui-receipts/residuals.v1.jsonl"; required = true; }
-            { role = "projectionEvidence"; path = "packages/ui-projection-evidence/projection-evidence.v1.json"; required = true; }
-            { role = "artifactBoundaryProof"; path = "packages/ui-projection-evidence/artifact-boundary-proof.v1.json"; required = true; }
-            { role = "providerCiIntent"; path = "ci.intent.v1.jsonl"; required = true; }
-            { role = "readmeProjectionSurface"; path = "README.md"; required = true; }
+            { role = "packageInventoryAndAssertions"; content = builtins.readFile "${self}/packages/ui-claims/package-responses.v1.jsonl"; required = true; }
+            { role = "packageReceipt"; content = builtins.readFile "${self}/packages/ui-receipts/receipt.v1.json"; required = true; }
+            { role = "packageResiduals"; content = builtins.readFile "${self}/packages/ui-receipts/residuals.v1.jsonl"; required = true; }
+            { role = "projectionEvidence"; content = builtins.readFile "${self}/packages/ui-projection-evidence/projection-evidence.v1.json"; required = true; }
+            { role = "artifactBoundaryProof"; content = builtins.readFile "${self}/packages/ui-projection-evidence/artifact-boundary-proof.v1.json"; required = true; }
+            { role = "providerCiIntent"; content = builtins.readFile "${self}/ci.intent.v1.jsonl"; required = true; }
+            { role = "readmeProjectionSurface"; content = builtins.readFile "${self}/README.md"; required = true; }
           ];
         };
     in
