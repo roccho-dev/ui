@@ -11,6 +11,7 @@ import "./check-geomap-fileproof-artifact.mjs";
 import "./check-geomap-zip-parity-artifact.mjs";
 import "./check-purpose-closure-projection.mjs";
 import "./check-purpose-visualization-artifact.mjs";
+import "./check-purpose-visualization-stage-b.mjs";
 import "./check-ui-package-evidence.mjs";
 import "./check-ui-gov-package-output.mjs";
 import "./check-markdown-document-renderer.mjs";
