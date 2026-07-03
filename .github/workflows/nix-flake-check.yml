@@ -33,3 +33,12 @@ jobs:
 
       - name: Run flake check
         run: nix flake check --print-build-logs
+
+      - name: Build gov package output
+        run: nix build --print-build-logs .#gov-package-output --out-link result-gov-package-output
+
+      - name: Upload gov package output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-gov-package-output
+          path: result-gov-package-output/
