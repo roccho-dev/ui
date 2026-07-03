@@ -14,9 +14,31 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+      purposeClosureSample = "${self}/tests/fixtures/purpose-closure/one-loop.valid.jsonl";
+      purposeSurfaceSample = "${self}/tests/fixtures/purpose-atlas/surface.v0.9.jsonl";
       mkReadmeArtifact = pkgs:
         pkgs.runCommand "ui-readme-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-readme-artifact.mjs --out "$out"
+        '';
+      mkPurposeVisualizationArtifact = pkgs:
+        pkgs.runCommand "purpose-visualization-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          set -euo pipefail
+          node ${self}/scripts/build-purpose-visualization-artifact.mjs \
+            --out "$out" \
+            --closure-jsonl "${purposeClosureSample}" \
+            --surface-jsonl "${purposeSurfaceSample}" \
+            --input-provider checked-in-sample \
+            --injected-by nix
+          test -s "$out/purpose-visualization-html/index.html"
+          test -s "$out/purpose-visualization-html/source/purpose-closure.valid.jsonl"
+          test -s "$out/purpose-visualization-html/source/purpose-atlas.surface.jsonl"
+          test -s "$out/purpose-visualization-evidence/manifest.json"
+          grep -q '"kind": "ui.purposeVisualizationInputContract.v1"' "$out/purpose-visualization-evidence/manifest.json"
+          grep -q '"provider": "checked-in-sample"' "$out/purpose-visualization-evidence/manifest.json"
+          grep -q '"injectedBy": "nix"' "$out/purpose-visualization-evidence/manifest.json"
+          grep -q '"bundledSourceParity": true' "$out/purpose-visualization-evidence/manifest.json"
+          grep -q '"ownsState": false' "$out/purpose-visualization-evidence/manifest.json"
+          grep -q '"generatedArtifactsAreAuthority": false' "$out/purpose-visualization-evidence/manifest.json"
         '';
       mkUiGovPackageOutput = pkgs:
         let
@@ -84,6 +106,7 @@
 
         readme-artifact = mkReadmeArtifact pkgs;
         gov-package-output = mkUiGovPackageOutput pkgs;
+        purpose-visualization-artifact = mkPurposeVisualizationArtifact pkgs;
 
         generic-a2ui-preview-html = pkgs.runCommand "generic-a2ui-preview-html" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
@@ -97,6 +120,7 @@
       checks = forEachSystem (pkgs: let
         readmeArtifact = mkReadmeArtifact pkgs;
         uiGovPackageOutput = mkUiGovPackageOutput pkgs;
+        purposeVisualizationArtifact = mkPurposeVisualizationArtifact pkgs;
       in {
         ui-modeling-corr-port = pkgs.runCommand "ui-modeling-corr-port-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/run-all.mjs
@@ -133,6 +157,20 @@
           grep -q '"repoId": "roccho-dev/ui"' ${uiGovPackageOutput}/repo.json
           grep -q '"finalGateRef": "gov-final-scope-purpose-join / gate"' ${uiGovPackageOutput}/repo.json
           grep -q '"producerRepo": "roccho-dev/governance"' ${uiGovPackageOutput}/producer-provenance.json
+          touch "$out"
+        '';
+
+        purpose-visualization-artifact = pkgs.runCommand "purpose-visualization-artifact-check" { } ''
+          set -euo pipefail
+          test -s ${purposeVisualizationArtifact}/purpose-visualization-html/index.html
+          test -s ${purposeVisualizationArtifact}/purpose-visualization-html/manifest.json
+          test -s ${purposeVisualizationArtifact}/purpose-visualization-html/source/purpose-closure.valid.jsonl
+          test -s ${purposeVisualizationArtifact}/purpose-visualization-html/source/purpose-atlas.surface.jsonl
+          test -s ${purposeVisualizationArtifact}/purpose-visualization-evidence/manifest.json
+          grep -q '"kind": "ui.purposeVisualizationInputContract.v1"' ${purposeVisualizationArtifact}/purpose-visualization-evidence/manifest.json
+          grep -q '"provider": "checked-in-sample"' ${purposeVisualizationArtifact}/purpose-visualization-evidence/manifest.json
+          grep -q '"injectedBy": "nix"' ${purposeVisualizationArtifact}/purpose-visualization-evidence/manifest.json
+          grep -q '"bundledSourceParity": true' ${purposeVisualizationArtifact}/purpose-visualization-evidence/manifest.json
           touch "$out"
         '';
 
