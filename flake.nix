@@ -32,15 +32,7 @@
           packageInventory = builtins.readFile "${self}/packages/ui-claims/package-responses.v1.jsonl";
           packageAssertions = builtins.readFile "${self}/packages/ui-claims/package-responses.v1.jsonl";
           packageReceipts = (builtins.readFile "${self}/packages/ui-receipts/receipt.v1.json") + "\n" + (builtins.readFile "${self}/packages/ui-receipts/residuals.v1.jsonl");
-          readmeProjectionReceipt = (builtins.toJSON {
-            kind = "readmeProjectionReceipt.v1";
-            repoId = "roccho-dev/ui";
-            status = "proposal-preview";
-            authority = false;
-            nonAuthority = true;
-            source = "README.md";
-            boundary = "README is a projection surface only; ADRS remains meaning authority.";
-          }) + "\n";
+          readmeProjectionReceipt = builtins.readFile "${self}/packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl";
           providerCi = builtins.readFile "${self}/ci.intent.v1.jsonl";
           findings = (builtins.toJSON {
             kind = "govPackageFinding.v1";
@@ -66,6 +58,7 @@
             { role = "packageReceipt"; path = "packages/ui-receipts/receipt.v1.json"; required = true; }
             { role = "packageResiduals"; path = "packages/ui-receipts/residuals.v1.jsonl"; required = true; }
             { role = "projectionEvidence"; path = "packages/ui-projection-evidence/projection-evidence.v1.json"; required = true; }
+            { role = "readmeProjectionReceipt"; path = "packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl"; required = true; }
             { role = "artifactBoundaryProof"; path = "packages/ui-projection-evidence/artifact-boundary-proof.v1.json"; required = true; }
             { role = "providerCiIntent"; path = "ci.intent.v1.jsonl"; required = true; }
             { role = "readmeProjectionSurface"; path = "README.md"; required = true; }
@@ -133,6 +126,7 @@
           grep -q '"repoId": "roccho-dev/ui"' ${uiGovPackageOutput}/repo.json
           grep -q '"finalGateRef": "gov-final-scope-purpose-join / gate"' ${uiGovPackageOutput}/repo.json
           grep -q '"producerRepo": "roccho-dev/governance"' ${uiGovPackageOutput}/producer-provenance.json
+          grep -q '"kind":"readmeProjectionReceipt.v1"' ${uiGovPackageOutput}/readmeProjectionReceipt.jsonl
           touch "$out"
         '';
 
