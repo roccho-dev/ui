@@ -17,11 +17,14 @@ defaults:
 jobs:
   purpose-visualization-artifact:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -30,8 +33,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fonts-noto-cjk
           fc-cache -f
-      - name: Build runnable HTML
-        run: node scripts/build-purpose-visualization-artifact.mjs purpose-visualization-result
+      - name: Build runnable HTML through Nix-declared input contract
+        run: |
+          nix build --print-build-logs .#purpose-visualization-artifact --out-link result-purpose-visualization
+          rm -rf purpose-visualization-result
+          mkdir -p purpose-visualization-result
+          cp -RL result-purpose-visualization/. purpose-visualization-result/
+          chmod -R u+w purpose-visualization-result
       - name: Execute runtime and capture screenshots
         run: node scripts/smoke-purpose-visualization.mjs purpose-visualization-result
       - uses: actions/upload-artifact@v4
