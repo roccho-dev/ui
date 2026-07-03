@@ -17,6 +17,8 @@ assert.match(flake, /repoId = "roccho-dev\/ui"/);
 assert.match(flake, /projectionMode = "proposal-preview"/);
 assert.match(flake, /gov-final-scope-purpose-join \/ gate/);
 assert.match(flake, /producerRepo": "roccho-dev\/governance"/);
+assert.match(flake, /readmeProjectionReceipt = builtins\.readFile "\$\{self\}\/packages\/ui-projection-evidence\/readmeProjectionReceipt\.v1\.jsonl"/);
+assert.match(flake, /role = "readmeProjectionReceipt"/);
 
 const intentRows = readJsonl("ci.intent.v1.jsonl");
 const primary = intentRows.find((row) => row.kind === "ui.ciIntent.v1");
@@ -35,6 +37,20 @@ assert.match(workflow, /nix build --print-build-logs \.#gov-package-output --out
 assert.match(workflow, /actions\/upload-artifact@v4/);
 assert.match(workflow, /name:\s*ui-gov-package-output/);
 assert.match(workflow, /path:\s*result-gov-package-output\//);
+
+const packageValidationWorkflow = read(".github/workflows/gov-package-validation.yml");
+assert.match(packageValidationWorkflow, /node tests\/check-ui-gov-package-output\.mjs/);
+assert.match(packageValidationWorkflow, /packages\/ui-projection-evidence\/readmeProjectionReceipt\.v1\.jsonl/);
+
+const readmeProjectionReceipts = readJsonl("packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl");
+assert.equal(readmeProjectionReceipts.length, 3);
+for (const row of readmeProjectionReceipts) {
+  assert.equal(row.kind, "readmeProjectionReceipt.v1");
+  assert.equal(row.repoId, "roccho-dev/ui");
+  assert.equal(row.authority, false);
+  assert.equal(row.nonAuthority, true);
+  assert.equal(row.receiptRef, "packages/ui-receipts/receipt.v1.json");
+}
 
 const packageResponses = readJsonl("packages/ui-claims/package-responses.v1.jsonl");
 assert.equal(packageResponses.some((row) => row.repo === "roccho-dev/ui"), true);
