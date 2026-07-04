@@ -14,7 +14,11 @@ assert.equal(purposeVisualizationArtifactAdapter.corePortPath, "#core-port/purpo
 const builderSource = fs.readFileSync(path.join(root, "scripts/build-purpose-visualization-artifact.mjs"), "utf8");
 assert.match(builderSource, /from "#core-port"/);
 assert.doesNotMatch(builderSource, /<!doctype|<html|Purpose Decision Atlas v6<\/title>/, "builder script must not contain direct HTML template");
+assert.doesNotMatch(builderSource, /tests\/fixtures\/purpose-closure\/one-loop\.valid\.jsonl/, "builder must not hard-code closure fixture path");
+assert.doesNotMatch(builderSource, /tests\/fixtures\/purpose-atlas\/surface\.v0\.9\.jsonl/, "builder must not hard-code surface fixture path");
 assert.match(builderSource, /PURPOSE_VISUALIZATION_BYPASS_CORE_PORT/);
+assert.match(builderSource, /closure-jsonl/);
+assert.match(builderSource, /surface-jsonl/);
 
 const bypass = spawnSync(process.execPath, ["scripts/build-purpose-visualization-artifact.mjs"], {
   cwd: root,
@@ -35,14 +39,25 @@ assert.equal(built.evidence.sourceDigests.closure.path, closurePath);
 assert.equal(built.evidence.sourceDigests.surface.path, surfacePath);
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ui-purpose-stage-b-"));
-execFileSync(process.execPath, ["scripts/build-purpose-visualization-artifact.mjs", tmp], { cwd: root, stdio: "inherit" });
+execFileSync(process.execPath, [
+  "scripts/build-purpose-visualization-artifact.mjs",
+  "--out", tmp,
+  "--closure-jsonl", closurePath,
+  "--surface-jsonl", surfacePath,
+  "--input-provider", "checked-in-sample",
+  "--injected-by", "cli",
+], { cwd: root, stdio: "inherit" });
 const manifest = JSON.parse(fs.readFileSync(path.join(tmp, "purpose-visualization-evidence", "manifest.json"), "utf8"));
+assert.equal(manifest.inputContract.kind, "ui.purposeVisualizationInputContract.v1");
+assert.equal(manifest.inputContract.provider, "checked-in-sample");
+assert.equal(manifest.inputContract.injectedBy, "cli");
 assert.equal(manifest.adapter.ownsState, false);
 assert.equal(manifest.adapter.corePortPath, "#core-port/purposeVisualizationArtifactAdapter");
 assert.equal(manifest.source.closure.sha256, built.evidence.sourceDigests.closure.sha256);
 assert.equal(manifest.source.surface.sha256, built.evidence.sourceDigests.surface.sha256);
+assert.equal(manifest.bundledSourceParity, true);
 const bundledClosure = fs.readFileSync(path.join(tmp, "purpose-visualization-html", "source", "purpose-closure.valid.jsonl"), "utf8");
 const bundledSurface = fs.readFileSync(path.join(tmp, "purpose-visualization-html", "source", "purpose-atlas.surface.jsonl"), "utf8");
-assert.equal(bundledClosure.trim(), closureJsonl.trim());
-assert.equal(bundledSurface.trim(), surfaceJsonl.trim());
-console.log(JSON.stringify({ status: "purpose-visualization-stage-b-check-pass", adapter: manifest.adapter }, null, 2));
+assert.equal(bundledClosure, closureJsonl);
+assert.equal(bundledSurface, surfaceJsonl);
+console.log(JSON.stringify({ status: "purpose-visualization-stage-b-check-pass", inputContract: manifest.inputContract, adapter: manifest.adapter }, null, 2));

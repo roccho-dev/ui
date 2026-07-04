@@ -59,12 +59,16 @@ assert.deepEqual(prGovernance.guards, ["linked_issue", "merge_condition", "ci_or
 
 const purposeViz = byRole("purpose_visualization_artifact");
 assert.equal(purposeViz.path, ".github/workflows/purpose-visualization-artifact.yml");
-assert.match(purposeViz.entrypoint, /build-purpose-visualization-artifact\.mjs/);
+assert.match(purposeViz.entrypoint, /nix build --print-build-logs \.#purpose-visualization-artifact --out-link result-purpose-visualization/);
 assert.match(purposeViz.entrypoint, /smoke-purpose-visualization\.mjs/);
 assert.equal(purposeViz.authority, false);
-assert.equal(purposeViz.source, "purpose closure projection plus purpose atlas surface fixture");
-assert.equal(purposeViz.artifact_source, "runtime-html-output");
+assert.equal(purposeViz.source, "Nix-declared purpose closure JSONL plus Nix-declared purpose atlas surface JSONL");
+assert.equal(purposeViz.artifact_source, "nix-output plus runtime-html-output");
 assert.equal(purposeViz.artifact_generation, "generated");
+assert.equal(purposeViz.input_contract.kind, "ui.purposeVisualizationInputContract.v1");
+assert.equal(purposeViz.input_contract.provider, "checked-in-sample");
+assert.equal(purposeViz.input_contract.injectedBy, "nix");
+assert.deepEqual(purposeViz.input_contract.inputs, ["closure-jsonl", "surface-jsonl"]);
 assert.deepEqual(purposeViz.artifacts, ["purpose-visualization-html", "purpose-visualization-screenshots", "purpose-visualization-evidence"]);
 
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
@@ -119,8 +123,11 @@ assert.match(prGovernanceText, /node tests\/check-pr-body-governance\.mjs/);
 
 const purposeVizText = read(purposeViz.path);
 assert.match(purposeVizText, /name:\s*Purpose visualization artifact/);
-assert.match(purposeVizText, /node scripts\/build-purpose-visualization-artifact\.mjs purpose-visualization-result/);
+assert.match(purposeVizText, /cachix\/install-nix-action@v31/);
+assert.match(purposeVizText, /nix build --print-build-logs \.#purpose-visualization-artifact --out-link result-purpose-visualization/);
+assert.match(purposeVizText, /cp -RL result-purpose-visualization\/\. purpose-visualization-result\//);
 assert.match(purposeVizText, /node scripts\/smoke-purpose-visualization\.mjs purpose-visualization-result/);
+assert.doesNotMatch(purposeVizText, /node scripts\/build-purpose-visualization-artifact\.mjs purpose-visualization-result/);
 assert.match(purposeVizText, /actions\/upload-artifact@v4/);
 for (const name of purposeViz.artifacts) assert.match(purposeVizText, new RegExp(`name:\\s*${name}`));
 for (const forbiddenPath of primary.forbiddenEntryGlobs) assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
