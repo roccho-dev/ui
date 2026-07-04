@@ -5,19 +5,16 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowsDir = path.join(root, ".github", "workflows");
-const intentPath = path.join(root, "ci.intent.v1.jsonl");
-const intentRows = fs.readFileSync(intentPath, "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
-assert.equal(intentRows.length, 5);
+const intentRows = fs.readFileSync(path.join(root, "ci.intent.v1.jsonl"), "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
+assert.equal(intentRows.length, 6);
 
-const primary = intentRows.find((row) => row.kind === "ui.ciIntent.v1");
-assert.ok(primary);
+const primary = byKind("ui.ciIntent.v1");
 assert.equal(primary.command, "nix flake check --print-build-logs && nix build --print-build-logs .#gov-package-output --out-link result-gov-package-output");
 assert.deepEqual(primary.entrypoints, [".github/workflows/nix-flake-check.yml"]);
 assert.match(primary.authority, /non-authority/);
 assert.deepEqual(primary.artifacts, ["ui-gov-package-output"]);
 
-const artifact = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "artifact_exporter");
-assert.ok(artifact);
+const artifact = byRole("artifact_exporter");
 assert.equal(artifact.path, ".github/workflows/readme-artifact.yml");
 assert.equal(artifact.entrypoint, "nix build .#readme-artifact");
 assert.equal(artifact.authority, false);
@@ -27,8 +24,7 @@ assert.equal(artifact.workflow_definition, "checked_in");
 assert.equal(artifact.artifact_source, "nix-output");
 assert.equal(artifact.artifact_generation, "generated");
 
-const adapterArtifact = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "adapter_artifact_exporter");
-assert.ok(adapterArtifact);
+const adapterArtifact = byRole("adapter_artifact_exporter");
 assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml");
 assert.match(adapterArtifact.entrypoint, /build\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-proof\.mjs/);
@@ -39,12 +35,12 @@ assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
 assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
 
-const packageValidation = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "package_validation");
-assert.ok(packageValidation);
+const packageValidation = byRole("package_validation");
 assert.equal(packageValidation.path, ".github/workflows/gov-package-validation.yml");
 assert.match(packageValidation.entrypoint, /check-package-export\.py check/);
 assert.match(packageValidation.entrypoint, /packages\/ui-claims\/package-responses\.v1\.jsonl/);
 assert.match(packageValidation.entrypoint, /tests\/check-ui-package-evidence\.mjs/);
+assert.match(packageValidation.entrypoint, /tests\/check-ui-gov-package-output\.mjs/);
 assert.equal(packageValidation.authority, false);
 assert.equal(packageValidation.source, "governance-export plus ui-package-response-output");
 assert.equal(packageValidation.generation_mode, "checked_in");
@@ -53,8 +49,7 @@ assert.equal(packageValidation.artifact_source, "tracked-package-evidence");
 assert.equal(packageValidation.artifact_generation, "checked-in-inputs plus ci-validation");
 assert.deepEqual(packageValidation.artifacts, ["ui-package-evidence"]);
 
-const prGovernance = intentRows.find((row) => row.kind === "ci.intent.v1" && row.role === "pr_governance");
-assert.ok(prGovernance);
+const prGovernance = byRole("pr_governance");
 assert.equal(prGovernance.path, ".github/workflows/pr-governance.yml");
 assert.match(prGovernance.entrypoint, /check-pr-governance\.mjs/);
 assert.match(prGovernance.entrypoint, /check-pr-body-governance\.mjs/);
@@ -62,10 +57,20 @@ assert.equal(prGovernance.authority, false);
 assert.equal(prGovernance.source, "pull-request body plus checked-in templates");
 assert.deepEqual(prGovernance.guards, ["linked_issue", "merge_condition", "ci_or_test_evidence", "human_approval", "non_scope"]);
 
-const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
-assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path].sort());
+const purposeViz = byRole("purpose_visualization_artifact");
+assert.equal(purposeViz.path, ".github/workflows/purpose-visualization-artifact.yml");
+assert.match(purposeViz.entrypoint, /build-purpose-visualization-artifact\.mjs/);
+assert.match(purposeViz.entrypoint, /smoke-purpose-visualization\.mjs/);
+assert.equal(purposeViz.authority, false);
+assert.equal(purposeViz.source, "purpose closure projection plus purpose atlas surface fixture");
+assert.equal(purposeViz.artifact_source, "runtime-html-output");
+assert.equal(purposeViz.artifact_generation, "generated");
+assert.deepEqual(purposeViz.artifacts, ["purpose-visualization-html", "purpose-visualization-screenshots", "purpose-visualization-evidence"]);
 
-const primaryText = fs.readFileSync(path.join(root, primary.entrypoints[0]), "utf8");
+const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path].sort());
+
+const primaryText = read(primary.entrypoints[0]);
 assert.match(primaryText, /name:\s*Nix Flake Check/);
 assert.match(primaryText, /nix flake check --print-build-logs/);
 assert.match(primaryText, /nix build --print-build-logs \.#gov-package-output --out-link result-gov-package-output/);
@@ -73,13 +78,13 @@ assert.match(primaryText, /actions\/upload-artifact@v4/);
 assert.match(primaryText, /name:\s*ui-gov-package-output/);
 assert.doesNotMatch(primaryText, /setup-node|npm test|node scripts\/build-generic-a2ui-preview/);
 
-const artifactText = fs.readFileSync(path.join(root, artifact.path), "utf8");
+const artifactText = read(artifact.path);
 assert.match(artifactText, /name:\s*README artifact exporter/);
 assert.match(artifactText, /nix build --print-build-logs \.#readme-artifact/);
 assert.match(artifactText, /actions\/upload-artifact@v4/);
 assert.doesNotMatch(artifactText, /npm test|node scripts\/build-generic-a2ui-preview/);
 
-const adapterText = fs.readFileSync(path.join(root, adapterArtifact.path), "utf8");
+const adapterText = read(adapterArtifact.path);
 assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
 assert.match(adapterText, /fonts-noto-cjk/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/);
@@ -93,7 +98,7 @@ assert.match(adapterText, /GEOMAP_RUNTIME_ARTIFACT_OUT/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
 for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
 
-const packageValidationText = fs.readFileSync(path.join(root, packageValidation.path), "utf8");
+const packageValidationText = read(packageValidation.path);
 assert.match(packageValidationText, /name:\s*Governance package validation/);
 assert.match(packageValidationText, /repository:\s*roccho-dev\/governance/);
 assert.match(packageValidationText, /ref:\s*proposals/);
@@ -106,13 +111,31 @@ assert.match(packageValidationText, /packages\/ui-projection-evidence\/projectio
 assert.match(packageValidationText, /packages\/ui-receipts\/receipt\.v1\.json/);
 for (const name of packageValidation.artifacts) assert.match(packageValidationText, new RegExp(`name:\\s*${name}`));
 
-const prGovernanceText = fs.readFileSync(path.join(root, prGovernance.path), "utf8");
+const prGovernanceText = read(prGovernance.path);
 assert.match(prGovernanceText, /name:\s*PR governance/);
 assert.match(prGovernanceText, /pull_request:/);
 assert.match(prGovernanceText, /node tests\/check-pr-governance\.mjs/);
 assert.match(prGovernanceText, /node tests\/check-pr-body-governance\.mjs/);
 
-for (const forbiddenPath of primary.forbiddenEntryGlobs) {
-  assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
-}
+const purposeVizText = read(purposeViz.path);
+assert.match(purposeVizText, /name:\s*Purpose visualization artifact/);
+assert.match(purposeVizText, /node scripts\/build-purpose-visualization-artifact\.mjs purpose-visualization-result/);
+assert.match(purposeVizText, /node scripts\/smoke-purpose-visualization\.mjs purpose-visualization-result/);
+assert.match(purposeVizText, /actions\/upload-artifact@v4/);
+for (const name of purposeViz.artifacts) assert.match(purposeVizText, new RegExp(`name:\\s*${name}`));
+for (const forbiddenPath of primary.forbiddenEntryGlobs) assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
 console.log(JSON.stringify({ status: "ui-ci-workflows-check-pass", entrypoints: workflowFiles }, null, 2));
+
+function byKind(kind) {
+  const row = intentRows.find((item) => item.kind === kind);
+  assert.ok(row, `missing ci intent kind ${kind}`);
+  return row;
+}
+function byRole(role) {
+  const row = intentRows.find((item) => item.kind === "ci.intent.v1" && item.role === role);
+  assert.ok(row, `missing ci intent role ${role}`);
+  return row;
+}
+function read(relativePath) {
+  return fs.readFileSync(path.join(root, relativePath), "utf8");
+}

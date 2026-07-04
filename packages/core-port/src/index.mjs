@@ -82,6 +82,15 @@ export {
 } from "./a2ui-shell-builder.mjs";
 
 export {
+  PURPOSE_VISUALIZATION_ADAPTER_VERSION,
+  assertPurposeVisualizationAdapterDescriptor,
+  buildPurposeVisualizationArtifact,
+  buildPurposeVisualizationDataModel,
+  purposeVisualizationArtifactAdapter,
+  renderPurposeVisualizationHtml,
+} from "./purpose-visualization-adapter.mjs";
+
+export {
   DOCUMENT_MODEL_KIND,
   MARKDOWN_DOCUMENT_RENDERER_VERSION,
   TEMPLATE_BLOCK_KIND,
