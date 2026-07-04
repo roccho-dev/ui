@@ -33,7 +33,9 @@ assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
-assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.equal(adapterArtifact.artifacts.includes("purpose-adapter-artifact"), false);
+assert.equal(Object.hasOwn(adapterArtifact, "retired_artifacts"), false);
 
 const packageValidation = byRole("package_validation");
 assert.equal(packageValidation.path, ".github/workflows/gov-package-validation.yml");
@@ -100,7 +102,9 @@ assert.match(adapterText, /GEOMAP_ZIP_PARITY_RENDER/);
 assert.match(adapterText, /GEOMAP_ZIP_PARITY_INTERACTION/);
 assert.match(adapterText, /GEOMAP_RUNTIME_ARTIFACT_OUT/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
-for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
+const uploadNames = [...adapterText.matchAll(/name:\s*([^\n]+)/g)].map((match) => match[1].trim()).filter((name) => name.endsWith("-artifact") || name === "adapter-artifact-index").sort();
+assert.deepEqual(uploadNames, [...adapterArtifact.artifacts].sort());
+assert.equal(uploadNames.includes("purpose-adapter-artifact"), false);
 
 const packageValidationText = read(packageValidation.path);
 assert.match(packageValidationText, /name:\s*Governance package validation/);
@@ -139,7 +143,7 @@ function byKind(kind) {
   return row;
 }
 function byRole(role) {
-  const row = intentRows.find((item) => item.kind === "ci.intent.v1" && item.role === role);
+  const row = intentRows.find((item) => item.role === role);
   assert.ok(row, `missing ci intent role ${role}`);
   return row;
 }
