@@ -8,23 +8,28 @@ Issue: roccho-dev/ui#98
 
 ## Status
 
-Blocked. Do not merge this cutover until governance final-gate cutover is complete.
+Blocked. Do not merge this cutover until governance #115 active selected-ref enforcement is accepted.
 
 Green CI on this plan is not merge permission. It only proves the blocked plan is well-formed.
 
 ## Purpose
 
-Prepare the UI-local `gov-package-output` required-check cutover without changing branch protection or claiming final governance closure early.
+Prepare the UI-local `gov-package-output` evidence-path cutover without changing selected-ref write policy or claiming final governance closure early.
 
 ## Scope
 
-This plan records the UI-local cutover boundary, preconditions, evidence expectations, old-check role mapping, merge blockers, purpose chain, and rollback expectations for #98.
+This plan records the UI-local cutover boundary, provider-neutral enforcement preconditions, evidence expectations, old-check role mapping, merge blockers, purpose chain, and rollback expectations for #98.
 
-## Preconditions before merge
+## Provider-neutral preconditions before merge
 
 - governance `gov-final-scope-purpose-join / gate` exists under the final check name.
 - governance final gate has same-name green evidence.
-- governance branch protection or ruleset cutover is complete or explicitly approved.
+- governance #115 has accepted active selected-ref enforcement.
+- the selected branch/ref cannot be updated unless the final gate accepts the exact target commit SHA.
+- the enforcement point is recorded: GitHub ruleset, self-hosted hook, merge daemon, bot-only merge path, or SSOT publish gate.
+- accept proof exists for the exact target SHA after final gate pass.
+- reject proof exists for missing gate pass, stale gate output, or digest/SHA mismatch.
+- audit receipt records target SHA, gate run/check identity, decision, timestamp, and actor/path.
 - ui `gov-package-output` packet/check evidence exists on the target head.
 - rollback path is documented.
 
@@ -49,16 +54,17 @@ Older UI checks must be classified as producer, artifact, selftest, or internal-
 
 | Generation | UI cutover contribution |
 |---|---|
-| scope | limit this PR to UI local `gov-package-output` cutover planning |
-| direct purpose | prevent UI local green from being read as final closure before governance final gate cutover |
-| upper purpose | keep downstream UI evidence aligned to `gov-final-scope-purpose-join / gate` |
-| meta purpose | prevent false-green, authority confusion, and premature pass across downstream repos |
+| scope | limit this PR to UI local `gov-package-output` evidence-path cutover planning |
+| direct purpose | prevent UI local green from being read as final closure before active selected-ref enforcement accepts the final gate |
+| upper purpose | keep downstream UI evidence aligned to `gov-final-scope-purpose-join / gate` and the selected-ref write boundary |
+| meta purpose | prevent false-green, authority confusion, human-convention-only approval, and premature pass across downstream repos |
 | highest objective | keep UI evidence auditable, transferable, and buyer-readable for high-value company sale review |
 
 ## Non-goals
 
 - No branch protection change in this PR.
 - No required-check activation in this PR.
+- No selected-ref write policy change in this PR.
 - No final organization-active claim.
 - No governance meaning authority in UI.
 - No claim that UI preview artifacts are final governance closure.
@@ -67,7 +73,11 @@ Older UI checks must be classified as producer, artifact, selftest, or internal-
 
 Do not merge while:
 
-- governance final-gate cutover is incomplete.
+- governance #115 active selected-ref enforcement is incomplete.
+- the selected branch/ref can still be manually updated without final gate acceptance.
+- accept proof is missing.
+- reject proof is missing.
+- audit receipt is missing.
 - ui packet/check evidence is missing.
 - old checks still look like final governance compliance.
 - rollback path is missing.
@@ -75,6 +85,11 @@ Do not merge while:
 ## Evidence expected before ready-for-review
 
 - link to governance final-gate same-name green evidence.
+- link to governance #115 accepted active enforcement evidence.
+- selected-ref enforcement provider and protected ref name.
+- accept proof for exact target SHA.
+- reject proof for missing/stale/mismatched gate proof.
+- audit receipt format or artifact path.
 - ui local check or intent diff.
 - local green evidence.
 - mapping from old UI checks to final roles.
@@ -84,11 +99,11 @@ Do not merge while:
 
 If UI cutover causes false-positive or false-negative merge behavior after governance #115 completes:
 
-1. remove the UI local required-check cutover from the ruleset or intent diff;
+1. remove the UI local required-check cutover from the selected-ref enforcement intent diff;
 2. keep `gov-package-output` generation and artifact upload as evidence-only;
 3. keep old producer/selftest jobs running under their non-authority roles;
 4. reopen #98 if it was closed;
-5. record the rollback reason and the affected check name in the issue thread.
+5. record the rollback reason, affected check name, protected ref, and decision receipt in the issue thread.
 
 ## Boundary
 
