@@ -20,6 +20,19 @@
         pkgs.runCommand "ui-readme-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-readme-artifact.mjs --out "$out"
         '';
+      mkReadmeMaterializedCheck = pkgs: readmeArtifact:
+        let
+          readmeChecks = import "${governance}/nix/readme-materialization-checks.nix" {
+            inherit pkgs;
+            governanceSrc = governance;
+          };
+        in readmeChecks.mkReadmeMaterializedCheck {
+          repoId = "roccho-dev/ui";
+          inherit readmeArtifact;
+          committedReadme = "${self}/README.md";
+          mode = "generated";
+          generatedBy = "roccho-dev/ui:scripts/build-readme-artifact.mjs";
+        };
       mkPurposeVisualizationArtifact = pkgs:
         pkgs.runCommand "purpose-visualization-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           set -euo pipefail
@@ -119,6 +132,7 @@
 
       checks = forEachSystem (pkgs: let
         readmeArtifact = mkReadmeArtifact pkgs;
+        readmeMaterializedCheck = mkReadmeMaterializedCheck pkgs readmeArtifact;
         uiGovPackageOutput = mkUiGovPackageOutput pkgs;
         purposeVisualizationArtifact = mkPurposeVisualizationArtifact pkgs;
       in {
@@ -137,6 +151,8 @@
           grep -q '"source": "nix-output"' ${readmeArtifact}/receipt.json
           touch "$out"
         '';
+
+        readme-materialized = readmeMaterializedCheck;
 
         gov-package-output = pkgs.runCommand "ui-gov-package-output-check" { } ''
           set -euo pipefail
