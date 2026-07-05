@@ -4,15 +4,16 @@
 
 Use the governance common README materialization checker for UI instead of adding UI-specific comparison logic.
 
-## Target state
+## Implemented delta
 
-- UI keeps its README artifact producer.
+- UI keeps `.#readme-artifact` as a repo-local non-authority README artifact producer.
+- UI imports `roccho-dev/governance:nix/readme-materialization-checks.nix`.
 - UI exposes `checks.readme-materialized` through the governance common checker.
-- The check emits `readmeMaterializationReceipt.v1` when generated README mode is active.
-- UI preview artifacts stay non-authority and do not claim final governance closure.
+- The common check emits `readmeMaterializationReceipt.v1` when the generated README artifact and committed `README.md` are byte-identical.
+- `docs/readme-materialization/README.source.md` is the local source for the generated README artifact until final ADRS README projection enforcement replaces or narrows this surface.
 
 ## Boundary
 
-Draft until roccho-dev/governance#145 lands. This does not replace governance #81 / #131 final README projection enforcement and does not change branch protection.
+This is local README materialization evidence only. It does not replace governance #81 / #131 final README projection enforcement, does not mutate branch protection, and does not claim final governance closure.
 
 Refs: roccho-dev/governance#144, roccho-dev/governance#145, roccho-dev/governance#131, roccho-dev/governance#81
