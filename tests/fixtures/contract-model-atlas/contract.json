@@ -1,5 +1,6 @@
 {
   "kind": "ui.contractModelAtlas.fixtureContract.v1",
+  "issueRef": "roccho-dev/ui#108",
   "surfaceId": "contract-model-atlas.fixed.v1",
   "catalogId": "ui.contract-model-atlas.catalog.v1",
   "protocolVersion": "v0.9",
