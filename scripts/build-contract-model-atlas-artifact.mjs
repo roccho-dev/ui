@@ -18,17 +18,18 @@ import {
 } from "#core-port/contract-model-atlas-view";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const fixtureRoot = path.join(root, "tests", "fixtures", "contract-model-atlas");
+const defaultFixtureRoot = path.join(root, "tests", "fixtures", "contract-model-atlas");
 
-export function buildContractModelAtlasArtifact({ outDir = "contract-model-atlas-artifact" } = {}) {
+export function buildContractModelAtlasArtifact({ outDir = "contract-model-atlas-artifact", fixtureRoot = defaultFixtureRoot } = {}) {
   const outRoot = path.resolve(outDir);
+  const inputRoot = path.resolve(fixtureRoot);
   fs.rmSync(outRoot, { recursive: true, force: true });
   fs.mkdirSync(outRoot, { recursive: true });
 
-  const contract = readJson(path.join(fixtureRoot, "contract.json"));
-  const registryText = readText(path.join(fixtureRoot, "registry.json"));
-  const shellJsonl = readText(path.join(fixtureRoot, "shell.v0.9.jsonl"));
-  const dataJsonl = readText(path.join(fixtureRoot, "data.contract-model-atlas.v1.jsonl"));
+  const contract = readJson(path.join(inputRoot, "contract.json"));
+  const registryText = readText(path.join(inputRoot, "registry.json"));
+  const shellJsonl = readText(path.join(inputRoot, "shell.v0.9.jsonl"));
+  const dataJsonl = readText(path.join(inputRoot, "data.contract-model-atlas.v1.jsonl"));
   const registry = JSON.parse(registryText);
   const registryMap = buildRegistry(registry);
   const shellRows = parseJsonlLines(shellJsonl);
@@ -40,7 +41,7 @@ export function buildContractModelAtlasArtifact({ outDir = "contract-model-atlas
   const shell = compileShell(shellRows, contract);
   const state = applyDataCartridge(dataRows, contract);
   const atlas = assertContractModelAtlasView(state.atlas);
-  const html = renderExternalJsonlHost({ surfaceId: contract.surfaceId });
+  const html = renderStaticPreview({ surfaceId: contract.surfaceId, shell, state, registry, shellRows, dataRows });
   const files = {
     "preview/index.html": html,
     "source/contract.json": JSON.stringify(contract, null, 2) + "\n",
@@ -99,7 +100,20 @@ function validateComponent(component, registryMap) {
   for (const child of component.children || []) validateComponent(child, registryMap);
 }
 
-function renderExternalJsonlHost({ surfaceId }) {
+function renderStaticPreview({ surfaceId, shell, state, registry, shellRows, dataRows }) {
+  const atlas = state.atlas;
+  const body = shell.components.map((component) => renderComponent(component, state, {}, new Map(registry.components.map((entry) => [entry.id, entry])))).join("\n");
+  const meta = [
+    `surface=${surfaceId}`,
+    `registry=${registry.components.length}`,
+    `shellRows=${shellRows.length}`,
+    `dataRows=${dataRows.length}`,
+    `containers=${atlas.containers.length}`,
+    `elements=${atlas.elements.length}`,
+    `edges=${atlas.edges.length}`,
+    "adapterOwnsState=false",
+    "generatedArtifactsAreAuthority=false",
+  ].join(" ");
   return `<!doctype html>
 <html lang="ja">
 <head>
@@ -108,174 +122,82 @@ function renderExternalJsonlHost({ surfaceId }) {
 <meta name="a2ui-surface-id" content="${escapeHtml(surfaceId)}">
 <meta name="adapterOwnsState" content="false">
 <meta name="generatedArtifactsAreAuthority" content="false">
-<title>Contract Model Atlas A2UI Preview</title>
+<title>${escapeHtml(atlas.summary.title)}</title>
 <style>
 html,body{margin:0;padding:0;background:#fff;color:#111;font:13px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-body{padding:12px}main{max-width:1500px;margin:0 auto}.meta,.a2ui-component{margin:8px 0}.a2ui-text{white-space:pre-wrap;border:1px solid #111;padding:6px}.a2ui-list{border:1px solid #111;padding:6px;max-height:190px;overflow:auto}.a2ui-list ul{margin:0;padding-left:18px}.atlas-svg{width:100%;height:auto;border:1px solid #111;background:#fff}.container{fill:none;stroke:#111;stroke-width:1.3}.element{fill:#fff;stroke:#111;stroke-width:1}.edge{stroke:#111;stroke-width:1;fill:none}.container-label,.element-label,.edge-label{font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#111}.edge-label{font-size:9px}.load-error{border:1px solid #111;padding:8px;white-space:pre-wrap}
+body{padding:12px}main{max-width:1500px;margin:0 auto}.meta,.a2ui-component{margin:8px 0}.a2ui-text{white-space:pre-wrap;border:1px solid #111;padding:6px}.a2ui-list{border:1px solid #111;padding:6px;max-height:190px;overflow:auto}.a2ui-list ul{margin:0;padding-left:18px}.atlas-svg{width:100%;height:auto;border:1px solid #111;background:#fff}.container{fill:none;stroke:#111;stroke-width:1.3}.element{fill:#fff;stroke:#111;stroke-width:1}.edge{stroke:#111;stroke-width:1;fill:none}.container-label,.element-label,.edge-label{font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#111}.edge-label{font-size:9px}
 </style>
 </head>
 <body>
 <main>
-<div class="meta" id="meta">loading external A2UI registry, shell JSONL, and data JSONL</div>
-<section id="app"></section>
+<div class="meta" data-render-source="jsonl-fixture">${escapeHtml(meta)}</div>
+<section id="app">
+${body}
+</section>
 </main>
-<script>
-main().catch((error) => {
-  document.getElementById('meta').textContent = 'render failed';
-  const el = document.createElement('pre');
-  el.className = 'load-error';
-  el.textContent = error.stack || String(error);
-  document.getElementById('app').replaceChildren(el);
-});
-
-async function main() {
-  const registry = JSON.parse(await fetchText('../source/registry.json'));
-  const shellRows = parseJsonl(await fetchText('../source/shell.v0.9.jsonl'));
-  const dataRows = parseJsonl(await fetchText('../source/data.contract-model-atlas.v1.jsonl'));
-  const registryMap = buildRegistry(registry);
-  const shell = compileShell(shellRows, registryMap);
-  const state = applyDataRows(dataRows, shell.contract);
-  const surface = renderSurface(shell, state, registryMap);
-  const atlas = state.atlas || {};
-  document.getElementById('meta').textContent = 'external preview: registry=' + registry.components.length + ' shellRows=' + shellRows.length + ' dataRows=' + dataRows.length + ' containers=' + (atlas.containers?.length || 0) + ' elements=' + (atlas.elements?.length || 0) + ' edges=' + (atlas.edges?.length || 0);
-  document.getElementById('app').replaceChildren(surface);
-}
-
-async function fetchText(url) {
-  const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error('failed to load ' + url + ': ' + response.status);
-  return response.text();
-}
-
-function parseJsonl(text) {
-  return String(text || '').replaceAll(String.fromCharCode(13), '').split(String.fromCharCode(10)).filter(Boolean).map((line, index) => {
-    try { return JSON.parse(line); }
-    catch (error) { throw new Error('invalid JSONL line ' + (index + 1) + ': ' + error.message); }
-  });
-}
-
-function buildRegistry(registry) {
-  if (!registry || registry.kind !== 'ui.component.registry.v1') throw new Error('invalid registry kind');
-  const map = new Map();
-  for (const entry of registry.components || []) {
-    if (!entry.id) throw new Error('registry entry missing id');
-    if (map.has(entry.id)) throw new Error('duplicate component id ' + entry.id);
-    map.set(entry.id, entry);
-  }
-  return map;
-}
-
-function compileShell(rows, registryMap) {
-  const createRows = rows.filter((row) => row.createSurface);
-  const updateRows = rows.filter((row) => row.updateComponents);
-  if (rows.some((row) => row.updateDataModel)) throw new Error('shell must not contain updateDataModel');
-  if (createRows.length !== 1) throw new Error('shell requires exactly one createSurface');
-  const surfaceId = createRows[0].createSurface.surfaceId;
-  const components = updateRows.flatMap((row) => {
-    if (row.updateComponents.surfaceId !== surfaceId) throw new Error('surfaceId mismatch in updateComponents');
-    return row.updateComponents.components || [];
-  });
-  for (const component of components) validateComponent(component, registryMap);
-  return { kind:'ui.a2ui.compiled-shell.v1', surfaceId, components, contract:{ surfaceId, allowedUpdatePaths:['/atlas'] }, generatedArtifactsAreAuthority:false };
-}
-
-function validateComponent(component, registryMap) {
-  const entry = registryMap.get(component.component);
-  if (!entry) throw new Error('unknown component ' + component.component);
-  const allowedProps = new Set(entry.props || []);
-  for (const key of Object.keys(component.props || {})) {
-    if (!allowedProps.has(key)) throw new Error('component ' + component.component + ' has undeclared prop ' + key);
-  }
-  for (const child of component.children || []) validateComponent(child, registryMap);
-}
-
-function applyDataRows(rows, contract) {
-  let state = {};
-  for (const row of rows) {
-    if (!row.updateDataModel) throw new Error('data JSONL may contain only updateDataModel rows');
-    const msg = row.updateDataModel;
-    if (msg.surfaceId !== contract.surfaceId) throw new Error('data surfaceId mismatch');
-    if (!contract.allowedUpdatePaths.includes(msg.path)) throw new Error('undeclared data path ' + msg.path);
-    state = setPath(state, msg.path, msg.value);
-  }
-  return state;
-}
-
-function renderSurface(shell, state, registryMap) {
-  const frag = document.createDocumentFragment();
-  for (const component of shell.components) frag.appendChild(renderComponent(component, state, {}, registryMap));
-  const wrap = document.createElement('div');
-  wrap.appendChild(frag);
-  return wrap;
+</body>
+</html>
+`;
 }
 
 function renderComponent(component, state, scope, registryMap) {
   validateComponent(component, registryMap);
   const props = component.props || {};
-  if (component.component === 'Text') {
-    const el = document.createElement('section');
-    el.className = 'a2ui-component a2ui-text';
-    el.textContent = String(readValue(props.text, state, scope) ?? '');
-    return el;
+  if (component.component === "Text") {
+    return `<section class="a2ui-component a2ui-text" data-component-id="${escapeHtml(component.id)}">${escapeHtml(readValue(props.text, state, scope) ?? "")}</section>`;
   }
-  if (component.component === 'List') {
-    const el = document.createElement('section');
-    el.className = 'a2ui-component a2ui-list';
-    const ul = document.createElement('ul');
+  if (component.component === "List") {
     const rows = readValue(props.rows, state, scope);
-    for (const row of Array.isArray(rows) ? rows : []) {
-      const li = document.createElement('li');
-      li.textContent = String(row);
-      ul.appendChild(li);
-    }
-    el.appendChild(ul);
-    return el;
+    const items = (Array.isArray(rows) ? rows : []).map((row) => `<li>${escapeHtml(row)}</li>`).join("");
+    return `<section class="a2ui-component a2ui-list" data-component-id="${escapeHtml(component.id)}"><ul>${items}</ul></section>`;
   }
-  if (component.component === 'Svg') {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'atlas-svg');
-    svg.setAttribute('viewBox', String(readValue(props.viewBox, state, scope) || '0 0 100 100'));
-    svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', String(readValue(props.ariaLabel, state, scope) || ''));
-    for (const child of component.children || []) appendSvgChild(svg, child, state, scope, registryMap);
-    return svg;
+  if (component.component === "Svg") {
+    const children = (component.children || []).map((child) => renderSvgChild(child, state, scope, registryMap)).join("");
+    return `<svg class="atlas-svg" viewBox="${escapeAttr(readValue(props.viewBox, state, scope) || "0 0 100 100")}" role="img" aria-label="${escapeAttr(readValue(props.ariaLabel, state, scope) || "")}">${children}</svg>`;
   }
-  throw new Error('unsupported top-level component ' + component.component);
+  throw new Error(`unsupported top-level component ${component.component}`);
 }
 
-function appendSvgChild(parent, component, state, scope, registryMap) {
+function renderSvgChild(component, state, scope, registryMap) {
   validateComponent(component, registryMap);
   const props = component.props || {};
-  if (component.component === 'ForEach') {
+  if (component.component === "ForEach") {
     const rows = readByPath(state, props.path);
-    for (const item of Array.isArray(rows) ? rows : []) {
-      const nextScope = { ...scope, [props.as || 'item']: item };
-      for (const child of component.children || []) appendSvgChild(parent, child, state, nextScope, registryMap);
-    }
-    return;
+    return (Array.isArray(rows) ? rows : []).map((item) => {
+      const nextScope = { ...scope, [props.as || "item"]: item };
+      return (component.children || []).map((child) => renderSvgChild(child, state, nextScope, registryMap)).join("");
+    }).join("");
   }
-  const tag = component.component === 'Rect' ? 'rect' : component.component === 'Line' ? 'line' : component.component === 'SvgText' ? 'text' : null;
-  if (!tag) throw new Error('unsupported svg component ' + component.component);
-  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  for (const [key, value] of Object.entries(props)) {
-    const v = readValue(value, state, scope);
-    if (component.component === 'SvgText' && key === 'text') el.textContent = String(v ?? '');
-    else if (v != null) el.setAttribute(key, String(v));
+  if (component.component === "Rect") return renderSvgElement("rect", props, state, scope);
+  if (component.component === "Line") return renderSvgElement("line", props, state, scope);
+  if (component.component === "SvgText") {
+    const { text, ...attrProps } = props;
+    return `<text${attrs(attrProps, state, scope)}>${escapeHtml(readValue(text, state, scope) ?? "")}</text>`;
   }
-  parent.appendChild(el);
+  throw new Error(`unsupported svg component ${component.component}`);
+}
+
+function renderSvgElement(tag, props, state, scope) {
+  return `<${tag}${attrs(props, state, scope)}></${tag}>`;
+}
+
+function attrs(props, state, scope) {
+  return Object.entries(props || {}).map(([key, value]) => {
+    const resolved = readValue(value, state, scope);
+    if (resolved == null) return "";
+    return ` ${key}="${escapeAttr(resolved)}"`;
+  }).join("");
 }
 
 function readValue(value, state, scope) {
-  if (value && typeof value === 'object' && typeof value.path === 'string' && !value.var) return readByPath(state, value.path);
-  if (value && typeof value === 'object' && typeof value.var === 'string') return readByPath(scope[value.var], value.path || '');
+  if (value && typeof value === "object" && typeof value.path === "string" && !value.var) return readByPath(state, value.path);
+  if (value && typeof value === "object" && typeof value.var === "string") return readByPath(scope[value.var], value.path || "");
   return value;
 }
-function readByPath(root, path) { if (!path || path === '/') return root; return String(path).split('/').filter(Boolean).reduce((acc, key) => acc == null ? undefined : acc[key], root); }
-function setPath(root, path, value) { const out = structuredClone(root); const parts = String(path).split('/').filter(Boolean); let cur = out; for (const key of parts.slice(0, -1)) cur = cur[key] ??= {}; cur[parts.at(-1)] = structuredClone(value); return out; }
-</script>
-</body>
-</html>
-`;
+
+function readByPath(root, pointer) {
+  if (!pointer || pointer === "/") return root;
+  return String(pointer).split("/").filter(Boolean).reduce((acc, key) => acc == null ? undefined : acc[key], root);
 }
 
 function manifest(dir) {
@@ -300,11 +222,15 @@ function readText(file) { return fs.readFileSync(file, "utf8"); }
 function readJson(file) { return JSON.parse(readText(file)); }
 function write(file, text) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text, "utf8"); }
 function escapeHtml(value) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"); }
+function escapeAttr(value) { return escapeHtml(value).replaceAll("'", "&#39;"); }
 
 function parseArgs(argv) {
-  const index = argv.indexOf("--out");
-  if (index >= 0) return { outDir: argv[index + 1] };
-  return { outDir: argv[0] || "contract-model-atlas-artifact" };
+  const outIndex = argv.indexOf("--out");
+  const fixtureIndex = argv.indexOf("--fixture-root");
+  return {
+    outDir: outIndex >= 0 ? argv[outIndex + 1] : (argv[0] || "contract-model-atlas-artifact"),
+    fixtureRoot: fixtureIndex >= 0 ? argv[fixtureIndex + 1] : defaultFixtureRoot,
+  };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
