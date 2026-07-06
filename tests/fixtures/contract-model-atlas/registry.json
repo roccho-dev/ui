@@ -1,0 +1,14 @@
+{
+  "kind": "ui.component.registry.v1",
+  "version": "v1",
+  "title": "Contract Model Atlas external JSONL registry",
+  "components": [
+    {"kind":"ui.component.entry.v1","id":"Text","version":"v1","family":"primitive","stability":"stable","description":"text bound from state","acceptsInputKinds":["ui.node.v1"],"producesOutputKinds":["html.element"],"props":["text"],"state":[],"events":[],"actions":[],"childrenPolicy":"none","adapterAssets":{},"allowedSurfaceIds":null},
+    {"kind":"ui.component.entry.v1","id":"List","version":"v1","family":"layout","stability":"stable","description":"list bound from state","acceptsInputKinds":["ui.node.v1"],"producesOutputKinds":["html.element"],"props":["rows"],"state":[],"events":[],"actions":[],"childrenPolicy":"none","adapterAssets":{},"allowedSurfaceIds":null},
+    {"kind":"ui.component.entry.v1","id":"Svg","version":"v1","family":"primitive","stability":"stable","description":"svg root","acceptsInputKinds":["ui.node.v1"],"producesOutputKinds":["svg.element"],"props":["viewBox","ariaLabel"],"state":[],"events":[],"actions":[],"childrenPolicy":"recursive","adapterAssets":{},"allowedSurfaceIds":null},
+    {"kind":"ui.component.entry.v1","id":"ForEach","version":"v1","family":"layout","stability":"stable","description":"generic repeater over state array","acceptsInputKinds":["ui.node.v1"],"producesOutputKinds":["html.element","svg.element"],"props":["path","as"],"state":[],"events":[],"actions":[],"childrenPolicy":"templated","adapterAssets":{},"allowedSurfaceIds":null},
+    {"kind":"ui.component.entry.v1","id":"Rect","version":"v1","family":"primitive","stability":"stable","description":"svg rect","acceptsInputKinds":["ui.node.v1"],"producesOutputKinds":["svg.element"],"props":["x","y","width","height","class"],"state":[],"events":[],"actions":[],"childrenPolicy":"none","adapterAssets":{},"allowedSurfaceIds":null},
+    {"kind":"ui.component.entry.v1","id":"Line","version":"v1","family":"primitive","stability":"stable","description":"svg line","acceptsInputKinds":["ui.node.v1"],"producesOutputKinds":["svg.element"],"props":["x1","y1","x2","y2","class"],"state":[],"events":[],"actions":[],"childrenPolicy":"none","adapterAssets":{},"allowedSurfaceIds":null},
+    {"kind":"ui.component.entry.v1","id":"SvgText","version":"v1","family":"primitive","stability":"stable","description":"svg text","acceptsInputKinds":["ui.node.v1"],"producesOutputKinds":["svg.element"],"props":["x","y","text","class"],"state":[],"events":[],"actions":[],"childrenPolicy":"none","adapterAssets":{},"allowedSurfaceIds":null}
+  ]
+}

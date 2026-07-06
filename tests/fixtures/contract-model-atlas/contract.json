@@ -1,0 +1,20 @@
+{
+  "kind": "ui.contractModelAtlas.fixtureContract.v1",
+  "issueRef": "roccho-dev/ui#108",
+  "surfaceId": "contract-model-atlas.fixed.v1",
+  "catalogId": "ui.contract-model-atlas.catalog.v1",
+  "protocolVersion": "v0.9",
+  "requiredBindingPaths": [
+    "/atlas/diagnostics",
+    "/atlas/edgeList",
+    "/atlas/summary/statusText",
+    "/atlas/summary/title",
+    "/atlas/treeText"
+  ],
+  "allowedUpdatePaths": ["/atlas"],
+  "registryPath": "tests/fixtures/contract-model-atlas/registry.json",
+  "shellPath": "tests/fixtures/contract-model-atlas/shell.v0.9.jsonl",
+  "dataPath": "tests/fixtures/contract-model-atlas/data.contract-model-atlas.v1.jsonl",
+  "adapterOwnsState": false,
+  "generatedArtifactsAreAuthority": false
+}
