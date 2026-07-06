@@ -36,10 +36,9 @@ assert.equal(receipt.surfaceId, built.contract.surfaceId);
 assert.equal(receipt.adapterOwnsState, false);
 assert.equal(receipt.generatedArtifactsAreAuthority, false);
 assert.equal(receipt.authority, false);
-assert.ok(receipt.shellDigest.startsWith("sha256:"));
-assert.ok(receipt.dataDigest.startsWith("sha256:"));
-assert.ok(receipt.htmlDigest.startsWith("sha256:"));
-assert.ok(receipt.viewDigest.startsWith("sha256:"));
+for (const field of ["shellDigest", "dataDigest", "htmlDigest", "viewDigest", "receiptDigest"]) {
+  assert.match(receipt[field], /^[a-f0-9]{64}$/);
+}
 assert.ok(receipt.files.includes("preview/index.html"));
 assert.ok(receipt.files.includes("source/data.contract-model-atlas.v1.jsonl"));
 assert.ok(receipt.files.includes("proof/compiled-shell.json"));
