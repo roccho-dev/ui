@@ -91,6 +91,17 @@ export {
 } from "./purpose-visualization-adapter.mjs";
 
 export {
+  CONTRACT_MODEL_ATLAS_RECEIPT_KIND,
+  CONTRACT_MODEL_ATLAS_VIEW_KIND,
+  assertContractModelAtlasView,
+  assertNoAuthorityOrHtml,
+  contractModelAtlasDigest,
+  makeContractModelAtlasDataRow,
+  makeContractModelAtlasReceipt,
+  normalizeContractModelAtlasView,
+} from "./contract-model-atlas-view.mjs";
+
+export {
   DOCUMENT_MODEL_KIND,
   MARKDOWN_DOCUMENT_RENDERER_VERSION,
   TEMPLATE_BLOCK_KIND,
