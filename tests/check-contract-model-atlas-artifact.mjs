@@ -26,12 +26,11 @@ const html = fs.readFileSync(htmlPath, "utf8");
 const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
 const atlas = readAtlas(dataPath);
 
-assert.includes = (text, value, message) => assert.ok(text.includes(value), message || `expected HTML to include ${value}`);
-assert.includes(html, atlas.summary.title, "rendered HTML must include title from data JSONL");
-assert.includes(html, atlas.summary.statusText, "rendered HTML must include status text from data JSONL");
-for (const row of [...atlas.containers, ...atlas.elements]) assert.includes(html, escapeHtml(row.label), `rendered HTML must include label from fixture: ${row.id}`);
-for (const row of atlas.edgeList) assert.includes(html, escapeHtml(row), "rendered HTML must include edge list rows from fixture");
-for (const row of atlas.diagnostics) assert.includes(html, escapeHtml(row), "rendered HTML must include diagnostics from fixture");
+assertIncludes(html, atlas.summary.title, "rendered HTML must include title from data JSONL");
+assertIncludes(html, atlas.summary.statusText, "rendered HTML must include status text from data JSONL");
+for (const row of [...atlas.containers, ...atlas.elements]) assertIncludes(html, escapeHtml(row.label), `rendered HTML must include label from fixture: ${row.id}`);
+for (const row of atlas.edgeList) assertIncludes(html, escapeHtml(row), "rendered HTML must include edge list rows from fixture");
+for (const row of atlas.diagnostics) assertIncludes(html, escapeHtml(row), "rendered HTML must include diagnostics from fixture");
 
 assert.match(html, /data-render-source="jsonl-fixture"/);
 assert.match(html, /generatedArtifactsAreAuthority" content="false/);
@@ -66,8 +65,8 @@ const mutatedOut = fs.mkdtempSync(path.join(os.tmpdir(), "contract-model-atlas-a
 const mutatedBuilt = buildContractModelAtlasArtifact({ outDir: mutatedOut, fixtureRoot: mutatedRoot });
 const mutatedHtml = fs.readFileSync(path.join(mutatedOut, "preview", "index.html"), "utf8");
 const mutatedReceipt = JSON.parse(fs.readFileSync(path.join(mutatedOut, "proof", "contract-model-atlas-receipt.json"), "utf8"));
-assert.includes(mutatedHtml, escapeHtml(mutatedAtlas.summary.title), "mutated fixture title must appear in rendered HTML");
-assert.includes(mutatedHtml, escapeHtml(mutatedAtlas.elements[0].label), "mutated fixture label must appear in rendered HTML");
+assertIncludes(mutatedHtml, escapeHtml(mutatedAtlas.summary.title), "mutated fixture title must appear in rendered HTML");
+assertIncludes(mutatedHtml, escapeHtml(mutatedAtlas.elements[0].label), "mutated fixture label must appear in rendered HTML");
 assert.notEqual(mutatedHtml, html, "fixture data change must change rendered HTML");
 assert.equal(mutatedReceipt.shellDigest, receipt.shellDigest, "data-only fixture change must not change shell digest");
 assert.notEqual(mutatedReceipt.htmlDigest, receipt.htmlDigest, "data-only fixture change must change HTML digest");
@@ -100,6 +99,10 @@ function copyDir(from, to) {
     if (entry.isDirectory()) copyDir(src, dst);
     else fs.copyFileSync(src, dst);
   }
+}
+
+function assertIncludes(text, value, message) {
+  assert.ok(text.includes(value), message || `expected text to include ${value}`);
 }
 
 function escapeHtml(value) {
