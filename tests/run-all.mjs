@@ -11,6 +11,7 @@ import "./check-contract-model-atlas-artifact.mjs";
 import "./check-repo-map-svgpanzoom-core.mjs";
 import "./check-repo-map-svgpanzoom-external-input.mjs";
 import "./check-repo-map-stable-read-model-boundary.mjs";
+import "./check-repo-map-targetref.mjs";
 import "./check-a2ui-adapter-artifacts.mjs";
 import "./check-geomap-fileproof-artifact.mjs";
 import "./check-geomap-zip-parity-artifact.mjs";
