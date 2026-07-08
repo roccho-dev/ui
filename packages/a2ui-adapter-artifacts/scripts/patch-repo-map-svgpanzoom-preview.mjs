@@ -12,6 +12,8 @@ html = html.replace(
   "    // Keep the world viewBox stable; svg-pan-zoom owns camera transform.\n"
 );
 html = html.replace("    resetCameraToView();\n", "");
+html = html.replace("/^pkg:r(\\\\d+)-p(\\\\d+)/", "/^pkg:r(\\d+)-p(\\d+)/");
+html = html.replace("/^model:r\\\\d+-p\\\\d+-m/", "/^model:r\\d+-p\\d+-m/");
 
 if (html === before) throw new Error('repo map preview patch found no expected camera/viewBox block');
 fs.writeFileSync(htmlPath, html, 'utf8');
