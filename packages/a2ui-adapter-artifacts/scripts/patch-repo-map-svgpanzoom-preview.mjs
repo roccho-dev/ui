@@ -9,7 +9,7 @@ let html = fs.readFileSync(htmlPath, 'utf8');
 const before = html;
 html = html.replace(
   "    const box = viewBoxFor(view, graph.policy.world);\n    svg.setAttribute('viewBox', box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h);\n",
-  "    // Keep the world viewBox stable; svg-pan-zoom owns camera transform.\n"
+  "    const box = viewBoxFor(view, graph.policy.world);\n    svg.setAttribute('viewBox', box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h);\n    viewport.removeAttribute('transform');\n"
 );
 html = html.replace("    resetCameraToView();\n", "");
 html = html.replace("/^pkg:r(\\\\d+)-p(\\\\d+)/", "/^pkg:r(\\d+)-p(\\d+)/");
