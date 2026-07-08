@@ -13,15 +13,16 @@ html = html.replace(
 );
 html = html.replace(
   "    const box = viewBoxFor(view, graph.policy.world);\n    svg.setAttribute('viewBox', box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h);\n",
-  "    const box = viewBoxFor(view, graph.policy.world);\n    semanticLayer.setAttribute('transform', focusTransform(box, graph.policy.world));\n"
+  "    const box = viewBoxFor(view, graph.policy.world);\n    const focusScale = focusScaleFor(box, graph.policy.world);\n    semanticLayer.setAttribute('transform', focusTransform(box, graph.policy.world));\n"
 );
 html = html.replace("    resetCameraToView();\n", "");
+html = html.replace("labelFontWorld(node, view.policy, view.camera.z, 1)", "labelFontWorld(node, view.policy, view.camera.z, focusScale)");
 html = html.replace("/^pkg:r(\\\\d+)-p(\\\\d+)/", "/^pkg:r(\\d+)-p(\\d+)/");
 html = html.replace("/^model:r\\\\d+-p\\\\d+-m/", "/^model:r\\d+-p\\d+-m/");
 html = html.replace("return n.id.replace(/^pkg:r(\\d+)-p(\\d+)/, 'p$1-$2');", "return n.id.replace(/^pkg:r(\\d+)-p(\\d+)/, 'p$2');");
 html = html.replace(
   "function labelText(n) {",
-  "function focusTransform(box, world) { const s = Math.min(world.w / box.w, world.h / box.h); const tx = world.x + (world.w - box.w * s) / 2 - box.x * s; const ty = world.y + (world.h - box.h * s) / 2 - box.y * s; return 'translate(' + tx + ' ' + ty + ') scale(' + s + ')'; }\nfunction labelText(n) {"
+  "function focusScaleFor(box, world) { return Math.min(world.w / box.w, world.h / box.h); }\nfunction focusTransform(box, world) { const s = focusScaleFor(box, world); const tx = world.x + (world.w - box.w * s) / 2 - box.x * s; const ty = world.y + (world.h - box.h * s) / 2 - box.y * s; return 'translate(' + tx + ' ' + ty + ') scale(' + s + ')'; }\nfunction labelText(n) {"
 );
 
 if (html === before) throw new Error('repo map preview patch found no expected camera/viewBox block');
