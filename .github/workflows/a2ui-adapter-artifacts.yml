@@ -22,6 +22,11 @@ jobs:
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
       - run: node scripts/build-contract-model-atlas-artifact.mjs --out adapter-result/contract-model-atlas-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs
+        env:
+          REPO_MAP_SVGPANZOOM_ARTIFACT_OUT: adapter-result/repo-map-svgpanzoom-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/patch-repo-map-svgpanzoom-preview.mjs adapter-result/repo-map-svgpanzoom-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/smoke-repo-map-svgpanzoom.mjs adapter-result/repo-map-svgpanzoom-artifact
       - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
         env:
           GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-artifact
@@ -52,6 +57,11 @@ jobs:
         with:
           name: contract-model-atlas-artifact
           path: adapter-result/contract-model-atlas-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repo-map-svgpanzoom-artifact
+          path: adapter-result/repo-map-svgpanzoom-artifact
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -29,6 +29,25 @@ Generated preview HTML, dist assets, evidence receipts, gov-package-output packe
 
 The `.#gov-package-output` package uses the governance producer input to expose UI package evidence for upstream join. It is not a final active admission claim, branch-protection cutover, or ADRS meaning source.
 
+## Repo map containment invariant
+
+Repo map projections use this containment invariant:
+
+```text
+repo = packages[]
+package = models[]
+```
+
+The renderer must preserve that invariant visually:
+
+```text
+repo rect
+  package rect[]
+    model rect[]
+```
+
+For the svg-pan-zoom spike, `svg-pan-zoom` is allowed only as a camera adapter for pan / zoom / fit. It must not own repo/package/model semantics, containment, dependency relations, LOD policy, font policy, projection, state authority, or generated artifact authority.
+
 ## GeoMap canonical UI contract
 
 GeoMap UI changes are accepted only when the CI artifact builds the single canonical property-map UI.
