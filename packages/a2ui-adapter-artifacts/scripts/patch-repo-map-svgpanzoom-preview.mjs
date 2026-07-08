@@ -8,13 +8,21 @@ let html = fs.readFileSync(htmlPath, 'utf8');
 
 const before = html;
 html = html.replace(
+  "  const edgeLayer = svgEl('g');\n  const nodeLayer = svgEl('g');\n  viewport.append(edgeLayer, nodeLayer); svg.append(viewport); stage.replaceChildren(svg);\n",
+  "  const semanticLayer = svgEl('g');\n  const edgeLayer = svgEl('g');\n  const nodeLayer = svgEl('g');\n  semanticLayer.append(edgeLayer, nodeLayer); viewport.append(semanticLayer); svg.append(viewport); stage.replaceChildren(svg);\n"
+);
+html = html.replace(
   "    const box = viewBoxFor(view, graph.policy.world);\n    svg.setAttribute('viewBox', box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h);\n",
-  "    const box = viewBoxFor(view, graph.policy.world);\n    svg.setAttribute('viewBox', box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h);\n    viewport.removeAttribute('transform');\n"
+  "    const box = viewBoxFor(view, graph.policy.world);\n    semanticLayer.setAttribute('transform', focusTransform(box, graph.policy.world));\n"
 );
 html = html.replace("    resetCameraToView();\n", "");
 html = html.replace("/^pkg:r(\\\\d+)-p(\\\\d+)/", "/^pkg:r(\\d+)-p(\\d+)/");
 html = html.replace("/^model:r\\\\d+-p\\\\d+-m/", "/^model:r\\d+-p\\d+-m/");
 html = html.replace("return n.id.replace(/^pkg:r(\\d+)-p(\\d+)/, 'p$1-$2');", "return n.id.replace(/^pkg:r(\\d+)-p(\\d+)/, 'p$2');");
+html = html.replace(
+  "function labelText(n) {",
+  "function focusTransform(box, world) { const s = Math.min(world.w / box.w, world.h / box.h); const tx = world.x + (world.w - box.w * s) / 2 - box.x * s; const ty = world.y + (world.h - box.h * s) / 2 - box.y * s; return 'translate(' + tx + ' ' + ty + ') scale(' + s + ')'; }\nfunction labelText(n) {"
+);
 
 if (html === before) throw new Error('repo map preview patch found no expected camera/viewBox block');
 fs.writeFileSync(htmlPath, html, 'utf8');
