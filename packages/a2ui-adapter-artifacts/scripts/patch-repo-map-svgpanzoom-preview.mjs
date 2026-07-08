@@ -14,6 +14,7 @@ html = html.replace(
 html = html.replace("    resetCameraToView();\n", "");
 html = html.replace("/^pkg:r(\\\\d+)-p(\\\\d+)/", "/^pkg:r(\\d+)-p(\\d+)/");
 html = html.replace("/^model:r\\\\d+-p\\\\d+-m/", "/^model:r\\d+-p\\d+-m/");
+html = html.replace("return n.id.replace(/^pkg:r(\\d+)-p(\\d+)/, 'p$1-$2');", "return n.id.replace(/^pkg:r(\\d+)-p(\\d+)/, 'p$2');");
 
 if (html === before) throw new Error('repo map preview patch found no expected camera/viewBox block');
 fs.writeFileSync(htmlPath, html, 'utf8');
