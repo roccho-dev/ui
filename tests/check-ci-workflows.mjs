@@ -28,13 +28,15 @@ const adapterArtifact = byRole("adapter_artifact_exporter");
 assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml");
 assert.match(adapterArtifact.entrypoint, /build\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-contract-model-atlas-artifact\.mjs/);
+assert.match(adapterArtifact.entrypoint, /build-repo-map-svgpanzoom\.mjs/);
+assert.match(adapterArtifact.entrypoint, /smoke-repo-map-svgpanzoom\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-proof\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-zip-parity\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
 assert.equal(adapterArtifact.source, "node-output");
-assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "contract-model-atlas-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "contract-model-atlas-artifact", "repo-map-svgpanzoom-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
 
 const packageValidation = byRole("package_validation");
 assert.equal(packageValidation.path, ".github/workflows/gov-package-validation.yml");
@@ -94,6 +96,8 @@ assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
 assert.match(adapterText, /fonts-noto-cjk/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/);
 assert.match(adapterText, /node scripts\/build-contract-model-atlas-artifact\.mjs/);
+assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-repo-map-svgpanzoom\.mjs/);
+assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/smoke-repo-map-svgpanzoom\.mjs/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-proof\.mjs/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-zip-parity\.mjs/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-runtime-hardening\.mjs/);
@@ -101,6 +105,7 @@ assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/check
 assert.match(adapterText, /GEOMAP_ZIP_PARITY_RENDER/);
 assert.match(adapterText, /GEOMAP_ZIP_PARITY_INTERACTION/);
 assert.match(adapterText, /GEOMAP_RUNTIME_ARTIFACT_OUT/);
+assert.match(adapterText, /REPO_MAP_SVGPANZOOM_ARTIFACT_OUT/);
 assert.match(adapterText, /actions\/upload-artifact@v4/);
 for (const name of adapterArtifact.artifacts) assert.match(adapterText, new RegExp(`name:\\s*${name}`));
 
