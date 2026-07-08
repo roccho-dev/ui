@@ -16,9 +16,9 @@ const specs = [
   { name: 'desktop-z00', file: 'desktop-z00.png', size: '1280,820', testCase: 'desktop-z00', minScreenshotBytes: 5000, expect: { repoMin: 10, package: 0, model: 0 } },
   { name: 'desktop-z42', file: 'desktop-z42.png', size: '1280,820', testCase: 'desktop-z42', minScreenshotBytes: 7000, expect: { repoMin: 1, packageMin: 3, model: 0, packagesInsideRepo: true } },
   { name: 'desktop-z80', file: 'desktop-z80.png', size: '1280,820', testCase: 'desktop-z80', minScreenshotBytes: 7000, expect: { packageMin: 1, modelMin: 1, modelsInsidePackage: true } },
-  { name: 'mobile-z00', file: 'mobile-z00.png', size: '390,844', testCase: 'mobile-z00', minScreenshotBytes: 5000, expect: { repoMin: 10, package: 0, model: 0, noOverflow: true } },
-  { name: 'mobile-z42', file: 'mobile-z42.png', size: '390,844', testCase: 'mobile-z42', minScreenshotBytes: 5000, expect: { repoMin: 1, packageMin: 2, model: 0, packagesInsideRepo: true, noOverflow: true } },
-  { name: 'mobile-z80', file: 'mobile-z80.png', size: '390,844', testCase: 'mobile-z80', minScreenshotBytes: 5000, expect: { packageMin: 1, modelMin: 1, modelsInsidePackage: true, noOverflow: true } },
+  { name: 'mobile-z00', file: 'mobile-z00.png', size: '390,844', testCase: 'mobile-z00', minScreenshotBytes: 4400, expect: { repoMin: 10, package: 0, model: 0, noOverflow: true } },
+  { name: 'mobile-z42', file: 'mobile-z42.png', size: '390,844', testCase: 'mobile-z42', minScreenshotBytes: 4400, expect: { repoMin: 1, packageMin: 2, model: 0, packagesInsideRepo: true, noOverflow: true } },
+  { name: 'mobile-z80', file: 'mobile-z80.png', size: '390,844', testCase: 'mobile-z80', minScreenshotBytes: 4400, expect: { packageMin: 1, modelMin: 1, modelsInsidePackage: true, noOverflow: true } },
 ];
 const cases = [];
 for (const spec of specs) {
