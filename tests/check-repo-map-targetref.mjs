@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const out = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-map-targetref-'));
+const runtime = path.join(root, 'packages/a2ui-adapter-artifacts/repo-map-svgpanzoom/test/svg-pan-zoom-runtime.stub.js');
+const env = { ...process.env, REPO_MAP_SVGPANZOOM_RUNTIME: runtime };
+execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs', '--out', out], { cwd: root, env, stdio: 'pipe' });
+execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/patch-repo-map-svgpanzoom-preview.mjs', out], { cwd: root, env, stdio: 'pipe' });
+const html = fs.readFileSync(path.join(out, 'preview/index.html'), 'utf8');
+assert.match(html, /ui\.targetRef\.v1/);
+assert.match(html, /data-target-ref/);
+assert.match(html, /data-target-kind': 'projectionNode'/);
+assert.match(html, /data-target-kind': 'relation'/);
+assert.doesNotMatch(html, /approval|merge|fire|accepted ledger/i);
+console.log(JSON.stringify({ status: 'repo-map-targetref-check-pass' }, null, 2));
