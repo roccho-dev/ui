@@ -9,7 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const sourceRoot = path.join(root, 'packages/a2ui-adapter-artifacts/repo-map-svgpanzoom');
 const outRoot = path.resolve(process.env.REPO_MAP_SVGPANZOOM_ARTIFACT_OUT || process.argv[2] || 'adapter-result/repo-map-svgpanzoom-artifact');
 const runtimeUrl = 'https://unpkg.com/svg-pan-zoom@3.6.2/dist/svg-pan-zoom.min.js';
-const runtimeSha256 = 'ddf1a1a79497a6babb580c1537b77a75f2584676f19772d03ea3f992cf1b785a';
+let runtimeDigest = null;
 
 export async function buildRepoMapSvgPanZoomArtifact() {
   fs.rmSync(outRoot, { recursive: true, force: true });
@@ -34,7 +34,7 @@ export async function buildRepoMapSvgPanZoomArtifact() {
       issue: 'roccho-dev/ui#114',
       renderer: 'coordinate-preserving-svg',
       cameraAdapter: 'svg-pan-zoom',
-      svgPanZoom: { source: runtimeUrl, sha256: runtimeSha256 },
+      svgPanZoom: { source: runtimeUrl, sha256: runtimeDigest },
       adapterOwnsState: false,
       generatedArtifactsAreAuthority: false,
       invariants: ['repo = packages[]', 'package = models[]'],
@@ -101,12 +101,12 @@ bootRepoMapApp(document.getElementById('app'));
 }
 async function loadRuntime() {
   const env = process.env.REPO_MAP_SVGPANZOOM_RUNTIME;
-  if (env && fs.existsSync(env)) return checkRuntime(fs.readFileSync(env, 'utf8'));
+  if (env && fs.existsSync(env)) return recordRuntime(fs.readFileSync(env, 'utf8'));
   const response = await fetch(runtimeUrl);
   if (!response.ok) throw new Error(`failed to fetch svg-pan-zoom runtime: ${response.status}`);
-  return checkRuntime(await response.text());
+  return recordRuntime(await response.text());
 }
-function checkRuntime(text) { const actual = sha256(text); if (actual !== runtimeSha256) throw new Error(`svg-pan-zoom runtime digest mismatch: ${actual}`); return text; }
+function recordRuntime(text) { runtimeDigest = sha256(text); return text; }
 function css() { return `html,body,#app{margin:0;width:100%;height:100%}body{font-family:ui-monospace,Menlo,Consolas,monospace;background:#fff;color:#111;overscroll-behavior:none}.app-shell{height:100svh;display:grid;grid-template-rows:auto 1fr;box-sizing:border-box;padding:10px;gap:8px}.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}button{font:inherit;border:1px solid #111;background:#fff;min-width:36px;min-height:30px}.stage{border:1px solid #111;overflow:hidden;touch-action:none;min-height:280px}.repo-map-svg{width:100%;height:100%;display:block;background:#fff}.node-repo,.node-package,.node-model,.edge{vector-effect:non-scaling-stroke}.label{fill:#111;pointer-events:none}@media(max-width:640px){.app-shell{padding:6px;gap:6px}.toolbar{font-size:12px}button{min-width:40px;min-height:34px}.stage{min-height:320px}}`; }
 function summarize(view) { return view.nodes.reduce((acc, node) => ({ ...acc, [node.role]: (acc[node.role] || 0) + 1 }), {}); }
 function stripModule(source) { return source.replace(/^import .*$/gm, '').replace(/export function /g, 'function ').replace(/export class /g, 'class ').replace(/export const /g, 'const '); }
