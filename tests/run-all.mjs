@@ -8,6 +8,7 @@ import "./check-a2ui-shell-data-boundary.mjs";
 import "./check-generic-a2ui-shell-builder.mjs";
 import "./check-contract-model-atlas-view.mjs";
 import "./check-contract-model-atlas-artifact.mjs";
+import "./check-repo-map-svgpanzoom-core.mjs";
 import "./check-a2ui-adapter-artifacts.mjs";
 import "./check-geomap-fileproof-artifact.mjs";
 import "./check-geomap-zip-parity-artifact.mjs";
