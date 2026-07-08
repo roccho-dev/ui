@@ -25,6 +25,7 @@ jobs:
       - run: node packages/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs
         env:
           REPO_MAP_SVGPANZOOM_ARTIFACT_OUT: adapter-result/repo-map-svgpanzoom-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/patch-repo-map-svgpanzoom-preview.mjs adapter-result/repo-map-svgpanzoom-artifact
       - run: node packages/a2ui-adapter-artifacts/scripts/smoke-repo-map-svgpanzoom.mjs adapter-result/repo-map-svgpanzoom-artifact
       - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
         env:
