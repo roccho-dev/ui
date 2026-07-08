@@ -12,7 +12,7 @@ export function parseRepoMapHotReloadArgs(argv = [], env = process.env) {
     if (arg === '--host') parsedWatch.host = requireValue(argv, ++i, arg);
     else if (arg === '--port') parsedWatch.port = Number(requireValue(argv, ++i, arg));
     else if (arg === '--once') { parsedWatch.once = true; parsedWatch.watch = false; }
-    else { builderArgv.push(arg); if (['--out', '--input', '--input-jsonl', '--projection', '--input-projection', '--runtime', '--hot-reload-url'].includes(arg)) builderArgv.push(requireValue(argv, ++i, arg)); }
+    else { builderArgv.push(arg); if (['--out', '--input', '--input-jsonl', '--projection', '--input-projection', '--runtime'].includes(arg)) builderArgv.push(requireValue(argv, ++i, arg)); }
   }
   const builder = parseRepoMapBuildArgs(builderArgv, env);
   const parsed = { ...builder, ...parsedWatch };
@@ -22,7 +22,8 @@ export function parseRepoMapHotReloadArgs(argv = [], env = process.env) {
 
 export async function buildRepoMapHotReloadPreview(options = {}) {
   const outRoot = path.resolve(options.outRoot || 'adapter-result/repo-map-svgpanzoom-hot-reload');
-  const result = await buildRepoMapSvgPanZoomArtifact({ ...options, outRoot, hotReload: true, hotReloadUrl: '/__repo_map_events' });
+  const result = await buildRepoMapSvgPanZoomArtifact({ ...options, outRoot });
+  injectHotReloadClient(path.join(outRoot, 'preview/index.html'), '/__repo_map_events');
   const receipt = { kind: 'ui.repoMapHotReloadPreview.v1', status: 'PASS', issue: 'roccho-dev/ui#121', outRoot, html: 'preview/index.html', inputPath: options.inputPath || null, generatedArtifactsAreAuthority: false, localhostOnly: true, eventSource: '/__repo_map_events' };
   const proof = path.join(outRoot, 'proof/hot-reload-preview.json');
   fs.mkdirSync(path.dirname(proof), { recursive: true });
@@ -50,6 +51,13 @@ export async function serveRepoMapHotReloadPreview(options = {}) {
   return { server, close: () => { if (input) fs.unwatchFile(input); server.close(); }, outRoot: opts.outRoot };
 }
 
+function injectHotReloadClient(htmlPath, url) {
+  if (!fs.existsSync(htmlPath)) throw new Error(`repo map hot reload html missing: ${htmlPath}`);
+  const client = `<script id="repo-map-hot-reload-client">\n(() => {\n  const source = new EventSource(${JSON.stringify(url)});\n  source.addEventListener('repo-map-built', () => location.reload());\n  source.addEventListener('repo-map-error', (event) => { document.body.dataset.repoMapError = event.data || 'repo-map-error'; });\n})();\n</script>`;
+  let html = fs.readFileSync(htmlPath, 'utf8');
+  if (!html.includes('repo-map-hot-reload-client')) html = html.replace('</body>', `${client}</body>`);
+  fs.writeFileSync(htmlPath, html, 'utf8');
+}
 function sse(req, res, clients, receipt) {
   res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
   clients.add(res);
