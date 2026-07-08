@@ -13,12 +13,12 @@ const chrome = findChrome();
 if (!fs.existsSync(htmlPath)) throw new Error(`HTML artifact missing: ${htmlPath}`);
 fs.mkdirSync(screenshotsDir, { recursive: true }); fs.mkdirSync(proofDir, { recursive: true });
 const specs = [
-  { name: 'desktop-z00', file: 'desktop-z00.png', size: '1280,820', testCase: 'desktop-z00', expect: { repoMin: 10, package: 0, model: 0 } },
-  { name: 'desktop-z42', file: 'desktop-z42.png', size: '1280,820', testCase: 'desktop-z42', expect: { repoMin: 1, packageMin: 3, model: 0, packagesInsideRepo: true } },
-  { name: 'desktop-z80', file: 'desktop-z80.png', size: '1280,820', testCase: 'desktop-z80', expect: { packageMin: 1, modelMin: 1, modelsInsidePackage: true } },
-  { name: 'mobile-z00', file: 'mobile-z00.png', size: '390,844', testCase: 'mobile-z00', expect: { repoMin: 10, package: 0, model: 0, noOverflow: true } },
-  { name: 'mobile-z42', file: 'mobile-z42.png', size: '390,844', testCase: 'mobile-z42', expect: { repoMin: 1, packageMin: 2, model: 0, packagesInsideRepo: true, noOverflow: true } },
-  { name: 'mobile-z80', file: 'mobile-z80.png', size: '390,844', testCase: 'mobile-z80', expect: { packageMin: 1, modelMin: 1, modelsInsidePackage: true, noOverflow: true } },
+  { name: 'desktop-z00', file: 'desktop-z00.png', size: '1280,820', testCase: 'desktop-z00', minScreenshotBytes: 5000, expect: { repoMin: 10, package: 0, model: 0 } },
+  { name: 'desktop-z42', file: 'desktop-z42.png', size: '1280,820', testCase: 'desktop-z42', minScreenshotBytes: 7000, expect: { repoMin: 1, packageMin: 3, model: 0, packagesInsideRepo: true } },
+  { name: 'desktop-z80', file: 'desktop-z80.png', size: '1280,820', testCase: 'desktop-z80', minScreenshotBytes: 7000, expect: { packageMin: 1, modelMin: 1, modelsInsidePackage: true } },
+  { name: 'mobile-z00', file: 'mobile-z00.png', size: '390,844', testCase: 'mobile-z00', minScreenshotBytes: 5000, expect: { repoMin: 10, package: 0, model: 0, noOverflow: true } },
+  { name: 'mobile-z42', file: 'mobile-z42.png', size: '390,844', testCase: 'mobile-z42', minScreenshotBytes: 5000, expect: { repoMin: 1, packageMin: 2, model: 0, packagesInsideRepo: true, noOverflow: true } },
+  { name: 'mobile-z80', file: 'mobile-z80.png', size: '390,844', testCase: 'mobile-z80', minScreenshotBytes: 5000, expect: { packageMin: 1, modelMin: 1, modelsInsidePackage: true, noOverflow: true } },
 ];
 const cases = [];
 for (const spec of specs) {
@@ -30,7 +30,7 @@ for (const spec of specs) {
   const screenshotPath = path.join(screenshotsDir, spec.file);
   runChrome([...commonChromeArgs(spec.size), `--screenshot=${screenshotPath}`, url], `screenshot ${spec.name}`);
   const size = fs.statSync(screenshotPath).size;
-  if (size < 5000) evaluation.failures.push(`screenshot too small: ${size}`);
+  if (size < spec.minScreenshotBytes) evaluation.failures.push(`screenshot too small: ${size}`);
   evaluation.screenshot = path.relative(outRoot, screenshotPath).split(path.sep).join('/');
   evaluation.status = evaluation.failures.length ? 'FAIL' : 'PASS';
   cases.push(evaluation);
