@@ -27,6 +27,12 @@ Fixtures must be `stateless` and `non-authoritative`.
 
 Generated preview HTML, dist assets, evidence receipts, gov-package-output packets, and manifests are build evidence only and are not tracked as repository authority.
 
+## Editor to queue to UI boundary
+
+`ui = targetRef emitter + projection reader + preview`.
+
+In the editor-to-queue-to-ui flow, UI emits `ui.targetRef.v1` proposal metadata for local/dev tooling and reads external `repoMap.projection.v1` artifacts produced outside this repo. UI must not write queue rows, accepted ledger rows, admission receipts, or model authority. The detailed boundary is in `docs/editor-to-queue-to-ui-boundary.md`.
+
 The `.#gov-package-output` package uses the governance producer input to expose UI package evidence for upstream join. It is not a final active admission claim, branch-protection cutover, or ADRS meaning source.
 
 ## Repo map containment invariant
