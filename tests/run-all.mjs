@@ -9,6 +9,7 @@ import "./check-generic-a2ui-shell-builder.mjs";
 import "./check-contract-model-atlas-view.mjs";
 import "./check-contract-model-atlas-artifact.mjs";
 import "./check-editor-to-queue-to-ui-boundary.mjs";
+import "./check-ui-forbidden-authority-boundary.mjs";
 import "./check-repo-map-svgpanzoom-core.mjs";
 import "./check-repo-map-svgpanzoom-external-input.mjs";
 import "./check-repo-map-stable-read-model-boundary.mjs";
