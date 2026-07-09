@@ -87,6 +87,10 @@ A digest change proves the preview artifact changed when the external projection
 - Add approve, promote, dispatch, merge, or fire buttons.
 - Treat generated HTML, screenshots, manifests, or preview digests as source authority.
 
+## Static forbidden authority check
+
+`tests/check-ui-forbidden-authority-boundary.mjs` scans UI implementation roots for code paths that look like queue writers, accepted-ledger writers, admission owners, or browser approval actions. Boundary docs and tests may mention these terms to define forbidden behavior, but implementation packages must not own them.
+
 ## Acceptance for ui#127
 
 - README states the boundary in one sentence.
@@ -112,3 +116,9 @@ A digest change proves the preview artifact changed when the external projection
 - hot reload proof records source projection digest and generated preview digest.
 - before/after projection changes produce different preview digests.
 - localhost hot reload remains non-authority evidence.
+
+## Acceptance for ui#131
+
+- forbidden authority check scans implementation roots.
+- queue append, accepted ledger write, admission owner, and browser approval action patterns fail.
+- docs explain allowed evidence-only mentions.
