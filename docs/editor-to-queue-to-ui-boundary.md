@@ -54,6 +54,12 @@ UI may read an ops-produced repoMap projection artifact when it is passed as an 
 
 This is still read-only. The ops artifact is evidence for rendering, not UI-owned source authority. UI must not validate admission, rebuild the accepted ledger, or promote a model commit when reading this input.
 
+## localhost hot reload proof
+
+Localhost hot reload is local/dev evidence only. Its receipt may record the source projection digest and generated preview digest so a reviewer can compare before and after render output.
+
+A digest change proves the preview artifact changed when the external projection input changed. It does not make the preview artifact an accepted ledger, admission receipt, or model authority.
+
 ## Not owned by ui
 
 | Surface | Owning side | Why |
@@ -100,3 +106,9 @@ This is still read-only. The ops artifact is evidence for rendering, not UI-owne
 - an ops repoMap projection artifact fixture renders through the existing repo-map external projection path.
 - manifest evidence records path, provider, source copy, and digest.
 - generated preview remains non-authority evidence.
+
+## Acceptance for ui#130
+
+- hot reload proof records source projection digest and generated preview digest.
+- before/after projection changes produce different preview digests.
+- localhost hot reload remains non-authority evidence.
