@@ -21,7 +21,7 @@ assert.match(html, /data-proposal-display-only="true"/);
 assert.match(html, /proposal-ui-evidence-260709/);
 assert.match(html, /projectionNode:repo:ops-fixture/);
 assert.match(html, /repoMap\.addEdge\.v1/);
-assert.match(html, /pkg:core -&gt; pkg:ui uses/);
+assert.match(html, /pkg:core -> pkg:ui uses/);
 assert.match(html, /non-authority evidence/);
 assert.doesNotMatch(html, /<button/i);
 assert.doesNotMatch(html, /data-action|approveModelCommit|promoteProposal|admitModelCommit|writeAcceptedLedger|appendQueue/i);
