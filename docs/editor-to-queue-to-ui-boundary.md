@@ -48,6 +48,12 @@ A valid targetRef emitted by UI must be useful for local/dev tooling and must ca
 
 A targetRef may help an editor queue writer prepare a human-confirmed command. It must not approve, promote, dispatch, merge, admit, append queue rows, write accepted ledger rows, or generate receipts.
 
+## ops projection artifact input
+
+UI may read an ops-produced repoMap projection artifact when it is passed as an external projection input. UI records the input path, source copy, digest, and provider evidence in the generated manifest.
+
+This is still read-only. The ops artifact is evidence for rendering, not UI-owned source authority. UI must not validate admission, rebuild the accepted ledger, or promote a model commit when reading this input.
+
 ## Not owned by ui
 
 | Surface | Owning side | Why |
@@ -88,3 +94,9 @@ A targetRef may help an editor queue writer prepare a human-confirmed command. I
 - targetRef metadata is documented as proposal-only.
 - generated repo-map targetRef payloads include `authority:false` and `proposalOnly:true`.
 - static checks reject browser authority language around approval, dispatch, admission, and accepted ledger writes.
+
+## Acceptance for ui#129
+
+- an ops repoMap projection artifact fixture renders through the existing repo-map external projection path.
+- manifest evidence records path, provider, source copy, and digest.
+- generated preview remains non-authority evidence.

@@ -44,9 +44,25 @@ assert.equal(projectionManifest.inputContract.mode, 'external-projection-json');
 assert.equal(projectionManifest.inputContract.sourceCopy, 'source/repo-map-input.projection.json');
 assert.equal(fs.existsSync(path.join(projectionOut, 'preview/index.html')), true);
 
+const opsProjectionInput = path.join(root, 'tests/fixtures/repo-map/ops-projection-artifact.valid.json');
+const opsProjectionOut = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-map-ops-projection-'));
+execFileSync(process.execPath, [script, '--out', opsProjectionOut, '--projection', opsProjectionInput], { cwd: root, env, stdio: 'pipe' });
+const opsProjectionManifest = readManifest(opsProjectionOut);
+const opsProjectionSource = JSON.parse(fs.readFileSync(path.join(opsProjectionOut, opsProjectionManifest.inputContract.sourceCopy), 'utf8'));
+assert.equal(opsProjectionManifest.inputContract.mode, 'external-projection-json');
+assert.equal(opsProjectionManifest.inputContract.provider, 'external-path');
+assert.equal(opsProjectionManifest.inputContract.path, opsProjectionInput);
+assert.equal(opsProjectionManifest.inputContract.sourceCopy, 'source/repo-map-input.projection.json');
+assert.ok(opsProjectionManifest.inputContract.sha256.startsWith('sha256:'));
+assert.equal(opsProjectionSource.kind, 'ops.repoMapProjectionArtifact.v1');
+assert.equal(opsProjectionSource.provider, 'roccho-dev/ops#43');
+assert.equal(opsProjectionSource.generatedArtifactsAreAuthority, false);
+assert.equal(fs.existsSync(path.join(opsProjectionOut, 'preview/index.html')), true);
+assert.equal(opsProjectionManifest.generatedArtifactsAreAuthority, false);
+
 const badInput = path.join(os.tmpdir(), `repo-map-bad-${process.pid}.jsonl`);
 fs.writeFileSync(badInput, '{"kind":\n');
 assert.throws(() => execFileSync(process.execPath, [script, '--out', fs.mkdtempSync(path.join(os.tmpdir(), 'repo-map-bad-')), '--input-jsonl', badInput], { cwd: root, env, stdio: 'pipe' }), /JSONL parse error|Command failed/);
 
-console.log(JSON.stringify({ status: 'repo-map-svgpanzoom-external-input-check-pass' }, null, 2));
+console.log(JSON.stringify({ status: 'repo-map-svgpanzoom-external-input-check-pass', opsProjectionArtifactInput: true }, null, 2));
 function readManifest(out) { return JSON.parse(fs.readFileSync(path.join(out, 'proof/manifest.json'), 'utf8')); }

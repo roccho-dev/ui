@@ -1,0 +1,33 @@
+{
+  "kind": "ops.repoMapProjectionArtifact.v1",
+  "id": "ops-repomap-projection-fixture-260709",
+  "provider": "roccho-dev/ops#43",
+  "sourceDigest": "sha256:ops-repomap-projection-fixture",
+  "generatedArtifactsAreAuthority": false,
+  "projection": {
+    "kind": "repoMap.projection.v1",
+    "camera": {
+      "z": 42,
+      "focusId": "repo:ops-fixture",
+      "selectedId": null
+    },
+    "policy": {
+      "world": { "x": 0, "y": 0, "w": 640, "h": 420 },
+      "camera": { "z": 0, "minZ": 0, "maxZ": 100, "svgPanZoomMaxZoom": 8 },
+      "font": { "basePx": 15, "minPx": 4, "maxPx": 16, "zoomGain": 0.12, "depthDecay": 0.7 },
+      "edge": { "maxVisibleRepo": 9, "maxVisiblePackage": 16, "maxVisibleModel": 24 }
+    },
+    "nodes": [
+      {
+        "kind": "repoMap.node.v1",
+        "id": "repo:ops-fixture",
+        "label": "ops projection fixture",
+        "role": "repo",
+        "depth": 0,
+        "rect": { "x": 20, "y": 20, "w": 400, "h": 240 },
+        "style": { "strokeWidth": 2, "fill": "none" }
+      }
+    ],
+    "edges": []
+  }
+}
