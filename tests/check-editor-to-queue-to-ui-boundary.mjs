@@ -15,12 +15,17 @@ assert.match(docs, /ui\.targetRef\.v1/);
 assert.match(docs, /repoMap\.projection\.v1/);
 assert.match(docs, /ops projection artifact\s*\n\s*-> ui repoMap preview/);
 assert.match(docs, /-> edits queue writer\s*\n\s*-> ops queue runtime/);
+assert.match(docs, /targetRef contract/);
+assert.match(docs, /authority`?\s*\|\s*`?false/);
+assert.match(docs, /proposalOnly`?\s*\|\s*`?true/);
+assert.match(docs, /metadata, not action authority/);
 
 for (const phrase of [
   'Append queue rows from browser code',
   'Write accepted ledger rows',
   'Perform admission or promotion',
   'Generate ops receipts as authority',
+  'Add approve, promote, dispatch, merge, or fire buttons',
   'Treat generated HTML, screenshots, manifests, or preview digests as source authority',
 ]) {
   assert.match(docs, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
@@ -32,4 +37,4 @@ assert.doesNotMatch(readme, /ui owns queue runtime/i);
 assert.doesNotMatch(readme, /ui owns admission/i);
 assert.doesNotMatch(readme, /ui owns accepted ledger/i);
 
-console.log(JSON.stringify({ status: 'editor-to-queue-to-ui-boundary-check-pass' }, null, 2));
+console.log(JSON.stringify({ status: 'editor-to-queue-to-ui-boundary-check-pass', targetRefProposalOnly: true }, null, 2));

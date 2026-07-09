@@ -31,6 +31,23 @@ ui selection
 | localhost preview | Local visual evidence and reload surface | false |
 | generated HTML / manifest / screenshots | Build evidence | false |
 
+## targetRef contract
+
+`ui.targetRef.v1` is metadata, not action authority.
+
+A valid targetRef emitted by UI must be useful for local/dev tooling and must carry this meaning:
+
+| Field | Required meaning |
+|---|---|
+| `kind` | `ui.targetRef.v1` |
+| `targetKind` | `projectionNode`, `relation`, or another read-model target type |
+| `targetId` | ID of the rendered read-model target |
+| `sourceType` / `sourceKind` / `sourceId` | Evidence of the read-model record that produced the target |
+| `authority` | `false` |
+| `proposalOnly` | `true` |
+
+A targetRef may help an editor queue writer prepare a human-confirmed command. It must not approve, promote, dispatch, merge, admit, append queue rows, write accepted ledger rows, or generate receipts.
+
 ## Not owned by ui
 
 | Surface | Owning side | Why |
@@ -65,3 +82,9 @@ ui selection
 - This document links targetRef emission to the edits queue writer and ops runtime.
 - Static check proves the boundary text is present.
 - Existing repo-map tests remain the implementation proof for external input, targetRef metadata, and localhost preview.
+
+## Acceptance for ui#128
+
+- targetRef metadata is documented as proposal-only.
+- generated repo-map targetRef payloads include `authority:false` and `proposalOnly:true`.
+- static checks reject browser authority language around approval, dispatch, admission, and accepted ledger writes.
