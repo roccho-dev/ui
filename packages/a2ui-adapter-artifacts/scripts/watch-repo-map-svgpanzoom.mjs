@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -23,8 +24,26 @@ export function parseRepoMapHotReloadArgs(argv = [], env = process.env) {
 export async function buildRepoMapHotReloadPreview(options = {}) {
   const outRoot = path.resolve(options.outRoot || 'adapter-result/repo-map-svgpanzoom-hot-reload');
   const result = await buildRepoMapSvgPanZoomArtifact({ ...options, outRoot });
-  injectHotReloadClient(path.join(outRoot, 'preview/index.html'), '/__repo_map_events');
-  const receipt = { kind: 'ui.repoMapHotReloadPreview.v1', status: 'PASS', issue: 'roccho-dev/ui#121', outRoot, html: 'preview/index.html', inputPath: options.inputPath || null, generatedArtifactsAreAuthority: false, localhostOnly: true, eventSource: '/__repo_map_events' };
+  const htmlPath = path.join(outRoot, 'preview/index.html');
+  injectHotReloadClient(htmlPath, '/__repo_map_events');
+  const manifest = readJson(path.join(outRoot, 'proof/manifest.json'));
+  const sourceProjectionDigest = manifest.inputContract?.sha256 || null;
+  const generatedPreviewDigest = sha256File(htmlPath);
+  const receipt = {
+    kind: 'ui.repoMapHotReloadPreview.v1',
+    status: 'PASS',
+    issue: ['roccho-dev/ui#121', 'roccho-dev/ui#130'],
+    outRoot,
+    html: 'preview/index.html',
+    inputPath: options.inputPath || null,
+    sourceProjectionDigest,
+    generatedPreviewDigest,
+    generatedArtifactDigest: generatedPreviewDigest,
+    digestAlgorithm: 'sha256',
+    generatedArtifactsAreAuthority: false,
+    localhostOnly: true,
+    eventSource: '/__repo_map_events'
+  };
   const proof = path.join(outRoot, 'proof/hot-reload-preview.json');
   fs.mkdirSync(path.dirname(proof), { recursive: true });
   fs.writeFileSync(proof, JSON.stringify(receipt, null, 2) + '\n');
@@ -53,7 +72,13 @@ export async function serveRepoMapHotReloadPreview(options = {}) {
 
 function injectHotReloadClient(htmlPath, url) {
   if (!fs.existsSync(htmlPath)) throw new Error(`repo map hot reload html missing: ${htmlPath}`);
-  const client = `<script id="repo-map-hot-reload-client">\n(() => {\n  const source = new EventSource(${JSON.stringify(url)});\n  source.addEventListener('repo-map-built', () => location.reload());\n  source.addEventListener('repo-map-error', (event) => { document.body.dataset.repoMapError = event.data || 'repo-map-error'; });\n})();\n</script>`;
+  const client = `<script id="repo-map-hot-reload-client">
+(() => {
+  const source = new EventSource(${JSON.stringify(url)});
+  source.addEventListener('repo-map-built', () => location.reload());
+  source.addEventListener('repo-map-error', (event) => { document.body.dataset.repoMapError = event.data || 'repo-map-error'; });
+})();
+</script>`;
   let html = fs.readFileSync(htmlPath, 'utf8');
   if (!html.includes('repo-map-hot-reload-client')) html = html.replace('</body>', `${client}</body>`);
   fs.writeFileSync(htmlPath, html, 'utf8');
@@ -68,6 +93,8 @@ function broadcast(clients, event, data) { for (const res of clients) res.write(
 function serveFile(file, res) { if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end('not found'); return; } res.writeHead(200, { 'content-type': contentType(file) }); fs.createReadStream(file).pipe(res); }
 function contentType(file) { if (file.endsWith('.html')) return 'text/html; charset=utf-8'; if (file.endsWith('.js')) return 'text/javascript; charset=utf-8'; if (file.endsWith('.json')) return 'application/json; charset=utf-8'; return 'text/plain; charset=utf-8'; }
 function requireValue(argv, index, name) { if (index >= argv.length || argv[index].startsWith('--')) throw new Error(`${name} requires a value`); return argv[index]; }
+function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+function sha256File(file) { return `sha256:${crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')}`; }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const opts = parseRepoMapHotReloadArgs(process.argv.slice(2));
