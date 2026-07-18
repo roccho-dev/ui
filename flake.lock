@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "governance": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784326418,
+        "narHash": "sha256-9zI0ek9wfA2m4JVWrlhBWVBZhmXRGuDKZRJyqC/0y4g=",
+        "owner": "roccho-dev",
+        "repo": "governance",
+        "rev": "987d430bc18cffa92e12e33bb37ba97779042472",
+        "type": "github"
+      },
+      "original": {
+        "owner": "roccho-dev",
+        "ref": "proposals",
+        "repo": "governance",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1781577229,
@@ -18,6 +35,7 @@
     },
     "root": {
       "inputs": {
+        "governance": "governance",
         "nixpkgs": "nixpkgs"
       }
     }
