@@ -45,7 +45,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Build gov package output
-        run: nix build --print-build-logs --no-write-lock-file .#gov-package-output --out-link result-gov-package-output
+        run: nix build --print-build-logs .#gov-package-output --out-link result-gov-package-output --no-write-lock-file
 
       - name: Upload gov package output
         uses: actions/upload-artifact@v4
