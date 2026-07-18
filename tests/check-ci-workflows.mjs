@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowsDir = path.join(root, ".github", "workflows");
 const intentRows = fs.readFileSync(path.join(root, "ci.intent.v1.jsonl"), "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
-assert.equal(intentRows.length, 6);
+assert.equal(intentRows.length, 7);
 
 const primary = byKind("ui.ciIntent.v1");
 assert.equal(primary.command, "nix flake check --print-build-logs && nix build --print-build-logs .#gov-package-output --out-link result-gov-package-output");
@@ -74,13 +74,23 @@ assert.equal(purposeViz.input_contract.injectedBy, "nix");
 assert.deepEqual(purposeViz.input_contract.inputs, ["closure-jsonl", "surface-jsonl"]);
 assert.deepEqual(purposeViz.artifacts, ["purpose-visualization-html", "purpose-visualization-screenshots", "purpose-visualization-evidence"]);
 
+const finalConsumer = byPath(".github/workflows/final-ci-consumer.yml");
+assert.equal(finalConsumer.role, "bootstrap_exception");
+assert.equal(finalConsumer.authority, false);
+assert.equal(finalConsumer.source, "accepted ADRS #233 decision plus checked-in repository claim and exact candidate SHA");
+assert.equal(finalConsumer.artifact_source, "validation receipt");
+assert.equal(finalConsumer.final_role, "evidence-only selected positive consumer input");
+assert.equal(finalConsumer.exception.owner, "governance#150");
+assert.equal(finalConsumer.exception.expiry, "2026-08-31");
+
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
-assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path].sort());
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path, finalConsumer.path].sort());
 
 const primaryText = read(primary.entrypoints[0]);
 assert.match(primaryText, /name:\s*Nix Flake Check/);
 assert.match(primaryText, /nix flake check --print-build-logs/);
 assert.match(primaryText, /nix build --print-build-logs \.#gov-package-output --out-link result-gov-package-output/);
+assert.match(primaryText, /--no-write-lock-file/);
 assert.match(primaryText, /actions\/upload-artifact@v4/);
 assert.match(primaryText, /name:\s*ui-gov-package-output/);
 assert.doesNotMatch(primaryText, /setup-node|npm test|node scripts\/build-generic-a2ui-preview/);
@@ -137,6 +147,15 @@ assert.match(purposeVizText, /node scripts\/smoke-purpose-visualization\.mjs pur
 assert.doesNotMatch(purposeVizText, /node scripts\/build-purpose-visualization-artifact\.mjs purpose-visualization-result/);
 assert.match(purposeVizText, /actions\/upload-artifact@v4/);
 for (const name of purposeViz.artifacts) assert.match(purposeVizText, new RegExp(`name:\\s*${name}`));
+
+const finalConsumerText = read(finalConsumer.path);
+assert.match(finalConsumerText, /name:\s*final CI consumer/);
+assert.match(finalConsumerText, /github\.event\.pull_request\.head\.sha \|\| github\.sha/);
+assert.match(finalConsumerText, /persist-credentials:\s*false/);
+assert.match(finalConsumerText, /check-final-ci-consumer\.py selftest/);
+assert.match(finalConsumerText, /check-final-ci-consumer\.py check/);
+assert.match(finalConsumerText, /name:\s*final-ci-consumer-receipt/);
+
 for (const forbiddenPath of primary.forbiddenEntryGlobs) assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
 console.log(JSON.stringify({ status: "ui-ci-workflows-check-pass", entrypoints: workflowFiles }, null, 2));
 
@@ -145,11 +164,19 @@ function byKind(kind) {
   assert.ok(row, `missing ci intent kind ${kind}`);
   return row;
 }
+
 function byRole(role) {
   const row = intentRows.find((item) => item.kind === "ci.intent.v1" && item.role === role);
   assert.ok(row, `missing ci intent role ${role}`);
   return row;
 }
+
+function byPath(workflowPath) {
+  const row = intentRows.find((item) => item.kind === "ci.intent.v1" && item.path === workflowPath);
+  assert.ok(row, `missing ci intent path ${workflowPath}`);
+  return row;
+}
+
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
