@@ -7,7 +7,16 @@ import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-zip-parity-'));
-execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ZIP_PARITY_ARTIFACT_OUT: out}});
+execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {
+  cwd: root,
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    GITHUB_ACTIONS: 'false',
+    UI_REPO_ROOT: root,
+    GEOMAP_ZIP_PARITY_ARTIFACT_OUT: out,
+  },
+});
 
 for (const file of [
   'dist/a2ui/property-map-zip-parity.surface.v1.jsonl',
