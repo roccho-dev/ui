@@ -55,6 +55,10 @@ This is a second server proof, not a second independent product consumer. It is 
 
 Production-style output contains neither the revision marker, polling client, nor Caddy code. The implementation remains local to `ui` until a second independent repository proves the same transport contract and extraction removes more code than it adds. SSE, WebSocket, Vite, HMR, Service Worker, a new state store, and a new workflow remain outside this proof. CI checks that boundary and publishes the generated screenshots/reports only as non-authoritative evidence.
 
+CI retention is deliberately asymmetric. Complete `npm run check`, the static YAGNI/workflow guards, and the existing adapter builds run on every A2UI workflow execution. The heavy server proofs run only when an exact hot-refresh proof input changes or when `workflow_dispatch` is requested. Unrelated changes skip the Caddy download, both server proofs, and the proof artifact upload.
+
+The heavy proof has no independent workflow or schedule. Missing or unresolvable comparison state fails closed by running it. CI verifies this dev-only capability and its production boundary; CI does not itself provide the development environment.
+
 ## Editor to queue to UI boundary
 
 `ui = targetRef emitter + projection reader + preview`.
