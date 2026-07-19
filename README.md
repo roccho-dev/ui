@@ -32,7 +32,7 @@ Generated preview HTML, dist assets, evidence receipts, gov-package-output packe
 
 `tests/fixtures/ssg-hot-refresh-viewport` proves that SSG input and compiler changes can replace generated viewer data without replacing the browser page, viewer root, pan, or zoom state.
 
-Manual development:
+Manual Wrangler development:
 
 ```text
 npm run dev:ssg-hot-refresh-proof
@@ -43,12 +43,17 @@ Real-browser proof:
 ```text
 python3 -m pip install "playwright==1.57.0"
 python3 -m playwright install chromium
-npm run proof:ssg-hot-refresh-viewport
+python3 tests/check-ssg-hot-refresh-viewport.py --server wrangler
+CADDY_EXECUTABLE=/path/to/caddy python3 tests/check-ssg-hot-refresh-viewport.py --server caddy
 ```
 
-The proof uses Wrangler custom build plus a 500 ms revision poll. It does not provide production polling, production revision endpoints, module hot replacement, or a shared dev-server package. Production-style output contains neither the revision marker nor the polling client.
+Proven servers: Wrangler `4.112.0` and Caddy `v2.11.3`. Both execute the same fixture, builder, revision file, browser poller, viewer, and browser assertion function.
 
-The implementation remains local to `ui` until a second independent repository proves the same transport contract and extraction removes more code than it adds. SSE, WebSocket, Vite, HMR, Service Worker, a new state store, and a new workflow are outside this proof. CI checks that boundary and publishes the generated screenshot/report only as non-authoritative evidence.
+Wrangler owns its custom build watch and static serving in the Wrangler proof. In the Caddy proof, Caddy owns only `file-server` static HTTP delivery; the existing builder runs one Node-built-in watch loop over `content/` and `src/`. Both paths retain the 500 ms browser revision poll and publish revision only after complete generated output.
+
+This is a second server proof, not a second independent product consumer. It is not a claim about every development server, and it does not create a generic server adapter, registry, plugin, package, Caddyfile, production server dependency, or new workflow.
+
+Production-style output contains neither the revision marker, polling client, nor Caddy code. The implementation remains local to `ui` until a second independent repository proves the same transport contract and extraction removes more code than it adds. SSE, WebSocket, Vite, HMR, Service Worker, a new state store, and a new workflow remain outside this proof. CI checks that boundary and publishes the generated screenshots/reports only as non-authoritative evidence.
 
 ## Editor to queue to UI boundary
 

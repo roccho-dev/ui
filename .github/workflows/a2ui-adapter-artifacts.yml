@@ -34,12 +34,46 @@ jobs:
           PY
       - name: Run complete UI checks
         run: npm run check
+      - name: Install pinned Caddy proof server
+        run: |
+          set -euo pipefail
+          version="2.11.3"
+          directory="$RUNNER_TEMP/caddy"
+          archive="caddy_${version}_linux_amd64.tar.gz"
+          checksums="caddy_${version}_checksums.txt"
+          base="https://github.com/caddyserver/caddy/releases/download/v${version}"
+          mkdir -p "$directory"
+          cd "$directory"
+          curl -fsSLo "$archive" "$base/$archive"
+          curl -fsSLo "$checksums" "$base/$checksums"
+          ARCHIVE="$archive" CHECKSUMS="$checksums" python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+
+          archive = Path(os.environ["ARCHIVE"])
+          rows = Path(os.environ["CHECKSUMS"]).read_text(encoding="utf-8").splitlines()
+          expected = next(row.split()[0] for row in rows if row.split()[-1].lstrip("*") == archive.name)
+          algorithm = "sha512" if len(expected) == 128 else "sha256" if len(expected) == 64 else None
+          if algorithm is None:
+              raise SystemExit(f"unsupported checksum length: {len(expected)}")
+          actual = getattr(hashlib, algorithm)(archive.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"Caddy archive checksum mismatch: {actual} != {expected}")
+          print(f"verified {archive.name} with {algorithm}")
+          PY
+          tar -xzf "$archive" caddy
+          chmod +x caddy
+          test "$(./caddy version | awk '{print $1}')" = "v${version}"
       - name: Prove SSG hot refresh viewport and YAGNI boundary
         run: |
           node tests/check-ssg-hot-refresh-yagni.mjs
-          python3 tests/check-ssg-hot-refresh-viewport.py
+          python3 tests/check-ssg-hot-refresh-viewport.py --server wrangler
+          python3 tests/check-ssg-hot-refresh-viewport.py --server caddy
         env:
           SSG_HOT_REFRESH_ARTIFACT_OUT: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
+          CADDY_EXECUTABLE: ${{ runner.temp }}/caddy/caddy
+          CADDY_EXPECTED_VERSION: v2.11.3
       - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
