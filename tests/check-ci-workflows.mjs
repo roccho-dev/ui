@@ -27,9 +27,7 @@ assert.equal(artifact.artifact_generation, "generated");
 const adapterArtifact = byRole("adapter_artifact_exporter");
 assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml");
 assert.match(adapterArtifact.entrypoint, /npm run check/);
-assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-yagni\.mjs/);
-assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-viewport\.py --server wrangler/);
-assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-viewport\.py --server caddy/);
+assert.match(adapterArtifact.entrypoint, /change-scoped Wrangler\/Caddy proof/);
 assert.match(adapterArtifact.entrypoint, /build\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-contract-model-atlas-artifact\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-repo-map-svgpanzoom\.mjs/);
@@ -39,12 +37,29 @@ assert.match(adapterArtifact.entrypoint, /build-geomap-zip-parity\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
-assert.equal(adapterArtifact.source, "node-output plus Wrangler and Caddy real-browser interaction proof");
+assert.equal(adapterArtifact.source, "node-output plus change-scoped Wrangler and Caddy real-browser interaction proof");
+assert.equal(adapterArtifact.artifact_source, "node-output plus conditional browser-generated non-authority evidence");
 assert.deepEqual(adapterArtifact.proof_inputs, {
   wrangler: "4.112.0",
   caddy: "v2.11.3",
   caddy_role: "static file serving only",
   watcher: "node-builtins",
+});
+assert.deepEqual(adapterArtifact.proof_execution, {
+  mode: "relevant_paths_or_workflow_dispatch",
+  unconditional_static_guard: "npm run check",
+  fail_closed: true,
+  scheduled: false,
+  relevant_paths: [
+    ".github/workflows/a2ui-adapter-artifacts.yml",
+    "package.json",
+    "packages/a2ui-adapter-artifacts/dev/ssg-output-refresh.js",
+    "packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs",
+    "tests/check-ssg-hot-refresh-viewport.py",
+    "tests/check-ssg-hot-refresh-yagni.mjs",
+    "tests/fixtures/ssg-hot-refresh-viewport/**",
+  ],
+  conditional_steps: ["Caddy install", "Wrangler proof", "Caddy proof", "ssg-hot-refresh-viewport-artifact upload"],
 });
 assert.deepEqual(adapterArtifact.artifacts, ["ssg-hot-refresh-viewport-artifact", "live-adapter-artifact", "purpose-adapter-artifact", "contract-model-atlas-artifact", "repo-map-svgpanzoom-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
 
@@ -115,16 +130,31 @@ const adapterText = read(adapterArtifact.path);
 assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
 assert.match(adapterText, /github\.event\.pull_request\.head\.sha \|\| github\.sha/);
 assert.match(adapterText, /persist-credentials:\s*false/);
-assert.match(adapterText, /npm run check/);
+assert.match(adapterText, /- name: Run complete UI checks\n\s+run: npm run check/);
 assert.match(adapterText, /playwright==1\.57\.0/);
 assert.match(adapterText, /playwright install --with-deps chromium/);
+assert.match(adapterText, /- name: Select heavy SSG server proof scope/);
+assert.match(adapterText, /id:\s*ssg_proof_scope/);
+assert.match(adapterText, /EVENT_NAME:\s*\$\{\{ github\.event_name \}\}/);
+assert.match(adapterText, /workflow_dispatch/);
+assert.match(adapterText, /select_proof "manual-dispatch"/);
+assert.match(adapterText, /select_proof "missing-comparison-base"/);
+assert.match(adapterText, /select_proof "comparison-fetch-failed"/);
+assert.match(adapterText, /select_proof "comparison-base-unresolved"/);
+assert.match(adapterText, /select_proof "comparison-diff-failed"/);
+assert.match(adapterText, /reason=unrelated-paths/);
+assert.match(adapterText, /relevant='\^\(/);
+assert.match(adapterText, /- name: Install pinned Caddy proof server\n\s+if: steps\.ssg_proof_scope\.outputs\.run == 'true'/);
+assert.match(adapterText, /- name: Prove SSG hot refresh viewport with selected servers\n\s+if: steps\.ssg_proof_scope\.outputs\.run == 'true'/);
+assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server wrangler/);
+assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server caddy/);
+assert.match(adapterText, /if: \$\{\{ always\(\) && steps\.ssg_proof_scope\.outputs\.run == 'true' \}\}/);
+assert.doesNotMatch(adapterText, /paths-filter|dorny\/|schedule:/i);
 assert.match(adapterText, /caddy_\$\{version\}_linux_amd64\.tar\.gz/);
 assert.match(adapterText, /caddy_\$\{version\}_checksums\.txt/);
 assert.match(adapterText, /caddyserver\/caddy\/releases\/download\/v\$\{version\}/);
 assert.match(adapterText, /Caddy archive checksum mismatch/);
 assert.match(adapterText, /test "\$\(\.\/caddy version \| awk/);
-assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server wrangler/);
-assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server caddy/);
 assert.match(adapterText, /CADDY_EXECUTABLE/);
 assert.match(adapterText, /CADDY_EXPECTED_VERSION:\s*v2\.11\.3/);
 assert.match(adapterText, /SSG_HOT_REFRESH_ARTIFACT_OUT/);
@@ -182,7 +212,7 @@ assert.match(finalConsumerText, /check-final-ci-consumer\.py check/);
 assert.match(finalConsumerText, /name:\s*final-ci-consumer-receipt/);
 
 for (const forbiddenPath of primary.forbiddenEntryGlobs) assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
-console.log(JSON.stringify({ status: "ui-ci-workflows-check-pass", entrypoints: workflowFiles, hotRefreshServers: ["wrangler@4.112.0", "caddy@v2.11.3"] }, null, 2));
+console.log(JSON.stringify({ status: "ui-ci-workflows-check-pass", entrypoints: workflowFiles, hotRefreshServers: ["wrangler@4.112.0", "caddy@v2.11.3"], heavyProofMode: adapterArtifact.proof_execution.mode }, null, 2));
 
 function byKind(kind) {
   const row = intentRows.find((item) => item.kind === kind);

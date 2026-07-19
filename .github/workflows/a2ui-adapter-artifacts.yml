@@ -34,7 +34,50 @@ jobs:
           PY
       - name: Run complete UI checks
         run: npm run check
+      - name: Select heavy SSG server proof scope
+        id: ssg_proof_scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          select_proof() {
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=$1" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            select_proof "manual-dispatch"
+          fi
+          base="$BEFORE_SHA"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$BASE_SHA"
+          fi
+          if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$'; then
+            select_proof "missing-comparison-base"
+          fi
+          if ! git fetch --no-tags --depth=1 origin "$base"; then
+            select_proof "comparison-fetch-failed"
+          fi
+          if ! git cat-file -e "${base}^{commit}"; then
+            select_proof "comparison-base-unresolved"
+          fi
+          if ! changed="$(git diff --name-only "$base" "$HEAD_SHA")"; then
+            select_proof "comparison-diff-failed"
+          fi
+          printf '%s\n' "$changed"
+          relevant='^(\.github/workflows/a2ui-adapter-artifacts\.yml|package\.json|packages/a2ui-adapter-artifacts/dev/ssg-output-refresh\.js|packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof\.mjs|tests/check-ssg-hot-refresh-viewport\.py|tests/check-ssg-hot-refresh-yagni\.mjs|tests/fixtures/ssg-hot-refresh-viewport/)'
+          if printf '%s\n' "$changed" | grep -Eq "$relevant"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=relevant-path" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=unrelated-paths" >> "$GITHUB_OUTPUT"
+          fi
       - name: Install pinned Caddy proof server
+        if: steps.ssg_proof_scope.outputs.run == 'true'
         run: |
           set -euo pipefail
           version="2.11.3"
@@ -65,9 +108,9 @@ jobs:
           tar -xzf "$archive" caddy
           chmod +x caddy
           test "$(./caddy version | awk '{print $1}')" = "v${version}"
-      - name: Prove SSG hot refresh viewport and YAGNI boundary
+      - name: Prove SSG hot refresh viewport with selected servers
+        if: steps.ssg_proof_scope.outputs.run == 'true'
         run: |
-          node tests/check-ssg-hot-refresh-yagni.mjs
           python3 tests/check-ssg-hot-refresh-viewport.py --server wrangler
           python3 tests/check-ssg-hot-refresh-viewport.py --server caddy
         env:
@@ -99,7 +142,7 @@ jobs:
           GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
           GEOMAP_RUNTIME_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && steps.ssg_proof_scope.outputs.run == 'true' }}
         with:
           name: ssg-hot-refresh-viewport-artifact
           path: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
