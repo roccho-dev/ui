@@ -14,6 +14,7 @@
 | UI gov-package-output producer surface | `.#gov-package-output` |
 | Purpose Atlas fixture input | `tests/fixtures/purpose-atlas/**` |
 | Purpose Atlas source reference | `tests/reference/purpose-atlas-source/**` |
+| SSG hot-refresh viewport fixture | `tests/fixtures/ssg-hot-refresh-viewport/**` |
 | Generated preview/evidence | Nix and CI outputs |
 
 ## Boundary
@@ -26,6 +27,28 @@ Fixtures must be `stateless` and `non-authoritative`.
 `ui.git is not a state store`.
 
 Generated preview HTML, dist assets, evidence receipts, gov-package-output packets, and manifests are build evidence only and are not tracked as repository authority.
+
+## Development-only SSG hot refresh proof
+
+`tests/fixtures/ssg-hot-refresh-viewport` proves that SSG input and compiler changes can replace generated viewer data without replacing the browser page, viewer root, pan, or zoom state.
+
+Manual development:
+
+```text
+npm run dev:ssg-hot-refresh-proof
+```
+
+Real-browser proof:
+
+```text
+python3 -m pip install "playwright==1.57.0"
+python3 -m playwright install chromium
+npm run proof:ssg-hot-refresh-viewport
+```
+
+The proof uses Wrangler custom build plus a 500 ms revision poll. It does not provide production polling, production revision endpoints, module hot replacement, or a shared dev-server package. Production-style output contains neither the revision marker nor the polling client.
+
+The implementation remains local to `ui` until a second independent repository proves the same transport contract and extraction removes more code than it adds. SSE, WebSocket, Vite, HMR, Service Worker, a new state store, and a new workflow are outside this proof. CI checks that boundary and publishes the generated screenshot/report only as non-authoritative evidence.
 
 ## Editor to queue to UI boundary
 
