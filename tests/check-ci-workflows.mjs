@@ -28,7 +28,8 @@ const adapterArtifact = byRole("adapter_artifact_exporter");
 assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml");
 assert.match(adapterArtifact.entrypoint, /npm run check/);
 assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-yagni\.mjs/);
-assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-viewport\.py/);
+assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-viewport\.py --server wrangler/);
+assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-viewport\.py --server caddy/);
 assert.match(adapterArtifact.entrypoint, /build\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-contract-model-atlas-artifact\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-repo-map-svgpanzoom\.mjs/);
@@ -38,7 +39,13 @@ assert.match(adapterArtifact.entrypoint, /build-geomap-zip-parity\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
-assert.equal(adapterArtifact.source, "node-output plus real-browser interaction proof");
+assert.equal(adapterArtifact.source, "node-output plus Wrangler and Caddy real-browser interaction proof");
+assert.deepEqual(adapterArtifact.proof_inputs, {
+  wrangler: "4.112.0",
+  caddy: "v2.11.3",
+  caddy_role: "static file serving only",
+  watcher: "node-builtins",
+});
 assert.deepEqual(adapterArtifact.artifacts, ["ssg-hot-refresh-viewport-artifact", "live-adapter-artifact", "purpose-adapter-artifact", "contract-model-atlas-artifact", "repo-map-svgpanzoom-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
 
 const packageValidation = byRole("package_validation");
@@ -111,8 +118,15 @@ assert.match(adapterText, /persist-credentials:\s*false/);
 assert.match(adapterText, /npm run check/);
 assert.match(adapterText, /playwright==1\.57\.0/);
 assert.match(adapterText, /playwright install --with-deps chromium/);
-assert.match(adapterText, /node tests\/check-ssg-hot-refresh-yagni\.mjs/);
-assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py/);
+assert.match(adapterText, /caddy_\$\{version\}_linux_amd64\.tar\.gz/);
+assert.match(adapterText, /caddy_\$\{version\}_checksums\.txt/);
+assert.match(adapterText, /caddyserver\/caddy\/releases\/download\/v\$\{version\}/);
+assert.match(adapterText, /Caddy archive checksum mismatch/);
+assert.match(adapterText, /test "\$\(\.\/caddy version \| awk/);
+assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server wrangler/);
+assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server caddy/);
+assert.match(adapterText, /CADDY_EXECUTABLE/);
+assert.match(adapterText, /CADDY_EXPECTED_VERSION:\s*v2\.11\.3/);
 assert.match(adapterText, /SSG_HOT_REFRESH_ARTIFACT_OUT/);
 assert.match(adapterText, /fonts-noto-cjk/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/);
@@ -168,7 +182,7 @@ assert.match(finalConsumerText, /check-final-ci-consumer\.py check/);
 assert.match(finalConsumerText, /name:\s*final-ci-consumer-receipt/);
 
 for (const forbiddenPath of primary.forbiddenEntryGlobs) assert.equal(fs.existsSync(path.join(root, forbiddenPath)), false, `${forbiddenPath} must not be a provider CI entrypoint`);
-console.log(JSON.stringify({ status: "ui-ci-workflows-check-pass", entrypoints: workflowFiles }, null, 2));
+console.log(JSON.stringify({ status: "ui-ci-workflows-check-pass", entrypoints: workflowFiles, hotRefreshServers: ["wrangler@4.112.0", "caddy@v2.11.3"] }, null, 2));
 
 function byKind(kind) {
   const row = intentRows.find((item) => item.kind === kind);
