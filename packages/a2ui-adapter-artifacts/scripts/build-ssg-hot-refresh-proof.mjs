@@ -141,9 +141,9 @@ async function atomicWrite(file, text) {
 }
 
 function productionEntry() {
-  return `import { createProofViewer } from "./viewer.js";\nawait createProofViewer();\n`;
+  return `import { createProofViewer } from "./viewer.js";\nglobalThis.viewer = null;\nawait createProofViewer();\n`;
 }
 
 function devEntry() {
-  return `import { createProofViewer } from "./viewer.js";\nimport { startSsgOutputRefresh } from "./ssg-output-refresh.js";\nconst viewer = await createProofViewer();\nstartSsgOutputRefresh({\n  refresh: viewer.refreshGeneratedOutput,\n  onState: viewer.setRefreshState,\n});\n`;
+  return `import { createProofViewer } from "./viewer.js";\nimport { startSsgOutputRefresh } from "./ssg-output-refresh.js";\nglobalThis.viewer = null;\nconst viewer = await createProofViewer();\nstartSsgOutputRefresh({\n  refresh: viewer.refreshGeneratedOutput,\n  onState: viewer.setRefreshState,\n});\n`;
 }
