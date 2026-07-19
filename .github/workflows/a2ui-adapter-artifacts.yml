@@ -16,8 +16,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Run complete UI checks
-        run: npm run check
       - name: Install Japanese screenshot fonts
         run: |
           sudo apt-get update
@@ -27,6 +25,17 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
           python3 -m playwright install --with-deps chromium
+      - name: Expose pinned Chromium to all UI proofs
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              executable = playwright.chromium.executable_path
+              print(f"CHROME_BIN={executable}")
+              print(f"CHROMIUM_EXECUTABLE={executable}")
+          PY
+      - name: Run complete UI checks
+        run: npm run check
       - name: Prove SSG hot refresh viewport and YAGNI boundary
         run: |
           node tests/check-ssg-hot-refresh-yagni.mjs
