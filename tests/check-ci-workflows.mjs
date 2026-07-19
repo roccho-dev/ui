@@ -26,6 +26,9 @@ assert.equal(artifact.artifact_generation, "generated");
 
 const adapterArtifact = byRole("adapter_artifact_exporter");
 assert.equal(adapterArtifact.path, ".github/workflows/a2ui-adapter-artifacts.yml");
+assert.match(adapterArtifact.entrypoint, /npm run check/);
+assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-yagni\.mjs/);
+assert.match(adapterArtifact.entrypoint, /check-ssg-hot-refresh-viewport\.py/);
 assert.match(adapterArtifact.entrypoint, /build\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-contract-model-atlas-artifact\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-repo-map-svgpanzoom\.mjs/);
@@ -35,8 +38,8 @@ assert.match(adapterArtifact.entrypoint, /build-geomap-zip-parity\.mjs/);
 assert.match(adapterArtifact.entrypoint, /build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterArtifact.entrypoint, /check-geomap-final-gate\.mjs/);
 assert.equal(adapterArtifact.authority, false);
-assert.equal(adapterArtifact.source, "node-output");
-assert.deepEqual(adapterArtifact.artifacts, ["live-adapter-artifact", "purpose-adapter-artifact", "contract-model-atlas-artifact", "repo-map-svgpanzoom-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
+assert.equal(adapterArtifact.source, "node-output plus real-browser interaction proof");
+assert.deepEqual(adapterArtifact.artifacts, ["ssg-hot-refresh-viewport-artifact", "live-adapter-artifact", "purpose-adapter-artifact", "contract-model-atlas-artifact", "repo-map-svgpanzoom-artifact", "property-map-geo-artifact", "property-map-zip-parity-artifact", "property-map-geo-runtime-hardening-artifact", "adapter-artifact-index"]);
 
 const packageValidation = byRole("package_validation");
 assert.equal(packageValidation.path, ".github/workflows/gov-package-validation.yml");
@@ -103,6 +106,14 @@ assert.doesNotMatch(artifactText, /npm test|node scripts\/build-generic-a2ui-pre
 
 const adapterText = read(adapterArtifact.path);
 assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
+assert.match(adapterText, /github\.event\.pull_request\.head\.sha \|\| github\.sha/);
+assert.match(adapterText, /persist-credentials:\s*false/);
+assert.match(adapterText, /npm run check/);
+assert.match(adapterText, /playwright==1\.57\.0/);
+assert.match(adapterText, /playwright install --with-deps chromium/);
+assert.match(adapterText, /node tests\/check-ssg-hot-refresh-yagni\.mjs/);
+assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py/);
+assert.match(adapterText, /SSG_HOT_REFRESH_ARTIFACT_OUT/);
 assert.match(adapterText, /fonts-noto-cjk/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/);
 assert.match(adapterText, /node scripts\/build-contract-model-atlas-artifact\.mjs/);

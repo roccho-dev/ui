@@ -7,7 +7,20 @@ import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-zip-interaction-'));
-execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ZIP_PARITY_ARTIFACT_OUT: out, GEOMAP_ZIP_PARITY_RENDER: '1', GEOMAP_ZIP_PARITY_INTERACTION: '1'}});
+const chromium = process.env.CHROMIUM_EXECUTABLE;
+assert.ok(chromium, 'CHROMIUM_EXECUTABLE is required for interaction proof');
+execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {
+  cwd: root,
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    CHROME_BIN: chromium,
+    UI_REPO_ROOT: root,
+    GEOMAP_ZIP_PARITY_ARTIFACT_OUT: out,
+    GEOMAP_ZIP_PARITY_RENDER: '1',
+    GEOMAP_ZIP_PARITY_INTERACTION: '1',
+  },
+});
 
 for (const file of ['screenshots/interaction-tabs.png', 'screenshots/interaction-filtered.png', 'screenshots/interaction-detail-after-marker.png', 'proof/interaction-parity-report.json']) {
   assert.equal(fs.existsSync(path.join(out, file)), true, file);

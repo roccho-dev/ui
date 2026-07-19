@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -18,6 +21,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fonts-noto-cjk
           fc-cache -f
+      - name: Install pinned browser proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Expose pinned Chromium only as proof input
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
+      - name: Run complete UI checks
+        run: npm run check
+      - name: Prove SSG hot refresh viewport and YAGNI boundary
+        run: |
+          node tests/check-ssg-hot-refresh-yagni.mjs
+          python3 tests/check-ssg-hot-refresh-viewport.py
+        env:
+          SSG_HOT_REFRESH_ARTIFACT_OUT: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
       - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
@@ -42,6 +64,12 @@ jobs:
         env:
           GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
           GEOMAP_RUNTIME_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ssg-hot-refresh-viewport-artifact
+          path: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:

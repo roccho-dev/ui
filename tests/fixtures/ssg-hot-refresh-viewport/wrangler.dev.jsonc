@@ -1,0 +1,14 @@
+{
+  "name": "ui-ssg-hot-refresh-viewport-proof",
+  "compatibility_date": "2026-07-19",
+  "assets": {
+    "directory": "./dist"
+  },
+  "build": {
+    "command": "node ../../../../packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs --dev",
+    "watch_dir": [
+      "./content",
+      "./src"
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "title": "SSG hot refresh map",
+  "subtitle": "ズームした場所を見失わずに、生成結果だけ更新する",
+  "nodes": [
+    {
+      "id": "input",
+      "x": 80,
+      "y": 130,
+      "width": 260,
+      "height": 132,
+      "kind": "source",
+      "label": "1. Input",
+      "body": "content/scene.json を編集"
+    },
+    {
+      "id": "build",
+      "x": 470,
+      "y": 130,
+      "width": 280,
+      "height": 132,
+      "kind": "build",
+      "label": "2. SSG",
+      "body": "dist/generated/scene.json を再生成"
+    },
+    {
+      "id": "revision",
+      "x": 900,
+      "y": 130,
+      "width": 290,
+      "height": 132,
+      "kind": "signal",
+      "label": "3. Revision",
+      "body": "生成完了後にだけ revision を更新"
+    },
+    {
+      "id": "browser",
+      "x": 470,
+      "y": 430,
+      "width": 320,
+      "height": 150,
+      "kind": "browser",
+      "label": "4. Browser",
+      "body": "データだけ差し替え、viewport は復元"
+    },
+    {
+      "id": "state",
+      "x": 930,
+      "y": 455,
+      "width": 300,
+      "height": 124,
+      "kind": "state",
+      "label": "Viewport survives",
+      "body": "scale / pan / page instance を維持"
+    }
+  ],
+  "links": [
+    ["input", "build"],
+    ["build", "revision"],
+    ["revision", "browser"],
+    ["browser", "state"]
+  ]
+}
