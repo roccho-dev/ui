@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Zoom & Pan hot refresh proof</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">YAGNI PROOF</p>
+        <h1 id="scene-title">Zoom & Pan</h1>
+        <p id="scene-subtitle" class="subtitle">生成データを読み込み中…</p>
+      </div>
+      <div class="live-state" aria-live="polite">
+        <span id="connection-dot" class="dot"></span>
+        <span id="refresh-state">起動中</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="viewer-shell" aria-label="ズーム・パン ビューアー">
+        <svg id="viewer" tabindex="0" role="img" aria-label="SSG更新フロー図">
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" class="grid-line"></path>
+            </pattern>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head"></path>
+            </marker>
+          </defs>
+          <g id="viewport-layer">
+            <rect x="-2400" y="-1800" width="5200" height="3800" class="world"></rect>
+            <rect x="-2400" y="-1800" width="5200" height="3800" fill="url(#grid)"></rect>
+            <g id="scene-layer"></g>
+          </g>
+        </svg>
+
+        <div class="controls" aria-label="表示操作">
+          <button id="zoom-in" type="button" aria-label="拡大">＋</button>
+          <button id="zoom-out" type="button" aria-label="縮小">−</button>
+          <button id="reset" type="button">Reset</button>
+        </div>
+
+        <div class="hint">ドラッグでパン · ホイールでズーム</div>
+      </section>
+
+      <aside class="telemetry" aria-label="実証用ステータス">
+        <div><span>Scale</span><strong id="scale-value">1.00×</strong></div>
+        <div><span>Pan</span><strong id="pan-value">0, 0</strong></div>
+        <div><span>Updates</span><strong id="update-count">0</strong></div>
+        <div><span>Compiler</span><strong id="compiler-marker">—</strong></div>
+        <div><span>Page instance</span><strong id="page-instance">—</strong></div>
+      </aside>
+    </main>
+
+    <script type="module" src="/entry.js"></script>
+  </body>
+</html>
