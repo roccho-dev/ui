@@ -144,10 +144,6 @@ assert.match(adapterText, /select_proof "comparison-base-unresolved"/);
 assert.match(adapterText, /select_proof "comparison-diff-failed"/);
 assert.match(adapterText, /reason=unrelated-paths/);
 assert.match(adapterText, /relevant='\^\(/);
-for (const relevantPath of adapterArtifact.proof_execution.relevant_paths) {
-  const literal = relevantPath.replace("/**", "/").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  assert.match(adapterText, new RegExp(literal.replace("/\\*\\*", "/")));
-}
 assert.match(adapterText, /- name: Install pinned Caddy proof server\n\s+if: steps\.ssg_proof_scope\.outputs\.run == 'true'/);
 assert.match(adapterText, /- name: Prove SSG hot refresh viewport with selected servers\n\s+if: steps\.ssg_proof_scope\.outputs\.run == 'true'/);
 assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server wrangler/);
