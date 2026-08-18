@@ -20,6 +20,7 @@ jobs:
       BASE_SHA: 44d59a94836d015a084f4523900b67e8ef562daf
       TARGET_BRANCH: proposal/artifact-runtime-focused-260819
       PAYLOAD_SHA256: 0f78d53387527df865fe2a985fa64b42b8d049211ecbd38a97fe04e366c52b9e
+      EXPECTED_TREE: 91695a734c0cb54ca91caa85021a3b2ea5d2115a
       SOURCE_PACKAGE_SHA256: 845cf4d89b4d1dbe935523f4fb4ff86c005503371b98fd2264bbbad9492034e0
       SOURCE_UI_HEAD: 715b01cac02397e325d4cb64edc3d58464ddf914
       SOURCE_UI_BUNDLE_SHA256: f156e0bf36bcdd99e2466258ea0f09d9dfa7d7a2cbc9891cbe3cc752b33aea90
@@ -32,7 +33,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          payload=.transport/artifact-runtime/ui-focused-payload.tar.xz
+          payload="$RUNNER_TEMP/ui-focused-payload.tar.xz"
+          cat \
+            .transport/artifact-runtime/chunks/00.bin \
+            .transport/artifact-runtime/chunks/01.bin \
+            .transport/artifact-runtime/chunks/02.bin \
+            .transport/artifact-runtime/chunks/03.bin \
+            .transport/artifact-runtime/chunks/04.bin \
+            > "$payload"
+          test "$(wc -c < "$payload")" -eq 44452
           test "$(sha256sum "$payload" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"
           current="$(git ls-remote origin refs/heads/proposals | cut -f1)"
           test "$current" = "$BASE_SHA" || { echo "STALE_BASE expected=$BASE_SHA actual=$current" >&2; exit 42; }
@@ -41,8 +50,7 @@ jobs:
             exit 43
           fi
           mkdir -p "$RUNNER_TEMP/artifact-runtime"
-          cp "$payload" "$RUNNER_TEMP/artifact-runtime/payload.tar.xz"
-          tar -xJf "$RUNNER_TEMP/artifact-runtime/payload.tar.xz" -C "$RUNNER_TEMP/artifact-runtime"
+          tar -xJf "$payload" -C "$RUNNER_TEMP/artifact-runtime"
           python3 - "$RUNNER_TEMP/artifact-runtime/ARTIFACT-RUNTIME-ADOPTION.json" <<'PY'
           import json, os, sys
           x=json.load(open(sys.argv[1], encoding='utf-8'))
@@ -89,5 +97,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git switch -c "$TARGET_BRANCH"
           git add -A
+          actual_tree="$(git write-tree)"
+          test "$actual_tree" = "$EXPECTED_TREE" || { echo "TREE_MISMATCH expected=$EXPECTED_TREE actual=$actual_tree" >&2; exit 45; }
           git commit -m "feat(ui): adopt focused Artifact Runtime" -m "Source package: sha256:$SOURCE_PACKAGE_SHA256" -m "Source UI head: $SOURCE_UI_HEAD" -m "Source UI bundle: sha256:$SOURCE_UI_BUNDLE_SHA256" -m "Adoption: focused rebase onto exact public base $BASE_SHA; original source history is evidence, not rewritten history. Refs roccho-dev/ops#160."
           git push origin "HEAD:refs/heads/$TARGET_BRANCH"
