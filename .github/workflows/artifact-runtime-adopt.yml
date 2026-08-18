@@ -1,9 +1,6 @@
 name: Adopt Artifact Runtime transport
 
 on:
-  push:
-    branches:
-      - transport/artifact-runtime-ui-715b01c
   pull_request:
     branches:
       - proposals
@@ -13,7 +10,7 @@ permissions:
 
 jobs:
   adopt:
-    if: github.head_ref == 'transport/artifact-runtime-ui-715b01c' || github.ref == 'refs/heads/transport/artifact-runtime-ui-715b01c'
+    if: github.head_ref == 'transport/artifact-runtime-ui-715b01c-v2'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -89,7 +86,6 @@ jobs:
           npm run check:artifact-runtime
 
       - name: Commit and push proposal branch
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
