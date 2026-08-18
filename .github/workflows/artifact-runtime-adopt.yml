@@ -1,0 +1,88 @@
+name: Adopt Artifact Runtime transport
+
+on:
+  push:
+    branches:
+      - transport/artifact-runtime-ui-715b01c
+
+permissions:
+  contents: write
+
+jobs:
+  adopt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BASE_SHA: 44d59a94836d015a084f4523900b67e8ef562daf
+      TARGET_BRANCH: proposal/artifact-runtime-focused-260819
+      PAYLOAD_SHA256: 0f78d53387527df865fe2a985fa64b42b8d049211ecbd38a97fe04e366c52b9e
+      SOURCE_PACKAGE_SHA256: 845cf4d89b4d1dbe935523f4fb4ff86c005503371b98fd2264bbbad9492034e0
+      SOURCE_UI_HEAD: 715b01cac02397e325d4cb64edc3d58464ddf914
+      SOURCE_UI_BUNDLE_SHA256: f156e0bf36bcdd99e2466258ea0f09d9dfa7d7a2cbc9891cbe3cc752b33aea90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify transport and current base
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload=.transport/artifact-runtime/ui-focused-payload.tar.xz
+          test "$(sha256sum "$payload" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"
+          current="$(git ls-remote origin refs/heads/proposals | cut -f1)"
+          test "$current" = "$BASE_SHA" || { echo "STALE_BASE expected=$BASE_SHA actual=$current" >&2; exit 42; }
+          if git ls-remote --exit-code origin "refs/heads/$TARGET_BRANCH" >/dev/null 2>&1; then
+            echo "TARGET_BRANCH_EXISTS $TARGET_BRANCH" >&2
+            exit 43
+          fi
+          mkdir -p "$RUNNER_TEMP/artifact-runtime"
+          cp "$payload" "$RUNNER_TEMP/artifact-runtime/payload.tar.xz"
+          tar -xJf "$RUNNER_TEMP/artifact-runtime/payload.tar.xz" -C "$RUNNER_TEMP/artifact-runtime"
+          python3 - "$RUNNER_TEMP/artifact-runtime/ARTIFACT-RUNTIME-ADOPTION.json" <<'PY'
+          import json, os, sys
+          x=json.load(open(sys.argv[1], encoding='utf-8'))
+          expected={
+            'source_package_sha256': os.environ['SOURCE_PACKAGE_SHA256'],
+            'source_ui_head': os.environ['SOURCE_UI_HEAD'],
+            'source_ui_bundle_sha256': os.environ['SOURCE_UI_BUNDLE_SHA256'],
+            'public_base': os.environ['BASE_SHA'],
+            'adoption': 'focused-rebase-no-history-claim',
+          }
+          for k,v in expected.items():
+              if x.get(k) != v:
+                  raise SystemExit(f'manifest mismatch {k}: {x.get(k)!r} != {v!r}')
+          PY
+
+      - name: Build exact focused candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach "$BASE_SHA"
+          cp -a "$RUNNER_TEMP/artifact-runtime/apps" .
+          cp -a "$RUNNER_TEMP/artifact-runtime/packages/artifact-invocation" packages/
+          cp -a "$RUNNER_TEMP/artifact-runtime/packages/artifact-reference" packages/
+          cp -a "$RUNNER_TEMP/artifact-runtime/packages/a2ui-browser" packages/
+          cp -a "$RUNNER_TEMP/artifact-runtime/packages/url-module" packages/
+          cp "$RUNNER_TEMP/artifact-runtime/package.json" package.json
+          cp "$RUNNER_TEMP/artifact-runtime/.gitignore" .gitignore
+          changed="$(git status --porcelain=v1 | sed -E 's/^.. //' | sort)"
+          while IFS= read -r p; do
+            test -z "$p" && continue
+            case "$p" in
+              .gitignore|package.json|apps/artifact-shell/*|packages/artifact-invocation/*|packages/artifact-reference/*|packages/a2ui-browser/*|packages/url-module/*) ;;
+              *) echo "UNEXPECTED_PATH $p" >&2; exit 44;;
+            esac
+          done <<< "$changed"
+          npm run check:artifact-runtime
+
+      - name: Commit and push proposal branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git switch -c "$TARGET_BRANCH"
+          git add -A
+          git commit -m "feat(ui): adopt focused Artifact Runtime" -m "Source package: sha256:$SOURCE_PACKAGE_SHA256" -m "Source UI head: $SOURCE_UI_HEAD" -m "Source UI bundle: sha256:$SOURCE_UI_BUNDLE_SHA256" -m "Adoption: focused rebase onto exact public base $BASE_SHA; original source history is evidence, not rewritten history. Refs roccho-dev/ops#160."
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
