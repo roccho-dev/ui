@@ -27,11 +27,26 @@ jobs:
           root="https://cdn.jsdelivr.net/gh/roccho-dev/ui@$ACCEPTED_COMMIT"
           check() {
             path="$1"; mime="$2"
-            headers="$RUNNER_TEMP/headers"
             body="$RUNNER_TEMP/body"
-            curl --fail-with-body --location --retry 4 --retry-all-errors --silent --show-error -D "$headers" "$root/$path" -o "$body"
-            cmp "$path" "$body"
-            tr -d '\r' < "$headers" | grep -Eiq "^content-type: .*${mime}"
+            meta="$RUNNER_TEMP/meta"
+            url="$root/$path"
+            printf '\n-- %s --\n' "$path"
+            curl --fail-with-body --location --retry 4 --retry-all-errors --silent --show-error \
+              --write-out '%{http_code}\t%{content_type}\t%{url_effective}\n' \
+              "$url" -o "$body" > "$meta"
+            status="$(cut -f1 "$meta")"
+            ctype="$(cut -f2 "$meta")"
+            effective="$(cut -f3- "$meta")"
+            local_bytes="$(wc -c < "$path")"
+            remote_bytes="$(wc -c < "$body")"
+            local_sha="$(sha256sum "$path" | cut -d' ' -f1)"
+            remote_sha="$(sha256sum "$body" | cut -d' ' -f1)"
+            printf 'status=%s\ncontent_type=%s\neffective_url=%s\nlocal_bytes=%s\nremote_bytes=%s\nlocal_sha256=%s\nremote_sha256=%s\n' \
+              "$status" "$ctype" "$effective" "$local_bytes" "$remote_bytes" "$local_sha" "$remote_sha"
+            test "$status" = 200 || { echo "STATIC_HTTP_STATUS_MISMATCH path=$path expected=200 actual=$status" >&2; return 21; }
+            test "$local_bytes" = "$remote_bytes" || { echo "STATIC_BYTES_MISMATCH path=$path local=$local_bytes remote=$remote_bytes" >&2; return 22; }
+            test "$local_sha" = "$remote_sha" || { echo "STATIC_SHA_MISMATCH path=$path local=$local_sha remote=$remote_sha" >&2; return 23; }
+            printf '%s' "$ctype" | grep -Eiq "$mime" || { echo "STATIC_MIME_MISMATCH path=$path expected=$mime actual=$ctype" >&2; return 24; }
           }
           check apps/artifact-shell/index.html 'text/html'
           check apps/artifact-shell/src/entry.mjs '(javascript|ecmascript)'
