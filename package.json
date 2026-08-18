@@ -4,9 +4,7 @@
   "type": "module",
   "private": true,
   "workspaces": [
-    "packages/core-port",
-    "packages/artifact-invocation",
-    "apps/artifact-shell"
+    "packages/core-port"
   ],
   "imports": {
     "#core-port": "./packages/core-port/src/index.mjs",

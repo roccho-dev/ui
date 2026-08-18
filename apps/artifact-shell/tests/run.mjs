@@ -167,8 +167,7 @@ equal(manifest.checks.every(item => Array.isArray(item.argv) && item.argv.length
 equal(manifest.checks.every(item => Number.isSafeInteger(item.timeoutMs) && item.timeoutMs > 0), true);
 
 const rootPackage = await readJson(path.join(repoRoot, "package.json"));
-ok(rootPackage.workspaces.includes("packages/artifact-invocation"));
-ok(rootPackage.workspaces.includes("apps/artifact-shell"));
+deepEqual(rootPackage.workspaces, ["packages/core-port"]);
 ok(rootPackage.scripts.check.includes("check:artifact-runtime"));
 equal(typeof rootPackage.scripts["proof:artifact-shell-browser"], "string");
 
