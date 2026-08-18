@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 10
     env:
       ACCEPTED_COMMIT: 3dbd12ec1fc7843a54e04712e489dd91f110ffe3
-      BASE_URL: https://rawcdn.githack.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html
+      BASE_URL: https://cdn.githubraw.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          root="https://rawcdn.githack.com/roccho-dev/ui/$ACCEPTED_COMMIT"
+          root="https://cdn.githubraw.com/roccho-dev/ui/$ACCEPTED_COMMIT"
           check() {
             path="$1"; mime="$2"
             body="$RUNNER_TEMP/body"
@@ -64,7 +64,7 @@ jobs:
           import json, pathlib, sys
           x=json.load(open(sys.argv[1], encoding='utf-8'))
           url=x['inspect-json-inline']
-          assert url.startswith('https://rawcdn.githack.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html#invoke=')
+          assert url.startswith('https://cdn.githubraw.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html#invoke=')
           assert len(url) < 8192
           pathlib.Path(sys.argv[2]).write_text(url, encoding='utf-8')
           print('urlChars', len(url))
@@ -102,10 +102,10 @@ jobs:
             'schema':'artifact-runtime-static-host-proof/1',
             'status':'PASS',
             'authority':False,
-            'provider':'rawcdn-githack-github',
+            'provider':'githubraw-cdn',
             'acceptedCommit':'3dbd12ec1fc7843a54e04712e489dd91f110ffe3',
             'publicationSource':'accepted-ui-source',
-            'baseUrl':'https://rawcdn.githack.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html',
+            'baseUrl':'https://cdn.githubraw.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html',
             'invocationUrlChars':len(url),
             'domSha256':'sha256:'+hashlib.sha256(dom).hexdigest(),
             'engineSha256':'sha256:88979aa0f85bd0928f4c49356350f77a62e402241a14a9559120399baa31c999',
