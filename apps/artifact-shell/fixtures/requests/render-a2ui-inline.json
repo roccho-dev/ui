@@ -1,0 +1,57 @@
+{
+  "schema": "artifact-invocation/2",
+  "id": "request.render-a2ui.inline",
+  "intent": "render",
+  "inputs": [
+    {
+      "id": "surface",
+      "mediaType": "application/vnd.roccho.a2ui-surface+json",
+      "schema": "a2ui-surface/1",
+      "source": {
+        "kind": "inline",
+        "value": {
+          "rootId": "root",
+          "surfaceId": "artifact-shell-proof",
+          "dataModel": {},
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": [
+                "title",
+                "card"
+              ]
+            },
+            {
+              "id": "title",
+              "component": "Text",
+              "text": "One runtime",
+              "variant": "h1"
+            },
+            {
+              "id": "card",
+              "component": "Card",
+              "children": [
+                "body"
+              ]
+            },
+            {
+              "id": "body",
+              "component": "Text",
+              "text": "The processor selected A2UI without changing the shell."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "constraints": {
+    "allowedRuntimes": [
+      "browser"
+    ],
+    "noUpload": true
+  },
+  "expects": [
+    "a2ui-render-receipt/1"
+  ]
+}

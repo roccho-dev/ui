@@ -1,0 +1,12 @@
+{
+  "name": "@roccho/artifact-shell",
+  "version": "0.2.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:registry": "node scripts/build-registry.mjs",
+    "build:publication": "node scripts/build-publication.mjs",
+    "check": "node scripts/build-registry.mjs --check && node tests/run.mjs && node tests/extension-boundary.mjs && node tests/publication.mjs",
+    "proof:browser": "python3 tests/browser-proof.py"
+  }
+}

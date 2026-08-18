@@ -1,0 +1,42 @@
+{
+  "schema": "artifact-capability-fixture/2",
+  "id": "inspect-json.fail",
+  "kind": "destructive",
+  "request": {
+    "schema": "artifact-invocation/2",
+    "id": "request.inspect-json.fail",
+    "intent": "inspect",
+    "inputs": [
+      {
+        "id": "payload",
+        "mediaType": "application/json",
+        "schema": "example-data/1",
+        "source": {
+          "kind": "inline",
+          "value": {
+            "destructive": "digest-mismatch"
+          }
+        },
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ],
+    "constraints": {
+      "allowedRuntimes": [
+        "browser",
+        "node"
+      ],
+      "noUpload": true
+    },
+    "expects": [
+      "json-inspection/1"
+    ]
+  },
+  "expected": {
+    "status": "INCONCLUSIVE",
+    "outputContracts": []
+  },
+  "runtimes": [
+    "browser",
+    "node"
+  ]
+}

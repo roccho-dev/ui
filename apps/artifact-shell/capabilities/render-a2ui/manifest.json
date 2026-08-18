@@ -1,0 +1,56 @@
+{
+  "schema": "artifact-capability-declaration/2",
+  "id": "render.a2ui",
+  "version": "1",
+  "engine": {
+    "kind": "esm",
+    "file": "engine.mjs"
+  },
+  "accepts": {
+    "intents": [
+      "render"
+    ],
+    "minInputs": 1,
+    "maxInputs": 1,
+    "shapes": [
+      "blob"
+    ],
+    "mediaTypes": [
+      "application/vnd.roccho.a2ui-surface+json"
+    ],
+    "schemas": [
+      "a2ui-surface/1"
+    ]
+  },
+  "limits": {
+    "maxInputBytes": 262144,
+    "maxTotalBytes": 262144,
+    "maxEntries": 1,
+    "maxEngineBytes": 32768
+  },
+  "provides": [
+    "render.a2ui"
+  ],
+  "produces": [
+    "a2ui-render-receipt/1"
+  ],
+  "requires": {
+    "features": [
+      "dom"
+    ],
+    "services": [
+      "a2ui.render"
+    ],
+    "runtimes": [
+      "browser"
+    ]
+  },
+  "fixtures": {
+    "pass": [
+      "fixtures/pass.json"
+    ],
+    "destructive": [
+      "fixtures/destructive.json"
+    ]
+  }
+}

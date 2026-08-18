@@ -1,0 +1,14 @@
+{
+  "name": "@roccho/url-module",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./canonical": "./src/canonical.mjs",
+    "./digest": "./src/digest.mjs"
+  },
+  "scripts": {
+    "test": "node tests/run.mjs"
+  }
+}
