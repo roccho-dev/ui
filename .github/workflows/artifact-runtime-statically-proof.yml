@@ -1,4 +1,4 @@
-name: Artifact Runtime Statically static proof
+name: Artifact Runtime zero-setup static proof
 
 on:
   pull_request:
@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 10
     env:
       ACCEPTED_COMMIT: 3dbd12ec1fc7843a54e04712e489dd91f110ffe3
-      BASE_URL: https://cdn.statically.io/gh/roccho-dev/ui@3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html
+      BASE_URL: https://rawcdn.githack.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          root="https://cdn.statically.io/gh/roccho-dev/ui@$ACCEPTED_COMMIT"
+          root="https://rawcdn.githack.com/roccho-dev/ui/$ACCEPTED_COMMIT"
           check() {
             path="$1"; mime="$2"
             body="$RUNNER_TEMP/body"
@@ -64,13 +64,13 @@ jobs:
           import json, pathlib, sys
           x=json.load(open(sys.argv[1], encoding='utf-8'))
           url=x['inspect-json-inline']
-          assert url.startswith('https://cdn.statically.io/gh/roccho-dev/ui@3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html#invoke=')
+          assert url.startswith('https://rawcdn.githack.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html#invoke=')
           assert len(url) < 8192
           pathlib.Path(sys.argv[2]).write_text(url, encoding='utf-8')
           print('urlChars', len(url))
           PY
 
-      - name: Browser execute hosted invocation
+      - name: Browser execute hosted invocation without bypass
         shell: bash
         run: |
           set -euo pipefail
@@ -85,7 +85,7 @@ jobs:
               cat "$RUNNER_TEMP/chrome.stderr" >&2
               exit "$code"
             }
-          grep -Fq 'data-state="pass">PASS</output>' "$RUNNER_TEMP/dom.html"
+          grep -Fq 'data-state="pass">PASS</output>' "$RUNNER_TEMP/dom.html" || { echo 'HOSTED_BROWSER_NOT_APP_PASS' >&2; head -c 2000 "$RUNNER_TEMP/dom.html" >&2; exit 31; }
           grep -Fq 'artifact-invocation-result/2' "$RUNNER_TEMP/dom.html"
           grep -Fq 'artifact-invocation-receipt/2' "$RUNNER_TEMP/dom.html"
           grep -Fq 'sha256:88979aa0f85bd0928f4c49356350f77a62e402241a14a9559120399baa31c999' "$RUNNER_TEMP/dom.html"
@@ -102,10 +102,10 @@ jobs:
             'schema':'artifact-runtime-static-host-proof/1',
             'status':'PASS',
             'authority':False,
-            'provider':'statically-github',
+            'provider':'rawcdn-githack-github',
             'acceptedCommit':'3dbd12ec1fc7843a54e04712e489dd91f110ffe3',
             'publicationSource':'accepted-ui-source',
-            'baseUrl':'https://cdn.statically.io/gh/roccho-dev/ui@3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html',
+            'baseUrl':'https://rawcdn.githack.com/roccho-dev/ui/3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html',
             'invocationUrlChars':len(url),
             'domSha256':'sha256:'+hashlib.sha256(dom).hexdigest(),
             'engineSha256':'sha256:88979aa0f85bd0928f4c49356350f77a62e402241a14a9559120399baa31c999',
@@ -116,7 +116,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: artifact-runtime-statically-proof-${{ github.run_id }}
+          name: artifact-runtime-zero-setup-static-proof-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/static-host-proof.json
             ${{ runner.temp }}/fixture-urls.json
