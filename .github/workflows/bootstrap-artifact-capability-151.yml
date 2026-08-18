@@ -1,0 +1,122 @@
+name: Bootstrap artifact capability issue 151
+
+on:
+  push:
+    branches:
+      - bootstrap/artifact-capability-151
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.repository_owner == 'roccho-dev'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Restore exact candidate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .bootstrap/artifact-capability-151/part-00 \
+            .bootstrap/artifact-capability-151/part-01 \
+            .bootstrap/artifact-capability-151/tail-00 \
+            .bootstrap/artifact-capability-151/tail-01 \
+            .bootstrap/artifact-capability-151/tail-02 \
+            .bootstrap/artifact-capability-151/tail-03 \
+            .bootstrap/artifact-capability-151/tail-04 \
+            .bootstrap/artifact-capability-151/tail-05 \
+            .bootstrap/artifact-capability-151/tail-06 \
+            .bootstrap/artifact-capability-151/tail-07 \
+            .bootstrap/artifact-capability-151/tail-08 \
+            > "$RUNNER_TEMP/candidate.patch.gz.b64"
+          base64 -d "$RUNNER_TEMP/candidate.patch.gz.b64" > "$RUNNER_TEMP/candidate.patch.gz"
+          test "$(sha256sum "$RUNNER_TEMP/candidate.patch.gz" | awk '{print $1}')" = "61126640c26ac02cfa9ca71335a570a5e4fbe745377e4d93e8dee42b0e16b7bd"
+          gzip -dc "$RUNNER_TEMP/candidate.patch.gz" > "$RUNNER_TEMP/candidate.patch"
+          test "$(sha256sum "$RUNNER_TEMP/candidate.patch" | awk '{print $1}')" = "52d9d6b76fc9c0a9ad2e63e6332ec5d92e74937161e1557a26cbc7ef97454aa9"
+      - name: Fail closed on stale public base
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(git ls-remote origin refs/heads/proposals | awk '{print $1}')"
+          test "$current" = "44d59a94836d015a084f4523900b67e8ef562daf"
+      - name: Materialize one clean candidate commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard "44d59a94836d015a084f4523900b67e8ef562daf"
+          git clean -fdx
+          git config user.name "GitHub Actions"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git am "$RUNNER_TEMP/candidate.patch"
+          test "$(git rev-parse HEAD^)" = "44d59a94836d015a084f4523900b67e8ef562daf"
+          test "$(git show -s --format=%T HEAD)" = "8d9cfe781ec8d9ece0816edc3f6674e057a48d02"
+          git diff --check HEAD^ HEAD
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Prove candidate before branch effect
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run check:artifact-shell
+          node tests/check-ci-workflows.mjs
+          node tests/check-purpose-atlas.mjs
+          node tests/run-all.mjs
+          out="$RUNNER_TEMP/publication"
+          node apps/artifact-shell/scripts/build.mjs --out="$out"
+          test "$(python3 - "$out/artifact-manifest.json" <<'PY'
+          import json, pathlib, sys
+          print(json.loads(pathlib.Path(sys.argv[1]).read_text())["treeDigest"])
+          PY
+          )" = "sha256:577e5c4c26b4a263f82468ef386d251b15fa1f7719cc4ce2419b3eb1d2e6cd73"
+      - name: Push proposal branch without force
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code origin "refs/heads/proposal/artifact-capability-platform-260819" >/dev/null 2>&1; then
+            remote="$(git ls-remote origin "refs/heads/proposal/artifact-capability-platform-260819" | awk '{print $1}')"
+            test "$remote" = "$(git rev-parse HEAD)"
+          else
+            git push origin "HEAD:refs/heads/proposal/artifact-capability-platform-260819"
+          fi
+      - name: Emit bootstrap receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipt"
+          COMMIT="$(git rev-parse HEAD)" TREE="$(git show -s --format=%T HEAD)" \
+            python3 - "$RUNNER_TEMP/receipt/bootstrap-receipt.json" <<'PY'
+          import json, os, pathlib, sys
+          value = {
+              "schema": "ui-artifact-capability-bootstrap/1",
+              "status": "PASS",
+              "authority": False,
+              "baseCommit": "44d59a94836d015a084f4523900b67e8ef562daf",
+              "candidateCommit": os.environ["COMMIT"],
+              "candidateTree": os.environ["TREE"],
+              "targetBranch": "proposal/artifact-capability-platform-260819",
+              "patchSha256": "52d9d6b76fc9c0a9ad2e63e6332ec5d92e74937161e1557a26cbc7ef97454aa9",
+              "gzipSha256": "61126640c26ac02cfa9ca71335a570a5e4fbe745377e4d93e8dee42b0e16b7bd",
+          }
+          pathlib.Path(sys.argv[1]).write_text(
+              json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-artifact-capability-bootstrap-151
+          path: ${{ runner.temp }}/receipt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove temporary bootstrap ref
+        if: success()
+        shell: bash
+        run: |
+          git push origin --delete "${{ github.ref_name }}" || true
