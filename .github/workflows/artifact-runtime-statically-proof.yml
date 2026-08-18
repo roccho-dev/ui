@@ -1,0 +1,126 @@
+name: Artifact Runtime Statically static proof
+
+on:
+  pull_request:
+    branches: [proposals]
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    if: github.head_ref == 'proof/artifact-runtime-statically-260819'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      ACCEPTED_COMMIT: 3dbd12ec1fc7843a54e04712e489dd91f110ffe3
+      BASE_URL: https://cdn.statically.io/gh/roccho-dev/ui@3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ACCEPTED_COMMIT }}
+
+      - name: Verify exact static bytes and MIME
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="https://cdn.statically.io/gh/roccho-dev/ui@$ACCEPTED_COMMIT"
+          check() {
+            path="$1"; mime="$2"
+            body="$RUNNER_TEMP/body"
+            meta="$RUNNER_TEMP/meta"
+            url="$root/$path"
+            printf '\n-- %s --\n' "$path"
+            curl --fail-with-body --location --retry 4 --retry-all-errors --silent --show-error \
+              --write-out '%{http_code}\t%{content_type}\t%{url_effective}\n' \
+              "$url" -o "$body" > "$meta"
+            status="$(cut -f1 "$meta")"
+            ctype="$(cut -f2 "$meta")"
+            effective="$(cut -f3- "$meta")"
+            local_bytes="$(wc -c < "$path")"
+            remote_bytes="$(wc -c < "$body")"
+            local_sha="$(sha256sum "$path" | cut -d' ' -f1)"
+            remote_sha="$(sha256sum "$body" | cut -d' ' -f1)"
+            printf 'status=%s\ncontent_type=%s\neffective_url=%s\nlocal_bytes=%s\nremote_bytes=%s\nlocal_sha256=%s\nremote_sha256=%s\n' \
+              "$status" "$ctype" "$effective" "$local_bytes" "$remote_bytes" "$local_sha" "$remote_sha"
+            test "$status" = 200 || { echo "STATIC_HTTP_STATUS_MISMATCH path=$path expected=200 actual=$status" >&2; return 21; }
+            test "$local_bytes" = "$remote_bytes" || { echo "STATIC_BYTES_MISMATCH path=$path local=$local_bytes remote=$remote_bytes" >&2; return 22; }
+            test "$local_sha" = "$remote_sha" || { echo "STATIC_SHA_MISMATCH path=$path local=$local_sha remote=$remote_sha" >&2; return 23; }
+            printf '%s' "$ctype" | grep -Eiq "$mime" || { echo "STATIC_MIME_MISMATCH path=$path expected=$mime actual=$ctype" >&2; return 24; }
+          }
+          check apps/artifact-shell/index.html 'text/html'
+          check apps/artifact-shell/src/entry.mjs '(javascript|ecmascript)'
+          check apps/artifact-shell/src/shell.mjs '(javascript|ecmascript)'
+          check apps/artifact-shell/generated/capability-registry.mjs '(javascript|ecmascript)'
+          check apps/artifact-shell/capabilities/inspect-json/engine.mjs '(javascript|ecmascript)'
+          check packages/artifact-invocation/src/runtime.mjs '(javascript|ecmascript)'
+
+      - name: Generate URL-module invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/tests/fixture-urls.mjs "$BASE_URL" > "$RUNNER_TEMP/fixture-urls.json"
+          python3 - "$RUNNER_TEMP/fixture-urls.json" "$RUNNER_TEMP/invocation-url.txt" <<'PY'
+          import json, pathlib, sys
+          x=json.load(open(sys.argv[1], encoding='utf-8'))
+          url=x['inspect-json-inline']
+          assert url.startswith('https://cdn.statically.io/gh/roccho-dev/ui@3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html#invoke=')
+          assert len(url) < 8192
+          pathlib.Path(sys.argv[2]).write_text(url, encoding='utf-8')
+          print('urlChars', len(url))
+          PY
+
+      - name: Browser execute hosted invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium || true)"
+          test -n "$browser"
+          url="$(cat "$RUNNER_TEMP/invocation-url.txt")"
+          timeout 25s "$browser" \
+            --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --virtual-time-budget=6000 --dump-dom "$url" \
+            > "$RUNNER_TEMP/dom.html" 2> "$RUNNER_TEMP/chrome.stderr" || {
+              code=$?
+              cat "$RUNNER_TEMP/chrome.stderr" >&2
+              exit "$code"
+            }
+          grep -Fq 'data-state="pass">PASS</output>' "$RUNNER_TEMP/dom.html"
+          grep -Fq 'artifact-invocation-result/2' "$RUNNER_TEMP/dom.html"
+          grep -Fq 'artifact-invocation-receipt/2' "$RUNNER_TEMP/dom.html"
+          grep -Fq 'sha256:88979aa0f85bd0928f4c49356350f77a62e402241a14a9559120399baa31c999' "$RUNNER_TEMP/dom.html"
+
+      - name: Emit proof receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/invocation-url.txt" "$RUNNER_TEMP/dom.html" "$RUNNER_TEMP/static-host-proof.json" <<'PY'
+          import hashlib,json,pathlib,sys
+          url=pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
+          dom=pathlib.Path(sys.argv[2]).read_bytes()
+          receipt={
+            'schema':'artifact-runtime-static-host-proof/1',
+            'status':'PASS',
+            'authority':False,
+            'provider':'statically-github',
+            'acceptedCommit':'3dbd12ec1fc7843a54e04712e489dd91f110ffe3',
+            'publicationSource':'accepted-ui-source',
+            'baseUrl':'https://cdn.statically.io/gh/roccho-dev/ui@3dbd12ec1fc7843a54e04712e489dd91f110ffe3/apps/artifact-shell/index.html',
+            'invocationUrlChars':len(url),
+            'domSha256':'sha256:'+hashlib.sha256(dom).hexdigest(),
+            'engineSha256':'sha256:88979aa0f85bd0928f4c49356350f77a62e402241a14a9559120399baa31c999',
+          }
+          pathlib.Path(sys.argv[3]).write_text(json.dumps(receipt,sort_keys=True,separators=(',',':'))+'\n', encoding='utf-8')
+          print(json.dumps(receipt,indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-runtime-statically-proof-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/static-host-proof.json
+            ${{ runner.temp }}/fixture-urls.json
+            ${{ runner.temp }}/dom.html
+            ${{ runner.temp }}/chrome.stderr
+          if-no-files-found: error
+          retention-days: 30
