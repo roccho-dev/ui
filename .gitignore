@@ -6,3 +6,4 @@ tests/fixtures/ssg-hot-refresh-viewport/dist/
 **/.wrangler/
 __pycache__/
 *.pyc
+generated/artifact-shell-publication/

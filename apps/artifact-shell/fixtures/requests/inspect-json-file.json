@@ -1,0 +1,25 @@
+{
+  "schema": "artifact-invocation/2",
+  "id": "request.inspect-json.file",
+  "intent": "inspect",
+  "inputs": [
+    {
+      "id": "payload",
+      "mediaType": "application/json",
+      "schema": "example-data/1",
+      "source": {
+        "kind": "file",
+        "binding": "payload-file"
+      }
+    }
+  ],
+  "constraints": {
+    "allowedRuntimes": [
+      "browser"
+    ],
+    "noUpload": true
+  },
+  "expects": [
+    "json-inspection/1"
+  ]
+}

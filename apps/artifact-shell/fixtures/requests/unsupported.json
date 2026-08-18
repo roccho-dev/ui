@@ -1,0 +1,12 @@
+{
+  "schema": "artifact-invocation/2",
+  "id": "request.unsupported",
+  "intent": "transmute",
+  "inputs": [],
+  "constraints": {
+    "allowedRuntimes": [
+      "browser"
+    ],
+    "noUpload": true
+  }
+}

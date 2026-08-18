@@ -1,0 +1,53 @@
+{
+  "schema": "artifact-capability-declaration/2",
+  "id": "inspect.json",
+  "version": "1",
+  "engine": {
+    "kind": "esm",
+    "file": "engine.mjs"
+  },
+  "accepts": {
+    "intents": [
+      "inspect"
+    ],
+    "minInputs": 1,
+    "maxInputs": 1,
+    "shapes": [
+      "blob"
+    ],
+    "mediaTypes": [
+      "application/json"
+    ],
+    "schemas": [
+      "*"
+    ]
+  },
+  "limits": {
+    "maxInputBytes": 1048576,
+    "maxTotalBytes": 1048576,
+    "maxEntries": 1,
+    "maxEngineBytes": 32768
+  },
+  "provides": [
+    "inspect.json"
+  ],
+  "produces": [
+    "json-inspection/1"
+  ],
+  "requires": {
+    "features": [],
+    "services": [],
+    "runtimes": [
+      "browser",
+      "node"
+    ]
+  },
+  "fixtures": {
+    "pass": [
+      "fixtures/pass.json"
+    ],
+    "destructive": [
+      "fixtures/destructive.json"
+    ]
+  }
+}

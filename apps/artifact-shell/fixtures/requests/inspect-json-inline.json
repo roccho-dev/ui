@@ -1,0 +1,32 @@
+{
+  "schema": "artifact-invocation/2",
+  "id": "request.inspect-json.inline",
+  "intent": "inspect",
+  "inputs": [
+    {
+      "id": "payload",
+      "mediaType": "application/json",
+      "schema": "example-data/1",
+      "source": {
+        "kind": "inline",
+        "value": {
+          "title": "One runtime",
+          "items": [
+            "url",
+            "file",
+            "inline"
+          ]
+        }
+      }
+    }
+  ],
+  "constraints": {
+    "allowedRuntimes": [
+      "browser"
+    ],
+    "noUpload": true
+  },
+  "expects": [
+    "json-inspection/1"
+  ]
+}

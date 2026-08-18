@@ -1,0 +1,66 @@
+{
+  "schema": "check-manifest/2",
+  "ownerRepo": "ui",
+  "checks": [
+    {
+      "id": "ui.artifact-invocation.unit",
+      "lane": "repo",
+      "kind": "normal",
+      "status": "active",
+      "argv": ["node", "packages/artifact-invocation/tests/run.mjs"],
+      "timeoutMs": 30000,
+      "deps": [],
+      "resultSchema": "check-receipt/1"
+    },
+    {
+      "id": "ui.artifact-shell.registry",
+      "lane": "repo",
+      "kind": "normal",
+      "status": "active",
+      "argv": ["node", "apps/artifact-shell/scripts/build-registry.mjs", "--check"],
+      "timeoutMs": 30000,
+      "deps": ["ui.artifact-invocation.unit"],
+      "resultSchema": "check-receipt/1"
+    },
+    {
+      "id": "ui.artifact-shell.unit",
+      "lane": "repo",
+      "kind": "normal",
+      "status": "active",
+      "argv": ["node", "apps/artifact-shell/tests/run.mjs"],
+      "timeoutMs": 60000,
+      "deps": ["ui.artifact-shell.registry"],
+      "resultSchema": "check-receipt/1"
+    },
+    {
+      "id": "ui.artifact-shell.extension-boundary",
+      "lane": "repo",
+      "kind": "mutation",
+      "status": "active",
+      "argv": ["node", "apps/artifact-shell/tests/extension-boundary.mjs"],
+      "timeoutMs": 60000,
+      "deps": ["ui.artifact-shell.registry"],
+      "resultSchema": "check-receipt/1"
+    },
+    {
+      "id": "ui.artifact-shell.publication",
+      "lane": "repo",
+      "kind": "normal",
+      "status": "active",
+      "argv": ["node", "apps/artifact-shell/tests/publication.mjs"],
+      "timeoutMs": 120000,
+      "deps": ["ui.artifact-shell.unit", "ui.artifact-shell.extension-boundary"],
+      "resultSchema": "check-receipt/1"
+    },
+    {
+      "id": "ui.artifact-shell.browser",
+      "lane": "release",
+      "kind": "inspection",
+      "status": "active",
+      "argv": ["python3", "apps/artifact-shell/tests/browser-proof.py"],
+      "timeoutMs": 180000,
+      "deps": ["ui.artifact-shell.publication"],
+      "resultSchema": "check-receipt/1"
+    }
+  ]
+}

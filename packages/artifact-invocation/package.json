@@ -1,0 +1,12 @@
+{
+  "name": "@roccho/artifact-invocation",
+  "version": "0.2.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "scripts": {
+    "check": "node tests/run.mjs"
+  }
+}

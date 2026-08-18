@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' blob:; style-src 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'">
+  <title>Universal artifact runtime</title>
+  <style>
+    :root { font-family: ui-sans-serif, system-ui, sans-serif; color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    main { width: min(960px, 100%); margin: 0 auto; padding: clamp(16px, 4vw, 40px); display: grid; gap: 18px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+    h1 { margin: 0; font-size: clamp(1.2rem, 4vw, 1.8rem); font-weight: 650; }
+    #status { font: 600 .75rem/1.2 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    #status[data-state="pass"] { color: green; }
+    #status[data-state="fail"], #status[data-state="inconclusive"] { color: firebrick; }
+    section { border: 1px solid color-mix(in srgb, CanvasText 16%, transparent); border-radius: 12px; padding: 14px; }
+    form { display: grid; gap: 12px; }
+    textarea, pre { width: 100%; margin: 0; padding: 12px; border: 0; border-radius: 9px; background: color-mix(in srgb, CanvasText 7%, Canvas); color: inherit; font: .78rem/1.5 ui-monospace, monospace; overflow: auto; }
+    textarea { min-height: 140px; resize: vertical; }
+    button, input { font: inherit; }
+    button { justify-self: start; border: 0; border-radius: 999px; padding: 9px 15px; font-weight: 700; cursor: pointer; }
+    #local-inputs { display: grid; gap: 8px; }
+    #local-inputs label { display: grid; gap: 5px; font-size: .82rem; }
+    #surface:empty { display: none; }
+    #surface [data-a2ui-component="Column"] { display: grid; gap: 12px; }
+    #surface [data-a2ui-component="Card"] { border: 1px solid color-mix(in srgb, CanvasText 16%, transparent); border-radius: 11px; padding: 14px; }
+    .outputs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+    h2 { margin: 0 0 9px; font-size: .86rem; }
+    #progress { min-height: 1.5em; white-space: pre-wrap; font: .76rem/1.5 ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Universal artifact runtime</h1>
+      <output id="status" data-state="idle">Booting</output>
+    </header>
+    <section>
+      <form id="request-form">
+        <label for="request">Invocation</label>
+        <textarea id="request" spellcheck="false"></textarea>
+        <div id="local-inputs" hidden></div>
+        <button id="run" type="submit">Run</button>
+      </form>
+    </section>
+    <section id="surface" aria-label="Capability surface"></section>
+    <section><h2>Progress</h2><div id="progress"></div></section>
+    <div class="outputs">
+      <section><h2>Result</h2><pre id="result"></pre></section>
+      <section><h2>Receipt</h2><pre id="receipt"></pre></section>
+    </div>
+  </main>
+  <script type="module" src="./src/entry.mjs"></script>
+</body>
+</html>
