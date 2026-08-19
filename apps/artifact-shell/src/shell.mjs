@@ -1,152 +1,21 @@
-import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
-import { readUrlModule } from "../../../packages/url-module/src/index.mjs";
 import {
   ARTIFACT_CAPABILITY_REGISTRY_BASE_URL,
   ARTIFACT_SHELL_BUILD,
   TRUSTED_ARTIFACT_CAPABILITIES,
 } from "../generated/capability-registry.mjs";
-import { createArtifactShellServices } from "./services.mjs";
+import { createArtifactShell as createArtifactShellCore } from "./shell-core.mjs";
 
-const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell: ${message}`); };
+export {
+  artifactShellElements,
+  collectLocalBindings,
+  detectBrowserEnvironment,
+  renderLocalBindingInputs,
+} from "./shell-core.mjs";
 
-export const detectBrowserEnvironment = scope => Object.freeze({
-  runtime: "browser",
-  features: Object.freeze([
-    ...(scope?.document?.createElement ? ["dom"] : []),
-    ...(scope?.crypto?.subtle ? ["crypto.subtle"] : []),
-    ...(typeof scope?.fetch === "function" ? ["fetch"] : []),
-    ...(typeof scope?.File === "function" ? ["file"] : []),
-    ...(typeof scope?.Worker === "function" ? ["worker"] : []),
-    ...(typeof scope?.WebAssembly === "object" ? ["wasm"] : []),
-  ].sort()),
+const SOURCE_REGISTRY = Object.freeze({
+  baseUrl: ARTIFACT_CAPABILITY_REGISTRY_BASE_URL,
+  manifests: TRUSTED_ARTIFACT_CAPABILITIES,
+  runtimeBuild: ARTIFACT_SHELL_BUILD,
 });
 
-const safeEngineFetch = scope => async href => {
-  const url = new URL(href, scope.location.href);
-  invariant(url.origin === scope.location.origin, "engine URL must be same-origin");
-  return scope.fetch(url.href, { cache: "force-cache", credentials: "omit", method: "GET", redirect: "error", referrerPolicy: "no-referrer" });
-};
-
-const safeInputFetch = scope => async (href, options = {}) => {
-  const url = new URL(href, scope.location.href);
-  invariant(url.protocol === "https:" || url.origin === scope.location.origin, "input URL must be same-origin or https");
-  return scope.fetch(url.href, { cache: "no-store", credentials: "omit", method: "GET", redirect: "error", referrerPolicy: "no-referrer", ...options });
-};
-
-const localSources = request => request.inputs.filter(input => input.source.kind === "file" || input.source.kind === "directory");
-
-export const renderLocalBindingInputs = ({ container, document, request }) => {
-  container.replaceChildren();
-  const controls = new Map();
-  for (const input of localSources(request)) {
-    const binding = input.source.binding;
-    invariant(!controls.has(binding), `local binding is duplicated: ${binding}`);
-    const wrapper = document.createElement("label");
-    wrapper.textContent = `${input.id} · ${input.source.kind}`;
-    const control = document.createElement("input");
-    control.type = "file";
-    control.dataset.binding = binding;
-    control.dataset.kind = input.source.kind;
-    if (input.source.kind === "directory") {
-      control.multiple = true;
-      control.setAttribute("webkitdirectory", "");
-    }
-    wrapper.append(control);
-    container.append(wrapper);
-    controls.set(binding, control);
-  }
-  container.hidden = controls.size === 0;
-  return controls;
-};
-
-export const collectLocalBindings = controls => Object.freeze(Object.fromEntries([...controls.entries()].map(([binding, control]) => [
-  binding,
-  control.dataset.kind === "directory" ? Object.freeze(Array.from(control.files ?? [])) : (control.files?.[0] ?? null),
-])));
-
-const missingLocalBindings = (request, bindings) => localSources(request)
-  .filter(input => {
-    const value = bindings[input.source.binding];
-    return input.source.kind === "directory" ? !Array.isArray(value) || value.length === 0 : !value;
-  })
-  .map(input => input.source.binding);
-
-export const createArtifactShell = async ({ elements, scope = globalThis }) => {
-  const required = ["form", "localInputs", "progress", "receipt", "request", "result", "run", "status", "surface"];
-  for (const key of required) invariant(elements?.[key], `elements.${key} is required`);
-  const runtime = await createArtifactInvocationRuntime({
-    engineBaseUrl: ARTIFACT_CAPABILITY_REGISTRY_BASE_URL,
-    environment: detectBrowserEnvironment(scope),
-    fetchEngine: safeEngineFetch(scope),
-    fetchInput: safeInputFetch(scope),
-    manifests: TRUSTED_ARTIFACT_CAPABILITIES,
-    runtimeBuild: Object.freeze({ digest: ARTIFACT_SHELL_BUILD.digest, id: ARTIFACT_SHELL_BUILD.id, version: ARTIFACT_SHELL_BUILD.version }),
-    services: createArtifactShellServices({ document: scope.document, eventTarget: scope, surfaceMount: elements.surface }),
-  });
-  let activeRequest = null;
-  let activeRequestSignature = null;
-  let localControls = new Map();
-
-  const showStatus = (state, text) => {
-    elements.status.dataset.state = state;
-    elements.status.textContent = text;
-  };
-  const showRequest = request => {
-    activeRequest = request;
-    activeRequestSignature = JSON.stringify(request);
-    elements.request.value = JSON.stringify(request, null, 2);
-    localControls = renderLocalBindingInputs({ container: elements.localInputs, document: scope.document, request });
-    elements.surface.replaceChildren();
-    elements.result.textContent = "";
-    elements.receipt.textContent = "";
-    elements.progress.textContent = "";
-  };
-  const execute = async request => {
-    if (JSON.stringify(request) !== activeRequestSignature) showRequest(request);
-    else activeRequest = request;
-    const bindings = collectLocalBindings(localControls);
-    const missing = missingLocalBindings(request, bindings);
-    if (missing.length > 0) {
-      showStatus("waiting", `Select local input · ${missing.join(", ")}`);
-      return null;
-    }
-    showStatus("running", "Running");
-    const events = [];
-    const outcome = await runtime.execute({
-      bindings,
-      emit: event => {
-        events.push(event);
-        elements.progress.textContent = events.map(item => `${item.kind}${item.capability ? ` · ${item.capability}` : ""}`).join("\n");
-      },
-      request,
-    });
-    elements.result.textContent = JSON.stringify(outcome.result, null, 2);
-    elements.receipt.textContent = JSON.stringify(outcome.receipt, null, 2);
-    showStatus(outcome.result.status.toLowerCase(), outcome.result.status);
-    scope.artifactShellProof = Object.freeze({
-      loadedCapabilities: runtime.loadedCapabilities(),
-      outcome,
-      request,
-      runtime: Object.freeze({ registryDigest: runtime.registryDigest, runtimeContract: runtime.runtimeContract }),
-    });
-    return outcome;
-  };
-
-  elements.form.addEventListener("submit", event => {
-    event.preventDefault();
-    execute(JSON.parse(elements.request.value)).catch(error => showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`));
-  });
-  elements.localInputs.addEventListener("change", () => {
-    if (activeRequest) execute(activeRequest).catch(error => showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`));
-  });
-
-  const fromUrl = await readUrlModule({ fragment: "invoke", input: scope.location.href });
-  if (fromUrl) {
-    showRequest(fromUrl);
-    if (localSources(fromUrl).length > 0) showStatus("waiting", "Select local input");
-    else await execute(fromUrl);
-  } else {
-    showStatus("idle", "Paste an artifact-invocation/2 request");
-  }
-  return Object.freeze({ execute, runtime, showRequest });
-};
+export const createArtifactShell = options => createArtifactShellCore({ ...options, registry: SOURCE_REGISTRY });
