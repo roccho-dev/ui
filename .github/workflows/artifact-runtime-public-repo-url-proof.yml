@@ -22,8 +22,10 @@ jobs:
           set -euo pipefail
           base="https://rawcdn.githack.com/roccho-dev/ui/$SOURCE_COMMIT/apps/artifact-shell"
           url="$base/index.html#invoke=$INVOKE_TOKEN"
-          html_type="$(curl --fail --silent --show-error --location --head "$base/index.html" | tr -d '\r' | awk -F': *' 'tolower($1)=="content-type"{print tolower($2);exit}')"
-          js_type="$(curl --fail --silent --show-error --location --head "$base/entry.mjs" | tr -d '\r' | awk -F': *' 'tolower($1)=="content-type"{print tolower($2);exit}')"
+          curl --fail --silent --show-error --location --dump-header "$RUNNER_TEMP/html.headers" --output "$RUNNER_TEMP/index.html" "$base/index.html"
+          curl --fail --silent --show-error --location --dump-header "$RUNNER_TEMP/js.headers" --output "$RUNNER_TEMP/entry.mjs" "$base/entry.mjs"
+          html_type="$(tr -d '\r' < "$RUNNER_TEMP/html.headers" | awk -F': *' 'tolower($1)=="content-type"{v=tolower($2)} END{print v}')"
+          js_type="$(tr -d '\r' < "$RUNNER_TEMP/js.headers" | awk -F': *' 'tolower($1)=="content-type"{v=tolower($2)} END{print v}')"
           printf 'html-content-type=%s\njs-content-type=%s\n' "$html_type" "$js_type"
           [[ "$html_type" == text/html* ]]
           [[ "$js_type" == *javascript* ]]
@@ -58,6 +60,8 @@ jobs:
         with:
           name: artifact-runtime-public-repo-url-proof-${{ github.run_id }}
           path: |
+            ${{ runner.temp }}/html.headers
+            ${{ runner.temp }}/js.headers
             ${{ runner.temp }}/dom.html
             ${{ runner.temp }}/receipt.json
           if-no-files-found: warn
