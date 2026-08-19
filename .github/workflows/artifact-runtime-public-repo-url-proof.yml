@@ -23,7 +23,7 @@ jobs:
           base="https://rawcdn.githack.com/roccho-dev/ui/$SOURCE_COMMIT/apps/artifact-shell"
           url="$base/index.html#invoke=$INVOKE_TOKEN"
           curl --fail --silent --show-error --location --dump-header "$RUNNER_TEMP/html.headers" --output "$RUNNER_TEMP/index.html" "$base/index.html"
-          curl --fail --silent --show-error --location --dump-header "$RUNNER_TEMP/js.headers" --output "$RUNNER_TEMP/entry.mjs" "$base/entry.mjs"
+          curl --fail --silent --show-error --location --dump-header "$RUNNER_TEMP/js.headers" --output "$RUNNER_TEMP/entry.mjs" "$base/src/entry.mjs"
           html_type="$(tr -d '\r' < "$RUNNER_TEMP/html.headers" | awk -F': *' 'tolower($1)=="content-type"{v=tolower($2)} END{print v}')"
           js_type="$(tr -d '\r' < "$RUNNER_TEMP/js.headers" | awk -F': *' 'tolower($1)=="content-type"{v=tolower($2)} END{print v}')"
           printf 'html-content-type=%s\njs-content-type=%s\n' "$html_type" "$js_type"
