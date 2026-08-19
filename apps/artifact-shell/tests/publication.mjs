@@ -26,6 +26,29 @@ const files = async root => {
   return result;
 };
 const snapshot = async root => Object.fromEntries(await Promise.all((await files(root)).map(async target => [path.relative(root, target).split(path.sep).join("/"), (await fs.readFile(target)).toString("base64")] )));
+const staticImportSpecifiers = source => {
+  const result = [];
+  for (const pattern of [
+    /\bimport\s+(?:[^"'()]*?\s+from\s+)?["']([^"']+)["']/gu,
+    /\bexport\s+[^"']*?\s+from\s+["']([^"']+)["']/gu,
+  ]) for (const match of source.matchAll(pattern)) result.push(match[1]);
+  return result;
+};
+const assertStaticModuleClosure = async root => {
+  let imports = 0;
+  for (const target of await files(root)) {
+    if (!target.endsWith(".mjs")) continue;
+    const source = await fs.readFile(target, "utf8");
+    for (const specifier of staticImportSpecifiers(source)) {
+      if (!specifier.startsWith(".")) continue;
+      const resolved = path.resolve(path.dirname(target), specifier.split(/[?#]/u, 1)[0]);
+      ok(resolved.startsWith(`${path.resolve(root)}${path.sep}`), `${specifier} escapes publication from ${target}`);
+      await fs.access(resolved);
+      imports += 1;
+    }
+  }
+  return imports;
+};
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "artifact-publication-"));
 try {
   const outputA = path.join(temp, "a");
@@ -39,6 +62,15 @@ try {
   equal(first.catalog.capabilities.length, 2);
   equal((await fs.readdir(path.join(outputA, "kernel"))).length, 1);
   equal(first.kernel.digest.startsWith("sha256:"), true);
+  equal((await fs.readFile(path.join(outputA, "index.html"), "utf8")).includes('src="./entry.mjs"'), true);
+  const publicationEntry = await fs.readFile(path.join(outputA, "entry.mjs"), "utf8");
+  ok(publicationEntry.includes("./catalog.json"));
+  ok(publicationEntry.includes(`./kernel/${first.kernel.digest.slice("sha256:".length)}/apps/artifact-shell/src/shell-core.mjs`));
+  const kernelRoot = path.join(outputA, "kernel", first.kernel.digest.slice("sha256:".length));
+  equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "shell-core.mjs")).then(() => true), true);
+  await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "entry.mjs"))); assertions += 1;
+  await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "publication.mjs"))); assertions += 1;
+  ok((await assertStaticModuleClosure(outputA)) > 0);
 
   let nodeFixtures = 0;
   for (const entry of first.catalog.capabilities) {
@@ -89,7 +121,8 @@ try {
   equal(nodeFixtures, 2);
   equal(first.artifactManifest.files.some(item => item.path.includes("agent.json")), true);
   equal(first.artifactManifest.files.some(item => item.path.includes("view.html")), true);
-  equal(first.artifactManifest.files.filter(item => item.path.includes("/kernel/")).length, 0);
+  equal(first.artifactManifest.files.some(item => item.path === "index.html"), true);
+  equal(first.artifactManifest.files.some(item => item.path === "entry.mjs"), true);
 
   console.log(JSON.stringify({ schema: "check-receipt/1", checkId: "ui.artifact-shell.publication", ownerRepo: "ui", lane: "repo", kind: "normal", status: "PASS", assertions, capabilities: first.catalog.capabilities.length, nodeFixtures, treeDigest: first.artifactManifest.treeDigest }));
 } finally {

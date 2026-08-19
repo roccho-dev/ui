@@ -45,9 +45,9 @@ const runtimeSourceRoots = Object.freeze([
   path.join(repoRoot, "packages", "artifact-reference", "package.json"),
   path.join(repoRoot, "packages", "a2ui-browser", "src"),
   path.join(repoRoot, "packages", "a2ui-browser", "package.json"),
-  path.join(appRoot, "src"),
-  path.join(appRoot, "index.html"),
-  path.join(appRoot, "package.json"),
+  path.join(appRoot, "src", "pinned-view.mjs"),
+  path.join(appRoot, "src", "services.mjs"),
+  path.join(appRoot, "src", "shell-core.mjs"),
 ]);
 
 const collectFiles = async target => {

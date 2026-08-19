@@ -46,6 +46,48 @@ const descriptor = async (root, target) => {
 };
 const copyFile = async (source, target) => { await fs.mkdir(path.dirname(target), { recursive: true }); await fs.writeFile(target, await fs.readFile(source)); };
 const selfContainedEsm = source => !/\bimport\s*(?:\(|["'{*])/u.test(source) && !/\bexport\s+[^;\n]*\sfrom\s*["']/u.test(source);
+const publicationEntrySource = kernelId => `import { artifactShellElements, createArtifactShell } from "./kernel/${kernelId}/apps/artifact-shell/src/shell-core.mjs";
+
+const invariant = (condition, message) => { if (!condition) throw new Error(\`artifact-publication-entry: \${message}\`); };
+export const bootPublishedArtifactShell = async ({ scope = globalThis } = {}) => {
+  const getJson = async href => {
+    const url = new URL(href, import.meta.url);
+    invariant(url.origin === scope.location.origin, "registry URL must be same-origin");
+    const response = await scope.fetch(url.href, { cache: "force-cache", credentials: "omit", method: "GET", redirect: "error", referrerPolicy: "no-referrer" });
+    invariant(response.ok, \`registry fetch failed: \${response.status}\`);
+    return response.json();
+  };
+  const catalogUrl = new URL("./catalog.json", import.meta.url);
+  invariant(catalogUrl.origin === scope.location.origin, "catalog must be same-origin");
+  const catalog = await getJson(catalogUrl);
+  invariant(catalog.schema === "artifact-capability-catalog/2", "catalog schema is unsupported");
+  const manifests = await Promise.all(catalog.capabilities.map(async entry => {
+    const publicationUrl = new URL(\`./\${entry.root}/manifest.json\`, catalogUrl);
+    const publication = await getJson(publicationUrl);
+    invariant(publication.schema === "artifact-capability-publication/2", "capability publication schema is unsupported");
+    invariant(publication.releaseHash === entry.releaseHash, "capability release hash mismatch");
+    invariant(publication.capability.id === entry.capability.id && publication.capability.version === entry.capability.version, "capability identity mismatch");
+    return Object.freeze({
+      ...publication.capability,
+      engine: Object.freeze({ ...publication.capability.engine, href: new URL("./engine.mjs", publicationUrl).href }),
+    });
+  }));
+  const elements = artifactShellElements(scope.document);
+  return createArtifactShell({ elements, registry: { baseUrl: catalogUrl.href, manifests, runtimeBuild: catalog.kernel }, scope });
+};
+if (globalThis.location?.protocol === "http:" || globalThis.location?.protocol === "https:") {
+  bootPublishedArtifactShell().catch(error => {
+    const status = globalThis.document?.querySelector?.("#status");
+    if (status) { status.dataset.state = "inconclusive"; status.textContent = \`INCONCLUSIVE · \${error.message}\`; }
+    globalThis.artifactShellProof = Object.freeze({ error: String(error.message) });
+  });
+}
+`;
+const publicationIndexHtml = source => {
+  const expected = '<script type="module" src="./src/entry.mjs"></script>';
+  invariant(source.includes(expected), "source shell index entry is missing");
+  return source.replace(expected, '<script type="module" src="./entry.mjs"></script>');
+};
 const viewHtml = title => `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>${title}</title>\n<style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:Canvas;color:CanvasText}main{width:min(960px,100%);margin:auto;padding:clamp(16px,4vw,40px);display:grid;gap:18px}header{display:flex;justify-content:space-between;gap:16px;align-items:baseline}section{border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:14px;padding:16px}pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}#surface:empty{display:none}</style>\n</head>\n<body><main><header><h1>${title}</h1><output id="status" data-state="loading">Loading</output></header><section id="surface"></section><section><h2>Result</h2><pre id="result"></pre></section><section><h2>Receipt</h2><pre id="receipt"></pre></section></main><script type="module" src="./view.mjs"></script></body></html>\n`;
 
 export const buildArtifactShellPublication = async ({ capabilitiesRoot, outputRoot, repoRoot }) => {
@@ -124,6 +166,8 @@ export const buildArtifactShellPublication = async ({ capabilitiesRoot, outputRo
   }
   const catalog = Object.freeze({ capabilities: Object.freeze(entries), kernel, schema: ARTIFACT_CAPABILITY_CATALOG_SCHEMA });
   await writeJson(path.join(outputRoot, "catalog.json"), catalog);
+  await fs.writeFile(path.join(outputRoot, "entry.mjs"), publicationEntrySource(kernelId));
+  await fs.writeFile(path.join(outputRoot, "index.html"), publicationIndexHtml(await fs.readFile(path.join(appRoot, "index.html"), "utf8")));
   const files = await listFiles(outputRoot);
   const described = Object.freeze(await Promise.all(files.map(file => descriptor(outputRoot, file))));
   const treeDigest = sha(Buffer.from(canonicalJson(described)));
