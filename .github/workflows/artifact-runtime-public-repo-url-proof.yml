@@ -1,0 +1,64 @@
+name: Artifact Runtime public repo URL proof
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/artifact-runtime-public-repo-url-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  public-url-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_COMMIT: 1cb7042c4dccec03bd7f9f8ce9d4d3440cd209e9
+      INVOKE_TOKEN: H4sIAAAAAAAAA01PS07EMAy9CnrrdkbDspdAQrBCLExqGEPqZBJnPqp6d-QwC1aW_P4rQtJqhUStYlpBMaYLz89NTRaumN7wUdKlcsEATTPj3e9rjolmTFYabwP4mjlYZ3_XpKNo9Yck3R9cIDMmFD41rra7g6Mzd5lqxQDR3Lp-_eNmuvWAAQvPQi-3zJhAOUcJ1H1djQE1HHkhTOArLTnyOJPR_uBIaiWwb_oRdU_RKMoYcKbYOiDGSy99bAu5G32xmhc2seiJT8oPIRXGtm2-Q80J7tU3_C9AxeSTgo2i53Qv-YjtFwc_wjBiAQAA
+    steps:
+      - name: Prove public MIME and real browser invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://rawcdn.githack.com/roccho-dev/ui/$SOURCE_COMMIT/apps/artifact-shell"
+          url="$base/index.html#invoke=$INVOKE_TOKEN"
+          html_type="$(curl --fail --silent --show-error --location --head "$base/index.html" | tr -d '\r' | awk -F': *' 'tolower($1)=="content-type"{print tolower($2);exit}')"
+          js_type="$(curl --fail --silent --show-error --location --head "$base/entry.mjs" | tr -d '\r' | awk -F': *' 'tolower($1)=="content-type"{print tolower($2);exit}')"
+          printf 'html-content-type=%s\njs-content-type=%s\n' "$html_type" "$js_type"
+          [[ "$html_type" == text/html* ]]
+          [[ "$js_type" == *javascript* ]]
+          command -v google-chrome
+          google-chrome --version
+          google-chrome --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --virtual-time-budget=15000 --dump-dom "$url" > "$RUNNER_TEMP/dom.html"
+          grep -F 'data-state="pass"' "$RUNNER_TEMP/dom.html"
+          grep -F '"status": "PASS"' "$RUNNER_TEMP/dom.html"
+          grep -F '"contract": "json-inspection/1"' "$RUNNER_TEMP/dom.html"
+          grep -F 'inspect.json@1' "$RUNNER_TEMP/dom.html"
+          python3 - "$SOURCE_COMMIT" "$base" "$url" > "$RUNNER_TEMP/receipt.json" <<'PY'
+          import json,sys
+          source,base,url=sys.argv[1:]
+          print(json.dumps({
+            'schema':'artifact-runtime-public-repo-url-proof/1',
+            'status':'PASS',
+            'authority':False,
+            'sourceCommit':source,
+            'publicBase':base,
+            'publicUrl':url,
+            'browser':'google-chrome-headless',
+            'expectedCapability':'inspect.json@1',
+            'expectedOutputContract':'json-inspection/1',
+          },sort_keys=True,separators=(',',':')))
+          PY
+          cat "$RUNNER_TEMP/receipt.json"
+
+      - name: Preserve proof evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-runtime-public-repo-url-proof-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/dom.html
+            ${{ runner.temp }}/receipt.json
+          if-no-files-found: warn
+          retention-days: 30
