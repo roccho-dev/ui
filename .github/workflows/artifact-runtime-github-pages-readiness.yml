@@ -1,0 +1,51 @@
+name: Artifact Runtime GitHub Pages readiness
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/artifact-runtime-github-pages-readiness.yml'
+
+permissions:
+  contents: read
+  pages: read
+
+jobs:
+  pages-readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Read GitHub Pages site configuration only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/pages.json"
+          code="$(curl --silent --show-error --output "$out" --write-out '%{http_code}' \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2026-03-10' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pages")"
+          python3 - "$code" "$out" > "$RUNNER_TEMP/receipt.json" <<'PY'
+          import json,sys
+          code,path=sys.argv[1:]
+          raw=json.load(open(path,encoding='utf-8')) if open(path,'rb').read(1) else {}
+          if code=='200':
+              result={'schema':'artifact-runtime-github-pages-readiness/1','status':'PASS_CONFIGURED','authority':False,'httpStatus':200,'htmlUrl':raw.get('html_url'),'buildType':raw.get('build_type'),'source':raw.get('source')}
+          elif code=='404':
+              result={'schema':'artifact-runtime-github-pages-readiness/1','status':'NOT_CONFIGURED','authority':False,'httpStatus':404}
+          elif code=='403':
+              result={'schema':'artifact-runtime-github-pages-readiness/1','status':'UNOBSERVABLE_BY_GITHUB_TOKEN','authority':False,'httpStatus':403,'message':raw.get('message')}
+          else:
+              raise SystemExit(f'unexpected Pages API status {code}: {raw}')
+          print(json.dumps(result,sort_keys=True,separators=(',',':')))
+          PY
+          cat "$RUNNER_TEMP/receipt.json"
+
+      - name: Preserve readiness receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-runtime-github-pages-readiness-${{ github.run_id }}
+          path: ${{ runner.temp }}/receipt.json
+          if-no-files-found: error
+          retention-days: 30
