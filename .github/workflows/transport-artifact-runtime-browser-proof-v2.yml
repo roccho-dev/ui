@@ -1,0 +1,52 @@
+name: Materialize exact Artifact Runtime browser proof candidate
+
+on:
+  push:
+    branches:
+      - transport/artifact-runtime-browser-proof-260821-v2
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Fetch exact GitHub patch Carrier and create exact candidate
+        env:
+          SOURCE_BRANCH: proposals
+          TARGET_BRANCH: proposal/artifact-runtime-browser-proof-260821
+          EXPECTED_HEAD: 3a6eaeeb77aef568987add668f5c9b6aa426f74e
+          EXPECTED_CARRIER_SHA256: 52ba0ed038c2beb3adbb566a233d9ed4825f4f28c87ff865e7dee30bdee530ff
+          EXPECTED_PATCH_SHA256: 6ffeb5d4694deccef7b89a750a402eab3b2b76d0659440792b20693869a11bcb
+          EXPECTED_TREE: e410b76db00faa9c93e6d68bea2fe1014a124138
+          PATCH_URL: https://raw.githubusercontent.com/roccho-dev/ui/486e62e9e6c6d9b09c261e6ea011de304484e08b/transport/artifact-shell-browser-proof.patch.gz.b64
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/$SOURCE_BRANCH | awk 'NR==1 {print $1}')" = "$EXPECTED_HEAD"
+          test -z "$(git ls-remote origin refs/heads/$TARGET_BRANCH)"
+          curl --fail-with-body --location --retry 5 --retry-all-errors --silent --show-error "$PATCH_URL" -o "$RUNNER_TEMP/change.patch.gz.b64"
+          test "$(sha256sum "$RUNNER_TEMP/change.patch.gz.b64" | awk '{print $1}')" = "$EXPECTED_CARRIER_SHA256"
+          base64 --decode "$RUNNER_TEMP/change.patch.gz.b64" | gzip -d > "$RUNNER_TEMP/change.patch"
+          test "$(sha256sum "$RUNNER_TEMP/change.patch" | awk '{print $1}')" = "$EXPECTED_PATCH_SHA256"
+          git fetch --quiet origin refs/heads/$SOURCE_BRANCH
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_HEAD"
+          git checkout --detach FETCH_HEAD
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git am "$RUNNER_TEMP/change.patch"
+          test "$(git rev-parse HEAD^{tree})" = "$EXPECTED_TREE"
+          npm run check:artifact-runtime
+          node tests/check-ci-workflows.mjs
+          node --check apps/artifact-shell/tests/browser-proof.mjs
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
