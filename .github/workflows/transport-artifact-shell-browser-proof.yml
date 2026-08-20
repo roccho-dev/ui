@@ -33,10 +33,11 @@ jobs:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
 
-      - name: Apply exact patch to exact product head and prove the browser loop
+      - name: Apply exact patch to accepted source and prove the browser loop
         env:
-          TARGET_BRANCH: proposal/artifact-runtime-bidirectional-url-260821
-          EXPECTED_HEAD: ca367e75b3518d7f47b7ab9de4c87eb41b7a5e20
+          SOURCE_BRANCH: proposals
+          TARGET_BRANCH: proposal/artifact-runtime-browser-proof-260821
+          EXPECTED_HEAD: 3a6eaeeb77aef568987add668f5c9b6aa426f74e
           EXPECTED_PATCH_SHA256: 6ffeb5d4694deccef7b89a750a402eab3b2b76d0659440792b20693869a11bcb
           EXPECTED_TREE: e410b76db00faa9c93e6d68bea2fe1014a124138
           EXPECTED_PUBLICATION: sha256:c2767ff0c53ba60012e3357a117455c26f1829e1a87e624e771cc2e2581f9173
@@ -47,9 +48,10 @@ jobs:
           test "$(sha256sum "$RUNNER_TEMP/change.patch.gz.b64" | awk '{print $1}')" = "52ba0ed038c2beb3adbb566a233d9ed4825f4f28c87ff865e7dee30bdee530ff"
           base64 --decode "$RUNNER_TEMP/change.patch.gz.b64" | gzip -d > "$RUNNER_TEMP/change.patch"
           test "$(sha256sum "$RUNNER_TEMP/change.patch" | awk '{print $1}')" = "$EXPECTED_PATCH_SHA256"
-          remote_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk 'NR==1 {print $1}')"
-          test "$remote_head" = "$EXPECTED_HEAD"
-          git fetch --quiet origin "refs/heads/$TARGET_BRANCH"
+          source_head="$(git ls-remote origin "refs/heads/$SOURCE_BRANCH" | awk 'NR==1 {print $1}')"
+          test "$source_head" = "$EXPECTED_HEAD"
+          test -z "$(git ls-remote origin "refs/heads/$TARGET_BRANCH")"
+          git fetch --quiet origin "refs/heads/$SOURCE_BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_HEAD"
           git checkout --detach FETCH_HEAD
           git config user.name github-actions
