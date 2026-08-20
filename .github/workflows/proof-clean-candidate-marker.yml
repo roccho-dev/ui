@@ -1,0 +1,36 @@
+name: Clean accidental candidate marker
+
+on:
+  push:
+    branches:
+      - proof/build-artifact-action-url-260821
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Remove marker only when candidate exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: proposal/artifact-action-url-260821
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git ls-remote --exit-code "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TARGET" >/dev/null 2>&1; then
+            echo "candidate not present; nothing to clean"
+            exit 0
+          fi
+          git clone --depth=1 --branch "$TARGET" "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" candidate
+          if [ ! -e candidate/.github/.artifact-action-url-candidate-marker ]; then
+            echo "marker absent"
+            exit 0
+          fi
+          git -C candidate config user.name github-actions[bot]
+          git -C candidate config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C candidate rm .github/.artifact-action-url-candidate-marker
+          git -C candidate commit -m "chore: remove accidental candidate marker"
+          git -C candidate push origin "$TARGET"
