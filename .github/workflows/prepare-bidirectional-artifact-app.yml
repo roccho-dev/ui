@@ -1,0 +1,400 @@
+name: Prepare bidirectional Artifact App candidate
+
+on:
+  push:
+    branches:
+      - proposal/bidirectional-artifact-app-260821
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: proposal/bidirectional-artifact-app-260821
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Apply minimal trusted Action to URL closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          shell_path = Path('apps/artifact-shell/src/shell-core.mjs')
+          shell = shell_path.read_text(encoding='utf-8')
+          old = '''import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
+          import { readUrlModule } from "../../../packages/url-module/src/index.mjs";'''.replace('          ', '')
+          new = '''import { createArtifactInvocationRuntime, validateArtifactInvocation } from "../../../packages/artifact-invocation/src/index.mjs";
+          import { createUrlModuleUrl, readUrlModule } from "../../../packages/url-module/src/index.mjs";'''.replace('          ', '')
+          assert shell.count(old) == 1
+          shell = shell.replace(old, new)
+
+          marker = 'const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell: ${message}`); };\n'
+          addition = r'''
+          const plain = value => value !== null && typeof value === "object" && !Array.isArray(value)
+            && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+          const exactKeys = (value, required, optional, name) => {
+            invariant(plain(value), `${name} must be a plain object`);
+            const allowed = new Set([...required, ...optional]);
+            for (const key of required) invariant(Object.hasOwn(value, key), `${name}.${key} is required`);
+            for (const key of Object.keys(value)) invariant(allowed.has(key), `${name}.${key} is not allowed`);
+          };
+
+          export const compileArtifactShellAction = detail => {
+            exactKeys(detail, ["action", "context", "sourceComponentId", "surfaceId", "version"], [], "action");
+            invariant(detail.action === "artifact.invoke", `unsupported action: ${detail.action}`);
+            for (const key of ["sourceComponentId", "surfaceId", "version"]) {
+              invariant(typeof detail[key] === "string" && detail[key].length > 0, `action.${key} is invalid`);
+            }
+            exactKeys(detail.context, ["request"], ["history"], "action.context");
+            const history = detail.context.history ?? "replace";
+            invariant(history === "replace" || history === "push", "action.context.history must be replace or push");
+            return Object.freeze({
+              action: "artifact.invoke",
+              history,
+              request: validateArtifactInvocation(detail.context.request),
+              sourceComponentId: detail.sourceComponentId,
+              surfaceId: detail.surfaceId,
+              version: detail.version,
+            });
+          };
+          '''.replace('          ', '')
+          assert shell.count(marker) == 1
+          shell = shell.replace(marker, marker + addition)
+
+          old = '''  const registry = normalizeRegistry(registryInput);
+          const runtime = await createArtifactInvocationRuntime({'''.replace('          ', '')
+          new = '''  const registry = normalizeRegistry(registryInput);
+          let dispatchAction = () => Promise.resolve(null);
+          const runtime = await createArtifactInvocationRuntime({'''.replace('          ', '')
+          assert shell.count(old) == 1
+          shell = shell.replace(old, new)
+
+          old = '    services: createArtifactShellServices({ document: scope.document, eventTarget: scope, surfaceMount: elements.surface }),'
+          new = '    services: createArtifactShellServices({ document: scope.document, eventTarget: scope, onAction: detail => dispatchAction(detail), surfaceMount: elements.surface }),'
+          assert shell.count(old) == 1
+          shell = shell.replace(old, new)
+
+          marker = '''    return outcome;
+          };
+
+          elements.form.addEventListener'''.replace('          ', '')
+          replacement = r'''    return outcome;
+          };
+
+          const applyAction = async detail => {
+            const compiled = compileArtifactShellAction(detail);
+            const method = `${compiled.history}State`;
+            invariant(scope.location?.href, "scope.location.href is required");
+            invariant(scope.history && typeof scope.history[method] === "function", `history.${method} is unavailable`);
+            const href = await createUrlModuleUrl({ base: scope.location.href, fragment: "invoke", value: compiled.request });
+            const state = Object.freeze({ requestId: compiled.request.id, schema: "artifact-shell-history/1" });
+            scope.history[method](state, "", href);
+            const outcome = await execute(compiled.request);
+            const proof = Object.freeze({
+              action: compiled.action,
+              authority: false,
+              history: compiled.history,
+              href,
+              outcome,
+              request: compiled.request,
+              sourceComponentId: compiled.sourceComponentId,
+              status: outcome?.result?.status ?? "WAITING",
+              surfaceId: compiled.surfaceId,
+              version: compiled.version,
+            });
+            scope.artifactShellActionProof = proof;
+            return proof;
+          };
+          dispatchAction = detail => applyAction(detail).catch(error => {
+            showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`);
+            scope.artifactShellActionProof = Object.freeze({
+              action: detail?.action ?? null,
+              authority: false,
+              error: String(error.message),
+              status: "INCONCLUSIVE",
+            });
+            return null;
+          });
+
+          elements.form.addEventListener'''.replace('          ', '')
+          assert shell.count(marker) == 1
+          shell = shell.replace(marker, replacement)
+
+          old = r'''  const fromUrl = await readUrlModule({ fragment: "invoke", input: scope.location.href });
+          if (fromUrl) {
+            showRequest(fromUrl);
+            if (localSources(fromUrl).length > 0) showStatus("waiting", "Select local input");
+            else await execute(fromUrl);
+          } else {
+            showStatus("idle", "Paste an artifact-invocation/2 request");
+          }
+          return Object.freeze({ execute, runtime, showRequest });
+          };'''.replace('          ', '')
+          new = r'''  const restoreFromLocation = async () => {
+            const fromUrl = await readUrlModule({ fragment: "invoke", input: scope.location.href });
+            if (fromUrl) {
+              showRequest(fromUrl);
+              if (localSources(fromUrl).length > 0) {
+                showStatus("waiting", "Select local input");
+                return null;
+              }
+              return execute(fromUrl);
+            }
+            activeRequest = null;
+            activeRequestSignature = null;
+            showStatus("idle", "Paste an artifact-invocation/2 request");
+            return null;
+          };
+          if (typeof scope.addEventListener === "function") {
+            scope.addEventListener("popstate", () => {
+              restoreFromLocation().catch(error => showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`));
+            });
+          }
+          await restoreFromLocation();
+          return Object.freeze({ applyAction, execute, restoreFromLocation, runtime, showRequest });
+          };'''.replace('          ', '')
+          assert shell.count(old) == 1
+          shell = shell.replace(old, new)
+          shell_path.write_text(shell, encoding='utf-8')
+
+          services_path = Path('apps/artifact-shell/src/services.mjs')
+          services = services_path.read_text(encoding='utf-8')
+          old = 'export const createArtifactShellServices = ({ document, eventTarget, surfaceMount }) => {'
+          new = 'export const createArtifactShellServices = ({ document, eventTarget, onAction = () => {}, surfaceMount }) => {'
+          assert services.count(old) == 1
+          services = services.replace(old, new)
+          marker = '  invariant(surfaceMount?.replaceChildren, "surfaceMount is required");\n'
+          assert services.count(marker) == 1
+          services = services.replace(marker, marker + '  invariant(typeof onAction === "function", "onAction must be a function");\n')
+          marker = '        mount: surfaceMount,\n'
+          assert services.count(marker) == 1
+          services = services.replace(marker, marker + '        onAction,\n')
+          services_path.write_text(services, encoding='utf-8')
+
+          test_path = Path('apps/artifact-shell/tests/action-url.mjs')
+          test_path.write_text(r'''import assert from "node:assert/strict";
+          import fs from "node:fs/promises";
+          import path from "node:path";
+          import { fileURLToPath } from "node:url";
+          import {
+            ARTIFACT_CAPABILITY_REGISTRY_BASE_URL,
+            ARTIFACT_SHELL_BUILD,
+            TRUSTED_ARTIFACT_CAPABILITIES,
+          } from "../generated/capability-registry.mjs";
+          import { createArtifactShell } from "../src/shell-core.mjs";
+          import { createUrlModuleUrl, readUrlModule } from "../../../packages/url-module/src/index.mjs";
+
+          let assertions = 0;
+          const equal = (...args) => { assert.equal(...args); assertions += 1; };
+          const deepEqual = (...args) => { assert.deepEqual(...args); assertions += 1; };
+          const ok = (...args) => { assert.ok(...args); assertions += 1; };
+          const waitFor = async predicate => {
+            for (let index = 0; index < 100; index += 1) {
+              if (predicate()) return;
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            throw new Error("action-url test timed out");
+          };
+          const makeElement = tagName => {
+            const listeners = new Map();
+            return {
+              attributes: new Map(), children: [], dataset: {}, files: [], hidden: false,
+              tagName, textContent: "", type: "", value: "",
+              addEventListener(name, listener) { listeners.set(name, listener); },
+              append(...values) { this.children.push(...values); },
+              dispatch(name, event = { preventDefault() {} }) { return listeners.get(name)?.(event); },
+              replaceChildren(...values) { this.children = [...values]; },
+              setAttribute(name, value) { this.attributes.set(name, String(value)); },
+            };
+          };
+          const find = (root, tagName) => {
+            if (root?.tagName === tagName) return root;
+            for (const child of root?.children ?? []) {
+              const result = find(child, tagName);
+              if (result) return result;
+            }
+            return null;
+          };
+
+          const document = { createElement: makeElement };
+          const originalEngines = new Map();
+          const manifests = [];
+          for (const manifest of TRUSTED_ARTIFACT_CAPABILITIES) {
+            const href = `https://artifact.example/engines/${manifest.id}.mjs`;
+            const source = await fs.readFile(fileURLToPath(new URL(manifest.engine.href, ARTIFACT_CAPABILITY_REGISTRY_BASE_URL)));
+            originalEngines.set(href, source);
+            manifests.push(Object.freeze({ ...manifest, engine: Object.freeze({ ...manifest.engine, href }) }));
+          }
+
+          const nextRequest = Object.freeze({
+            schema: "artifact-invocation/2",
+            id: "request.inspect-after-action",
+            intent: "inspect",
+            inputs: Object.freeze([Object.freeze({
+              id: "payload",
+              mediaType: "application/json",
+              schema: "example-data/1",
+              source: Object.freeze({ kind: "inline", value: Object.freeze({ count: 1, title: "Action compiled" }) }),
+            })]),
+            constraints: Object.freeze({ allowedRuntimes: Object.freeze(["browser"]), noUpload: true }),
+            expects: Object.freeze(["json-inspection/1"]),
+          });
+          const interactiveRequest = Object.freeze({
+            schema: "artifact-invocation/2",
+            id: "request.render-action",
+            intent: "render",
+            inputs: Object.freeze([Object.freeze({
+              id: "surface",
+              mediaType: "application/vnd.roccho.a2ui-surface+json",
+              schema: "a2ui-surface/1",
+              source: Object.freeze({ kind: "inline", value: Object.freeze({
+                rootId: "root",
+                surfaceId: "action-proof",
+                dataModel: Object.freeze({}),
+                components: Object.freeze([
+                  Object.freeze({ id: "root", component: "Column", children: Object.freeze(["title", "next"]) }),
+                  Object.freeze({ id: "title", component: "Text", text: "Compile action to URL", variant: "h1" }),
+                  Object.freeze({
+                    id: "next", component: "Button", label: "Next", action: "artifact.invoke",
+                    context: Object.freeze({ history: "push", request: nextRequest }),
+                  }),
+                ]),
+              }) }),
+            })]),
+            constraints: Object.freeze({ allowedRuntimes: Object.freeze(["browser"]), noUpload: true }),
+            expects: Object.freeze(["a2ui-render-receipt/1"]),
+          });
+          const initialUrl = await createUrlModuleUrl({
+            base: "https://artifact.example/releases/exact/index.html",
+            fragment: "invoke",
+            value: interactiveRequest,
+          });
+          const location = { href: initialUrl, origin: "https://artifact.example" };
+          const historyCalls = [];
+          const listeners = new Map();
+          const history = {
+            pushState(state, _title, href) { historyCalls.push({ href, method: "push", state }); location.href = href; },
+            replaceState(state, _title, href) { historyCalls.push({ href, method: "replace", state }); location.href = href; },
+          };
+          const scope = {
+            crypto: globalThis.crypto,
+            document,
+            File: class File {},
+            history,
+            location,
+            WebAssembly: {},
+            Worker: class Worker {},
+            addEventListener(name, listener) {
+              const values = listeners.get(name) ?? [];
+              values.push(listener);
+              listeners.set(name, values);
+            },
+            dispatchEvent(event) {
+              for (const listener of listeners.get(event.type) ?? []) listener(event);
+              return true;
+            },
+            async fetch(href) {
+              const bytes = originalEngines.get(String(href));
+              if (!bytes) return new Response("missing", { status: 404 });
+              return new Response(bytes, { status: 200, headers: { "content-type": "text/javascript" } });
+            },
+          };
+          const elements = Object.freeze({
+            form: makeElement("form"), localInputs: makeElement("div"), progress: makeElement("div"),
+            receipt: makeElement("pre"), request: makeElement("textarea"), result: makeElement("pre"),
+            run: makeElement("button"), status: makeElement("output"), surface: makeElement("surface"),
+          });
+          const shell = await createArtifactShell({
+            elements,
+            registry: Object.freeze({
+              baseUrl: "https://artifact.example/catalog.json",
+              manifests: Object.freeze(manifests),
+              runtimeBuild: ARTIFACT_SHELL_BUILD,
+            }),
+            scope,
+          });
+
+          equal(scope.artifactShellProof.request.id, interactiveRequest.id);
+          equal(scope.artifactShellProof.outcome.result.status, "PASS");
+          const button = find(elements.surface, "button");
+          ok(button);
+          button.dispatch("click");
+          await waitFor(() => historyCalls.length === 1 && scope.artifactShellActionProof?.status === "PASS");
+          equal(historyCalls[0].method, "push");
+          equal(historyCalls[0].state.schema, "artifact-shell-history/1");
+          deepEqual(await readUrlModule({ fragment: "invoke", input: historyCalls[0].href }), nextRequest);
+          equal(scope.artifactShellProof.request.id, nextRequest.id);
+          equal(scope.artifactShellProof.outcome.result.status, "PASS");
+          equal(scope.artifactShellActionProof.action, "artifact.invoke");
+          equal(scope.artifactShellActionProof.authority, false);
+
+          location.href = initialUrl;
+          scope.dispatchEvent({ type: "popstate" });
+          await waitFor(() => scope.artifactShellProof?.request?.id === interactiveRequest.id);
+          equal(scope.artifactShellProof.outcome.result.status, "PASS");
+          ok(find(elements.surface, "button"));
+
+          const before = historyCalls.length;
+          await assert.rejects(() => shell.applyAction(Object.freeze({
+            action: "artifact.unknown", context: Object.freeze({ request: nextRequest }),
+            sourceComponentId: "next", surfaceId: "action-proof", version: "v0.9.1",
+          })), /unsupported action/);
+          assertions += 1;
+          equal(historyCalls.length, before);
+
+          console.log(JSON.stringify({
+            schema: "check-receipt/1",
+            checkId: "ui.artifact-shell.action-url",
+            ownerRepo: "ui",
+            lane: "repo",
+            kind: "normal",
+            status: "PASS",
+            assertions,
+          }));
+          '''.replace('          ', ''), encoding='utf-8')
+
+          package_path = Path('package.json')
+          package = json.loads(package_path.read_text(encoding='utf-8'))
+          script = package['scripts']['check:artifact-runtime']
+          needle = 'node apps/artifact-shell/tests/run.mjs && '
+          assert script.count(needle) == 1
+          package['scripts']['check:artifact-runtime'] = script.replace(
+              needle,
+              needle + 'node apps/artifact-shell/tests/action-url.mjs && ',
+          )
+          package_path.write_text(json.dumps(package, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          PY
+
+      - name: Rebuild deterministic registry
+        run: node apps/artifact-shell/scripts/build-registry.mjs
+
+      - name: Verify complete Artifact Runtime gate
+        run: npm run check:artifact-runtime
+
+      - name: Commit product candidate and retire one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            apps/artifact-shell/src/shell-core.mjs \
+            apps/artifact-shell/src/services.mjs \
+            apps/artifact-shell/tests/action-url.mjs \
+            apps/artifact-shell/generated/capability-registry.mjs \
+            package.json
+          git commit -m "feat: compile trusted UI actions to canonical invocation URLs"
+          git rm .github/workflows/prepare-bidirectional-artifact-app.yml
+          git commit -m "chore: retire bidirectional app preparation workflow"
+          git push origin HEAD:proposal/bidirectional-artifact-app-260821
