@@ -5,9 +5,10 @@ const loadTrustedRenderer = async () => {
   return trustedRenderer;
 };
 
-export const createArtifactShellServices = ({ document, eventTarget, surfaceMount }) => {
+export const createArtifactShellServices = ({ document, eventTarget, onAction = () => {}, surfaceMount }) => {
   invariant(document?.createElement, "document is required");
   invariant(surfaceMount?.replaceChildren, "surfaceMount is required");
+  invariant(typeof onAction === "function", "onAction must be a function");
   return Object.freeze({
     "a2ui.render": async ({ surface }) => {
       invariant(surface && typeof surface === "object" && !Array.isArray(surface), "surface must be an object");
@@ -19,6 +20,7 @@ export const createArtifactShellServices = ({ document, eventTarget, surfaceMoun
         document,
         eventTarget,
         mount: surfaceMount,
+        onAction,
         rootId: surface.rootId ?? "root",
         surfaceId: surface.surfaceId ?? "main",
       });

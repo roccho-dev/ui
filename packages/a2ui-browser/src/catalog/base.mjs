@@ -5,6 +5,32 @@ export const A2UI_SPEC_VERSION = "v0.9.1";
 export const BASE_CATALOG_ID = "urn:roccho:a2ui:catalog:base:1";
 export const BASE_COMPONENT_NAMES = Object.freeze(["Button", "Card", "Column", "Divider", "Text"]);
 
+const unsafePathSegments = new Set(["__proto__", "constructor", "prototype"]);
+const dataPathSegments = path => {
+  invariant(typeof path === "string" && path.startsWith("/") && path.length > 1 && path.length <= 512, "Text.path must be a JSON pointer");
+  const segments = path.slice(1).split("/").map(segment => {
+    invariant(segment.length > 0 && !/~(?:[^01]|$)/u.test(segment), "Text.path is invalid");
+    const decoded = segment.replaceAll("~1", "/").replaceAll("~0", "~");
+    invariant(!unsafePathSegments.has(decoded), "Text.path is invalid");
+    return decoded;
+  });
+  invariant(segments.length > 0 && segments.length <= 32, "Text.path depth is invalid");
+  return segments;
+};
+const readDataPath = (root, path) => {
+  const segments = dataPathSegments(path);
+  let value = root;
+  for (const segment of segments) {
+    invariant(value !== null && typeof value === "object", "Text.path does not resolve");
+    const key = Array.isArray(value) && /^(?:0|[1-9][0-9]*)$/u.test(segment) ? Number(segment) : segment;
+    invariant(Object.hasOwn(value, key), "Text.path does not resolve");
+    value = value[key];
+  }
+  invariant(value === null || ["boolean", "number", "string"].includes(typeof value), "Text.path must resolve to a scalar");
+  invariant(typeof value !== "number" || Number.isFinite(value), "Text.path resolved to a non-finite number");
+  return value === null ? "null" : String(value);
+};
+
 const invariant = (condition, message) => {
   if (!condition) throw new Error(`a2ui-catalog: ${message}`);
 };
@@ -13,15 +39,17 @@ const definitions = [
   {
     name: "Text",
     validate: component => {
-      assertExactKeys(component, ["component", "id", "text"], ["variant"], "Text");
-      invariant(typeof component.text === "string", "Text.text must be a string");
+      assertExactKeys(component, ["component", "id"], ["path", "text", "variant"], "Text");
+      invariant(Number(Object.hasOwn(component, "text")) + Number(Object.hasOwn(component, "path")) === 1, "Text requires exactly one of text or path");
+      if (Object.hasOwn(component, "text")) invariant(typeof component.text === "string", "Text.text must be a string");
+      if (Object.hasOwn(component, "path")) dataPathSegments(component.path);
       if (component.variant !== undefined) invariant(["body", "caption", "h1", "h2"].includes(component.variant), "Text.variant is unsupported");
       return component;
     },
-    render: ({ component, document }) => {
+    render: ({ component, dataModel, document }) => {
       const tag = component.variant === "h1" ? "h1" : component.variant === "h2" ? "h2" : component.variant === "caption" ? "small" : "p";
       const element = document.createElement(tag);
-      element.textContent = component.text;
+      element.textContent = Object.hasOwn(component, "text") ? component.text : readDataPath(dataModel, component.path);
       return element;
     },
   },

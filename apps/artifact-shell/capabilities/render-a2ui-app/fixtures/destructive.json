@@ -1,0 +1,45 @@
+{
+  "schema": "artifact-capability-fixture/2",
+  "id": "render-a2ui-app.fail",
+  "kind": "destructive",
+  "request": {
+    "schema": "artifact-invocation/2",
+    "id": "request.render-a2ui-app.fail",
+    "intent": "interact",
+    "inputs": [
+      {
+        "id": "app",
+        "mediaType": "application/vnd.roccho.a2ui-app+json",
+        "schema": "a2ui-app/1",
+        "source": {
+          "kind": "inline",
+          "value": {
+            "schema": "a2ui-app/0",
+            "state": [],
+            "surface": {
+              "rootId": "root",
+              "surfaceId": "invalid",
+              "components": []
+            }
+          }
+        }
+      }
+    ],
+    "constraints": {
+      "allowedRuntimes": [
+        "browser"
+      ],
+      "noUpload": true
+    },
+    "expects": [
+      "a2ui-app-render-receipt/1"
+    ]
+  },
+  "expected": {
+    "status": "FAIL",
+    "outputContracts": []
+  },
+  "runtimes": [
+    "browser"
+  ]
+}

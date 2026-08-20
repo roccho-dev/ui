@@ -59,7 +59,7 @@ try {
   deepEqual(await snapshot(outputA), await snapshot(outputB));
   equal(first.artifactManifest.treeDigest, second.artifactManifest.treeDigest);
   equal(first.catalog.schema, "artifact-capability-catalog/2");
-  equal(first.catalog.capabilities.length, 2);
+  equal(first.catalog.capabilities.length, 3);
   equal((await fs.readdir(path.join(outputA, "kernel"))).length, 1);
   equal(first.kernel.digest.startsWith("sha256:"), true);
   equal((await fs.readFile(path.join(outputA, "index.html"), "utf8")).includes('src="./entry.mjs"'), true);
@@ -68,6 +68,7 @@ try {
   ok(publicationEntry.includes(`./kernel/${first.kernel.digest.slice("sha256:".length)}/apps/artifact-shell/src/shell-core.mjs`));
   const kernelRoot = path.join(outputA, "kernel", first.kernel.digest.slice("sha256:".length));
   equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "shell-core.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "invocation-action.mjs")).then(() => true), true);
   await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "entry.mjs"))); assertions += 1;
   await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "publication.mjs"))); assertions += 1;
   ok((await assertStaticModuleClosure(outputA)) > 0);
