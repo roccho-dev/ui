@@ -1,0 +1,79 @@
+name: Complete bidirectional Artifact App transport
+
+on:
+  push:
+    branches:
+      - transport/bidirectional-artifact-app-260821
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Reconstruct exact patch from bounded GitHub transport
+        env:
+          EXPECTED_BASE: 1cb7042c4dccec03bd7f9f8ce9d4d3440cd209e9
+          EXPECTED_TREE: dfe8814083abc1faadfc67a6fdc93d180c723244
+          EXPECTED_CARRIER_SHA256: d377cf2342b443cf8e1054f060cd0f0caafec97e67c25760e16f2b3479c577c7
+          EXPECTED_PATCH_SHA256: deb6176d3df59842eaa4c7a32b2512af848d85125e9d44011bcc612a9cb2d761
+          TARGET_BRANCH: proposal/artifact-runtime-bidirectional-url-260821
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, pathlib, re
+          workflow = pathlib.Path('.github/workflows/transport-bidirectional-artifact-app.yml').read_text(encoding='utf-8')
+          matches = re.findall(r'[A-Za-z0-9+/]{9000,}={0,2}', workflow)
+          assert len(matches) == 1 and len(matches[0]) == 9400
+          tail = pathlib.Path('transport/bidirectional-artifact-app.patch.gz.b64.part-1').read_text(encoding='utf-8')
+          assert len(tail) == 9376 and not any(ch.isspace() for ch in tail)
+          carrier = (matches[0] + tail).encode('ascii')
+          assert hashlib.sha256(carrier).hexdigest() == 'd377cf2342b443cf8e1054f060cd0f0caafec97e67c25760e16f2b3479c577c7'
+          pathlib.Path('/tmp/change.patch.gz.b64').write_bytes(carrier)
+          PY
+          test "$(git ls-remote origin refs/heads/proposals | awk 'NR==1 {print $1}')" = "$EXPECTED_BASE"
+          test -z "$(git ls-remote origin "refs/heads/$TARGET_BRANCH")"
+          base64 --decode /tmp/change.patch.gz.b64 | gzip -d > /tmp/change.patch
+          test "$(sha256sum /tmp/change.patch | awk '{print $1}')" = "$EXPECTED_PATCH_SHA256"
+          git checkout --detach "$EXPECTED_BASE"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git am /tmp/change.patch
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          npm run check:artifact-runtime
+          rm -rf "$RUNNER_TEMP/pub-a" "$RUNNER_TEMP/pub-b"
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/pub-a" > "$RUNNER_TEMP/pub-a.json"
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/pub-b" > "$RUNNER_TEMP/pub-b.json"
+          cmp "$RUNNER_TEMP/pub-a/artifact-manifest.json" "$RUNNER_TEMP/pub-b/artifact-manifest.json"
+          test "$(python3 - "$RUNNER_TEMP/pub-a.json" <<'PY'
+          import json, sys
+          print(json.load(open(sys.argv[1], encoding='utf-8'))['treeDigest'])
+          PY
+          )" = "sha256:b1f12244cc627fc27a97fc22f3da9e813dab10954c972c7033f99ab8d909184b"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+
+      - name: Open one draft product PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: proposal/artifact-runtime-bidirectional-url-260821
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh pr list --state open --base proposals --head "$TARGET_BRANCH" --json number --jq '.[0].number // empty')"
+          if [ -z "$existing" ]; then
+            gh pr create --draft --base proposals --head "$TARGET_BRANCH" \
+              --title "feat: compile A2UI app state into shareable URLs" \
+              --body $'## Purpose\n\nClose roccho-dev/ops#193 on the UI side without a second runtime or codec.\n\n## Change\n\n- add `render.a2ui.app@1` as one additive capability;\n- bind scalar A2UI Text to app state;\n- compile bounded `artifact.state.patch` operations below `/state` into a fully validated next `artifact-invocation/2`;\n- reuse the existing `#invoke` URL codec;\n- update browser history and restore through Back and fresh URL load;\n- preserve unknown actions as ordinary A2UI client events.\n\n## Proof\n\n- URL module 18; Artifact reference 8; A2UI browser 20; Artifact invocation 64; registry 33; shell unit 142; extension boundary 9; publication 111.\n- deterministic publication: 3 capabilities / 53 listed files / `sha256:b1f12244cc627fc27a97fc22f3da9e813dab10954c972c7033f99ab8d909184b`.\n\n## Boundary\n\nGit remains source authority. Publication, URL and receipts remain projections. No uploaded ZIP, historical mobile-agent repo, backend, database, arbitrary JavaScript, raw HTML, second codec or second shell. Explicit human approval is required before merge.'
+          fi
