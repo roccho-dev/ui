@@ -1,0 +1,70 @@
+name: Prepare bidirectional Artifact App candidate on PR
+
+on:
+  pull_request:
+    branches:
+      - proposals
+    paths:
+      - .github/workflows/prepare-bidirectional-artifact-app.yml
+      - .github/workflows/prepare-bidirectional-artifact-app-pr.yml
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.head_ref == 'proposal/bidirectional-artifact-app-260821'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Execute the exact bounded preparation script
+        shell: bash
+        run: |
+          set -euo pipefail
+          source=.github/workflows/prepare-bidirectional-artifact-app.yml
+          awk '
+            /- name: Apply minimal trusted Action to URL closure/ { active=1; next }
+            active && /- name: Rebuild deterministic registry/ { exit }
+            active {
+              if ($0 ~ /^        shell:/ || $0 ~ /^        run:/) next
+              sub(/^          /, "")
+              print
+            }
+          ' "$source" > "$RUNNER_TEMP/apply.sh"
+          test -s "$RUNNER_TEMP/apply.sh"
+          bash "$RUNNER_TEMP/apply.sh"
+
+      - name: Rebuild and verify the complete Artifact Runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/scripts/build-registry.mjs
+          npm run check:artifact-runtime
+
+      - name: Commit product candidate and retire preparation workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            apps/artifact-shell/src/shell-core.mjs \
+            apps/artifact-shell/src/services.mjs \
+            apps/artifact-shell/tests/action-url.mjs \
+            apps/artifact-shell/generated/capability-registry.mjs \
+            package.json
+          git commit -m "feat: compile trusted UI actions to canonical invocation URLs"
+          git rm \
+            .github/workflows/prepare-bidirectional-artifact-app.yml \
+            .github/workflows/prepare-bidirectional-artifact-app-pr.yml
+          git commit -m "chore: retire bidirectional app preparation workflows"
+          git push origin HEAD:${GITHUB_HEAD_REF}
