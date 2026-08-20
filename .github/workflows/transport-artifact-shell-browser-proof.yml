@@ -1,0 +1,71 @@
+name: Transport Artifact Shell browser proof
+
+on:
+  push:
+    branches:
+      - transport/bidirectional-artifact-app-260821
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Install pinned Chromium proof tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
+
+      - name: Apply exact patch to exact product head and prove the browser loop
+        env:
+          TARGET_BRANCH: proposal/artifact-runtime-bidirectional-url-260821
+          EXPECTED_HEAD: ca367e75b3518d7f47b7ab9de4c87eb41b7a5e20
+          EXPECTED_PATCH_SHA256: 6ffeb5d4694deccef7b89a750a402eab3b2b76d0659440792b20693869a11bcb
+          EXPECTED_TREE: e410b76db00faa9c93e6d68bea2fe1014a124138
+          EXPECTED_PUBLICATION: sha256:c2767ff0c53ba60012e3357a117455c26f1829e1a87e624e771cc2e2581f9173
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp transport/artifact-shell-browser-proof.patch.gz.b64 "$RUNNER_TEMP/change.patch.gz.b64"
+          test "$(sha256sum "$RUNNER_TEMP/change.patch.gz.b64" | awk '{print $1}')" = "52ba0ed038c2beb3adbb566a233d9ed4825f4f28c87ff865e7dee30bdee530ff"
+          base64 --decode "$RUNNER_TEMP/change.patch.gz.b64" | gzip -d > "$RUNNER_TEMP/change.patch"
+          test "$(sha256sum "$RUNNER_TEMP/change.patch" | awk '{print $1}')" = "$EXPECTED_PATCH_SHA256"
+          remote_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk 'NR==1 {print $1}')"
+          test "$remote_head" = "$EXPECTED_HEAD"
+          git fetch --quiet origin "refs/heads/$TARGET_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_HEAD"
+          git checkout --detach FETCH_HEAD
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git am "$RUNNER_TEMP/change.patch"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$EXPECTED_TREE"
+          npm run check
+          npm run proof:artifact-shell-browser
+          rm -rf "$RUNNER_TEMP/pub-a" "$RUNNER_TEMP/pub-b"
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/pub-a" > "$RUNNER_TEMP/pub-a.json"
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/pub-b" > "$RUNNER_TEMP/pub-b.json"
+          cmp "$RUNNER_TEMP/pub-a/artifact-manifest.json" "$RUNNER_TEMP/pub-b/artifact-manifest.json"
+          observed="$(python3 - "$RUNNER_TEMP/pub-a.json" <<'PY'
+          import json,sys
+          print(json.load(open(sys.argv[1],encoding='utf-8'))['treeDigest'])
+          PY
+          )"
+          test "$observed" = "$EXPECTED_PUBLICATION"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
