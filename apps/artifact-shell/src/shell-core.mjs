@@ -1,5 +1,6 @@
 import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
 import { readUrlModule } from "../../../packages/url-module/src/index.mjs";
+import { ARTIFACT_STATE_ACTION, applyArtifactStateAction, createArtifactInvocationUrl } from "./invocation-action.mjs";
 import { createArtifactShellServices } from "./services.mjs";
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell: ${message}`); };
@@ -98,6 +99,7 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
   const required = ["form", "localInputs", "progress", "receipt", "request", "result", "run", "status", "surface"];
   for (const key of required) invariant(elements?.[key], `elements.${key} is required`);
   const registry = normalizeRegistry(registryInput);
+  let dispatchAction = () => undefined;
   const runtime = await createArtifactInvocationRuntime({
     engineBaseUrl: registry.baseUrl,
     environment: detectBrowserEnvironment(scope),
@@ -105,7 +107,12 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
     fetchInput: safeInputFetch(scope),
     manifests: registry.manifests,
     runtimeBuild: registry.runtimeBuild,
-    services: createArtifactShellServices({ document: scope.document, eventTarget: scope, surfaceMount: elements.surface }),
+    services: createArtifactShellServices({
+      document: scope.document,
+      eventTarget: scope,
+      onAction: detail => detail?.action === ARTIFACT_STATE_ACTION ? dispatchAction(detail) : undefined,
+      surfaceMount: elements.surface,
+    }),
   });
   let activeRequest = null;
   let activeRequestSignature = null;
@@ -156,6 +163,20 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
     return outcome;
   };
 
+  const applyAction = async detail => {
+    invariant(activeRequest, "active request is required for an action");
+    const compiled = applyArtifactStateAction({ detail, request: activeRequest });
+    const method = `${compiled.history}State`;
+    invariant(scope.history && typeof scope.history[method] === "function", `history.${method} is unavailable`);
+    const href = await createArtifactInvocationUrl({ base: scope.location.href, request: compiled.request });
+    scope.history[method](null, "", href);
+    return execute(compiled.request);
+  };
+  dispatchAction = detail => applyAction(detail).catch(error => {
+    showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`);
+    return null;
+  });
+
   elements.form.addEventListener("submit", event => {
     event.preventDefault();
     execute(JSON.parse(elements.request.value)).catch(error => showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`));
@@ -164,13 +185,22 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
     if (activeRequest) execute(activeRequest).catch(error => showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`));
   });
 
-  const fromUrl = await readUrlModule({ fragment: "invoke", input: scope.location.href });
-  if (fromUrl) {
-    showRequest(fromUrl);
-    if (localSources(fromUrl).length > 0) showStatus("waiting", "Select local input");
-    else await execute(fromUrl);
-  } else {
+  const restoreFromLocation = async () => {
+    const fromUrl = await readUrlModule({ fragment: "invoke", input: scope.location.href });
+    if (fromUrl) {
+      showRequest(fromUrl);
+      if (localSources(fromUrl).length > 0) showStatus("waiting", "Select local input");
+      else await execute(fromUrl);
+      return fromUrl;
+    }
     showStatus("idle", "Paste an artifact-invocation/2 request");
+    return null;
+  };
+  if (typeof scope.addEventListener === "function") {
+    scope.addEventListener("popstate", () => {
+      restoreFromLocation().catch(error => showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`));
+    });
   }
-  return Object.freeze({ execute, runtime, showRequest });
+  await restoreFromLocation();
+  return Object.freeze({ applyAction, execute, restoreFromLocation, runtime, showRequest });
 };

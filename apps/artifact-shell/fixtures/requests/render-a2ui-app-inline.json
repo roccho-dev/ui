@@ -1,0 +1,76 @@
+{
+  "schema": "artifact-invocation/2",
+  "id": "request.render-a2ui-app.pass",
+  "intent": "interact",
+  "inputs": [
+    {
+      "id": "app",
+      "mediaType": "application/vnd.roccho.a2ui-app+json",
+      "schema": "a2ui-app/1",
+      "source": {
+        "kind": "inline",
+        "value": {
+          "schema": "a2ui-app/1",
+          "state": {
+            "count": 0
+          },
+          "surface": {
+            "rootId": "root",
+            "surfaceId": "bidirectional-url-proof",
+            "components": [
+              {
+                "id": "root",
+                "component": "Column",
+                "children": [
+                  "title",
+                  "count",
+                  "increment"
+                ],
+                "gap": 12
+              },
+              {
+                "id": "title",
+                "component": "Text",
+                "text": "UI state compiled into the URL",
+                "variant": "h1"
+              },
+              {
+                "id": "count",
+                "component": "Text",
+                "path": "/count",
+                "variant": "h2"
+              },
+              {
+                "id": "increment",
+                "component": "Button",
+                "label": "Increment",
+                "action": "artifact.state.patch",
+                "context": {
+                  "schema": "artifact-state-action/1",
+                  "inputId": "app",
+                  "history": "push",
+                  "operations": [
+                    {
+                      "op": "increment",
+                      "path": "/state/count",
+                      "by": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "constraints": {
+    "allowedRuntimes": [
+      "browser"
+    ],
+    "noUpload": true
+  },
+  "expects": [
+    "a2ui-app-render-receipt/1"
+  ]
+}
