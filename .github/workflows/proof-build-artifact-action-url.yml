@@ -1,0 +1,282 @@
+name: Build trusted Artifact Action to URL candidate
+
+on:
+  push:
+    branches:
+      - proof/build-artifact-action-url-260821
+
+permissions:
+  contents: write
+
+jobs:
+  build-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BASE_SHA: 1cb7042c4dccec03bd7f9f8ce9d4d3440cd209e9
+      TARGET_BRANCH: proposal/artifact-action-url-260821
+    steps:
+      - name: Checkout exact accepted UI base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_SHA }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Refuse stale base or existing target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          current="$(git ls-remote origin refs/heads/proposals | awk 'NR==1 {print $1}')"
+          test "$current" = "$BASE_SHA"
+          if git ls-remote --exit-code origin "refs/heads/$TARGET_BRANCH" >/dev/null 2>&1; then
+            echo "target branch already exists: $TARGET_BRANCH" >&2
+            exit 1
+          fi
+          git switch -c "$TARGET_BRANCH"
+
+      - name: Add the minimal trusted Action to URL port and RED/GREEN contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          shell = Path('apps/artifact-shell/src/shell-core.mjs')
+          source = shell.read_text(encoding='utf-8')
+
+          old = 'import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";\nimport { readUrlModule } from "../../../packages/url-module/src/index.mjs";'
+          new = 'import { createArtifactInvocationRuntime, validateArtifactInvocation } from "../../../packages/artifact-invocation/src/index.mjs";\nimport { createUrlModuleUrl, readUrlModule } from "../../../packages/url-module/src/index.mjs";'
+          assert source.count(old) == 1
+          source = source.replace(old, new)
+
+          marker = 'const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell: ${message}`); };\n'
+          assert source.count(marker) == 1
+          helpers = r'''
+
+export const ARTIFACT_INVOKE_ACTION = "artifact.invoke";
+
+const isRecord = value => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const hasExactKeys = (value, expected) => {
+  if (!isRecord(value)) return false;
+  const actual = Object.keys(value).sort();
+  return actual.length === expected.length && actual.every((key, index) => key === [...expected].sort()[index]);
+};
+
+export const compileArtifactClientAction = detail => {
+  invariant(isRecord(detail), "client action detail is required");
+  if (detail.action !== ARTIFACT_INVOKE_ACTION) return null;
+  invariant(hasExactKeys(detail.context, ["invocation"]), "artifact.invoke context must contain only invocation");
+  return validateArtifactInvocation(structuredClone(detail.context.invocation));
+};
+
+export const createArtifactInvocationUrl = async ({ href, invocation }) => {
+  invariant(typeof href === "string" && href.length > 0, "current URL is required");
+  const base = new URL(href);
+  base.hash = "";
+  return createUrlModuleUrl({
+    base: base.href,
+    fragment: "invoke",
+    value: validateArtifactInvocation(structuredClone(invocation)),
+  });
+};
+
+export const applyArtifactClientAction = async ({ detail, execute, scope }) => {
+  invariant(typeof execute === "function", "execute is required");
+  invariant(scope?.location && typeof scope.location.href === "string", "scope.location is required");
+  invariant(scope?.history && typeof scope.history.pushState === "function", "scope.history.pushState is required");
+  const invocation = compileArtifactClientAction(detail);
+  if (invocation === null) return null;
+  const url = await createArtifactInvocationUrl({ href: scope.location.href, invocation });
+  scope.history.pushState(null, "", url);
+  const outcome = await execute(invocation);
+  return Object.freeze({ invocation, outcome, url });
+};
+'''
+          source = source.replace(marker, marker + helpers)
+
+          local_marker = '  let localControls = new Map();\n'
+          assert source.count(local_marker) == 1
+          source = source.replace(local_marker, local_marker + '  let actionChain = Promise.resolve();\n')
+
+          form_marker = '  elements.form.addEventListener("submit", event => {\n'
+          assert source.count(form_marker) == 1
+          routing = r'''  const readAndExecuteLocation = async () => {
+    const fromUrl = await readUrlModule({ fragment: "invoke", input: scope.location.href });
+    if (!fromUrl) {
+      showStatus("idle", "Paste an artifact-invocation/2 request");
+      return null;
+    }
+    showRequest(fromUrl);
+    if (localSources(fromUrl).length > 0) {
+      showStatus("waiting", "Select local input");
+      return null;
+    }
+    return execute(fromUrl);
+  };
+  const enqueue = task => {
+    actionChain = actionChain.then(task).catch(error => {
+      showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`);
+      return null;
+    });
+    return actionChain;
+  };
+  const applyAction = detail => applyArtifactClientAction({ detail, execute, scope });
+  const onClientAction = event => { enqueue(() => applyAction(event?.detail)); };
+  const onPopState = () => { enqueue(readAndExecuteLocation); };
+  if (typeof scope.addEventListener === "function") {
+    scope.addEventListener("a2ui-client-action", onClientAction);
+    scope.addEventListener("popstate", onPopState);
+  }
+
+'''
+          source = source.replace(form_marker, routing + form_marker)
+
+          old_tail = r'''  const fromUrl = await readUrlModule({ fragment: "invoke", input: scope.location.href });
+  if (fromUrl) {
+    showRequest(fromUrl);
+    if (localSources(fromUrl).length > 0) showStatus("waiting", "Select local input");
+    else await execute(fromUrl);
+  } else {
+    showStatus("idle", "Paste an artifact-invocation/2 request");
+  }
+  return Object.freeze({ execute, runtime, showRequest });
+};
+'''
+          new_tail = r'''  await readAndExecuteLocation();
+  const dispose = () => {
+    if (typeof scope.removeEventListener === "function") {
+      scope.removeEventListener("a2ui-client-action", onClientAction);
+      scope.removeEventListener("popstate", onPopState);
+    }
+  };
+  return Object.freeze({
+    applyAction,
+    dispose,
+    execute,
+    flushActions: () => actionChain,
+    runtime,
+    showRequest,
+  });
+};
+'''
+          assert source.count(old_tail) == 1
+          source = source.replace(old_tail, new_tail)
+          shell.write_text(source, encoding='utf-8')
+
+          test = Path('apps/artifact-shell/tests/action-url.mjs')
+          test.write_text(r'''import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createClientAction } from "../../../packages/a2ui-browser/src/index.mjs";
+import { validateArtifactInvocation } from "../../../packages/artifact-invocation/src/index.mjs";
+import { readUrlModule } from "../../../packages/url-module/src/index.mjs";
+import {
+  ARTIFACT_INVOKE_ACTION,
+  applyArtifactClientAction,
+  compileArtifactClientAction,
+  createArtifactInvocationUrl,
+} from "../src/shell-core.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const fixture = JSON.parse(fs.readFileSync(path.join(here, "../fixtures/requests/inspect-json-inline.json"), "utf8"));
+const next = structuredClone(fixture);
+next.id = "request.action-url.pass";
+next.inputs[0].source.value = { count: 1, title: "Action URL" };
+const expected = validateArtifactInvocation(next);
+const detail = createClientAction({
+  action: ARTIFACT_INVOKE_ACTION,
+  context: { invocation: next },
+  sourceComponentId: "next",
+  surfaceId: "action-url-proof",
+});
+
+assert.deepEqual(compileArtifactClientAction(detail), expected);
+const scope = {
+  location: { href: "https://example.invalid/releases/exact/index.html#old=ignored" },
+  history: {
+    calls: [],
+    pushState(_state, _title, href) {
+      this.calls.push(href);
+      scope.location.href = href;
+    },
+  },
+};
+const executions = [];
+const applied = await applyArtifactClientAction({
+  detail,
+  execute: async invocation => {
+    executions.push(invocation);
+    return Object.freeze({ status: "PASS" });
+  },
+  scope,
+});
+assert.equal(scope.history.calls.length, 1);
+assert.equal(applied.url, scope.location.href);
+assert.deepEqual(executions, [expected]);
+assert.deepEqual(await readUrlModule({ fragment: "invoke", input: applied.url }), expected);
+assert.equal(await createArtifactInvocationUrl({ href: applied.url, invocation: expected }), applied.url);
+assert.equal(await applyArtifactClientAction({
+  detail: createClientAction({ action: "other.action", context: {}, sourceComponentId: "other", surfaceId: "action-url-proof" }),
+  execute: async () => { throw new Error("must not execute"); },
+  scope,
+}), null);
+assert.equal(scope.history.calls.length, 1);
+assert.throws(() => compileArtifactClientAction({ ...detail, context: { invocation: next, extra: true } }), /contain only invocation/);
+assert.throws(() => compileArtifactClientAction({ ...detail, context: { invocation: { schema: "bad" } } }), /artifact-invocation/);
+const shellSource = fs.readFileSync(path.join(here, "../src/shell-core.mjs"), "utf8");
+assert.match(shellSource, /addEventListener\("a2ui-client-action"/u);
+assert.match(shellSource, /addEventListener\("popstate"/u);
+assert.match(shellSource, /history\.pushState/u);
+console.log("artifact-shell-action-url-tests-pass 13");
+''', encoding='utf-8')
+
+          package = Path('package.json')
+          value = json.loads(package.read_text(encoding='utf-8'))
+          script = value['scripts']['check:artifact-runtime']
+          needle = 'node apps/artifact-shell/tests/publication.mjs'
+          assert script.count(needle) == 1
+          value['scripts']['check:artifact-runtime'] = script.replace(
+              needle,
+              'node apps/artifact-shell/tests/action-url.mjs && ' + needle,
+          )
+          package.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+
+      - name: Regenerate the trusted registry and run focused gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/scripts/build-registry.mjs
+          node --check apps/artifact-shell/src/shell-core.mjs
+          node apps/artifact-shell/tests/action-url.mjs
+          npm run check:artifact-runtime
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/publication" | tee "$RUNNER_TEMP/publication.json"
+          git diff --check
+
+      - name: Commit and publish the exact candidate branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            package.json \
+            apps/artifact-shell/src/shell-core.mjs \
+            apps/artifact-shell/tests/action-url.mjs \
+            apps/artifact-shell/generated/capability-registry.mjs
+          test "$(git diff --cached --name-only | wc -l)" -eq 4
+          git commit -m "feat: compile trusted Artifact actions into canonical URLs"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+
+      - name: Upload bounded build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-action-url-candidate-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/publication.json
+          if-no-files-found: error
+          retention-days: 30
