@@ -1,0 +1,130 @@
+name: Transport self-contained JSONL fixtures into publication
+
+on:
+  pull_request:
+    branches:
+      - proposal/jsonl-atlas-stage-url-260821
+
+permissions:
+  contents: write
+
+jobs:
+  update-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      EXPECTED_HEAD: d4cde6403ab89f99176fd1d0d02d2dfccf6043f1
+      TARGET_BRANCH: proposal/jsonl-atlas-stage-url-260821
+      EXPECTED_TREE_DIGEST: sha256:b5c164f7b8a9dd8c612cfdb6747d649f4ae2a809a5ddaa02d744a509a4d40c52
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Move JSONL fixtures into the carried runtime closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          mkdir -p apps/artifact-shell/fixtures/jsonl
+          for id in base graph map seq; do
+            git mv "tests/fixtures/artifact-runtime-jsonl/$id.jsonl" "apps/artifact-shell/fixtures/jsonl/$id.jsonl"
+          done
+          rmdir tests/fixtures/artifact-runtime-jsonl
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          test=Path('packages/a2ui-browser/tests/jsonl-surface.mjs')
+          source=test.read_text(encoding='utf-8')
+          old='const fixture = id => fs.readFileSync(path.join(root, "tests/fixtures/artifact-runtime-jsonl", `${id}.jsonl`), "utf8");'
+          new='const fixture = id => fs.readFileSync(path.join(root, "apps/artifact-shell/fixtures/jsonl", `${id}.jsonl`), "utf8");'
+          assert source.count(old)==1
+          test.write_text(source.replace(old,new),encoding='utf-8')
+
+          registry=Path('apps/artifact-shell/scripts/build-registry.mjs')
+          source=registry.read_text(encoding='utf-8')
+          old='''  path.join(repoRoot, "packages", "core-port", "src", "registry.mjs"),
+          path.join(appRoot, "src", "invocation-action.mjs"),'''
+          new='''  path.join(repoRoot, "packages", "core-port", "src", "registry.mjs"),
+          path.join(appRoot, "fixtures", "jsonl"),
+          path.join(appRoot, "src", "invocation-action.mjs"),'''
+          assert source.count(old)==1
+          registry.write_text(source.replace(old,new),encoding='utf-8')
+
+          publication=Path('apps/artifact-shell/tests/publication.mjs')
+          source=publication.read_text(encoding='utf-8')
+          old='''  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
+          const projected = jsonlProjector.compileArtifactRuntimeJsonlSurface({ jsonl: [
+            JSON.stringify({ type: "TreePatch", props: { op: "replace" }, children: [{ type: "Column", id: "publication-jsonl", props: {}, children: [{ type: "Text", id: "publication-title", props: { path: "/title" }, children: [] }] }] }),
+            JSON.stringify({ type: "StatePatch", props: { op: "merge", value: { title: "Publication JSONL" } }, children: [] }),
+          ].join("\\n") });
+          equal(projected.receipt.status, "PASS");
+          equal(projected.surface.dataModel.title, "Publication JSONL");
+          '''
+          new='''  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
+          const publishedJsonl = {
+            base: { canvas: false, nodes: 0, edges: 0 },
+            graph: { canvas: true, nodes: 4, edges: 3 },
+            map: { canvas: true, nodes: 5, edges: 4 },
+            seq: { canvas: true, nodes: 6, edges: 5 },
+          };
+          for (const [id, expected] of Object.entries(publishedJsonl)) {
+            const fixturePath = path.join(kernelRoot, "apps", "artifact-shell", "fixtures", "jsonl", `${id}.jsonl`);
+            const projected = jsonlProjector.compileArtifactRuntimeJsonlSurface({ jsonl: await fs.readFile(fixturePath, "utf8") });
+            equal(projected.receipt.status, "PASS");
+            equal(projected.receipt.rowCount, 2);
+            const canvas = projected.surface.components.find(component => component.component === "AtlasStage") ?? null;
+            equal(Boolean(canvas), expected.canvas);
+            if (canvas) {
+              equal(canvas.nodes.length, expected.nodes);
+              equal(canvas.edges.length, expected.edges);
+            }
+          }
+          '''
+          assert source.count(old)==1
+          publication.write_text(source.replace(old,new),encoding='utf-8')
+          PY
+
+          node apps/artifact-shell/scripts/build-registry.mjs
+          git diff --check
+          test "$(git diff --name-only | wc -l)" -eq 8
+
+      - name: Prove carried JSONL-only closure and deterministic publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          node packages/a2ui-browser/tests/jsonl-surface.mjs | tee "$RUNNER_TEMP/jsonl-test.json"
+          grep -F '"assertions":42' "$RUNNER_TEMP/jsonl-test.json"
+          npm run check:artifact-runtime
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/publication" > "$RUNNER_TEMP/publication.json"
+          python3 - "$RUNNER_TEMP/publication.json" "$RUNNER_TEMP/publication" <<'PY'
+          import json,pathlib,sys
+          receipt=json.load(open(sys.argv[1],encoding='utf-8'))
+          assert receipt=={
+            'schema':'artifact-shell-publication-build-receipt/2',
+            'status':'PASS','capabilities':3,'files':63,
+            'treeDigest':'sha256:b5c164f7b8a9dd8c612cfdb6747d649f4ae2a809a5ddaa02d744a509a4d40c52',
+          }
+          root=pathlib.Path(sys.argv[2])
+          for name in ('base','graph','map','seq'):
+            matches=list(root.glob(f'kernel/*/apps/artifact-shell/fixtures/jsonl/{name}.jsonl'))
+            assert len(matches)==1,(name,matches)
+          PY
+
+      - name: Commit and fast-forward product candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "feat: ship JSONL surface fixtures in Artifact Runtime publication"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
