@@ -1,7 +1,10 @@
 const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell-service: ${message}`); };
 let trustedRenderer = null;
 const loadTrustedRenderer = async () => {
-  if (!trustedRenderer) trustedRenderer = import("../../../packages/a2ui-browser/src/index.mjs").then(module => module.renderTrustedSurface);
+  if (!trustedRenderer) trustedRenderer = import("../../../packages/a2ui-browser/src/index.mjs").then(module => Object.freeze({
+    catalog: module.createAtlasStageCatalog(),
+    renderTrustedSurface: module.renderTrustedSurface,
+  }));
   return trustedRenderer;
 };
 
@@ -12,9 +15,10 @@ export const createArtifactShellServices = ({ document, eventTarget, onAction = 
   return Object.freeze({
     "a2ui.render": async ({ surface }) => {
       invariant(surface && typeof surface === "object" && !Array.isArray(surface), "surface must be an object");
-      const renderTrustedSurface = await loadTrustedRenderer();
+      const { catalog, renderTrustedSurface } = await loadTrustedRenderer();
       surfaceMount.replaceChildren();
       const rendered = renderTrustedSurface({
+        catalog,
         components: surface.components,
         dataModel: surface.dataModel ?? {},
         document,
