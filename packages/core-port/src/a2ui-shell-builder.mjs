@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import { jsonlLines, parseJsonlLines } from "./jsonl.mjs";
+
+export { jsonlLines, parseJsonlLines } from "./jsonl.mjs";
 
 export const GENERIC_A2UI_BUILDER_VERSION = "generic-a2ui-shell-builder.v1";
 
@@ -23,14 +26,6 @@ export function stableJson(value) {
 
 export function sha256(value) {
   return crypto.createHash("sha256").update(typeof value === "string" ? value : stableJson(value)).digest("hex");
-}
-
-export function jsonlLines(rows) {
-  return rows.map((row) => JSON.stringify(row)).join("\n") + "\n";
-}
-
-export function parseJsonlLines(text) {
-  return String(text || "").trim().split(/\n+/).filter(Boolean).map((line) => JSON.parse(line));
 }
 
 export function messageKind(row) {

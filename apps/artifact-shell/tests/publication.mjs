@@ -69,6 +69,28 @@ try {
   const kernelRoot = path.join(outputA, "kernel", first.kernel.digest.slice("sha256:".length));
   equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "shell-core.mjs")).then(() => true), true);
   equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "invocation-action.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "jsonl.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "project.mjs")).then(() => true), true);
+  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
+const publishedJsonl = {
+  base: { canvas: false, nodes: 0, edges: 0 },
+  graph: { canvas: true, nodes: 4, edges: 3 },
+  map: { canvas: true, nodes: 5, edges: 4 },
+  seq: { canvas: true, nodes: 6, edges: 5 },
+};
+for (const [id, expected] of Object.entries(publishedJsonl)) {
+  const fixturePath = path.join(kernelRoot, "apps", "artifact-shell", "fixtures", "jsonl", `${id}.jsonl`);
+  const projected = jsonlProjector.compileArtifactRuntimeJsonlSurface({ jsonl: await fs.readFile(fixturePath, "utf8") });
+  equal(projected.receipt.status, "PASS");
+  equal(projected.receipt.rowCount, 2);
+  const canvas = projected.surface.components.find(component => component.component === "AtlasStage") ?? null;
+  equal(Boolean(canvas), expected.canvas);
+  if (canvas) {
+    equal(canvas.nodes.length, expected.nodes);
+    equal(canvas.edges.length, expected.edges);
+  }
+}
   await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "entry.mjs"))); assertions += 1;
   await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "publication.mjs"))); assertions += 1;
   ok((await assertStaticModuleClosure(outputA)) > 0);

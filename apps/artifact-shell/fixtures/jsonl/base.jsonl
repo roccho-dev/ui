@@ -1,0 +1,2 @@
+{"type":"TreePatch","props":{"op":"replace"},"children":[{"type":"Column","id":"base-proof","props":{"gap":16},"children":[{"type":"Text","id":"base-title","props":{"path":"/title","variant":"h1"},"children":[]},{"type":"Card","id":"base-card","props":{},"children":[{"type":"Text","id":"base-body","props":{"path":"/body"},"children":[]}]}]}]}
+{"type":"StatePatch","props":{"op":"merge","value":{"title":"A2UI Base","body":"A2UI only · no canvas"}},"children":[]}

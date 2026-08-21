@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.mjs",
     "./web-core": "./src/web-core.mjs",
-    "./incremental-surface": "./src/incremental-surface.mjs"
+    "./incremental-surface": "./src/incremental-surface.mjs",
+    "./jsonl-surface": "./src/jsonl-surface.mjs"
   },
   "peerDependencies": {
     "@a2ui/web_core": "0.10.6"

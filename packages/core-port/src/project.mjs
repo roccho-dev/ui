@@ -5,12 +5,25 @@
 // never touches the DOM.
 
 import { defaultRegistry } from "./catalog.mjs";
-import { projectNeedZoomSurface } from "./corr-port.mjs";
 
 const SURFACE_KIND = "ui.surface.viewmodel.v1";
 
 function isObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+const UNSAFE_STATE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+function assertSafeState(value) {
+  if (Array.isArray(value)) {
+    for (const item of value) assertSafeState(item);
+    return value;
+  }
+  if (!isObject(value)) return value;
+  for (const [key, child] of Object.entries(value)) {
+    if (UNSAFE_STATE_KEYS.has(key)) throw new Error(`unsafe state key ${key}`);
+    assertSafeState(child);
+  }
+  return value;
 }
 
 // projectNode walks a recursive node tree and annotates each node with the
@@ -197,8 +210,10 @@ function clone(value) {
   return typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
 }
 function setByPath(obj, path, value) {
+  assertSafeState(value);
   if (!path || path === "/") return value;
   const parts = String(path).split("/").filter(Boolean);
+  for (const key of parts) if (UNSAFE_STATE_KEYS.has(key)) throw new Error(`unsafe state key ${key}`);
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i += 1) {
     const key = parts[i];
@@ -208,10 +223,14 @@ function setByPath(obj, path, value) {
   cur[parts[parts.length - 1]] = value;
   return obj;
 }
-function deepMerge(a, b) {
+function mergeSafeState(a, b) {
   for (const [key, value] of Object.entries(b || {})) {
-    if (isObject(value) && isObject(a[key])) a[key] = deepMerge(a[key], value);
+    if (isObject(value) && isObject(a[key])) a[key] = mergeSafeState(a[key], value);
     else a[key] = value;
   }
   return a;
+}
+function deepMerge(a, b) {
+  assertSafeState(b);
+  return mergeSafeState(a, b);
 }
