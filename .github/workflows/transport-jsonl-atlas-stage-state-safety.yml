@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - transport/jsonl-atlas-stage-state-safety-260821
+  pull_request:
+    branches:
+      - proposal/jsonl-atlas-stage-url-260821
 
 permissions:
   contents: write
