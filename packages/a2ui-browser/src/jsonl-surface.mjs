@@ -53,6 +53,7 @@ const compileNode = ({ catalog, components, ids, node }) => {
   invariant(node?.registered !== false, `unregistered component ${node?.type ?? "unknown"}`);
   invariant(typeof node?.id === "string" && SAFE_ID.test(node.id), `${node?.type ?? "component"}.id is invalid`);
   invariant(!ids.has(node.id), `duplicate component ${node.id}`);
+  ids.add(node.id);
   invariant(isPlainObject(node.props), `${node.id}.props must be a plain object`);
   for (const key of Object.keys(node.props)) invariant(!RESERVED_PROPS.has(key), `${node.id}.props.${key} is reserved`);
   const policy = CHILDREN[node.type];
