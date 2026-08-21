@@ -1,9 +1,6 @@
 name: Transport JSONL state safety fix
 
 on:
-  push:
-    branches:
-      - transport/jsonl-atlas-stage-state-safety-260821
   pull_request:
     branches:
       - proposal/jsonl-atlas-stage-url-260821
@@ -18,45 +15,115 @@ jobs:
     env:
       EXPECTED_HEAD: 4fbea3600b2c112fccd1ca4bfda1e322a6ce9658
       TARGET_BRANCH: proposal/jsonl-atlas-stage-url-260821
-      PATCH_B64_SHA256: 82f2ea2742c7078a6d469abf5cda183fea40d544aeb796cec2fd4a926e7fbcb4
-      PATCH_GZ_SHA256: e5cd3341ce2672282e71bcb9c79fb7ce14a1dd277c3d90c0f84d9df2ac8774d6
-      PATCH_SHA256: 1c7ac6023287908a6be26bb09ab36abea6f4d295882c30bdc228d0fe80cfc900
       EXPECTED_TREE_DIGEST: sha256:95d7fe3edc3b65c24198abfa32edc0650f0401e3bb4825bfc9c395f757b965b7
     steps:
       - uses: actions/checkout@v4
         with:
-          path: transport
-          fetch-depth: 1
-
-      - uses: actions/checkout@v4
-        with:
           ref: ${{ env.TARGET_BRANCH }}
-          path: candidate
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
 
-      - name: Apply exact state safety patch
+      - name: Apply exact fail-closed state patch
         shell: bash
         run: |
           set -euo pipefail
-          payload="$GITHUB_WORKSPACE/transport/.github/transport/jsonl-state-safety.patch.gz.b64"
-          candidate="$GITHUB_WORKSPACE/candidate"
-          test "$(git -C "$candidate" rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(sha256sum "$payload" | cut -d' ' -f1)" = "$PATCH_B64_SHA256"
-          base64 --decode "$payload" > "$RUNNER_TEMP/change.patch.gz"
-          test "$(sha256sum "$RUNNER_TEMP/change.patch.gz" | cut -d' ' -f1)" = "$PATCH_GZ_SHA256"
-          gzip --decompress --stdout "$RUNNER_TEMP/change.patch.gz" > "$RUNNER_TEMP/change.patch"
-          test "$(sha256sum "$RUNNER_TEMP/change.patch" | cut -d' ' -f1)" = "$PATCH_SHA256"
-          git -C "$candidate" apply --check "$RUNNER_TEMP/change.patch"
-          git -C "$candidate" apply "$RUNNER_TEMP/change.patch"
-          git -C "$candidate" diff --check
-          test "$(git -C "$candidate" diff --name-only | LC_ALL=C sort | paste -sd, -)" = "apps/artifact-shell/generated/capability-registry.mjs,packages/a2ui-browser/tests/jsonl-surface.mjs,packages/core-port/src/project.mjs"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          project=Path('packages/core-port/src/project.mjs')
+          source=project.read_text(encoding='utf-8')
+          old='''function isObject(value) {
+            return !!value && typeof value === "object" && !Array.isArray(value);
+          }
+          '''
+          new='''function isObject(value) {
+            return !!value && typeof value === "object" && !Array.isArray(value);
+          }
+
+          const UNSAFE_STATE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+          function assertSafeState(value) {
+            if (Array.isArray(value)) {
+              for (const item of value) assertSafeState(item);
+              return value;
+            }
+            if (!isObject(value)) return value;
+            for (const [key, child] of Object.entries(value)) {
+              if (UNSAFE_STATE_KEYS.has(key)) throw new Error(`unsafe state key ${key}`);
+              assertSafeState(child);
+            }
+            return value;
+          }
+          '''
+          assert source.count(old)==1
+          source=source.replace(old,new)
+          old='''function setByPath(obj, path, value) {
+            if (!path || path === "/") return value;
+            const parts = String(path).split("/").filter(Boolean);
+            let cur = obj;
+            for (let i = 0; i < parts.length - 1; i += 1) {
+              const key = parts[i];
+              if (!isObject(cur[key])) cur[key] = {};
+              cur = cur[key];
+            }
+            cur[parts[parts.length - 1]] = value;
+            return obj;
+          }
+          function deepMerge(a, b) {
+            for (const [key, value] of Object.entries(b || {})) {
+              if (isObject(value) && isObject(a[key])) a[key] = deepMerge(a[key], value);
+              else a[key] = value;
+            }
+            return a;
+          }
+          '''
+          new='''function setByPath(obj, path, value) {
+            assertSafeState(value);
+            if (!path || path === "/") return value;
+            const parts = String(path).split("/").filter(Boolean);
+            for (const key of parts) if (UNSAFE_STATE_KEYS.has(key)) throw new Error(`unsafe state key ${key}`);
+            let cur = obj;
+            for (let i = 0; i < parts.length - 1; i += 1) {
+              const key = parts[i];
+              if (!isObject(cur[key])) cur[key] = {};
+              cur = cur[key];
+            }
+            cur[parts[parts.length - 1]] = value;
+            return obj;
+          }
+          function mergeSafeState(a, b) {
+            for (const [key, value] of Object.entries(b || {})) {
+              if (isObject(value) && isObject(a[key])) a[key] = mergeSafeState(a[key], value);
+              else a[key] = value;
+            }
+            return a;
+          }
+          function deepMerge(a, b) {
+            assertSafeState(b);
+            return mergeSafeState(a, b);
+          }
+          '''
+          assert source.count(old)==1
+          project.write_text(source.replace(old,new),encoding='utf-8')
+
+          test=Path('packages/a2ui-browser/tests/jsonl-surface.mjs')
+          source=test.read_text(encoding='utf-8')
+          marker='''assert.throws(() => compileArtifactRuntimeJsonlSurface({ jsonl: '{bad' }), /JSONL line 1 is invalid/u); assertions += 1;
+          '''
+          additions='''assert.throws(() => compileArtifactRuntimeJsonlSurface({ jsonl: '{"type":"TreePatch","props":{"op":"replace"},"children":[{"type":"Text","id":"root","props":{"text":"x"},"children":[]}]}\\n{"type":"StatePatch","props":{"op":"merge","value":{"__proto__":{"polluted":true}}},"children":[]}' }), /unsafe state key __proto__/u); assertions += 1;
+          assert.throws(() => compileArtifactRuntimeJsonlSurface({ jsonl: '{"type":"TreePatch","props":{"op":"replace"},"children":[{"type":"Text","id":"root","props":{"text":"x"},"children":[]}]}\\n{"type":"StatePatch","props":{"op":"set","path":"/constructor/polluted","value":true},"children":[]}' }), /unsafe state key constructor/u); assertions += 1;
+          '''
+          assert source.count(marker)==1
+          test.write_text(source.replace(marker,additions+marker),encoding='utf-8')
+          PY
+          node apps/artifact-shell/scripts/build-registry.mjs
+          git diff --check
+          test "$(git diff --name-only | LC_ALL=C sort | paste -sd, -)" = "apps/artifact-shell/generated/capability-registry.mjs,packages/a2ui-browser/tests/jsonl-surface.mjs,packages/core-port/src/project.mjs"
 
       - name: Re-run JSONL and complete Artifact Runtime gates
-        working-directory: candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -76,7 +143,6 @@ jobs:
           PY
 
       - name: Commit and fast-forward product candidate
-        working-directory: candidate
         shell: bash
         run: |
           set -euo pipefail
