@@ -1,0 +1,59 @@
+name: Prepare AtlasStage Artifact Runtime candidate
+
+on:
+  push:
+    branches:
+      - proposal/atlas-stage-artifact-runtime-260821
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: proposal/atlas-stage-artifact-runtime-260821
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+
+      - name: Regenerate deterministic registry and verify the full Artifact Runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/scripts/build-registry.mjs
+          npm run check:artifact-runtime
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/publication" | tee "$RUNNER_TEMP/publication.json"
+          python3 - "$RUNNER_TEMP/publication/artifact-manifest.json" "$RUNNER_TEMP/publication/catalog.json" <<'PY'
+          import json,sys
+          artifact=json.load(open(sys.argv[1],encoding='utf-8'))
+          catalog=json.load(open(sys.argv[2],encoding='utf-8'))
+          assert artifact['schema']=='artifact-shell-publication-artifact/2'
+          assert len(artifact['files'])>53
+          assert [f"{x['capability']['id']}@{x['capability']['version']}" for x in catalog['capabilities']]==[
+            'inspect.json@1','render.a2ui@1','render.a2ui.app@1'
+          ]
+          atlas=[x for x in artifact['files'] if x['path'].endswith('/packages/a2ui-browser/src/catalog/atlas-stage.mjs')]
+          assert len(atlas)==1
+          print(json.dumps({'status':'PASS','treeDigest':artifact['treeDigest'],'files':len(artifact['files']),'atlasStage':atlas[0]}))
+          PY
+          git diff --check
+
+      - name: Commit generated registry and retire this preparation workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m "build: refresh Artifact Runtime registry for AtlasStage"
+          fi
+          git rm .github/workflows/prepare-atlas-stage-artifact-runtime.yml
+          git commit -m "chore: retire AtlasStage preparation workflow"
+          git push origin HEAD:proposal/atlas-stage-artifact-runtime-260821
