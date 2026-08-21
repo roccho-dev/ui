@@ -1,0 +1,89 @@
+name: Transport JSONL component identity fix
+
+on:
+  push:
+    branches:
+      - transport/jsonl-atlas-stage-duplicate-fix-260821
+
+permissions:
+  contents: write
+
+jobs:
+  update-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: eac82ff300a3e9b0f947e009ab183fd584ef3163
+      TARGET_BRANCH: proposal/jsonl-atlas-stage-url-260821
+      PATCH_B64_SHA256: a52bebb93f46c34a7f526e59d7115670a2bd6317cbeaf0edd9a7835f7a7b245e
+      PATCH_GZ_SHA256: af8885c9b14f4e48bd8ed0db5187a586a0787f5d3b31f67fb48f95e6fcf1806b
+      PATCH_SHA256: 9b572a7c14c8307b1366d633c3099c1215f162c1b765a0766e019d7da25fe16d
+      EXPECTED_TREE_DIGEST: sha256:41fa1e9cca91b2217e86e87599a11f630080a0360c69b84f3a9520e5f195ef27
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: transport
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          path: candidate
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+
+      - name: Apply exact fail-closed identity patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$GITHUB_WORKSPACE/transport/.github/transport/jsonl-duplicate-fix.patch.gz.b64"
+          candidate="$GITHUB_WORKSPACE/candidate"
+          test "$(git -C "$candidate" rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git ls-remote "$candidate"/../candidate refs/heads/nonexistent 2>/dev/null || true)" = ""
+          test "$(sha256sum "$payload" | cut -d' ' -f1)" = "$PATCH_B64_SHA256"
+          base64 --decode "$payload" > "$RUNNER_TEMP/change.patch.gz"
+          test "$(sha256sum "$RUNNER_TEMP/change.patch.gz" | cut -d' ' -f1)" = "$PATCH_GZ_SHA256"
+          gzip --decompress --stdout "$RUNNER_TEMP/change.patch.gz" > "$RUNNER_TEMP/change.patch"
+          test "$(sha256sum "$RUNNER_TEMP/change.patch" | cut -d' ' -f1)" = "$PATCH_SHA256"
+          git -C "$candidate" apply --check "$RUNNER_TEMP/change.patch"
+          git -C "$candidate" apply "$RUNNER_TEMP/change.patch"
+          git -C "$candidate" diff --check
+          test "$(git -C "$candidate" diff --name-only | LC_ALL=C sort | paste -sd, -)" = "apps/artifact-shell/generated/capability-registry.mjs,packages/a2ui-browser/src/jsonl-surface.mjs,packages/a2ui-browser/tests/jsonl-surface.mjs"
+
+      - name: Re-run JSONL and complete Artifact Runtime gates
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node packages/a2ui-browser/tests/jsonl-surface.mjs | tee "$RUNNER_TEMP/jsonl-test.json"
+          grep -F '"assertions":40' "$RUNNER_TEMP/jsonl-test.json"
+          node apps/artifact-shell/scripts/build-registry.mjs --check
+          npm run check:artifact-runtime
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$RUNNER_TEMP/publication" > "$RUNNER_TEMP/publication.json"
+          python3 - "$RUNNER_TEMP/publication.json" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1],encoding='utf-8'))
+          assert x=={
+            'schema':'artifact-shell-publication-build-receipt/2',
+            'status':'PASS','capabilities':3,'files':59,
+            'treeDigest':'sha256:41fa1e9cca91b2217e86e87599a11f630080a0360c69b84f3a9520e5f195ef27',
+          }
+          PY
+
+      - name: Commit and fast-forward product candidate
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/artifact-shell/generated/capability-registry.mjs \
+            packages/a2ui-browser/src/jsonl-surface.mjs \
+            packages/a2ui-browser/tests/jsonl-surface.mjs
+          git diff --cached --check
+          git commit -m "fix: reserve JSONL component ids before descending"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
