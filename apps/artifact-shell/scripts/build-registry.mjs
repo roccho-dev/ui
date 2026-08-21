@@ -49,6 +49,7 @@ const runtimeSourceRoots = Object.freeze([
   path.join(repoRoot, "packages", "core-port", "src", "project.mjs"),
   path.join(repoRoot, "packages", "core-port", "src", "catalog.mjs"),
   path.join(repoRoot, "packages", "core-port", "src", "registry.mjs"),
+  path.join(appRoot, "fixtures", "jsonl"),
   path.join(appRoot, "src", "invocation-action.mjs"),
   path.join(appRoot, "src", "pinned-view.mjs"),
   path.join(appRoot, "src", "services.mjs"),

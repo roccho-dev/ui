@@ -10,7 +10,7 @@ import {
 } from "../src/index.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const fixture = id => fs.readFileSync(path.join(root, "tests/fixtures/artifact-runtime-jsonl", `${id}.jsonl`), "utf8");
+const fixture = id => fs.readFileSync(path.join(root, "apps/artifact-shell/fixtures/jsonl", `${id}.jsonl`), "utf8");
 const makeElement = tagName => ({
   attributes: new Map(), children: [], tagName, textContent: "", type: "",
   addEventListener() {},
