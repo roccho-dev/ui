@@ -49,25 +49,20 @@ jobs:
 
           registry=Path('apps/artifact-shell/scripts/build-registry.mjs')
           source=registry.read_text(encoding='utf-8')
-          old='''  path.join(repoRoot, "packages", "core-port", "src", "registry.mjs"),
-          path.join(appRoot, "src", "invocation-action.mjs"),'''
-          new='''  path.join(repoRoot, "packages", "core-port", "src", "registry.mjs"),
-          path.join(appRoot, "fixtures", "jsonl"),
-          path.join(appRoot, "src", "invocation-action.mjs"),'''
-          assert source.count(old)==1
-          registry.write_text(source.replace(old,new),encoding='utf-8')
+          anchor='  path.join(repoRoot, "packages", "core-port", "src", "registry.mjs"),\n'
+          addition='  path.join(appRoot, "fixtures", "jsonl"),\n'
+          assert source.count(anchor)==1
+          assert addition not in source
+          registry.write_text(source.replace(anchor,anchor+addition),encoding='utf-8')
 
           publication=Path('apps/artifact-shell/tests/publication.mjs')
           source=publication.read_text(encoding='utf-8')
-          old='''  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
-          const projected = jsonlProjector.compileArtifactRuntimeJsonlSurface({ jsonl: [
-            JSON.stringify({ type: "TreePatch", props: { op: "replace" }, children: [{ type: "Column", id: "publication-jsonl", props: {}, children: [{ type: "Text", id: "publication-title", props: { path: "/title" }, children: [] }] }] }),
-            JSON.stringify({ type: "StatePatch", props: { op: "merge", value: { title: "Publication JSONL" } }, children: [] }),
-          ].join("\\n") });
-          equal(projected.receipt.status, "PASS");
-          equal(projected.surface.dataModel.title, "Publication JSONL");
-          '''
-          new='''  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
+          start_marker='  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);\n'
+          end_marker='  await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "entry.mjs"))); assertions += 1;\n'
+          assert source.count(start_marker)==1 and source.count(end_marker)==1
+          start=source.index(start_marker)
+          end=source.index(end_marker,start)
+          replacement='''  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
           const publishedJsonl = {
             base: { canvas: false, nodes: 0, edges: 0 },
             graph: { canvas: true, nodes: 4, edges: 3 },
@@ -87,8 +82,7 @@ jobs:
             }
           }
           '''
-          assert source.count(old)==1
-          publication.write_text(source.replace(old,new),encoding='utf-8')
+          publication.write_text(source[:start]+replacement+source[end:],encoding='utf-8')
           PY
 
           node apps/artifact-shell/scripts/build-registry.mjs
