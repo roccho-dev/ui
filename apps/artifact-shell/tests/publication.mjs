@@ -69,6 +69,16 @@ try {
   const kernelRoot = path.join(outputA, "kernel", first.kernel.digest.slice("sha256:".length));
   equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "shell-core.mjs")).then(() => true), true);
   equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "invocation-action.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "jsonl.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "project.mjs")).then(() => true), true);
+  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
+  const projected = jsonlProjector.compileArtifactRuntimeJsonlSurface({ jsonl: [
+    JSON.stringify({ type: "TreePatch", props: { op: "replace" }, children: [{ type: "Column", id: "publication-jsonl", props: {}, children: [{ type: "Text", id: "publication-title", props: { path: "/title" }, children: [] }] }] }),
+    JSON.stringify({ type: "StatePatch", props: { op: "merge", value: { title: "Publication JSONL" } }, children: [] }),
+  ].join("\n") });
+  equal(projected.receipt.status, "PASS");
+  equal(projected.surface.dataModel.title, "Publication JSONL");
   await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "entry.mjs"))); assertions += 1;
   await assert.rejects(() => fs.access(path.join(kernelRoot, "apps", "artifact-shell", "src", "publication.mjs"))); assertions += 1;
   ok((await assertStaticModuleClosure(outputA)) > 0);

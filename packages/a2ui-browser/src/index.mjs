@@ -20,6 +20,13 @@ export {
   isPlainObject,
 } from "./catalog/runtime.mjs";
 export { validateMessageBatch } from "./catalog/messages.mjs";
+export {
+  ARTIFACT_RUNTIME_JSONL_COMPONENTS,
+  ARTIFACT_RUNTIME_JSONL_RECEIPT_SCHEMA,
+  ARTIFACT_RUNTIME_JSONL_SURFACE_SCHEMA,
+  compileArtifactRuntimeJsonlSurface,
+  createArtifactRuntimeJsonlRegistry,
+} from "./jsonl-surface.mjs";
 export { createClientAction, emitClientAction } from "./actions/client-action.mjs";
 export { renderTrustedSurface } from "./render/trusted-dom.mjs";
 
