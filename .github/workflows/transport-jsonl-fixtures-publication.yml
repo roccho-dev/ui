@@ -87,7 +87,7 @@ jobs:
 
           node apps/artifact-shell/scripts/build-registry.mjs
           git diff --check
-          test "$(git diff --name-only | wc -l)" -eq 8
+          test "$(git diff HEAD --name-only | wc -l)" -eq 8
 
       - name: Prove carried JSONL-only closure and deterministic publication
         shell: bash
