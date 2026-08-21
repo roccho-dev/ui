@@ -7,6 +7,12 @@ export {
   validateComponent,
 } from "./catalog/base.mjs";
 export {
+  ATLAS_STAGE_CATALOG_ID,
+  ATLAS_STAGE_COMPONENT,
+  createAtlasStageCatalog,
+  validateAtlasStageComponent,
+} from "./catalog/atlas-stage.mjs";
+export {
   assertExactKeys,
   assertStringArray,
   createTrustedCatalog,
