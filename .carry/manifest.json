@@ -1,0 +1,17 @@
+{
+  "authority": false,
+  "baseCommit": "1a7be63b9ddea94eece0b693d90df48f34c1575d",
+  "bundleDigest": "sha256:9274d7cbea2327d939ab0b86463fa573ac3b62987d09f091e2834f1986f01800",
+  "carrierDigest": "sha256:4c310e3f7e6ca1c824e7e9456fa3a9461c972199acde6e2257c60c6c56985fba",
+  "chunks": [
+    "part-000",
+    "part-001",
+    "part-002",
+    "part-003",
+    "part-004"
+  ],
+  "schema": "exact-git-bundle-import/1",
+  "targetBranch": "feat/adrs-318-authenticated-decision-routes",
+  "targetCommit": "8050cd33e1cffa1961a04357f57454965d1b53c9",
+  "targetTree": "71ca5c1423cd5e94f6967992e63d6f5711719bbd"
+}
