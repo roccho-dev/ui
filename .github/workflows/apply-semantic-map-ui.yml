@@ -1,0 +1,122 @@
+name: Apply semantic-map UI capability
+
+on:
+  push:
+    branches:
+      - transport/semantic-map-ui-260829
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-semantic-map-ui-260829
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TARGET_BRANCH: docs/ui-registry-purpose-shell-examples-260829
+      EXPECTED_TARGET_HEAD: 0b8db82d67fffb2724e99ba8a2ed107988455c15
+      PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct exact transport payload from fixed Git blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shas=(
+            45c8cf5a157a3c5a4a0df28967b007e8a745db46
+            70871986265390122bc7beb671a4cf7472df9baa
+            0a8d55e6a1335baf3a6d77892797aff2a036deee
+            a669d0fef53be4bd9ad012be07005115d793a312
+            c75d61bf73310c60e24df84cf818698deec92589
+            5dd1ca8070059c33673f18309751f693f8799ce5
+            f8f2ad13e4a9b1b8238435d12a2a484a78a9cd7e
+            6fc8ceecf5b92ca415aa919863347c314e58cf35
+            eb058e9c2ecf732f09bbf3f33bedfb42363fbfed
+            55eb85c4ed69a979fbc71471caf0f8c600ec21ea
+          )
+          : > "$RUNNER_TEMP/payload.b64"
+          for i in $(seq 0 9); do
+            path="transport/semantic-map-ui/chunk-$(printf '%02d' "$i")"
+            if test -f "$path"; then
+              cat "$path" >> "$RUNNER_TEMP/payload.b64"
+            else
+              gh api "repos/$GITHUB_REPOSITORY/git/blobs/${shas[$i]}" --jq .content \
+                | tr -d '\n' | base64 --decode >> "$RUNNER_TEMP/payload.b64"
+            fi
+          done
+          base64 --decode "$RUNNER_TEMP/payload.b64" > "$RUNNER_TEMP/payload.tar.xz"
+          test "$(sha256sum "$RUNNER_TEMP/payload.tar.xz" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"
+          mkdir -p "$RUNNER_TEMP/payload"
+          tar -xJf "$RUNNER_TEMP/payload.tar.xz" -C "$RUNNER_TEMP/payload"
+          test -f "$RUNNER_TEMP/payload/apply.py"
+
+      - name: Fail closed on target branch movement
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "$TARGET_BRANCH"
+          test "$(git rev-parse "origin/$TARGET_BRANCH")" = "$EXPECTED_TARGET_HEAD"
+          git worktree add --detach "$RUNNER_TEMP/target" "origin/$TARGET_BRANCH"
+          git -C "$RUNNER_TEMP/target" switch -c "$TARGET_BRANCH"
+
+      - name: Materialize source-only semantic-map capability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$RUNNER_TEMP/payload/apply.py" "$RUNNER_TEMP/target" "$RUNNER_TEMP/payload"
+          git -C "$RUNNER_TEMP/target" diff --check
+          test -z "$(git -C "$RUNNER_TEMP/target" grep -n -i -E 'mobile[- ]agent|mobile_agent|mobileAgent' -- packages/semantic-map apps/artifact-shell/capabilities/render-semantic-map examples/render.semantic.map tests/check-semantic-map-capability.mjs tests/check-semantic-map-browser.py || true)"
+
+      - name: Verify package, capability registry, shell, and repository contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/target"
+          node packages/semantic-map/tests/run.mjs
+          node tests/check-semantic-map-capability.mjs
+          npm run check:artifact-runtime
+          node tests/run-all.mjs
+
+      - name: Verify horizontal and vertical browser authoring round-trip
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/target"
+          python3 -m pip install --quiet --disable-pip-version-check playwright==1.57.0
+          python3 -m playwright install --with-deps chromium
+          chrome="$(python3 - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              print(p.chromium.executable_path)
+          PY
+          )"
+          test -x "$chrome"
+          CHROME_BIN="$chrome" python3 tests/check-semantic-map-browser.py
+
+      - name: Commit and push exact reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/target"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'feat: add semantic-map capability family'
+          git push origin "HEAD:$TARGET_BRANCH"
+
+      - name: Remove one-shot transport branch
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin --delete transport/semantic-map-ui-260829
