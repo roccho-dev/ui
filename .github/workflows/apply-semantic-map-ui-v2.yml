@@ -1,4 +1,4 @@
-name: Apply semantic-map UI capability v2
+name: Apply semantic-map UI capability
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: apply-semantic-map-ui-260829-v2
+  group: apply-semantic-map-ui-260829
   cancel-in-progress: false
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
       TARGET_BRANCH: docs/ui-registry-purpose-shell-examples-260829
       EXPECTED_TARGET_HEAD: 0b8db82d67fffb2724e99ba8a2ed107988455c15
       PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
-      FULL_OR_CHUNK_ZERO_BLOB: 45c8cf5a157a3c5a4a0df28967b007e8a745db46
+      FULL_PAYLOAD_BLOB: 45c8cf5a157a3c5a4a0df28967b007e8a745db46
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,42 +32,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          fetch_blob() {
-            gh api "repos/$GITHUB_REPOSITORY/git/blobs/$1" --jq .content \
-              | tr -d '\n' | base64 --decode
-          }
-
-          fetch_blob "$FULL_OR_CHUNK_ZERO_BLOB" > "$RUNNER_TEMP/candidate.b64"
-          full=0
-          if base64 --decode "$RUNNER_TEMP/candidate.b64" > "$RUNNER_TEMP/candidate.tar.xz" 2>/dev/null; then
-            if test "$(sha256sum "$RUNNER_TEMP/candidate.tar.xz" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"; then
-              mv "$RUNNER_TEMP/candidate.tar.xz" "$RUNNER_TEMP/payload.tar.xz"
-              full=1
-            fi
-          fi
-
-          if test "$full" -eq 0; then
-            shas=(
-              45c8cf5a157a3c5a4a0df28967b007e8a745db46
-              70871986265390122bc7beb671a4cf7472df9baa
-              0a8d55e6a1335baf3a6d77892797aff2a036deee
-              a669d0fef53be4bd9ad012be07005115d793a312
-              c75d61bf73310c60e24df84cf818698deec92589
-              5dd1ca8070059c33673f18309751f693f8799ce5
-              f8f2ad13e4a9b1b8238435d12a2a484a78a9cd7e
-              6fc8ceecf5b92ca415aa919863347c314e58cf35
-              eb058e9c2ecf732f09bbf3f33bedfb42363fbfed
-              55eb85c4ed69a979fbc71471caf0f8c600ec21ea
-            )
-            : > "$RUNNER_TEMP/payload.b64"
-            for i in $(seq 0 9); do
-              path="transport/semantic-map-ui/chunk-$(printf '%02d' "$i")"
-              if test -f "$path"; then cat "$path"; else fetch_blob "${shas[$i]}"; fi
-            done > "$RUNNER_TEMP/payload.b64"
-            base64 --decode "$RUNNER_TEMP/payload.b64" > "$RUNNER_TEMP/payload.tar.xz"
-          fi
-
+          gh api "repos/$GITHUB_REPOSITORY/git/blobs/$FULL_PAYLOAD_BLOB" --jq .content \
+            | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/payload.tar.xz"
           test "$(sha256sum "$RUNNER_TEMP/payload.tar.xz" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"
+          xz -t "$RUNNER_TEMP/payload.tar.xz"
           mkdir -p "$RUNNER_TEMP/payload"
           tar -xJf "$RUNNER_TEMP/payload.tar.xz" -C "$RUNNER_TEMP/payload"
           test -f "$RUNNER_TEMP/payload/apply.py"
