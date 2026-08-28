@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: apply-semantic-map-ui-260829
@@ -20,6 +22,7 @@ jobs:
       TARGET_BRANCH: docs/ui-registry-purpose-shell-examples-260829
       EXPECTED_TARGET_HEAD: 0b8db82d67fffb2724e99ba8a2ed107988455c15
       PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
+      PR_NUMBER: "172"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,12 +50,67 @@ jobs:
             eb058e9c2ecf732f09bbf3f33bedfb42363fbfed
             55eb85c4ed69a979fbc71471caf0f8c600ec21ea
           )
-          : > "$RUNNER_TEMP/payload.b64"
-          for sha in "${shas[@]}"; do
-            fetch_blob "$sha"
-          done > "$RUNNER_TEMP/payload.b64"
-          base64 --decode "$RUNNER_TEMP/payload.b64" > "$RUNNER_TEMP/payload.tar.xz"
-          test "$(sha256sum "$RUNNER_TEMP/payload.tar.xz" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"
+          mkdir -p "$RUNNER_TEMP/payload-probe"
+          for i in "${!shas[@]}"; do
+            fetch_blob "${shas[$i]}" > "$RUNNER_TEMP/payload-probe/blob-$i"
+          done
+
+          accept_candidate() {
+            local candidate="$1"
+            if test -f "$candidate" && test "$(sha256sum "$candidate" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"; then
+              cp "$candidate" "$RUNNER_TEMP/payload.tar.xz"
+              return 0
+            fi
+            return 1
+          }
+
+          found=0
+          if accept_candidate "$RUNNER_TEMP/payload-probe/blob-0"; then
+            found=1
+          elif base64 --decode "$RUNNER_TEMP/payload-probe/blob-0" > "$RUNNER_TEMP/payload-probe/blob-0.decoded" 2>/dev/null \
+            && accept_candidate "$RUNNER_TEMP/payload-probe/blob-0.decoded"; then
+            found=1
+          else
+            cat "$RUNNER_TEMP"/payload-probe/blob-[0-9] > "$RUNNER_TEMP/payload-probe/concat.raw"
+            if accept_candidate "$RUNNER_TEMP/payload-probe/concat.raw"; then
+              found=1
+            elif base64 --decode "$RUNNER_TEMP/payload-probe/concat.raw" > "$RUNNER_TEMP/payload-probe/concat.decoded" 2>/dev/null \
+              && accept_candidate "$RUNNER_TEMP/payload-probe/concat.decoded"; then
+              found=1
+            fi
+          fi
+
+          if test "$found" -ne 1; then
+            {
+              echo '### Semantic-map payload reconstruction diagnostic'
+              echo
+              echo 'No supported candidate matched the pinned payload SHA-256.'
+              echo
+              echo '```text'
+              for file in "$RUNNER_TEMP"/payload-probe/blob-[0-9]; do
+                printf '%s bytes=%s sha256=%s head=%s\n' \
+                  "$(basename "$file")" \
+                  "$(stat -c %s "$file")" \
+                  "$(sha256sum "$file" | cut -d' ' -f1)" \
+                  "$(head -c 16 "$file" | xxd -p -c 256)"
+              done
+              for file in "$RUNNER_TEMP/payload-probe/blob-0.decoded" "$RUNNER_TEMP/payload-probe/concat.raw" "$RUNNER_TEMP/payload-probe/concat.decoded"; do
+                if test -f "$file"; then
+                  printf '%s bytes=%s sha256=%s head=%s\n' \
+                    "$(basename "$file")" \
+                    "$(stat -c %s "$file")" \
+                    "$(sha256sum "$file" | cut -d' ' -f1)" \
+                    "$(head -c 16 "$file" | xxd -p -c 256)"
+                fi
+              done
+              echo "expected=$PAYLOAD_SHA256"
+              echo '```'
+            } > "$RUNNER_TEMP/payload-diagnostic.md"
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              -f body="$(cat "$RUNNER_TEMP/payload-diagnostic.md")"
+            exit 1
+          fi
+
           xz -t "$RUNNER_TEMP/payload.tar.xz"
           mkdir -p "$RUNNER_TEMP/payload"
           tar -xJf "$RUNNER_TEMP/payload.tar.xz" -C "$RUNNER_TEMP/payload"
