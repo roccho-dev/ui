@@ -1,11 +1,46 @@
 # ui
 
-`ui` owns the A2UI / SDUI component registry and renderer-neutral projection package.
+`ui` is the source registry for executable UI capabilities and reusable UI components.
 
-## Current layout
+Given an exact input, this repository must make four facts discoverable without reading deployment code:
+
+1. which capability accepts the input;
+2. which exact source engine renders it;
+3. which typed events or receipts it may emit;
+4. which checked-in input and generated example output demonstrate the contract.
+
+`ui` does not own accepted business state, queue rows, production ledgers, deployment authority, or runtime admission.
+
+## Two registries
+
+| Registry | Question it answers | Source |
+|---|---|---|
+| Component registry | Which recursive UI node/component IDs can a renderer execute? | `schemas/component-entry.schema.json` and `packages/a2ui-adapter-artifacts/registry.json` |
+| Capability registry | What exact input can be sent, what will be rendered or executed, and what typed output may be returned? | `apps/artifact-shell/capabilities/<slug>/manifest.json` |
+
+The checked-in `apps/artifact-shell/generated/capability-registry.mjs` is a generated shell index. Capability manifests are the source declarations.
+
+## Current executable capabilities
+
+| Capability | Accepts | Produces |
+|---|---|---|
+| `inspect.json@1` | one `application/json` blob | `json-inspection/1` |
+| `render.a2ui@1` | one `a2ui-surface/1` value | `a2ui-render-receipt/1` |
+| `render.a2ui.app@1` | one `a2ui-app/1` value | `a2ui-app-render-receipt/1` |
+
+This table lists only capabilities that exist on the current branch. Planned or historical capabilities must not be presented as available.
+
+## Source placement
 
 | Responsibility | Path |
 |---|---|
+| Reusable protocol, domain, projection, renderer, and UI source | `packages/**` |
+| Browser entrypoint and composition glue | `apps/artifact-shell/index.html` and `apps/artifact-shell/src/**` |
+| Additive capability declaration | `apps/artifact-shell/capabilities/<slug>/manifest.json` |
+| Thin capability-to-package adapter | `apps/artifact-shell/capabilities/<slug>/engine.mjs` |
+| Positive and destructive contract inputs | `apps/artifact-shell/capabilities/<slug>/fixtures/**` |
+| Generated shell registry | `apps/artifact-shell/generated/**` |
+| Reviewable input/output examples | `examples/<capability-id>/{input,dist}/**` |
 | Core package | `packages/core-port/src/**` |
 | A2UI adapter artifact producer | `packages/a2ui-adapter-artifacts/**` |
 | UI package claims | `packages/ui-claims/**` |
@@ -15,18 +50,53 @@
 | Purpose Atlas fixture input | `tests/fixtures/purpose-atlas/**` |
 | Purpose Atlas source reference | `tests/reference/purpose-atlas-source/**` |
 | SSG hot-refresh viewport fixture | `tests/fixtures/ssg-hot-refresh-viewport/**` |
-| Generated preview/evidence | Nix and CI outputs |
 
-## Boundary
+## Shell boundary
+
+The shell is the browser entrypoint and composition root. It owns only shared glue:
+
+```text
+invocation decode
+→ capability selection
+→ exact engine verification
+→ declared host-service injection
+→ mount / execute
+→ typed result and receipt routing
+```
+
+It contains no domain-name switch and no domain semantics. Reusable implementation belongs under `packages/**`; each capability's `engine.mjs` is only the thin adapter between the generic shell and those packages. New capability directories must not require a shell-source change.
+
+See `apps/artifact-shell/README.md` for the executable boundary.
+
+## Generated example dist
+
+Generated output may be committed when it is an explicit, reviewable example under:
+
+```text
+examples/<capability-id>/dist/**
+```
+
+An example `dist` is non-authoritative and must satisfy all of the following:
+
+- it is generated from the adjacent checked-in `input/**` and current source;
+- it is never consumed as source or as a build input;
+- CI rebuilds it in a temporary directory and compares the result;
+- production publication still belongs to Actions, Release, Pages, or another deployment owner.
+
+Generated previews and receipts outside an explicit example remain build evidence rather than repository authority.
+
+## Naming
+
+Active package names, capability IDs, paths, routes, and release identities use function or contract names. Product nicknames are not active identifiers. Historical Git evidence is not rewritten, but no new source or artifact identity should depend on a retired nickname.
+
+## Authority boundary
 
 Purpose Decision Atlas v6 uses `core+port as lib`.
 Runtime input is expected to be `ADRS projected input` produced outside this repo.
 A2UI is `a2ui as build`.
 JSONL in this repo is `jsonl as attached data`.
-Fixtures must be `stateless` and `non-authoritative`.
+Fixtures and examples must be `stateless` and `non-authoritative`.
 `ui.git is not a state store`.
-
-Generated preview HTML, dist assets, evidence receipts, gov-package-output packets, and manifests are build evidence only and are not tracked as repository authority.
 
 ## Development-only SSG hot refresh proof
 
