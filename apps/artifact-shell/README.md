@@ -1,8 +1,43 @@
 # Universal artifact shell
 
-The shell is one browser execution surface for `artifact-invocation/2`.
+The shell is the single browser entrypoint and composition root for `artifact-invocation/2`.
 
-It contains no domain switch. A generated trusted registry selects one capability from request intent, normalized input shape, media type, schema, expected outputs, and runtime constraints. The selected exact engine is fetched and verified only after selection; required renderer services are supplied by the trusted host only when declared.
+## Placement and role
+
+```text
+apps/artifact-shell/index.html
+apps/artifact-shell/src/**
+```
+
+These paths own shared glue only:
+
+```text
+invocation decode
+→ trusted capability selection
+→ exact engine fetch and verification
+→ declared host-service injection
+→ mount / execute
+→ typed result and receipt routing
+```
+
+The shell does not own component meaning, domain reducers, projections, renderers, or accepted state.
+
+The other layers live here:
+
+| Layer | Path |
+|---|---|
+| Reusable implementation | `packages/**` |
+| Capability declaration | `apps/artifact-shell/capabilities/<slug>/manifest.json` |
+| Thin capability adapter | `apps/artifact-shell/capabilities/<slug>/engine.mjs` |
+| Positive and destructive inputs | `apps/artifact-shell/capabilities/<slug>/fixtures/**` |
+| Generated registry index | `apps/artifact-shell/generated/**` |
+| Reviewable generated example | `examples/<capability-id>/dist/**` |
+
+A capability `engine.mjs` may connect the generic shell to reusable packages, but it must not become a second shell or a duplicated domain implementation.
+
+## Registry execution
+
+The shell contains no domain switch. A generated trusted registry selects one capability from request intent, normalized input shape, media type, schema, expected outputs, and runtime constraints. The selected exact engine is fetched and verified only after selection; required renderer services are supplied by the trusted host only when declared.
 
 A capability is one additive directory:
 
