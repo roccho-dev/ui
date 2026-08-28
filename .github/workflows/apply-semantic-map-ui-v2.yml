@@ -21,97 +21,77 @@ jobs:
     env:
       TARGET_BRANCH: docs/ui-registry-purpose-shell-examples-260829
       EXPECTED_TARGET_HEAD: 0b8db82d67fffb2724e99ba8a2ed107988455c15
-      PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
+      EXPECTED_PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
+      FULL_PAYLOAD_BLOB: 45c8cf5a157a3c5a4a0df28967b007e8a745db46
       PR_NUMBER: "172"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Reconstruct and verify exact payload
+      - name: Reconstruct, diagnose, and verify exact payload
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          fetch_blob() {
-            gh api "repos/$GITHUB_REPOSITORY/git/blobs/$1" --jq .content \
-              | tr -d '\n' | base64 --decode
-          }
-          shas=(
-            45c8cf5a157a3c5a4a0df28967b007e8a745db46
-            70871986265390122bc7beb671a4cf7472df9baa
-            0a8d55e6a1335baf3a6d77892797aff2a036deee
-            a669d0fef53be4bd9ad012be07005115d793a312
-            c75d61bf73310c60e24df84cf818698deec92589
-            5dd1ca8070059c33673f18309751f693f8799ce5
-            f8f2ad13e4a9b1b8238435d12a2a484a78a9cd7e
-            6fc8ceecf5b92ca415aa919863347c314e58cf35
-            eb058e9c2ecf732f09bbf3f33bedfb42363fbfed
-            55eb85c4ed69a979fbc71471caf0f8c600ec21ea
-          )
-          mkdir -p "$RUNNER_TEMP/payload-probe"
-          for i in "${!shas[@]}"; do
-            fetch_blob "${shas[$i]}" > "$RUNNER_TEMP/payload-probe/blob-$i"
-          done
+          gh api "repos/$GITHUB_REPOSITORY/git/blobs/$FULL_PAYLOAD_BLOB" --jq .content \
+            | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/blob.raw"
 
-          accept_candidate() {
-            local candidate="$1"
-            if test -f "$candidate" && test "$(sha256sum "$candidate" | cut -d' ' -f1)" = "$PAYLOAD_SHA256"; then
-              cp "$candidate" "$RUNNER_TEMP/payload.tar.xz"
-              return 0
-            fi
-            return 1
-          }
+          raw_sha="$(sha256sum "$RUNNER_TEMP/blob.raw" | cut -d' ' -f1)"
+          raw_bytes="$(stat -c %s "$RUNNER_TEMP/blob.raw")"
+          raw_head="$(head -c 16 "$RUNNER_TEMP/blob.raw" | xxd -p -c 256)"
+          raw_xz=false
+          if xz -t "$RUNNER_TEMP/blob.raw" 2>/dev/null; then raw_xz=true; fi
 
-          found=0
-          if accept_candidate "$RUNNER_TEMP/payload-probe/blob-0"; then
-            found=1
-          elif base64 --decode "$RUNNER_TEMP/payload-probe/blob-0" > "$RUNNER_TEMP/payload-probe/blob-0.decoded" 2>/dev/null \
-            && accept_candidate "$RUNNER_TEMP/payload-probe/blob-0.decoded"; then
-            found=1
-          else
-            cat "$RUNNER_TEMP"/payload-probe/blob-[0-9] > "$RUNNER_TEMP/payload-probe/concat.raw"
-            if accept_candidate "$RUNNER_TEMP/payload-probe/concat.raw"; then
-              found=1
-            elif base64 --decode "$RUNNER_TEMP/payload-probe/concat.raw" > "$RUNNER_TEMP/payload-probe/concat.decoded" 2>/dev/null \
-              && accept_candidate "$RUNNER_TEMP/payload-probe/concat.decoded"; then
-              found=1
-            fi
+          decoded_ok=false
+          decoded_xz=false
+          decoded_sha=none
+          decoded_bytes=0
+          decoded_head=none
+          if base64 --decode "$RUNNER_TEMP/blob.raw" > "$RUNNER_TEMP/blob.decoded" 2>/dev/null; then
+            decoded_ok=true
+            decoded_sha="$(sha256sum "$RUNNER_TEMP/blob.decoded" | cut -d' ' -f1)"
+            decoded_bytes="$(stat -c %s "$RUNNER_TEMP/blob.decoded")"
+            decoded_head="$(head -c 16 "$RUNNER_TEMP/blob.decoded" | xxd -p -c 256)"
+            if xz -t "$RUNNER_TEMP/blob.decoded" 2>/dev/null; then decoded_xz=true; fi
           fi
 
-          if test "$found" -ne 1; then
-            {
-              echo '### Semantic-map payload reconstruction diagnostic'
-              echo
-              echo 'No supported candidate matched the pinned payload SHA-256.'
-              echo
-              echo '```text'
-              for file in "$RUNNER_TEMP"/payload-probe/blob-[0-9]; do
-                printf '%s bytes=%s sha256=%s head=%s\n' \
-                  "$(basename "$file")" \
-                  "$(stat -c %s "$file")" \
-                  "$(sha256sum "$file" | cut -d' ' -f1)" \
-                  "$(head -c 16 "$file" | xxd -p -c 256)"
-              done
-              for file in "$RUNNER_TEMP/payload-probe/blob-0.decoded" "$RUNNER_TEMP/payload-probe/concat.raw" "$RUNNER_TEMP/payload-probe/concat.decoded"; do
-                if test -f "$file"; then
-                  printf '%s bytes=%s sha256=%s head=%s\n' \
-                    "$(basename "$file")" \
-                    "$(stat -c %s "$file")" \
-                    "$(sha256sum "$file" | cut -d' ' -f1)" \
-                    "$(head -c 16 "$file" | xxd -p -c 256)"
-                fi
-              done
-              echo "expected=$PAYLOAD_SHA256"
-              echo '```'
-            } > "$RUNNER_TEMP/payload-diagnostic.md"
-            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
-              -f body="$(cat "$RUNNER_TEMP/payload-diagnostic.md")"
-            exit 1
+          candidate=none
+          if test "$raw_xz" = true; then
+            cp "$RUNNER_TEMP/blob.raw" "$RUNNER_TEMP/payload.tar.xz"
+            candidate=raw
+          elif test "$decoded_xz" = true; then
+            cp "$RUNNER_TEMP/blob.decoded" "$RUNNER_TEMP/payload.tar.xz"
+            candidate=decoded
+          fi
+          candidate_sha=none
+          candidate_has_apply=false
+          candidate_entries=none
+          if test "$candidate" != none; then
+            candidate_sha="$(sha256sum "$RUNNER_TEMP/payload.tar.xz" | cut -d' ' -f1)"
+            candidate_entries="$(tar -tJf "$RUNNER_TEMP/payload.tar.xz" | head -n 20 | paste -sd ',' -)"
+            if tar -tJf "$RUNNER_TEMP/payload.tar.xz" | grep -qx 'apply.py'; then candidate_has_apply=true; fi
           fi
 
-          xz -t "$RUNNER_TEMP/payload.tar.xz"
+          {
+            echo '### Semantic-map full payload diagnostic'
+            echo
+            echo '```text'
+            echo "git_blob=$FULL_PAYLOAD_BLOB"
+            echo "raw bytes=$raw_bytes sha256=$raw_sha head=$raw_head xz=$raw_xz"
+            echo "decoded ok=$decoded_ok bytes=$decoded_bytes sha256=$decoded_sha head=$decoded_head xz=$decoded_xz"
+            echo "candidate=$candidate sha256=$candidate_sha has_apply=$candidate_has_apply"
+            echo "expected=$EXPECTED_PAYLOAD_SHA256"
+            echo "entries=$candidate_entries"
+            echo '```'
+          } > "$RUNNER_TEMP/payload-diagnostic.md"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            -f body="$(cat "$RUNNER_TEMP/payload-diagnostic.md")"
+
+          test "$candidate" != none
+          test "$candidate_has_apply" = true
+          test "$candidate_sha" = "$EXPECTED_PAYLOAD_SHA256"
           mkdir -p "$RUNNER_TEMP/payload"
           tar -xJf "$RUNNER_TEMP/payload.tar.xz" -C "$RUNNER_TEMP/payload"
           test -f "$RUNNER_TEMP/payload/apply.py"
