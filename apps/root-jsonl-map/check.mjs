@@ -16,7 +16,8 @@ assert.match(html, /\["package_id", "decision_id", "id", "schema"\]/u);
 assert.match(html, /\["responsibility", "summary", "description", "status", "schema"\]/u);
 assert.doesNotMatch(html, /innerHTML/u);
 assert.doesNotMatch(html, /<script[^>]+src=/u);
-assert.doesNotMatch(html, /<link[^>]+href=/u);
+assert.match(html, /<link rel="icon" href="data:,">/u);
+assert.doesNotMatch(html, /<(?:script|link)[^>]+(?:src|href)="https?:/u);
 
 console.log(JSON.stringify({
   schema: "ui.rootJsonlMapCheck/1",
