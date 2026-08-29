@@ -1,0 +1,65 @@
+name: Materialize semantic-map UI bundle
+
+on:
+  push:
+    branches: [proposal/semantic-map-root-jsonl-260829]
+    paths:
+      - '.github/workflows/materialize-semantic-map-ui-bundle.yml'
+      - 'transport/semantic-map/part.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore and inspect exact bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/semantic-map"
+          mkdir -p "$work"
+          cat transport/semantic-map/part.* > "$work/payload.b64"
+          test "$(wc -c < "$work/payload.b64")" -eq 80000
+          base64 --decode "$work/payload.b64" > "$work/payload.xz"
+          xz --test "$work/payload.xz"
+          xz --decompress --stdout "$work/payload.xz" > "$work/semantic-map-ui-integration.git.bundle"
+          test "$(sha256sum "$work/semantic-map-ui-integration.git.bundle" | cut -d' ' -f1)" = e1c75a12a0e83653711ae8ac8f8c37adfba76606c5dee49440288e60269fe786
+          git bundle verify "$work/semantic-map-ui-integration.git.bundle"
+          git clone "$work/semantic-map-ui-integration.git.bundle" "$work/source"
+          git -C "$work/source" fsck --strict
+          test -z "$(git -C "$work/source" status --porcelain)"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -C "$work/source" -czf "$work/source.tar.gz" --exclude=.git .
+          python3 - "$work" <<'PY'
+          import hashlib,json,pathlib,subprocess,sys
+          root=pathlib.Path(sys.argv[1]); source=root/'source'; bundle=root/'semantic-map-ui-integration.git.bundle'
+          files=sorted(p.relative_to(source).as_posix() for p in source.rglob('*') if p.is_file() and '.git' not in p.parts)
+          receipt={
+            'schema':'ui.semanticMapBundleMaterialization/1',
+            'status':'PASS',
+            'bundle':{'bytes':bundle.stat().st_size,'sha256':'sha256:'+hashlib.sha256(bundle.read_bytes()).hexdigest()},
+            'git':{
+              'head':subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip(),
+              'tree':subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD^{tree}'],text=True).strip(),
+              'branch':subprocess.check_output(['git','-C',str(source),'branch','--show-current'],text=True).strip(),
+            },
+            'sourceFiles':len(files),
+            'topLevel':sorted({p.split('/',1)[0] for p in files}),
+            'authority':False,
+          }
+          (root/'receipt.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(receipt,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semantic-map-ui-integration-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/semantic-map/semantic-map-ui-integration.git.bundle
+            ${{ runner.temp }}/semantic-map/source.tar.gz
+            ${{ runner.temp }}/semantic-map/receipt.json
+          if-no-files-found: error
+          retention-days: 3
