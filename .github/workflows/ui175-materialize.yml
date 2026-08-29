@@ -27,7 +27,7 @@ jobs:
       ARCHIVE_BYTES: "419324"
       ARCHIVE_SHA256: d260e0bf624e28f86fafe9749230f59b8ce1453e6e35125bfb91fe28ce212472
       BASE64_SHA256: 2cb773829f93ce5e38040291b9d5d16660b00ba9d36c8efb3e0cf56ec20b9a77
-      EXPECTED_CHUNKS: "32"
+      EXPECTED_PARTS: "8"
       EXPECTED_TREE_A: 7ebfe154de47000f12cea6242f1d164ae5fbebe5
       EXPECTED_TREE_B: ed46836fdbb43a47ad0dd5cb714b852b3b8f9c57
       EXPECTED_TREE_C: de78e1cd1321a86de8a01939ba147f36e4809875
@@ -40,42 +40,15 @@ jobs:
           fetch-depth: 1
 
       - name: Reconstruct bounded source carrier
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/ui175"
           mkdir -p "$root/carrier" "$root/source"
-          gh api "repos/$GITHUB_REPOSITORY/issues/175/comments?per_page=100" > "$root/carrier/comments.json"
-          python3 - "$root/carrier/comments.json" "$root/carrier/source.b64" "$root/carrier/comment-ids" "$EXPECTED_CHUNKS" "$ARCHIVE_SHA256" "$BASE64_SHA256" <<'PY'
-          import hashlib,json,pathlib,re,sys
-          rows=json.loads(pathlib.Path(sys.argv[1]).read_text())
-          expected=int(sys.argv[4]); archive_sha=sys.argv[5]; b64_sha=sys.argv[6]
-          marker='<!-- ui175-three-commit-source-carrier/3 -->'; chunks={}; ids=[]
-          for row in rows:
-              body=row.get('body') or ''
-              if marker not in body: continue
-              m=re.search(r'^chunk:\s*(\d+)/(\d+)\s*$',body,re.M)
-              a=re.search(r'^archive-sha256:\s*([0-9a-f]{64})\s*$',body,re.M)
-              b=re.search(r'^base64-sha256:\s*([0-9a-f]{64})\s*$',body,re.M)
-              assert m and a and b and '\ndata:\n' in body
-              i,total=map(int,m.groups())
-              assert total==expected and a.group(1)==archive_sha and b.group(1)==b64_sha
-              data=body.split('\ndata:\n',1)[1].strip()
-              assert re.fullmatch(r'[A-Za-z0-9+/=]+',data)
-              parts=[data[n:n+18000] for n in range(0,len(data),18000)]
-              assert i+len(parts)<=expected
-              for offset,part in enumerate(parts):
-                  assert i+offset not in chunks
-                  chunks[i+offset]=part
-              ids.append(str(row['id']))
-          assert sorted(chunks)==list(range(expected)),sorted(chunks)
-          payload=''.join(chunks[i] for i in range(expected))
-          assert hashlib.sha256(payload.encode()).hexdigest()==b64_sha
-          pathlib.Path(sys.argv[2]).write_text(payload)
-          pathlib.Path(sys.argv[3]).write_text('\n'.join(ids)+'\n')
-          PY
+          mapfile -t parts < <(find .transport/ui175/parts -maxdepth 1 -type f -name 'part-*.b64' -print | sort)
+          test "${#parts[@]}" -eq "$EXPECTED_PARTS"
+          cat "${parts[@]}" > "$root/carrier/source.b64"
+          test "$(sha256sum "$root/carrier/source.b64" | cut -d' ' -f1)" = "$BASE64_SHA256"
           base64 --decode "$root/carrier/source.b64" > "$root/carrier/source.tar.xz"
           test "$(wc -c < "$root/carrier/source.tar.xz")" -eq "$ARCHIVE_BYTES"
           test "$(sha256sum "$root/carrier/source.tar.xz" | cut -d' ' -f1)" = "$ARCHIVE_SHA256"
@@ -101,13 +74,18 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Remove superseded public carriers
+      - name: Remove superseded public carriers and transport branches
         if: ${{ success() }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          while read -r id; do test -n "$id" && gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$id"; done < "$RUNNER_TEMP/ui175/carrier/comment-ids"
-          gh api "repos/$GITHUB_REPOSITORY/issues/173/comments?per_page=100" --jq '.[] | select(.body | contains("<!-- semantic-map-source-carrier/1 -->")) | .id' | while read -r id; do test -n "$id" && gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$id"; done
-          for branch in "$TRANSPORT_BRANCH" transport/semantic-map-source-integration-260829 transport/semantic-map-ui-260829 transport/ui175-decision-packet-260829; do git push origin --delete "$branch" || true; done
+          for issue in 173 175; do
+            gh api "repos/$GITHUB_REPOSITORY/issues/$issue/comments?per_page=100" --jq '.[] | select((.body | contains("<!-- ui175-three-commit-source-carrier/3 -->")) or (.body | contains("<!-- semantic-map-source-carrier/1 -->"))) | .id' | while read -r id; do
+              test -n "$id" && gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$id"
+            done
+          done
+          for branch in "$TRANSPORT_BRANCH" transport/semantic-map-source-integration-260829 transport/semantic-map-ui-260829 transport/ui175-decision-packet-260829; do
+            git push origin --delete "$branch" || true
+          done
