@@ -1,0 +1,8 @@
+schema: ui.semanticMapFinalIntegrationReady/1
+status: READY
+base: f0c1ff68889e21a3cd203dd2a4ef4e2ed0bc6bb7
+sourceIssue: 173
+sourceArchiveSha256: 7a94f02b38895a7afbbd72be644104c4e9d12c956fb9be483ad6f5818b9dcc98
+deltaIssue: 178
+deltaArchiveSha256: 19f82381b03d651106b6a5aa375597021699aaa15f23261a7268836b73b56c2e
+candidateBranch: proposal/semantic-map-final-integration-260829
