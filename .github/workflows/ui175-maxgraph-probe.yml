@@ -29,7 +29,7 @@ jobs:
           archive="$(npm pack @maxgraph/core@0.24.0 --silent)"
           sha256sum "$archive"
           tar -xzf "$archive"
-          find package -type f -path '*lib/esm/*' | head
+          find package -type f -path '*lib/esm/*' | sed -n '1,10p'
           cd "$GITHUB_WORKSPACE"
           cp -a "$root/package/lib/esm" packages/semantic-map/vendor/maxgraph
           count="$(find packages/semantic-map/vendor/maxgraph -type f | wc -l)"
