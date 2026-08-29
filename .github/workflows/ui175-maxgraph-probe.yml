@@ -1,4 +1,4 @@
-name: Probe maxGraph 0.24.0 vendored bytes
+name: Probe maxGraph 0.24.0 approved vendored subset
 
 on:
   push:
@@ -19,19 +19,25 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
-      - name: Compare npm ESM bytes with approved vendor manifest
+      - name: Compare npm ESM subset with approved vendor manifest
         shell: bash
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/maxgraph"
-          mkdir -p "$root/package" packages/semantic-map/vendor
+          mkdir -p "$root" packages/semantic-map/vendor/maxgraph
           cd "$root"
           archive="$(npm pack @maxgraph/core@0.24.0 --silent)"
-          sha256sum "$archive"
+          test "$(sha256sum "$archive" | cut -d' ' -f1)" = dfbcfe8fb1527046dd817466635463649ae370efe60b3768f43b01cff3f460c9
           tar -xzf "$archive"
-          find package -type f -path '*lib/esm/*' | sed -n '1,10p'
           cd "$GITHUB_WORKSPACE"
-          cp -a "$root/package/lib/esm" packages/semantic-map/vendor/maxgraph
+          while IFS= read -r path; do
+            test -n "$path"
+            src="$root/package/lib/esm/$path"
+            dst="packages/semantic-map/vendor/maxgraph/$path"
+            test -f "$src"
+            mkdir -p "$(dirname "$dst")"
+            cp "$src" "$dst"
+          done < .transport/ui175/maxgraph-paths.txt
           count="$(find packages/semantic-map/vendor/maxgraph -type f | wc -l)"
           bytes="$(find packages/semantic-map/vendor/maxgraph -type f -printf '%s\n' | awk '{s+=$1} END{print s}')"
           find packages/semantic-map/vendor/maxgraph -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/vendor.sha256"
