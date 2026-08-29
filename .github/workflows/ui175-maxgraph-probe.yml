@@ -19,12 +19,13 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
-      - name: Compare npm ESM subset with approved vendor manifest
+      - name: Identify npm-to-approved vendor byte differences
         shell: bash
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/maxgraph"
-          mkdir -p "$root" packages/semantic-map/vendor/maxgraph
+          vendor="$GITHUB_WORKSPACE/packages/semantic-map/vendor/maxgraph"
+          mkdir -p "$root" "$vendor"
           cd "$root"
           archive="$(npm pack @maxgraph/core@0.24.0 --silent)"
           test "$(sha256sum "$archive" | cut -d' ' -f1)" = dfbcfe8fb1527046dd817466635463649ae370efe60b3768f43b01cff3f460c9
@@ -33,16 +34,18 @@ jobs:
           while IFS= read -r path; do
             test -n "$path"
             src="$root/package/lib/esm/$path"
-            dst="packages/semantic-map/vendor/maxgraph/$path"
+            dst="$vendor/$path"
             test -f "$src"
             mkdir -p "$(dirname "$dst")"
             cp "$src" "$dst"
           done < .transport/ui175/maxgraph-paths.txt
-          count="$(find packages/semantic-map/vendor/maxgraph -type f | wc -l)"
-          bytes="$(find packages/semantic-map/vendor/maxgraph -type f -printf '%s\n' | awk '{s+=$1} END{print s}')"
-          find packages/semantic-map/vendor/maxgraph -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/vendor.sha256"
-          digest="$(sha256sum "$RUNNER_TEMP/vendor.sha256" | cut -d' ' -f1)"
-          printf 'files=%s\nbytes=%s\nmanifest_sha256=%s\n' "$count" "$bytes" "$digest"
+          count="$(find "$vendor" -type f | wc -l)"
+          bytes="$(find "$vendor" -type f -printf '%s\n' | awk '{s+=$1} END{print s}')"
+          printf 'files=%s\nbytes=%s\n' "$count" "$bytes"
           test "$count" -eq 123
-          test "$bytes" -eq 1331088
-          test "$digest" = e1b8d2b1fbac03430fd6f2fe275b71ff062a1675748dea0fd2432c8edf04a4b2
+          cd "$vendor"
+          sha256sum -c "$GITHUB_WORKSPACE/.transport/ui175/maxgraph-approved.sha256" > "$RUNNER_TEMP/check.log" 2>&1 || true
+          grep -v ': OK$' "$RUNNER_TEMP/check.log" || true
+          mismatches="$(grep -vc ': OK$' "$RUNNER_TEMP/check.log" || true)"
+          printf 'mismatches=%s\n' "$mismatches"
+          test "$mismatches" -eq 0
