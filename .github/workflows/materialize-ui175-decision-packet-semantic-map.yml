@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 50
     env:
       BASE_SHA: 2e6442263f118a4b3ed405530ce24ba6eb054681
-      SEMANTIC_BLOB: 45c8cf5a157a3c5a4a0df28967b007e8a745db46
+      SEMANTIC_CARRIER_BRANCH: transport/semantic-map-mobile-agent-260829
       SEMANTIC_PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
       DECISION_BLOB: 60190e485d5a04521871034a9d24b927d785e905
       DECISION_PAYLOAD_SHA256: a1a63bf4a8b4ceccf12246aab9b4424d552b355727b403b7ffe5026879b2acae
@@ -42,23 +42,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          resolve_blob() {
-            local blob="$1" expected="$2" output="$3"
-            gh api "repos/$GITHUB_REPOSITORY/git/blobs/$blob" --jq .content \
-              | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/blob.raw"
-            if xz -t "$RUNNER_TEMP/blob.raw" 2>/dev/null; then
-              cp "$RUNNER_TEMP/blob.raw" "$output"
-            elif base64 --decode "$RUNNER_TEMP/blob.raw" > "$RUNNER_TEMP/blob.decoded" 2>/dev/null \
-              && xz -t "$RUNNER_TEMP/blob.decoded" 2>/dev/null; then
-              cp "$RUNNER_TEMP/blob.decoded" "$output"
-            else
-              echo "blob $blob is neither raw nor base64-wrapped xz" >&2
-              exit 1
-            fi
-            test "$(sha256sum "$output" | cut -d' ' -f1)" = "$expected"
-          }
-          resolve_blob "$SEMANTIC_BLOB" "$SEMANTIC_PAYLOAD_SHA256" "$RUNNER_TEMP/semantic.tar.xz"
-          resolve_blob "$DECISION_BLOB" "$DECISION_PAYLOAD_SHA256" "$RUNNER_TEMP/decision.tar.xz"
+          git fetch --no-tags origin "$SEMANTIC_CARRIER_BRANCH"
+          : > "$RUNNER_TEMP/semantic.b64"
+          for part in 000 001 002 003 004; do
+            git show "origin/$SEMANTIC_CARRIER_BRANCH:transport/semantic-map/part.$part" \
+              | tr -d '\r\n' >> "$RUNNER_TEMP/semantic.b64"
+          done
+          base64 --decode "$RUNNER_TEMP/semantic.b64" > "$RUNNER_TEMP/semantic.tar.xz"
+          xz -t "$RUNNER_TEMP/semantic.tar.xz"
+          test "$(sha256sum "$RUNNER_TEMP/semantic.tar.xz" | cut -d' ' -f1)" = "$SEMANTIC_PAYLOAD_SHA256"
+
+          gh api "repos/$GITHUB_REPOSITORY/git/blobs/$DECISION_BLOB" --jq .content \
+            | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/decision.tar.xz"
+          xz -t "$RUNNER_TEMP/decision.tar.xz"
+          test "$(sha256sum "$RUNNER_TEMP/decision.tar.xz" | cut -d' ' -f1)" = "$DECISION_PAYLOAD_SHA256"
+
           mkdir -p "$RUNNER_TEMP/semantic" "$RUNNER_TEMP/decision"
           tar -xJf "$RUNNER_TEMP/semantic.tar.xz" -C "$RUNNER_TEMP/semantic"
           tar -xJf "$RUNNER_TEMP/decision.tar.xz" -C "$RUNNER_TEMP/decision"
