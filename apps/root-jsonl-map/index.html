@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Decision JSONL Map</title>
+  <style>
+    :root{color-scheme:light dark;font:14px/1.5 system-ui,sans-serif;background:#f5f6f8;color:#17191d}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:inherit;color:inherit}
+    header{position:sticky;top:0;z-index:1;display:flex;gap:16px;align-items:center;justify-content:space-between;padding:14px 18px;background:color-mix(in srgb,Canvas 92%,transparent);border-bottom:1px solid color-mix(in srgb,CanvasText 16%,transparent);backdrop-filter:blur(10px)}
+    h1{font-size:16px;margin:0}
+    #status{font-size:12px;padding:4px 8px;border:1px solid currentColor;border-radius:999px}
+    #status[data-state="error"]{color:#b42318}
+    main{padding:18px}
+    #message{margin:0 0 14px;color:color-mix(in srgb,CanvasText 68%,transparent)}
+    #map{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;align-items:start}
+    article{min-height:132px;padding:14px;border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:12px;background:Canvas;box-shadow:0 2px 10px color-mix(in srgb,CanvasText 6%,transparent)}
+    article h2{font-size:14px;margin:0 0 6px;overflow-wrap:anywhere}
+    article p{margin:0 0 10px;color:color-mix(in srgb,CanvasText 68%,transparent);overflow-wrap:anywhere}
+    article small{display:block;font-family:ui-monospace,monospace;overflow-wrap:anywhere}
+    details{margin-top:10px}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;margin:8px 0 0}
+    .empty{grid-column:1/-1;padding:24px;text-align:center;border:1px dashed color-mix(in srgb,CanvasText 25%,transparent);border-radius:12px}
+    @media(prefers-color-scheme:dark){:root{background:#111318;color:#f4f5f7}}
+  </style>
+</head>
+<body>
+  <header><h1>Decision JSONL Map</h1><output id="status" data-state="loading">読込中</output></header>
+  <main><p id="message">同じURLから意味データを取得し、ブラウザ内で最小のmapへ投影します。</p><section id="map" aria-live="polite"></section></main>
+  <script>
+    (() => {
+      "use strict";
+      const MAX_BYTES = 2_000_000;
+      const status = document.getElementById("status");
+      const message = document.getElementById("message");
+      const map = document.getElementById("map");
+
+      const first = (record, keys) => {
+        for (const key of keys) {
+          const value = record?.[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+        }
+        return "";
+      };
+
+      const parseRecords = text => {
+        const source = text.trim();
+        if (!source) return [];
+        try {
+          const value = JSON.parse(source);
+          const records = Array.isArray(value) ? value : [value];
+          if (!records.every(row => row && typeof row === "object" && !Array.isArray(row))) throw new Error("record-object-required");
+          return records;
+        } catch (wholeError) {
+          const lines = source.split(/\r?\n/).filter(Boolean);
+          const records = lines.map((line, index) => {
+            try { return JSON.parse(line); }
+            catch { throw new Error(`invalid-jsonl-line:${index + 1}`); }
+          });
+          if (!records.every(row => row && typeof row === "object" && !Array.isArray(row))) throw new Error("record-object-required");
+          return records;
+        }
+      };
+
+      const projectRecords = records => records.map((record, index) => {
+        const id = first(record, ["package_id", "decision_id", "id", "schema"]) || `record-${index + 1}`;
+        const label = first(record, ["title", "name", "package_id", "decision_id", "id", "schema"]) || id;
+        const summary = first(record, ["responsibility", "summary", "description", "status", "schema"]) || "意味レコード";
+        return { id, label, summary, record };
+      });
+
+      const render = projection => {
+        map.replaceChildren();
+        if (projection.length === 0) {
+          const empty = document.createElement("p");
+          empty.className = "empty";
+          empty.textContent = "表示できるレコードはありません。";
+          map.append(empty);
+          return;
+        }
+        for (const node of projection) {
+          const card = document.createElement("article");
+          card.dataset.recordId = node.id;
+          const title = document.createElement("h2");
+          title.textContent = node.label;
+          const summary = document.createElement("p");
+          summary.textContent = node.summary;
+          const identity = document.createElement("small");
+          identity.textContent = node.id;
+          const details = document.createElement("details");
+          const toggle = document.createElement("summary");
+          toggle.textContent = "元レコード";
+          const raw = document.createElement("pre");
+          raw.textContent = JSON.stringify(node.record, null, 2);
+          details.append(toggle, raw);
+          card.append(title, summary, identity, details);
+          map.append(card);
+        }
+      };
+
+      const fail = (code, text) => {
+        map.replaceChildren();
+        status.dataset.state = "error";
+        status.textContent = code;
+        message.textContent = text;
+        globalThis.rootJsonlMapProof = { status: "FAIL", code };
+      };
+
+      const load = async () => {
+        let response;
+        try {
+          response = await fetch("/", {
+            method: "GET",
+            headers: { accept: "application/x-ndjson, application/json;q=0.9" },
+            credentials: "same-origin",
+            redirect: "error",
+            cache: "no-store"
+          });
+        } catch {
+          fail("FETCH_FAILED", "データを取得できませんでした。");
+          return;
+        }
+        if (response.status === 401) { fail("AUTHENTICATION_REQUIRED", "認証が必要です。"); return; }
+        if (response.status === 403) { fail("ACCESS_DENIED", "このデータを表示する権限がありません。"); return; }
+        if (!response.ok) { fail(`HTTP_${response.status}`, "データ取得に失敗しました。"); return; }
+        const type = response.headers.get("content-type") || "";
+        if (!/application\/(?:x-ndjson|json)/i.test(type)) { fail("CONTENT_TYPE_INVALID", "JSONまたはJSONLではありません。"); return; }
+        const declared = Number(response.headers.get("content-length") || 0);
+        if (declared > MAX_BYTES) { fail("DATA_TOO_LARGE", "データが上限を超えています。"); return; }
+        const text = await response.text();
+        if (new TextEncoder().encode(text).byteLength > MAX_BYTES) { fail("DATA_TOO_LARGE", "データが上限を超えています。"); return; }
+        try {
+          const records = parseRecords(text);
+          const projection = projectRecords(records);
+          render(projection);
+          status.dataset.state = "pass";
+          status.textContent = `${projection.length} records`;
+          message.textContent = "取得した意味データを、推論を加えずmapへ投影しました。";
+          globalThis.rootJsonlMapProof = { status: "PASS", records: records.length, nodes: projection.length };
+        } catch (error) {
+          fail("JSONL_INVALID", error instanceof Error ? error.message : "JSONLを解釈できませんでした。");
+        }
+      };
+
+      globalThis.rootJsonlMap = Object.freeze({ parseRecords, projectRecords });
+      load();
+    })();
+  </script>
+</body>
+</html>
