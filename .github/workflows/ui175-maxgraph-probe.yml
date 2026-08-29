@@ -27,9 +27,9 @@ jobs:
           mkdir -p "$root"
           cd "$root"
           archive="$(npm pack @maxgraph/core@0.24.0 --silent)"
+          test "$archive" = maxgraph-core-0.24.0.tgz
           test "$(sha256sum "$archive" | cut -d' ' -f1)" = dfbcfe8fb1527046dd817466635463649ae370efe60b3768f43b01cff3f460c9
-          mv "$archive" maxgraph-core-0.24.0.tgz
-          printf '%s  %s\n' dfbcfe8fb1527046dd817466635463649ae370efe60b3768f43b01cff3f460c9 maxgraph-core-0.24.0.tgz > SHA256SUMS
+          printf '%s  %s\n' dfbcfe8fb1527046dd817466635463649ae370efe60b3768f43b01cff3f460c9 "$archive" > SHA256SUMS
       - name: Upload fixed source
         uses: actions/upload-artifact@v4
         with:
