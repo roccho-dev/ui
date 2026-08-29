@@ -1,0 +1,42 @@
+name: Probe maxGraph 0.24.0 vendored bytes
+
+on:
+  push:
+    branches:
+      - transport/ui175-decision-packet-semantic-map-260829
+    paths:
+      - .transport/ui175/MAXGRAPH_PROBE
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Compare npm ESM bytes with approved vendor manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/maxgraph"
+          mkdir -p "$root/package" packages/semantic-map/vendor
+          cd "$root"
+          archive="$(npm pack @maxgraph/core@0.24.0 --silent)"
+          sha256sum "$archive"
+          tar -xzf "$archive"
+          find package -type f -path '*lib/esm/*' | head
+          cd "$GITHUB_WORKSPACE"
+          cp -a "$root/package/lib/esm" packages/semantic-map/vendor/maxgraph
+          count="$(find packages/semantic-map/vendor/maxgraph -type f | wc -l)"
+          bytes="$(find packages/semantic-map/vendor/maxgraph -type f -printf '%s\n' | awk '{s+=$1} END{print s}')"
+          find packages/semantic-map/vendor/maxgraph -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/vendor.sha256"
+          digest="$(sha256sum "$RUNNER_TEMP/vendor.sha256" | cut -d' ' -f1)"
+          printf 'files=%s\nbytes=%s\nmanifest_sha256=%s\n' "$count" "$bytes" "$digest"
+          test "$count" -eq 123
+          test "$bytes" -eq 1331088
+          test "$digest" = e1b8d2b1fbac03430fd6f2fe275b71ff062a1675748dea0fd2432c8edf04a4b2
