@@ -1,4 +1,4 @@
-name: Probe maxGraph 0.24.0 approved vendored subset
+name: Export maxGraph 0.24.0 npm source for exact delta
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  export:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -19,33 +19,23 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
-      - name: Identify npm-to-approved vendor byte differences
+      - name: Acquire and verify fixed npm source
         shell: bash
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/maxgraph"
-          vendor="$GITHUB_WORKSPACE/packages/semantic-map/vendor/maxgraph"
-          mkdir -p "$root" "$vendor"
+          mkdir -p "$root"
           cd "$root"
           archive="$(npm pack @maxgraph/core@0.24.0 --silent)"
           test "$(sha256sum "$archive" | cut -d' ' -f1)" = dfbcfe8fb1527046dd817466635463649ae370efe60b3768f43b01cff3f460c9
-          tar -xzf "$archive"
-          cd "$GITHUB_WORKSPACE"
-          while IFS= read -r path; do
-            test -n "$path"
-            src="$root/package/lib/esm/$path"
-            dst="$vendor/$path"
-            test -f "$src"
-            mkdir -p "$(dirname "$dst")"
-            cp "$src" "$dst"
-          done < .transport/ui175/maxgraph-paths.txt
-          count="$(find "$vendor" -type f | wc -l)"
-          bytes="$(find "$vendor" -type f -printf '%s\n' | awk '{s+=$1} END{print s}')"
-          printf 'files=%s\nbytes=%s\n' "$count" "$bytes"
-          test "$count" -eq 123
-          cd "$vendor"
-          sha256sum -c "$GITHUB_WORKSPACE/.transport/ui175/maxgraph-approved.sha256" > "$RUNNER_TEMP/check.log" 2>&1 || true
-          grep -v ': OK$' "$RUNNER_TEMP/check.log" || true
-          mismatches="$(grep -vc ': OK$' "$RUNNER_TEMP/check.log" || true)"
-          printf 'mismatches=%s\n' "$mismatches"
-          test "$mismatches" -eq 0
+          mv "$archive" maxgraph-core-0.24.0.tgz
+          printf '%s  %s\n' dfbcfe8fb1527046dd817466635463649ae370efe60b3768f43b01cff3f460c9 maxgraph-core-0.24.0.tgz > SHA256SUMS
+      - name: Upload fixed source
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui175-maxgraph-npm-source
+          path: |
+            ${{ runner.temp }}/maxgraph/maxgraph-core-0.24.0.tgz
+            ${{ runner.temp }}/maxgraph/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
