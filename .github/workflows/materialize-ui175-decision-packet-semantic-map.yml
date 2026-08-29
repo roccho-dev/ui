@@ -20,8 +20,10 @@ jobs:
     timeout-minutes: 50
     env:
       BASE_SHA: 2e6442263f118a4b3ed405530ce24ba6eb054681
-      SEMANTIC_CARRIER_BRANCH: transport/semantic-map-mobile-agent-260829
-      SEMANTIC_PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
+      SEMANTIC_EXPECTED_CHUNKS: 34
+      SEMANTIC_PAYLOAD_BASE64_SHA256: 4988f28ff9f6a6ee1310272b227a133dfbe455a1b4919df91109e8dd3d450adc
+      SEMANTIC_PAYLOAD_BYTES: 457944
+      SEMANTIC_PAYLOAD_SHA256: 3e8211db5fe1127e0dbc06ac72b1abaddfdfee0286f1feec3aac7ff8d561fc2a
       DECISION_BLOB: 60190e485d5a04521871034a9d24b927d785e905
       DECISION_PAYLOAD_SHA256: a1a63bf4a8b4ceccf12246aab9b4424d552b355727b403b7ffe5026879b2acae
       PR_BRANCH: proposal/ui175-decision-packet-semantic-map-260829
@@ -42,25 +44,49 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "$SEMANTIC_CARRIER_BRANCH"
-          : > "$RUNNER_TEMP/semantic.b64"
-          for part in 000 001 002 003 004; do
-            git show "origin/$SEMANTIC_CARRIER_BRANCH:transport/semantic-map/part.$part" \
-              | tr -d '\r\n' >> "$RUNNER_TEMP/semantic.b64"
-          done
+          gh api "repos/$GITHUB_REPOSITORY/issues/$SEMANTIC_ISSUE/comments?per_page=100" > "$RUNNER_TEMP/comments.json"
+          python3 - "$RUNNER_TEMP/comments.json" "$RUNNER_TEMP/semantic.b64" "$RUNNER_TEMP/semantic-comment-ids" "$SEMANTIC_EXPECTED_CHUNKS" "$SEMANTIC_PAYLOAD_SHA256" "$SEMANTIC_PAYLOAD_BASE64_SHA256" <<'PY'
+          import hashlib, json, pathlib, re, sys
+          comments = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))
+          out = pathlib.Path(sys.argv[2])
+          ids = pathlib.Path(sys.argv[3])
+          expected = int(sys.argv[4])
+          archive_sha = sys.argv[5]
+          base64_sha = sys.argv[6]
+          marker = '<!-- semantic-map-source-carrier/1 -->'
+          chunks = {}
+          comment_ids = []
+          for row in comments:
+              body = row.get('body') or ''
+              if marker not in body:
+                  continue
+              m = re.search(r'^chunk:\s*(\d+)/(\d+)\s*$', body, re.M)
+              a = re.search(r'^archive-sha256:\s*([0-9a-f]{64})\s*$', body, re.M)
+              b = re.search(r'^base64-sha256:\s*([0-9a-f]{64})\s*$', body, re.M)
+              assert m and a and b and '\ndata:\n' in body
+              index, total = map(int, m.groups())
+              assert total == expected and a.group(1) == archive_sha and b.group(1) == base64_sha
+              assert index not in chunks
+              chunks[index] = body.split('\ndata:\n', 1)[1].strip()
+              comment_ids.append(str(row['id']))
+          assert sorted(chunks) == list(range(expected)), sorted(chunks)
+          payload = ''.join(chunks[i] for i in range(expected))
+          assert hashlib.sha256(payload.encode()).hexdigest() == base64_sha
+          out.write_text(payload, encoding='ascii')
+          ids.write_text('\n'.join(comment_ids) + '\n', encoding='ascii')
+          PY
           base64 --decode "$RUNNER_TEMP/semantic.b64" > "$RUNNER_TEMP/semantic.tar.xz"
-          xz -t "$RUNNER_TEMP/semantic.tar.xz"
+          test "$(wc -c < "$RUNNER_TEMP/semantic.tar.xz")" -eq "$SEMANTIC_PAYLOAD_BYTES"
           test "$(sha256sum "$RUNNER_TEMP/semantic.tar.xz" | cut -d' ' -f1)" = "$SEMANTIC_PAYLOAD_SHA256"
+          xz -t "$RUNNER_TEMP/semantic.tar.xz"
 
           gh api "repos/$GITHUB_REPOSITORY/git/blobs/$DECISION_BLOB" --jq .content \
             | tr -d '\n' | base64 --decode > "$RUNNER_TEMP/decision.tar.xz"
           xz -t "$RUNNER_TEMP/decision.tar.xz"
           test "$(sha256sum "$RUNNER_TEMP/decision.tar.xz" | cut -d' ' -f1)" = "$DECISION_PAYLOAD_SHA256"
 
-          mkdir -p "$RUNNER_TEMP/semantic" "$RUNNER_TEMP/decision"
-          tar -xJf "$RUNNER_TEMP/semantic.tar.xz" -C "$RUNNER_TEMP/semantic"
+          mkdir -p "$RUNNER_TEMP/decision"
           tar -xJf "$RUNNER_TEMP/decision.tar.xz" -C "$RUNNER_TEMP/decision"
-          test -f "$RUNNER_TEMP/semantic/apply.py"
           test -f "$RUNNER_TEMP/decision/apply.py"
 
       - name: Fail closed on current UI authority movement
@@ -75,15 +101,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 "$RUNNER_TEMP/semantic/apply.py" "$PWD" "$RUNNER_TEMP/semantic"
-          printf '%s\n' 'packages/semantic-map/vendor/maxgraph/** whitespace=-trailing-space' > .gitattributes
+          tar -xJf "$RUNNER_TEMP/semantic.tar.xz" -C .
+          touch .gitattributes
+          grep -qxF 'packages/semantic-map/vendor/maxgraph/** whitespace=-trailing-space' .gitattributes \
+            || printf '%s\n' 'packages/semantic-map/vendor/maxgraph/** whitespace=-trailing-space' >> .gitattributes
           test -f packages/semantic-map/runtime.js
           test -f apps/artifact-shell/capabilities/render-semantic-map/manifest.json
           test ! -e packages/app
           test ! -e vendor/maxgraph
-          node packages/semantic-map/tests/run.mjs
-          if test -f tests/check-semantic-map-capability.mjs; then node tests/check-semantic-map-capability.mjs; fi
-          if test -f apps/artifact-shell/tests/semantic-map-capability.mjs; then node apps/artifact-shell/tests/semantic-map-capability.mjs; fi
+          node apps/artifact-shell/scripts/build-registry.mjs --check
+          npm run check:capability-examples
+          npm run check:semantic-map
+          npm run check:mobile-agent-retirement
+          node tests/run-all.mjs
           git diff --check
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
@@ -248,9 +278,14 @@ jobs:
           gh issue comment "$SEMANTIC_ISSUE" --repo "$GITHUB_REPOSITORY" --body "$body"
           gh issue comment "$DECISION_ISSUE" --repo "$GITHUB_REPOSITORY" --body "$body"
 
-      - name: Remove one-shot transport branch
+      - name: Remove temporary carriers
         if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          while read -r id; do
+            test -n "$id" && gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$id"
+          done < "$RUNNER_TEMP/semantic-comment-ids"
           git push origin --delete "$TRANSPORT_BRANCH"
