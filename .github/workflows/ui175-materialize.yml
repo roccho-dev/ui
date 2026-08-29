@@ -61,10 +61,15 @@ jobs:
               b=re.search(r'^base64-sha256:\s*([0-9a-f]{64})\s*$',body,re.M)
               assert m and a and b and '\ndata:\n' in body
               i,total=map(int,m.groups())
-              assert total==expected and a.group(1)==archive_sha and b.group(1)==b64_sha and i not in chunks
+              assert total==expected and a.group(1)==archive_sha and b.group(1)==b64_sha
               data=body.split('\ndata:\n',1)[1].strip()
               assert re.fullmatch(r'[A-Za-z0-9+/=]+',data)
-              chunks[i]=data; ids.append(str(row['id']))
+              parts=[data[n:n+18000] for n in range(0,len(data),18000)]
+              assert i+len(parts)<=expected
+              for offset,part in enumerate(parts):
+                  assert i+offset not in chunks
+                  chunks[i+offset]=part
+              ids.append(str(row['id']))
           assert sorted(chunks)==list(range(expected)),sorted(chunks)
           payload=''.join(chunks[i] for i in range(expected))
           assert hashlib.sha256(payload.encode()).hexdigest()==b64_sha
