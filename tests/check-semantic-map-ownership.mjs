@@ -13,7 +13,7 @@ const roots = Object.freeze({
 const EXCLUDED_SEGMENTS = new Set(['tests', 'test', 'examples', 'fixtures', 'vendor', 'migration']);
 const EXCLUDED_FILES = new Set(['check.mjs']);
 const CODE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs']);
-const PROVIDER_IMPORT = /(?:^|[/@_-])(?:octokit|github|cloudflare|wrangler|aws-sdk|oidc|r2)(?:$|[/@_.-])/iu;
+const PROVIDER_IMPORT = /(?:^|[/@_:-])(?:octokit|github|cloudflare|wrangler|aws-sdk|oidc|r2)(?:$|[/@_.:-])/iu;
 
 function inside(candidate, parent) {
   const relative = path.relative(parent, candidate);
@@ -62,6 +62,22 @@ async function walk(directory) {
   return files.sort();
 }
 
+async function walkPackageManifests(directory) {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (EXCLUDED_SEGMENTS.has(entry.name)) continue;
+      files.push(...await walkPackageManifests(absolute));
+    } else if (entry.name === 'package.json') {
+      files.push(absolute);
+    }
+  }
+  return files.sort();
+}
+
 function relative(candidate) {
   return path.relative(root, candidate).split(path.sep).join('/');
 }
@@ -75,12 +91,108 @@ function dependencyNames(packageJson) {
   });
 }
 
+function resolveImportAlias(specifier, imports) {
+  if (!imports || typeof imports !== 'object' || Array.isArray(imports)) return null;
+  if (typeof imports[specifier] === 'string') return imports[specifier];
+  for (const [pattern, target] of Object.entries(imports)) {
+    if (typeof target !== 'string') continue;
+    const star = pattern.indexOf('*');
+    if (star < 0) continue;
+    const prefix = pattern.slice(0, star);
+    const suffix = pattern.slice(star + 1);
+    if (!specifier.startsWith(prefix) || !specifier.endsWith(suffix)) continue;
+    const value = specifier.slice(prefix.length, specifier.length - suffix.length);
+    return target.includes('*') ? target.replace('*', value) : target;
+  }
+  return null;
+}
+
+function ownerFromPackageSpecifier(specifier, packageOwners) {
+  const names = [...packageOwners.keys()].sort((a, b) => b.length - a.length);
+  for (const name of names) {
+    if (specifier === name || specifier.startsWith(`${name}/`)) return packageOwners.get(name);
+  }
+  return null;
+}
+
+function scopeFor(file, scopes) {
+  return scopes.find(scope => inside(file, scope.directory)) ?? null;
+}
+
+function classifySpecifier({ file, specifier, scopes, packageOwners }) {
+  if (specifier.startsWith('node:')) return Object.freeze({ kind: 'builtin' });
+  if (specifier.startsWith('.') || specifier.startsWith('/')) {
+    return Object.freeze({
+      kind: 'internal',
+      to: ownerOf(path.resolve(path.dirname(file), specifier)),
+      resolution: 'path',
+    });
+  }
+  if (specifier.startsWith('#')) {
+    const scope = scopeFor(file, scopes);
+    const target = resolveImportAlias(specifier, scope?.packageJson?.imports);
+    if (target === null) return Object.freeze({ kind: 'unresolved-alias' });
+    if (target.startsWith('node:')) return Object.freeze({ kind: 'builtin' });
+    if (target.startsWith('.') || target.startsWith('/')) {
+      return Object.freeze({
+        kind: 'internal',
+        to: ownerOf(path.resolve(scope.directory, target)),
+        resolution: 'alias',
+      });
+    }
+    if (PROVIDER_IMPORT.test(target)) return Object.freeze({ kind: 'provider', resolution: 'alias' });
+    const to = ownerFromPackageSpecifier(target, packageOwners);
+    return to
+      ? Object.freeze({ kind: 'internal', to, resolution: 'alias-package' })
+      : Object.freeze({ kind: 'external', resolution: 'alias' });
+  }
+  if (PROVIDER_IMPORT.test(specifier)) return Object.freeze({ kind: 'provider', resolution: 'package' });
+  const to = ownerFromPackageSpecifier(specifier, packageOwners);
+  return to
+    ? Object.freeze({ kind: 'internal', to, resolution: 'package' })
+    : Object.freeze({ kind: 'external', resolution: 'package' });
+}
+
+for (const directory of Object.values(roots)) await fs.access(directory);
+
+const rootPackagePath = path.join(root, 'package.json');
+const rootPackage = JSON.parse(await fs.readFile(rootPackagePath, 'utf8'));
+const ownerManifestPaths = [...new Set((await Promise.all([
+  walkPackageManifests(roots.semanticMap),
+  walkPackageManifests(roots.govProfile),
+  walkPackageManifests(roots.connectability),
+])).flat())].sort();
+const ownerManifests = await Promise.all(ownerManifestPaths.map(async manifestPath => Object.freeze({
+  path: manifestPath,
+  directory: path.dirname(manifestPath),
+  owner: ownerOf(path.dirname(manifestPath)),
+  packageJson: JSON.parse(await fs.readFile(manifestPath, 'utf8')),
+})));
+const scopes = [
+  Object.freeze({
+    path: rootPackagePath,
+    directory: root,
+    owner: 'other',
+    packageJson: rootPackage,
+  }),
+  ...ownerManifests,
+].sort((a, b) => b.directory.length - a.directory.length);
+const packageOwners = new Map();
+for (const scope of scopes) {
+  const name = scope.packageJson.name;
+  if (typeof name !== 'string' || name.length === 0) continue;
+  const previous = packageOwners.get(name);
+  assert(previous === undefined || previous === scope.owner, `package name ${name} has conflicting owners`);
+  packageOwners.set(name, scope.owner);
+}
+
 assert.equal(forbiddenEdge('semantic-map', 'connectability'), true);
 assert.equal(forbiddenEdge('semantic-map', 'gov-profile'), true);
 assert.equal(forbiddenEdge('connectability', 'semantic-map'), true);
 assert.equal(forbiddenEdge('gov-profile', 'connectability'), true);
 assert.equal(forbiddenEdge('gov-profile', 'semantic-map'), false);
 assert.equal(PROVIDER_IMPORT.test('@octokit/rest'), true);
+assert.equal(PROVIDER_IMPORT.test('cloudflare:workers'), true);
 assert.equal(PROVIDER_IMPORT.test('node:path'), false);
 assert.deepEqual(importSpecifiers(`
   import './a.js';
@@ -88,8 +200,27 @@ assert.deepEqual(importSpecifiers(`
   const c = import('./c.js');
   const d = require('./d.cjs');
 `), ['./a.js', './b.js', './c.js', './d.cjs']);
-
-for (const directory of Object.values(roots)) await fs.access(directory);
+assert.equal(
+  ownerFromPackageSpecifier('@roccho/ui-connectability/subpath', new Map([
+    ['@roccho/ui-connectability', 'connectability'],
+  ])),
+  'connectability',
+);
+assert.equal(
+  resolveImportAlias('#connectability/wire', {
+    '#connectability/*': './packages/connectability/*',
+  }),
+  './packages/connectability/wire',
+);
+assert.equal(
+  classifySpecifier({
+    file: path.join(roots.semanticMap, 'domain/example.js'),
+    specifier: '@roccho/ui-connectability',
+    scopes,
+    packageOwners,
+  }).to,
+  'connectability',
+);
 
 const profileDirectories = (await fs.readdir(roots.profiles, { withFileTypes: true }))
   .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
@@ -104,28 +235,57 @@ const productionFiles = [
 ];
 const edges = [];
 const providerImports = [];
+const unresolvedAliases = [];
 for (const file of productionFiles) {
   const source = await fs.readFile(file, 'utf8');
   const from = ownerOf(file);
   for (const specifier of importSpecifiers(source)) {
-    if (!specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('node:')) {
-      if (PROVIDER_IMPORT.test(specifier)) providerImports.push({ file: relative(file), specifier });
+    const classification = classifySpecifier({ file, specifier, scopes, packageOwners });
+    if (classification.kind === 'provider') {
+      providerImports.push({ file: relative(file), specifier, resolution: classification.resolution });
+    } else if (classification.kind === 'unresolved-alias') {
+      unresolvedAliases.push({ file: relative(file), specifier });
+    } else if (classification.kind === 'internal') {
+      edges.push({
+        from,
+        to: classification.to,
+        file: relative(file),
+        specifier,
+        resolution: classification.resolution,
+      });
+    }
+  }
+}
+
+const providerDependencies = [];
+for (const manifest of ownerManifests) {
+  for (const dependency of dependencyNames(manifest.packageJson)) {
+    if (PROVIDER_IMPORT.test(dependency)) {
+      providerDependencies.push({ manifest: relative(manifest.path), dependency });
       continue;
     }
-    if (!specifier.startsWith('.')) continue;
-    const target = path.resolve(path.dirname(file), specifier);
-    const to = ownerOf(target);
-    edges.push({ from, to, file: relative(file), specifier });
+    const to = ownerFromPackageSpecifier(dependency, packageOwners);
+    if (to) {
+      edges.push({
+        from: manifest.owner,
+        to,
+        file: relative(manifest.path),
+        specifier: dependency,
+        resolution: 'package-dependency',
+      });
+    }
   }
 }
 const forbiddenDependencies = edges.filter(edge => forbiddenEdge(edge.from, edge.to));
 assert.deepEqual(forbiddenDependencies, []);
 assert.deepEqual(providerImports, []);
-
-const connectabilityPackage = JSON.parse(await fs.readFile(path.join(roots.connectability, 'package.json'), 'utf8'));
-assert.equal(connectabilityPackage.exports?.['.'], './src/index.mjs');
-const providerDependencies = dependencyNames(connectabilityPackage).filter(name => PROVIDER_IMPORT.test(name));
 assert.deepEqual(providerDependencies, []);
+assert.deepEqual(unresolvedAliases, []);
+
+const connectabilityManifest = ownerManifests.find(manifest => manifest.path === path.join(roots.connectability, 'package.json'));
+assert(connectabilityManifest, 'connectability package manifest is required');
+assert.equal(connectabilityManifest.packageJson.name, '@roccho/ui-connectability');
+assert.equal(connectabilityManifest.packageJson.exports?.['.'], './src/index.mjs');
 
 const profileRows = (await fs.readFile(path.join(roots.govProfile, 'profile.jsonl'), 'utf8'))
   .split(/\r?\n/u)
@@ -221,9 +381,12 @@ const receipt = Object.freeze({
   duplicateActiveGovPackageProjectorCount: Math.max(0, activeProjectors.length - 1),
   generatedAuthorityClaimCount: generatedAuthorityClaims.length,
   forbiddenDependencyCount: forbiddenDependencies.length,
+  unresolvedInternalAliasCount: unresolvedAliases.length,
   newFrameworkCount: profileFrameworkFiles.length,
   checkedProductionFileCount: productionFiles.length,
   checkedDependencyEdgeCount: edges.length,
+  checkedPackageManifestCount: ownerManifests.length,
+  checkedImportAliasCount: edges.filter(edge => edge.resolution.startsWith('alias')).length,
   intentionalLocalPrimitives,
 });
 console.log(JSON.stringify(receipt));
