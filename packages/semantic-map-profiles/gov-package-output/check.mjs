@@ -68,3 +68,4 @@ assert.throws(
   /unsupported projection profile/u,
 );
 console.log('gov-package-output-profile-pass');
+await import('../internal-organization-map/check.mjs');
