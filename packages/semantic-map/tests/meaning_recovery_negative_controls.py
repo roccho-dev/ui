@@ -34,7 +34,7 @@ CONTROLS = (
 
 def run(package: Path, test: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["node", "--experimental-default-type=module", str(package / "tests" / test)],
+        ["node", str(package / "tests" / test)],
         cwd=package.parent.parent,
         text=True,
         capture_output=True,
