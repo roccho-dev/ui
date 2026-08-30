@@ -50,12 +50,12 @@ def main() -> None:
             page.on("request", lambda request: requests.append(request.url))
             base = f"http://127.0.0.1:{listen}"
             page.goto(f"{base}/apps/artifact-shell/index.html", wait_until="networkidle", timeout=30_000)
-            page.wait_for_function("document.querySelector('#status')?.dataset.state === 'idle'", timeout=30_000)
+            page.locator("#status[data-state='idle']").wait_for(timeout=30_000)
 
             current = fixture("public.pass.json")
             page.locator("#request").fill(json.dumps(current["request"], ensure_ascii=False))
             page.locator("#run").click()
-            page.wait_for_function("document.querySelector('#status')?.dataset.state === 'pass'", timeout=30_000)
+            page.locator("#status[data-state='pass']").wait_for(timeout=30_000)
             result = json.loads(page.locator("#result").inner_text())
             assert result["status"] == "PASS"
             assert [item["contract"] for item in result["outputs"]] == ["decision-packet-render-receipt/1"]
@@ -65,9 +65,10 @@ def main() -> None:
             frame_element = page.locator("#surface iframe[data-package='semantic-map']")
             frame_element.wait_for(state="attached", timeout=30_000)
             child = frame_element.content_frame()
-            child.wait_for_function("globalThis.semanticMapSite?.ready === true", timeout=30_000)
+            child.locator("#graph-container svg").wait_for(state="attached", timeout=30_000)
             rendered = child.evaluate(
                 """() => ({
+                  ready: globalThis.semanticMapSite?.ready === true,
                   pattern: semanticMapRuntime.view.pattern,
                   title: semanticMapRuntime.records.find(record => record.type === 'meta')?.title,
                   recommendation: semanticMapRuntime.records.find(record => record.id === 'recommendation')?.summary,
@@ -75,6 +76,7 @@ def main() -> None:
                   editorReady: Boolean(semanticMapSite.editor?.ready),
                 })"""
             )
+            assert rendered["ready"] is True
             assert rendered["pattern"] == "graph/1"
             assert rendered["title"] == current["request"]["inputs"][0]["source"]["value"]["title"]
             assert rendered["recommendation"] == current["request"]["inputs"][0]["source"]["value"]["recommendation"]
@@ -84,7 +86,7 @@ def main() -> None:
                 broken = fixture(name)
                 page.locator("#request").fill(json.dumps(broken["request"], ensure_ascii=False))
                 page.locator("#run").click()
-                page.wait_for_function("document.querySelector('#status')?.dataset.state === 'fail'", timeout=30_000)
+                page.locator("#status[data-state='fail']").wait_for(timeout=30_000)
                 failed = json.loads(page.locator("#result").inner_text())
                 assert failed["status"] == "FAIL" and failed["outputs"] == []
 
