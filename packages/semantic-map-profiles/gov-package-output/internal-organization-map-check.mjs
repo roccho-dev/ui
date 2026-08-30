@@ -178,7 +178,7 @@ const bundle = {
     role,
     kind,
     sourceRef: `fixture://${role}@rev-1`,
-    digest: `sha256:${role.padEnd(64, '0').slice(0, 64)}`,
+    digest: `sha256:${'0'.repeat(64)}`,
   })),
   states,
 };
