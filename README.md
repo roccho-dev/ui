@@ -27,6 +27,8 @@ The checked-in `apps/artifact-shell/generated/capability-registry.mjs` is a gene
 | `inspect.json@1` | one `application/json` blob | `json-inspection/1` |
 | `render.a2ui@1` | one `a2ui-surface/1` value | `a2ui-render-receipt/1` |
 | `render.a2ui.app@1` | one `a2ui-app/1` value | `a2ui-app-render-receipt/1` |
+| `render.semantic-map@1` | one `semantic-map-envelope/3` value | `semantic-map-render-receipt/1` |
+| `render.decision-packet@1` | one public `decision-packet/1` blob | `decision-packet-render-receipt/1` |
 
 This table lists only capabilities that exist on the current branch. Planned or historical capabilities must not be presented as available.
 
@@ -35,6 +37,7 @@ This table lists only capabilities that exist on the current branch. Planned or 
 | Responsibility | Path |
 |---|---|
 | Reusable protocol, domain, projection, renderer, and UI source | `packages/**` |
+| Semantic map protocol, reducer, projection, maxGraph renderer and authoring | `packages/semantic-map/**` |
 | Browser entrypoint and composition glue | `apps/artifact-shell/index.html` and `apps/artifact-shell/src/**` |
 | Additive capability declaration | `apps/artifact-shell/capabilities/<slug>/manifest.json` |
 | Thin capability-to-package adapter | `apps/artifact-shell/capabilities/<slug>/engine.mjs` |

@@ -1,0 +1,59 @@
+{
+  "type": "FeatureCollection",
+  "name": "geo-url-module-proof",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "base",
+      "properties": {
+        "label": "基準地点",
+        "anchor": true,
+        "accuracyMeters": 10,
+        "summary": "直線距離の基準"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [138.38310, 34.97170]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "north-east",
+      "properties": {
+        "label": "北東地点",
+        "accuracyMeters": 10,
+        "summary": "WGS 84の実座標"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [138.39440, 34.97920]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "south-east",
+      "properties": {
+        "label": "南東地点",
+        "accuracyMeters": 10,
+        "summary": "WGS 84の実座標"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [138.39230, 34.96310]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "west",
+      "properties": {
+        "label": "西地点",
+        "accuracyMeters": 10,
+        "summary": "WGS 84の実座標"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [138.36820, 34.97010]
+      }
+    }
+  ]
+}

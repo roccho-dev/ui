@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:roccho:decision-packet:1",
+  "title": "decision-packet/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "authority", "privacy_class", "decision_id", "checkpoint_id", "title", "question", "status",
+    "recommendation", "rationale", "changed_since_previous", "alternatives", "evidence_for", "evidence_against",
+    "conditions", "conflicts", "gaps", "next_action", "success_conditions", "outcomes", "record_refs",
+    "projection_asset_refs", "query_contract_digest", "packet_digest"
+  ],
+  "properties": {
+    "schema": { "const": "decision-packet/1" },
+    "authority": { "const": false },
+    "privacy_class": { "const": "public" },
+    "decision_id": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "checkpoint_id": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "question": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "status": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "recommendation": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "rationale": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "next_action": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "query_contract_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "packet_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "changed_since_previous": { "$ref": "#/$defs/entries" },
+    "alternatives": { "$ref": "#/$defs/entries" },
+    "evidence_for": { "$ref": "#/$defs/entries" },
+    "evidence_against": { "$ref": "#/$defs/entries" },
+    "conditions": { "$ref": "#/$defs/entries" },
+    "conflicts": { "$ref": "#/$defs/entries" },
+    "gaps": { "$ref": "#/$defs/entries" },
+    "success_conditions": { "$ref": "#/$defs/entries" },
+    "outcomes": { "$ref": "#/$defs/entries" },
+    "record_refs": { "$ref": "#/$defs/entries" },
+    "projection_asset_refs": { "$ref": "#/$defs/entries" }
+  },
+  "$defs": {
+    "entries": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/entry" }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "summary"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "summary": { "type": "string", "maxLength": 800 },
+        "kind": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "href": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}

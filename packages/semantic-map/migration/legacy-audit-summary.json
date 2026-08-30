@@ -1,0 +1,42 @@
+{
+  "schema": "semantic-map-legacy-requirements-audit/1",
+  "sourceBundles": 10,
+  "candidateBundles": 9,
+  "requirements": 290,
+  "covered": 278,
+  "explicitlyResolved": 12,
+  "fixed": 11,
+  "missing": 0,
+  "conflicts": 0,
+  "changedPathOccurrences": 533,
+  "uniqueChangedPaths": 190,
+  "unclassifiedPaths": 0,
+  "sourceAssertions": 5135,
+  "uniqueSourceAssertions": 1393,
+  "unclassifiedAssertions": 0,
+  "categories": {
+    "ARCH": 16,
+    "COMPAT": 12,
+    "CORE": 17,
+    "GEO": 33,
+    "HANDOFF": 19,
+    "MAP": 17,
+    "MODULE": 23,
+    "PATTERN": 18,
+    "POLICY": 16,
+    "PROTO": 18,
+    "RUNTIME": 16,
+    "TEMP": 26,
+    "THEME": 10,
+    "URL": 13,
+    "VERIFY": 21,
+    "VIEW": 15
+  },
+  "dispositions": {
+    "fixed": 11,
+    "preserved": 267,
+    "rejected": 5,
+    "superseded": 7
+  },
+  "scope": "10 supplied bundles: complete commit ranges, changed paths, README additions, schemas, fixtures/proofs, Python assert/require/rejected/fail calls, and Node assert.* calls. Undocumented intent outside these bundles is excluded."
+}

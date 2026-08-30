@@ -1,0 +1,39 @@
+{
+  "schema": "artifact-capability-declaration/2",
+  "id": "render.semantic-map",
+  "version": "1",
+  "engine": { "kind": "esm", "file": "engine.mjs" },
+  "accepts": {
+    "intents": ["render"],
+    "minInputs": 1,
+    "maxInputs": 1,
+    "shapes": ["blob"],
+    "mediaTypes": ["application/vnd.roccho.semantic-map-envelope+json"],
+    "schemas": ["semantic-map-envelope/3"]
+  },
+  "limits": {
+    "maxInputBytes": 4194304,
+    "maxTotalBytes": 4194304,
+    "maxEntries": 1,
+    "maxEngineBytes": 32768
+  },
+  "provides": ["render.semantic-map"],
+  "produces": ["semantic-map-render-receipt/1"],
+  "requires": {
+    "features": ["dom", "fetch"],
+    "services": ["ui.package.execute"],
+    "runtimes": ["browser"]
+  },
+  "fixtures": {
+    "pass": [
+      "fixtures/graph.pass.json",
+      "fixtures/map.pass.json",
+      "fixtures/seq.pass.json",
+      "fixtures/chart.pass.json"
+    ],
+    "destructive": [
+      "fixtures/schema.destructive.json",
+      "fixtures/tampered.destructive.json"
+    ]
+  }
+}

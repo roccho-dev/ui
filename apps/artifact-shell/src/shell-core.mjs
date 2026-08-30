@@ -1,6 +1,6 @@
 import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
 import { readUrlModule } from "../../../packages/url-module/src/index.mjs";
-import { ARTIFACT_STATE_ACTION, applyArtifactStateAction, createArtifactInvocationUrl } from "./invocation-action.mjs";
+import { ARTIFACT_INPUT_ACTION, ARTIFACT_STATE_ACTION, applyArtifactAction, createArtifactInvocationUrl } from "./invocation-action.mjs";
 import { createArtifactShellServices } from "./services.mjs";
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell: ${message}`); };
@@ -111,6 +111,7 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
       document: scope.document,
       eventTarget: scope,
       onAction: detail => detail?.action === ARTIFACT_STATE_ACTION ? dispatchAction(detail) : undefined,
+      onInputAction: detail => detail?.action === ARTIFACT_INPUT_ACTION ? dispatchAction(detail) : undefined,
       surfaceMount: elements.surface,
     }),
   });
@@ -122,11 +123,14 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
     elements.status.dataset.state = state;
     elements.status.textContent = text;
   };
-  const showRequest = request => {
+  const reflectRequest = request => {
     activeRequest = request;
     activeRequestSignature = JSON.stringify(request);
     elements.request.value = JSON.stringify(request, null, 2);
     localControls = renderLocalBindingInputs({ container: elements.localInputs, document: scope.document, request });
+  };
+  const showRequest = request => {
+    reflectRequest(request);
     elements.surface.replaceChildren();
     elements.result.textContent = "";
     elements.receipt.textContent = "";
@@ -165,12 +169,28 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
 
   const applyAction = async detail => {
     invariant(activeRequest, "active request is required for an action");
-    const compiled = applyArtifactStateAction({ detail, request: activeRequest });
+    const compiled = applyArtifactAction({ detail, request: activeRequest });
     const method = `${compiled.history}State`;
     invariant(scope.history && typeof scope.history[method] === "function", `history.${method} is unavailable`);
     const href = await createArtifactInvocationUrl({ base: scope.location.href, request: compiled.request });
     scope.history[method](null, "", href);
-    return execute(compiled.request);
+    if (compiled.reexecute) return execute(compiled.request);
+
+    reflectRequest(compiled.request);
+    const commit = Object.freeze({
+      action: detail.action,
+      history: compiled.history,
+      href,
+      reexecuted: false,
+      request: compiled.request,
+      schema: "artifact-shell-action-commit/1",
+    });
+    if (scope.artifactShellProof) scope.artifactShellProof = Object.freeze({
+      ...scope.artifactShellProof,
+      currentRequest: compiled.request,
+      lastAction: commit,
+    });
+    return commit;
   };
   dispatchAction = detail => applyAction(detail).catch(error => {
     showStatus("inconclusive", `INCONCLUSIVE · ${error.message}`);

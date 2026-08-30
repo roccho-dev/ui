@@ -49,6 +49,7 @@ const assertStaticModuleClosure = async root => {
   }
   return imports;
 };
+const sourceCapabilityCount = (await fs.readdir(path.join(appRoot, "capabilities"), { withFileTypes: true })).filter(entry => entry.isDirectory()).length;
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "artifact-publication-"));
 try {
   const outputA = path.join(temp, "a");
@@ -59,7 +60,7 @@ try {
   deepEqual(await snapshot(outputA), await snapshot(outputB));
   equal(first.artifactManifest.treeDigest, second.artifactManifest.treeDigest);
   equal(first.catalog.schema, "artifact-capability-catalog/2");
-  equal(first.catalog.capabilities.length, 3);
+  equal(first.catalog.capabilities.length, sourceCapabilityCount);
   equal((await fs.readdir(path.join(outputA, "kernel"))).length, 1);
   equal(first.kernel.digest.startsWith("sha256:"), true);
   equal((await fs.readFile(path.join(outputA, "index.html"), "utf8")).includes('src="./entry.mjs"'), true);
@@ -72,6 +73,15 @@ try {
   equal(await fs.stat(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).then(() => true), true);
   equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "jsonl.mjs")).then(() => true), true);
   equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "project.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "semantic-map", "runtime.js")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "decision-packet", "runtime.js")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "decision-packet", "protocol", "packet.js")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "packages", "semantic-map", "vendor", "maxgraph", "view", "BaseGraph.js")).then(() => true), true);
+  for (const excluded of ["tests", "scripts", "examples", "migration", "migration-manifest.json", "RETIREMENT.md"]) {
+    let present = true;
+    try { await fs.access(path.join(kernelRoot, "packages", "semantic-map", excluded)); } catch (_) { present = false; }
+    equal(present, false);
+  }
   const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
 const publishedJsonl = {
   base: { canvas: false, nodes: 0, edges: 0 },

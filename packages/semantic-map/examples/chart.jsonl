@@ -1,0 +1,6 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"inquiries","title":"問い合わせ件数"}
+{"type":"region","id":"inquiries","parent":null,"label":"問い合わせ件数","kind":"root","bounds":[0,0,1000,320],"summary":"chart/1・bar-horizontal/1の最小実証"}
+{"type":"region","id":"product","parent":"inquiries","label":"製品質問","kind":"chart-item","bounds":[0,0,170,70],"summary":"製品内容に関する質問","order":0,"value":42}
+{"type":"region","id":"onboarding","parent":"inquiries","label":"導入相談","kind":"chart-item","bounds":[0,0,170,70],"summary":"導入方法に関する相談","order":1,"value":31}
+{"type":"region","id":"issue","parent":"inquiries","label":"不具合","kind":"chart-item","bounds":[0,0,170,70],"summary":"不具合に関する連絡","order":2,"value":18}
+{"type":"region","id":"other","parent":"inquiries","label":"その他","kind":"chart-item","bounds":[0,0,170,70],"summary":"その他の問い合わせ","order":3,"value":9}

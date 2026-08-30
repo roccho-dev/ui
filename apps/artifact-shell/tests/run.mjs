@@ -15,7 +15,7 @@ import {
   detectBrowserEnvironment,
   renderLocalBindingInputs,
 } from "../src/shell.mjs";
-import { applyArtifactStateAction, createArtifactInvocationUrl } from "../src/invocation-action.mjs";
+import { applyArtifactAction, applyArtifactInputAction, applyArtifactStateAction, createArtifactInvocationUrl } from "../src/invocation-action.mjs";
 import { readUrlModule } from "../../../packages/url-module/src/index.mjs";
 import { createArtifactShellServices } from "../src/services.mjs";
 
@@ -137,6 +137,40 @@ equal(compiled.request.inputs[0].source.value.state.count, 1);
 const compiledUrl = await createArtifactInvocationUrl({ base: "https://example.invalid/runtime/index.html?proof=1", request: compiled.request });
 equal((await readUrlModule({ fragment: "invoke", input: compiledUrl })).inputs[0].source.value.state.count, 1);
 assert.throws(() => applyArtifactStateAction({ detail: { ...actionDetail, context: { ...actionDetail.context, operations: [{ op: "increment", path: "/surface/rootId", by: 1 }] } }, request: appRequest }), /below \/state/); assertions += 1;
+
+const nextAppValue = structuredClone(appRequest.inputs[0].source.value);
+nextAppValue.state.count = 7;
+const inputActionDetail = Object.freeze({
+  action: "artifact.input.replace",
+  context: Object.freeze({
+    expectedValue: appRequest.inputs[0].source.value,
+    history: "replace",
+    inputId: "app",
+    schema: "artifact-input-action/1",
+    value: nextAppValue,
+  }),
+});
+const inputCompiled = applyArtifactInputAction({ detail: inputActionDetail, request: appRequest });
+equal(inputCompiled.history, "replace");
+equal(inputCompiled.reexecute, false);
+equal(inputCompiled.request.inputs[0].source.value.state.count, 7);
+equal(applyArtifactAction({ detail: inputActionDetail, request: appRequest }).request.inputs[0].source.value.state.count, 7);
+assert.throws(() => applyArtifactInputAction({
+  detail: { ...inputActionDetail, context: { ...inputActionDetail.context, expectedValue: nextAppValue } },
+  request: appRequest,
+}), /base is stale/); assertions += 1;
+assert.throws(() => applyArtifactInputAction({
+  detail: { ...inputActionDetail, context: { ...inputActionDetail.context, extra: true } },
+  request: appRequest,
+}), /context.extra is not allowed/); assertions += 1;
+assert.throws(() => applyArtifactInputAction({
+  detail: inputActionDetail,
+  request: {
+    ...appRequest,
+    inputs: [{ ...appRequest.inputs[0], digest: `sha256:${"0".repeat(64)}` }],
+  },
+}), /must not carry an immutable digest/); assertions += 1;
+assert.throws(() => applyArtifactAction({ detail: { action: "artifact.unsupported" }, request: appRequest }), /is unsupported/); assertions += 1;
 
 const unsupported = await runtime.execute({ request: await request("unsupported") });
 equal(unsupported.result.status, "UNSUPPORTED");
@@ -300,8 +334,11 @@ equal(freshElements.status.dataset.state, "pass");
 equal(freshElements.surface.children[0].children[1].textContent, "1");
 
 const genericActionRequest = structuredClone(await request("render-a2ui-inline"));
-genericActionRequest.inputs[0].source.value.components.find(component => component.id === "root").children.push("generic");
-genericActionRequest.inputs[0].source.value.components.push({ id: "generic", component: "Button", label: "Generic action", action: "customer.next", context: { value: 1 } });
+genericActionRequest.inputs[0].source.value.components.find(component => component.id === "root").children.push("generic", "protected");
+genericActionRequest.inputs[0].source.value.components.push(
+  { id: "generic", component: "Button", label: "Generic action", action: "customer.next", context: { value: 1 } },
+  { id: "protected", component: "Button", label: "Protected host action", action: "artifact.input.replace", context: { value: 1 } },
+);
 const genericHref = await createArtifactInvocationUrl({ base: pathToFileURL(path.join(appRoot, "index.html")).href, request: genericActionRequest });
 const genericElements = createElements();
 const genericScope = makeScope(genericHref);
@@ -309,8 +346,10 @@ const observedActions = [];
 genericScope.addEventListener("a2ui-client-action", event => observedActions.push(event.detail));
 await createArtifactShell({ elements: genericElements, scope: genericScope });
 genericElements.surface.children[0].children[2].click();
-equal(observedActions.length, 1);
+genericElements.surface.children[0].children[3].click();
+equal(observedActions.length, 2);
 equal(observedActions[0].action, "customer.next");
+equal(observedActions[1].action, "artifact.input.replace");
 equal(genericScope.historyCalls.length, 0);
 equal(genericElements.status.dataset.state, "pass");
 

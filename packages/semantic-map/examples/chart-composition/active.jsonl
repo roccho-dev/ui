@@ -1,0 +1,6 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"active-root","title":"利用者推移"}
+{"type":"region","id":"active-root","parent":null,"label":"利用者推移","kind":"root","bounds":[0,0,1000,320],"summary":"独立した折れ線chart URL"}
+{"type":"region","id":"active-0","parent":"active-root","label":"第1週","kind":"chart-item","bounds":[0,0,170,70],"summary":"第1週: 12","order":0,"value":12}
+{"type":"region","id":"active-1","parent":"active-root","label":"第2週","kind":"chart-item","bounds":[0,0,170,70],"summary":"第2週: 22","order":1,"value":22}
+{"type":"region","id":"active-2","parent":"active-root","label":"第3週","kind":"chart-item","bounds":[0,0,170,70],"summary":"第3週: 19","order":2,"value":19}
+{"type":"region","id":"active-3","parent":"active-root","label":"第4週","kind":"chart-item","bounds":[0,0,170,70],"summary":"第4週: 38","order":3,"value":38}

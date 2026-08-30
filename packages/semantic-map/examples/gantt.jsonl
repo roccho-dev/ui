@@ -1,0 +1,11 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"schedule","title":"Four-week delivery"}
+{"type":"region","id":"schedule","parent":null,"label":"Four-week delivery","kind":"root","bounds":[0,0,1200,520],"summary":"task hierarchyとactor assignmentを分離したseq/1 fixture"}
+{"type":"region","id":"human","parent":"schedule","label":"Human","kind":"actor","bounds":[20,40,130,70],"summary":"Scope owner"}
+{"type":"region","id":"agent","parent":"schedule","label":"Agent","kind":"actor","bounds":[20,200,130,70],"summary":"Implementation owner"}
+{"type":"region","id":"system","parent":"schedule","label":"System","kind":"actor","bounds":[20,360,130,70],"summary":"Verification owner"}
+{"type":"region","id":"delivery","parent":"schedule","label":"Delivery","kind":"group","bounds":[180,40,960,430],"summary":"WBS parent independent from actor lanes"}
+{"type":"region","id":"scope","parent":"delivery","label":"Scope","kind":"task","bounds":[210,70,180,70],"summary":"","temporal":{"actor":"human","ordinal":{"start":0,"end":0},"calendar":{"start":"2026-08-10","end":"2026-08-14"}}}
+{"type":"region","id":"implement","parent":"delivery","label":"Implement","kind":"task","bounds":[390,230,360,70],"summary":"","temporal":{"actor":"agent","ordinal":{"start":1,"end":2},"calendar":{"start":"2026-08-17","end":"2026-08-28"}}}
+{"type":"region","id":"verify","parent":"delivery","label":"Verify","kind":"task","bounds":[720,390,250,70],"summary":"","temporal":{"actor":"system","ordinal":{"start":3,"end":3},"calendar":{"start":"2026-08-31","end":"2026-09-04"}}}
+{"type":"relation","id":"scope-implement","from":"scope","to":"implement","kind":"dependency","label":"ready"}
+{"type":"relation","id":"implement-verify","from":"implement","to":"verify","kind":"dependency","label":"build"}

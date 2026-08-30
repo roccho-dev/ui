@@ -1,0 +1,15 @@
+{
+  "schema": "semantic-map-example-build/1",
+  "status": "PASS",
+  "input": {
+    "path": "input/envelope.json",
+    "sha256": "sha256:90994fcfdf5a1fb328fca5adb2623f5b08d7cb18ca2d7d6c946374e95abc4894"
+  },
+  "output": {
+    "path": "dist/index.html",
+    "bytes": 2466144,
+    "sha256": "sha256:8bdba8db56e0c50027bc2c8658879c3aba366882be7fb077f2311f938b0ded6c"
+  },
+  "modules": 190,
+  "pattern": "graph/1"
+}

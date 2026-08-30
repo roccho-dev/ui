@@ -1,0 +1,9 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"map","title":"Test map"}
+{"type":"region","id":"map","parent":null,"label":"Map","kind":"root","bounds":[0,0,900,640],"summary":""}
+{"type":"region","id":"actor-a","parent":"map","label":"Actor A","kind":"actor","bounds":[30,80,120,70],"summary":""}
+{"type":"region","id":"actor-b","parent":"map","label":"Actor B","kind":"actor","bounds":[30,220,120,70],"summary":""}
+{"type":"region","id":"input","parent":"map","label":"Input","kind":"task","bounds":[180,120,160,80],"summary":"","temporal":{"actor":"actor-a","ordinal":{"start":0,"end":0},"calendar":{"start":"2026-08-01","end":"2026-08-01"}}}
+{"type":"region","id":"process","parent":"map","label":"Process","kind":"task","bounds":[390,220,160,80],"summary":"","temporal":{"actor":"actor-b","ordinal":{"start":1,"end":2},"calendar":{"start":"2026-08-02","end":"2026-08-04"}}}
+{"type":"region","id":"output","parent":"map","label":"Output","kind":"task","bounds":[610,120,160,80],"summary":"","temporal":{"actor":"actor-a","ordinal":{"start":3,"end":3},"calendar":{"start":"2026-08-05","end":"2026-08-05"}}}
+{"type":"relation","id":"r1","from":"input","to":"process","kind":"message","label":"in"}
+{"type":"relation","id":"r2","from":"process","to":"output","kind":"dependency","label":"out"}

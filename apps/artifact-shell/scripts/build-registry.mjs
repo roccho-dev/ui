@@ -36,7 +36,7 @@ const noModuleDependencies = source => {
   return true;
 };
 
-const runtimeSourceRoots = Object.freeze([
+const baseRuntimeSourceRoots = Object.freeze([
   path.join(repoRoot, "packages", "artifact-invocation", "src"),
   path.join(repoRoot, "packages", "artifact-invocation", "package.json"),
   path.join(repoRoot, "packages", "url-module", "src"),
@@ -68,8 +68,40 @@ const collectFiles = async target => {
   return result;
 };
 
-const createRuntimeBuild = async () => {
-  const files = [...new Set((await Promise.all(runtimeSourceRoots.map(collectFiles))).flat())].sort();
+const packageRuntimeExclusions = Object.freeze(new Set([
+  "RETIREMENT.md",
+  "examples",
+  "migration",
+  "migration-manifest.json",
+  "scripts",
+  "tests",
+]));
+
+const collectPackageRuntimeFiles = async root => {
+  const result = [];
+  for (const entry of (await fs.readdir(root, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
+    if (packageRuntimeExclusions.has(entry.name)) continue;
+    const child = path.join(root, entry.name);
+    if (entry.isDirectory()) result.push(...await collectFiles(child));
+    else if (entry.isFile()) result.push(child);
+  }
+  return result;
+};
+
+const packageIdForManifest = manifest => {
+  if (!manifest.requires.services.includes("ui.package.execute")) return null;
+  const parts = manifest.id.split(".");
+  if (parts.length < 2) throw new Error(`build-registry: ${manifest.id} cannot derive package id`);
+  const packageId = parts.slice(1).join("-");
+  if (!/^[a-z0-9][a-z0-9-]{0,79}$/u.test(packageId)) throw new Error(`build-registry: ${manifest.id} derives invalid package id ${packageId}`);
+  return packageId;
+};
+
+const createRuntimeBuild = async manifests => {
+  const packageRoots = manifests.map(packageIdForManifest).filter(Boolean).map(packageId => path.join(repoRoot, "packages", packageId));
+  const baseFiles = (await Promise.all(baseRuntimeSourceRoots.map(collectFiles))).flat();
+  const packageFiles = (await Promise.all(packageRoots.map(collectPackageRuntimeFiles))).flat();
+  const files = [...new Set([...baseFiles, ...packageFiles])].sort();
   const descriptors = [];
   for (const file of files) {
     const bytes = await fs.readFile(file);
@@ -129,7 +161,7 @@ export const buildRegistry = async options => {
     });
     manifests.push(manifest);
   }
-  const runtimeBuild = await createRuntimeBuild();
+  const runtimeBuild = await createRuntimeBuild(manifests);
   const source = createSource(manifests, runtimeBuild);
   if (options.check) {
     let current = null;
