@@ -17,12 +17,10 @@ concurrency:
 
 env:
   BASE_SHA: f0c1ff68889e21a3cd203dd2a4ef4e2ed0bc6bb7
-  SOURCE_ISSUE: '173'
-  SOURCE_MARKER: semantic-map-source-carrier/1
-  SOURCE_CHUNKS: '34'
-  SOURCE_ARCHIVE_SHA: 7a94f02b38895a7afbbd72be644104c4e9d12c956fb9be483ad6f5818b9dcc98
-  SOURCE_BASE64_SHA: 6ddeec6be7e47a27474ced2f53af8a3f3bb984bf4fc06bebdb8b744f278c59bb
-  SOURCE_ARCHIVE_BYTES: '804847'
+  SOURCE_TARGET: 0b8db82d67fffb2724e99ba8a2ed107988455c15
+  SOURCE_CARRIER_COMMIT: cb4995cd4bd2f254738fddd7f1f9ee9f80d73578
+  FULL_PAYLOAD_BLOB: 45c8cf5a157a3c5a4a0df28967b007e8a745db46
+  FULL_PAYLOAD_SHA256: 93a366f4ba6b12c6e435b700b973c3438abbd85ca94b5fb5b124a1f56a3aa394
   DELTA_ISSUE: '178'
   DELTA_MARKER: semantic-map-meaning-recovery-carrier/1
   DELTA_CHUNKS: '7'
@@ -49,110 +47,104 @@ jobs:
           test "$(git ls-remote origin refs/heads/proposals | cut -f1)" = "$BASE_SHA"
           ! git ls-remote --exit-code origin "refs/heads/$CANDIDATE_BRANCH" >/dev/null 2>&1
 
-      - name: Reconstruct exact paged carriers
+      - name: Recover reviewed source from exact Git object
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/carrier"
-          mkdir -p "$root"
-          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$SOURCE_ISSUE/comments?per_page=100" | jq -s 'add' > "$root/source-comments.json"
-          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$DELTA_ISSUE/comments?per_page=100" | jq -s 'add' > "$root/delta-comments.json"
-          python3 - "$root" <<'PY'
+          root="$RUNNER_TEMP/semantic-map-source"
+          source="$RUNNER_TEMP/semantic-map-source-tree"
+          mkdir -p "$root/payload" "$root/delta"
+
+          git fetch --no-tags origin "$SOURCE_TARGET" "$SOURCE_CARRIER_COMMIT"
+          git cat-file -e "$FULL_PAYLOAD_BLOB^{blob}"
+          git cat-file blob "$FULL_PAYLOAD_BLOB" > "$root/payload.b64"
+          base64 --decode "$root/payload.b64" > "$root/payload.tar.xz"
+          xz --test "$root/payload.tar.xz"
+          test "$(sha256sum "$root/payload.tar.xz" | cut -d' ' -f1)" = "$FULL_PAYLOAD_SHA256"
+          tar -xJf "$root/payload.tar.xz" -C "$root/payload"
+          test -f "$root/payload/apply.py"
+
+          git worktree add --detach "$source" "$SOURCE_TARGET"
+          python3 "$root/payload/apply.py" "$source" "$root/payload"
+          git -C "$source" diff --check
+          test -f "$source/packages/semantic-map/package.json"
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$DELTA_ISSUE/comments?per_page=100" | jq -s 'add' > "$root/delta/comments.json"
+          python3 - "$root/delta" <<'PY'
           from __future__ import annotations
           import base64, hashlib, json, os, pathlib, re, sys
           root = pathlib.Path(sys.argv[1])
-
-          def reconstruct(prefix: str) -> None:
-              marker = f"<!-- {os.environ[f'{prefix}_MARKER']} -->"
-              count = int(os.environ[f'{prefix}_CHUNKS'])
-              comments = json.loads((root / f'{prefix.lower()}-comments.json').read_text(encoding='utf-8'))
-              chunks: dict[int, str] = {}
-              for comment in comments:
-                  body = comment.get('body') or ''
-                  if marker not in body:
-                      continue
-                  match = re.search(r'^chunk:\s*(\d+)/(\d+)\s*$', body, re.MULTILINE)
-                  assert match, f'{prefix}: missing chunk metadata'
-                  index, total = map(int, match.groups())
-                  assert total == count and index not in chunks, f'{prefix}: invalid chunk {index}/{total}'
-                  chunks[index] = re.sub(r'\s+', '', body.split('\ndata:\n', 1)[1])
-              assert set(chunks) == set(range(count)), f'{prefix}: chunks={sorted(chunks)}'
-              encoded = ''.join(chunks[index] for index in range(count)).encode('ascii')
-              assert hashlib.sha256(encoded).hexdigest() == os.environ[f'{prefix}_BASE64_SHA']
-              archive = base64.b64decode(encoded, validate=True)
-              assert len(archive) == int(os.environ[f'{prefix}_ARCHIVE_BYTES'])
-              assert hashlib.sha256(archive).hexdigest() == os.environ[f'{prefix}_ARCHIVE_SHA']
-              (root / f'{prefix.lower()}.archive').write_bytes(archive)
-              print(json.dumps({'carrier': prefix.lower(), 'chunks': count, 'bytes': len(archive), 'sha256': hashlib.sha256(archive).hexdigest()}))
-
-          reconstruct('SOURCE')
-          reconstruct('DELTA')
+          marker = f"<!-- {os.environ['DELTA_MARKER']} -->"
+          count = int(os.environ['DELTA_CHUNKS'])
+          chunks: dict[int, str] = {}
+          for comment in json.loads((root / 'comments.json').read_text(encoding='utf-8')):
+              body = comment.get('body') or ''
+              if marker not in body:
+                  continue
+              match = re.search(r'^chunk:\s*(\d+)/(\d+)\s*$', body, re.MULTILINE)
+              assert match, 'delta chunk metadata missing'
+              index, total = map(int, match.groups())
+              assert total == count and index not in chunks, f'invalid delta chunk {index}/{total}'
+              chunks[index] = re.sub(r'\s+', '', body.split('\ndata:\n', 1)[1])
+          assert set(chunks) == set(range(count)), sorted(chunks)
+          encoded = ''.join(chunks[index] for index in range(count)).encode('ascii')
+          assert hashlib.sha256(encoded).hexdigest() == os.environ['DELTA_BASE64_SHA']
+          archive = base64.b64decode(encoded, validate=True)
+          assert len(archive) == int(os.environ['DELTA_ARCHIVE_BYTES'])
+          assert hashlib.sha256(archive).hexdigest() == os.environ['DELTA_ARCHIVE_SHA']
+          (root / 'overlay.archive').write_bytes(archive)
           PY
-
-      - name: Apply source and meaning overlays fail closed
-        shell: bash
-        run: |
-          set -euo pipefail
-          carrier="$RUNNER_TEMP/carrier"
-          preserve="$RUNNER_TEMP/preserve"
-          mkdir -p "$preserve/apps/artifact-shell" "$preserve/examples"
-          cp README.md "$preserve/README.md"
-          cp apps/artifact-shell/README.md "$preserve/apps/artifact-shell/README.md"
-          cp examples/README.md "$preserve/examples/README.md"
-          cp package.json "$preserve/package.json"
-
-          python3 - "$carrier/source.archive" "$GITHUB_WORKSPACE" <<'PY'
+          python3 - "$root/delta/overlay.archive" "$source" <<'PY'
           import pathlib, sys, tarfile
-          archive, root = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+          archive, target = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
           with tarfile.open(archive, 'r:*') as handle:
               for member in handle.getmembers():
                   path = pathlib.PurePosixPath(member.name)
-                  assert not path.is_absolute() and '..' not in path.parts and not member.issym() and not member.islnk(), member.name
-              handle.extractall(root, filter='data')
+                  assert not path.is_absolute() and '..' not in path.parts
+                  assert not member.issym() and not member.islnk()
+              handle.extractall(target, filter='data')
           PY
-          python3 - "$carrier/delta.archive" "$GITHUB_WORKSPACE" <<'PY'
-          import pathlib, sys, tarfile
-          archive, root = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-          with tarfile.open(archive, 'r:*') as handle:
-              for member in handle.getmembers():
-                  path = pathlib.PurePosixPath(member.name)
-                  assert not path.is_absolute() and '..' not in path.parts and not member.issym() and not member.islnk(), member.name
-              handle.extractall(root, filter='data')
-          PY
-
-          if test -f __DELETE__.txt; then
+          if test -f "$source/__DELETE__.txt"; then
             while IFS= read -r path; do
               test -z "$path" && continue
               case "$path" in /*|../*|*/../*) exit 1;; esac
-              rm -rf -- "$path"
-            done < __DELETE__.txt
-            rm __DELETE__.txt
+              rm -rf -- "$source/$path"
+            done < "$source/__DELETE__.txt"
+            rm "$source/__DELETE__.txt"
           fi
 
-          cp "$preserve/README.md" README.md
-          cp "$preserve/apps/artifact-shell/README.md" apps/artifact-shell/README.md
-          cp "$preserve/examples/README.md" examples/README.md
-          cp package.json "$RUNNER_TEMP/source-package.json"
-          python3 - "$preserve/package.json" "$RUNNER_TEMP/source-package.json" package.json <<'PY'
+          cp "$source/package.json" "$root/source-package.json"
+          git -C "$source" checkout "$SOURCE_TARGET" -- README.md apps/artifact-shell/README.md examples/README.md package.json
+          git -C "$source" add -A
+          git -C "$source" diff --cached --binary "$SOURCE_TARGET" > "$root/source.patch"
+          test -s "$root/source.patch"
+          git apply --3way "$root/source.patch"
+
+          python3 - "$root/source-package.json" package.json <<'PY'
           import json, pathlib, sys
-          current = json.loads(pathlib.Path(sys.argv[1]).read_text())
-          source = json.loads(pathlib.Path(sys.argv[2]).read_text())
-          merged = current
+          source = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))
+          target_path = pathlib.Path(sys.argv[2])
+          current = json.loads(target_path.read_text(encoding='utf-8'))
           for key in ('imports', 'exports'):
-              merged.setdefault(key, {})
-              for name, value in source.get(key, {}).items(): merged[key].setdefault(name, value)
-          merged['workspaces'] = list(dict.fromkeys([*merged.get('workspaces', []), *source.get('workspaces', [])]))
-          merged.setdefault('scripts', {})
+              current.setdefault(key, {})
+              for name, value in source.get(key, {}).items(): current[key].setdefault(name, value)
+          current['workspaces'] = list(dict.fromkeys([*current.get('workspaces', []), *source.get('workspaces', [])]))
+          current.setdefault('scripts', {})
           for name, value in source.get('scripts', {}).items():
               if name == 'check:artifact-runtime':
-                  left = [part.strip() for part in merged['scripts'].get(name, '').split('&&') if part.strip()]
+                  left = [part.strip() for part in current['scripts'].get(name, '').split('&&') if part.strip()]
                   right = [part.strip() for part in value.split('&&') if part.strip()]
-                  merged['scripts'][name] = ' && '.join(dict.fromkeys([*left, *right]))
-              else: merged['scripts'].setdefault(name, value)
-          pathlib.Path(sys.argv[3]).write_text(json.dumps(merged, ensure_ascii=False, indent=2) + '\n')
+                  current['scripts'][name] = ' && '.join(dict.fromkeys([*left, *right]))
+              else:
+                  current['scripts'].setdefault(name, value)
+          target_path.write_text(json.dumps(current, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           PY
+
+          git diff --check
+          test -f packages/semantic-map/package.json
+          test -f apps/artifact-shell/capabilities/render-semantic-map/manifest.json
 
       - name: Build and verify source
         shell: bash
@@ -161,12 +153,14 @@ jobs:
           node apps/root-jsonl-map/check.mjs
           node apps/artifact-shell/scripts/build-registry.mjs
           node packages/semantic-map/scripts/build-browser-example.mjs
-          node packages/semantic-map/scripts/build-browser-example.mjs --input=examples/render.semantic-map.set-topology/input/envelope.json --out=examples/render.semantic-map.set-topology/dist
-          test -f packages/semantic-map/package.json
-          test -f apps/artifact-shell/capabilities/render-semantic-map/manifest.json
+          node packages/semantic-map/scripts/build-browser-example.mjs \
+            --input=examples/render.semantic-map.set-topology/input/envelope.json \
+            --out=examples/render.semantic-map.set-topology/dist
           test -f examples/render.semantic-map/dist/index.html
-          if git grep -n -i -E 'mobile[-_ ]agent|mobileAgent|MOBILE_AGENT' -- . ':!packages/semantic-map/vendor/**'; then exit 1; fi
-          git diff --check
+          test -f examples/render.semantic-map.set-topology/dist/index.html
+          if git grep -n -i -E 'mobile[-_ ]agent|mobileAgent|MOBILE_AGENT' -- . ':!packages/semantic-map/vendor/**'; then
+            exit 1
+          fi
           node tests/check-semantic-map-migration.mjs
           node tests/check-semantic-map-legacy-source.mjs
           node packages/semantic-map/tests/run.mjs
@@ -183,7 +177,8 @@ jobs:
           python3 -m playwright install --with-deps chromium
           chrome="$(python3 - <<'PY'
           from playwright.sync_api import sync_playwright
-          with sync_playwright() as value: print(value.chromium.executable_path)
+          with sync_playwright() as value:
+              print(value.chromium.executable_path)
           PY
           )"
           CHROMIUM_EXECUTABLE="$chrome" python3 packages/semantic-map/tests/set_topology_browser.py
@@ -226,6 +221,9 @@ jobs:
           - head: \`$HEAD_SHA\`
           - tree: \`$TREE_SHA\`
           - changed files: \`$FILES\`
+          - full payload blob: \`$FULL_PAYLOAD_BLOB\`
+          - full payload SHA-256: \`$FULL_PAYLOAD_SHA256\`
+          - meaning overlay SHA-256: \`$DELTA_ARCHIVE_SHA\`
 
           ## Boundary
           Source authority is \`packages/semantic-map/**\`. Generated HTML/SVG/dist remain projections. No deployment, ADRS authority change, or cutover is claimed.
@@ -235,4 +233,4 @@ jobs:
           url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base proposals --head "$CANDIDATE_BRANCH" --title 'feat: integrate semantic-map source and typed authoring' --body-file "$body")"
           number="${url##*/}"
           gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid | grep -Fx "$HEAD_SHA"
-          gh issue comment "$DELTA_ISSUE" --repo "$GITHUB_REPOSITORY" --body "## Materialization retry PASS\n\nPR: $url\n\n\`\`\`text\nbase  $BASE_SHA\nhead  $HEAD_SHA\ntree  $TREE_SHA\nfiles $FILES\n\`\`\`\n\nPaged carrier retrieval, exact archive hashes, source tests, reproducibility and real Chromium proofs passed before push. Authority/effect/cutover remain unchanged."
+          gh issue comment "$DELTA_ISSUE" --repo "$GITHUB_REPOSITORY" --body "## Exact Git-object recovery PASS\n\nPR: $url\n\n\`\`\`text\nbase  $BASE_SHA\nhead  $HEAD_SHA\ntree  $TREE_SHA\nfiles $FILES\n\`\`\`\n\nThe incomplete Issue #173 carrier was not used. The exact full payload Git blob, pinned payload digest, complete meaning overlay, source checks, reproducibility checks and real Chromium proofs passed before push. Authority/effect/cutover remain unchanged."
