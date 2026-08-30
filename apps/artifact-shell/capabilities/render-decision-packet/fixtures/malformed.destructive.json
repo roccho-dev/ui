@@ -1,0 +1,148 @@
+{
+  "schema": "artifact-capability-fixture/2",
+  "id": "render-decision-packet.malformed",
+  "kind": "destructive",
+  "request": {
+    "schema": "artifact-invocation/2",
+    "id": "request.render.decision-packet.malformed",
+    "intent": "render",
+    "inputs": [
+      {
+        "id": "packet",
+        "mediaType": "application/vnd.roccho.decision-packet+json",
+        "schema": "decision-packet/1",
+        "source": {
+          "kind": "inline",
+          "value": {
+            "schema": "decision-packet/1",
+            "authority": false,
+            "privacy_class": "public",
+            "decision_id": "ui-public-decision-packet-semantic-map",
+            "checkpoint_id": "ui-proposals-2e644226-semantic-map-candidate",
+            "title": "Public Decision Packet projection",
+            "question": "How should a public Decision Packet be shown without creating a second UI implementation?",
+            "status": "PROOF_CANDIDATE",
+            "recommendation": "Project the Packet into semantic-map and render it through the approved semantic-map capability.",
+            "rationale": "The Packet remains the shared human and agent meaning. The adapter owns only validation and projection, while the existing semantic-map package owns visual and interaction behavior.",
+            "next_action": "Run exact-head package, capability, reproducibility and Chromium proofs before opening a merge candidate.",
+            "query_contract_digest": "sha256:487821c0e5290018d217b2be5b1d9fe058b3de6175b06632f7eab720fb107f65",
+            "changed_since_previous": [
+              {
+                "id": "change-latest-ui",
+                "label": "Latest UI base",
+                "summary": "The candidate uses the exact tree of ui proposals at 2e644226."
+              },
+              {
+                "id": "change-approved-map",
+                "label": "Approved UI oracle",
+                "summary": "The semantic-map package replaces the rejected one-off Decision Room mock."
+              }
+            ],
+            "alternatives": [
+              {
+                "id": "alt-new-ui",
+                "label": "Create another Decision Room renderer",
+                "summary": "Rejected because it duplicates visual meaning and ignores the approved UI."
+              },
+              {
+                "id": "alt-static-only",
+                "label": "Generate only static prose HTML",
+                "summary": "Deferred to web-publication because route and discovery-ready document ownership is outside ui."
+              }
+            ],
+            "evidence_for": [
+              {
+                "id": "evidence-semantic-map",
+                "label": "Semantic-map capability",
+                "summary": "Graph, Map, Seq and Chart fixtures execute through one reusable package."
+              },
+              {
+                "id": "evidence-registry",
+                "label": "Capability registry boundary",
+                "summary": "The shell selects a thin adapter and verifies the exact package runtime closure."
+              }
+            ],
+            "evidence_against": [
+              {
+                "id": "risk-client-rendered",
+                "label": "Client-rendered surface",
+                "summary": "The interactive map does not by itself close semantic initial HTML for search and LLM discovery."
+              }
+            ],
+            "conditions": [
+              {
+                "id": "condition-public",
+                "label": "Public only",
+                "summary": "privacy_class must be public and the packet must contain no HTML, secret-like value or email-like value."
+              },
+              {
+                "id": "condition-nonauthority",
+                "label": "Non-authority",
+                "summary": "The Packet, map, HTML, receipts and examples remain disposable projections."
+              }
+            ],
+            "conflicts": [],
+            "gaps": [
+              {
+                "id": "gap-web-publication",
+                "label": "Discovery-ready document",
+                "summary": "A separate web-publication projection is still required for semantic initial HTML and public routes."
+              }
+            ],
+            "success_conditions": [
+              {
+                "id": "success-deterministic",
+                "label": "Deterministic",
+                "summary": "Two builds from the same Packet produce byte-identical output."
+              },
+              {
+                "id": "success-no-redesign",
+                "label": "No redesign",
+                "summary": "The adapter adds no page-specific CSS, component tree or alternate renderer."
+              },
+              {
+                "id": "success-fail-closed",
+                "label": "Fail closed",
+                "summary": "Private, malformed, tampered and authority-confusing packets are rejected."
+              }
+            ],
+            "outcomes": [],
+            "record_refs": [
+              {
+                "id": "ref-ui-head",
+                "label": "UI latest tree",
+                "summary": "ui/proposals 2e644226 tree ea364db2c3d9d74be286f10538f963250e23b55a",
+                "kind": "git"
+              },
+              {
+                "id": "ref-semantic-bundle",
+                "label": "Semantic-map integration",
+                "summary": "semantic-map-ui-integration bundle HEAD 7280a530f74787b311a709f71e5c9b9a44452bde",
+                "kind": "git"
+              }
+            ],
+            "projection_asset_refs": [],
+            "packet_digest": "sha256:1db0330173e190e378c0ab9b4bf5efc1b4509cc722468851642d4053767478ab",
+            "mergeReady": true
+          }
+        }
+      }
+    ],
+    "constraints": {
+      "allowedRuntimes": [
+        "browser"
+      ],
+      "noUpload": true
+    },
+    "expects": [
+      "decision-packet-render-receipt/1"
+    ]
+  },
+  "expected": {
+    "status": "FAIL",
+    "outputContracts": []
+  },
+  "runtimes": [
+    "browser"
+  ]
+}

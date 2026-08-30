@@ -1,0 +1,49 @@
+{
+  "schema": "artifact-capability-fixture/2",
+  "id": "render-semantic-map.chart",
+  "kind": "pass",
+  "request": {
+    "schema": "artifact-invocation/2",
+    "id": "request.render.semantic-map.chart",
+    "intent": "render",
+    "inputs": [
+      {
+        "id": "map",
+        "mediaType": "application/vnd.roccho.semantic-map-envelope+json",
+        "schema": "semantic-map-envelope/3",
+        "source": {
+          "kind": "inline",
+          "value": {
+            "schema": "semantic-map-envelope/3",
+            "log": "{\"operations\":[{\"mapId\":\"urn:uuid:00000000-0000-4000-8000-000000000004\",\"records\":[{\"root\":\"inquiries\",\"schema\":\"semantic-map-state/1\",\"title\":\"問い合わせ件数\",\"type\":\"meta\"},{\"bounds\":[0,0,1000,320],\"id\":\"inquiries\",\"kind\":\"root\",\"label\":\"問い合わせ件数\",\"parent\":null,\"summary\":\"chart/1・bar-horizontal/1の最小実証\",\"type\":\"region\"},{\"bounds\":[0,0,170,70],\"id\":\"product\",\"kind\":\"chart-item\",\"label\":\"製品質問\",\"order\":0,\"parent\":\"inquiries\",\"summary\":\"製品内容に関する質問\",\"type\":\"region\",\"value\":42},{\"bounds\":[0,0,170,70],\"id\":\"onboarding\",\"kind\":\"chart-item\",\"label\":\"導入相談\",\"order\":1,\"parent\":\"inquiries\",\"summary\":\"導入方法に関する相談\",\"type\":\"region\",\"value\":31},{\"bounds\":[0,0,170,70],\"id\":\"issue\",\"kind\":\"chart-item\",\"label\":\"不具合\",\"order\":2,\"parent\":\"inquiries\",\"summary\":\"不具合に関する連絡\",\"type\":\"region\",\"value\":18},{\"bounds\":[0,0,170,70],\"id\":\"other\",\"kind\":\"chart-item\",\"label\":\"その他\",\"order\":3,\"parent\":\"inquiries\",\"summary\":\"その他の問い合わせ\",\"type\":\"region\",\"value\":9}],\"type\":\"CreateMap\"}],\"parent\":null,\"schema\":\"semantic-map-decision/2\",\"stateHash\":\"sha256:54cad8bbdd8118996fa09f6dcb1d5a02532caa754e236d59e43e647517d6d99d\"}\n",
+            "proposal": null,
+            "view": {
+              "pattern": "chart/1",
+              "chart": {
+                "type": "bar-horizontal/1"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "constraints": {
+      "allowedRuntimes": [
+        "browser"
+      ],
+      "noUpload": true
+    },
+    "expects": [
+      "semantic-map-render-receipt/1"
+    ]
+  },
+  "expected": {
+    "status": "PASS",
+    "outputContracts": [
+      "semantic-map-render-receipt/1"
+    ]
+  },
+  "runtimes": [
+    "browser"
+  ]
+}

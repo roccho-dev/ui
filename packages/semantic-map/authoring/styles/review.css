@@ -1,0 +1,70 @@
+.review-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  background: rgba(23,32,42,.42);
+  backdrop-filter: blur(2px);
+}
+.review-layer[hidden] { display: none; }
+.review-sheet {
+  width: min(720px, 100%);
+  max-height: 92dvh;
+  overflow: auto;
+  padding: 8px 14px calc(16px + env(safe-area-inset-bottom));
+  border: 1px solid #d8e0e8;
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  background: #fff;
+  box-shadow: 0 -18px 52px rgba(18,28,42,.22);
+}
+.review-grabber { width: 46px; height: 5px; margin: 0 auto 9px; border-radius: 99px; background: #d3dae2; }
+.review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.review-head h2 { margin: 0; font-size: 18px; }
+.review-head p { margin: 4px 0 0; color: #657385; font-size: 12px; line-height: 1.45; }
+.review-close {
+  flex: 0 0 auto; width: 40px; height: 40px; border: 1px solid #d2dae3; border-radius: 50%;
+  background: #fff; color: #526170; font-size: 22px;
+}
+.review-source { display: inline-block; margin-top: 10px; padding: 5px 8px; border-radius: 999px; background: #eef0ff; color: #4453b5; font-size: 11px; font-weight: 800; }
+.review-delivery { display: block; margin-top: 7px; padding: 8px 9px; border: 1px solid #dce4eb; border-radius: 10px; background: #f8fafc; color: #526170; font-size: 11px; line-height: 1.4; }
+.review-delivery[data-kind="inline"] { border-color: #c8ddd3; background: #f3fbf7; color: #24684c; }
+.review-delivery[data-kind="publish"], .review-delivery[data-kind="reference"] { border-color: #cfd4ef; background: #f5f6ff; color: #4653a1; }
+.review-delivery[data-kind="error"] { border-color: #e5c8c8; background: #fff7f7; color: #963f3f; }
+.review-primary, .review-secondary {
+  min-height: 42px; border-radius: 11px; font-weight: 800;
+}
+.review-primary { width: 100%; border: 1px solid #5969c5; background: #6676d5; color: #fff; }
+.review-primary:disabled { opacity: .45; }
+.review-secondary { border: 1px solid #cbd5df; background: #fff; color: #344354; padding: 0 12px; }
+.review-secondary:disabled { opacity: .42; }
+.review-status { display: block; margin: 9px 0 0; min-height: 20px; color: #526170; font-size: 12px; line-height: 1.45; }
+.review-status[data-kind="ok"] { color: #207453; font-weight: 750; }
+.review-status[data-kind="error"] { color: #a33e3e; font-weight: 750; }
+.review-preview { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e7ed; }
+.review-preview[hidden] { display: none; }
+.review-hashes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.review-hash { padding: 9px 10px; border: 1px solid #dce4eb; border-radius: 11px; background: #f8fafc; }
+.review-hash span { display: block; color: #687687; font-size: 10px; font-weight: 800; }
+.review-hash code { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; white-space: nowrap; }
+.review-diff { margin: 10px 0; padding-left: 22px; display: grid; gap: 7px; }
+.review-diff li { color: #334355; font-size: 12px; line-height: 1.45; }
+.review-urls { display: grid; gap: 7px; }
+.review-url { padding: 8px 9px; border: 1px solid #dce4eb; border-radius: 10px; background: #fbfcfd; }
+.review-url span { display: block; color: #687687; font-size: 10px; font-weight: 800; }
+.review-url code { display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.review-accept { border-color: #2f8b61; background: #27825a; color: #fff; }
+.review-reject { border-color: #d4b1b1; color: #8f3d3d; }
+.review-copy-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+@media (min-width: 760px) {
+  .review-layer { align-items: center; padding: 24px; }
+  .review-sheet { border-bottom: 1px solid #d8e0e8; border-radius: 20px; }
+}
+@media (max-width: 440px) {
+  .review-sheet { padding-left: 11px; padding-right: 11px; }
+  .review-hashes, .review-actions, .review-copy-actions { grid-template-columns: 1fr; }
+}

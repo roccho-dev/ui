@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Semantic Map</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../styles/styles.css">
+<link rel="stylesheet" href="../styles/handoff.css">
+<link rel="stylesheet" href="../styles/review.css">
+<link rel="stylesheet" href="../styles/source.css">
+
+</head>
+<body>
+<main class="app-shell" id="app-shell">
+<header class="topbar">
+<div class="brand"><p class="eyebrow">Semantic Map</p><h1 id="map-title">Loading</h1></div>
+<div class="topbar-actions">
+<div class="pattern-switcher" aria-label="Scene Pattern">
+<label><span>Pattern</span><select data-state-control disabled id="pattern-select">
+<option value="map/1">Map</option>
+<option value="graph/1">Graph</option>
+<option value="seq/1">Seq</option>
+<option value="chart/1">Chart</option>
+</select></label>
+<label hidden id="seq-preset-wrap"><span>Seq</span><select data-state-control disabled id="seq-preset">
+<option value="actor:ordinal">Sequence / Swimlane</option>
+<option value="task:calendar">Gantt</option>
+<option value="actor:calendar">Actor timeline</option>
+<option value="task:ordinal">Task order</option>
+</select></label>
+</div>
+<button aria-controls="source-layer" aria-haspopup="dialog" class="source-open" data-state-control disabled id="source-open" type="button">SRC</button>
+<a class="help-link" href="/help" aria-label="Help">?</a>
+</div>
+</header>
+<section aria-label="Semantic map editor" class="workspace">
+<div aria-label="Zoomable editable semantic map" data-tool="select" id="graph-container" role="application"></div>
+<aside aria-label="Resource composition target" class="resource-element-host" data-resource-target="element:resource-panel" hidden id="resource-panel"></aside>
+<aside aria-label="Sandboxed document target" class="resource-document-host" data-resource-target="element:document-panel" hidden id="resource-document-panel"></aside>
+<section class="route-state" id="route-state" aria-live="polite">
+<h2 id="route-state-title">Loading</h2><p id="route-state-message"></p><a href="/help">Help</a>
+</section>
+<aside aria-live="polite" class="status">
+<output id="zoom-label">—</output><span id="resolution-label">not loaded</span><span id="scene-label"></span><span id="draft-label">draft 0</span>
+</aside>
+<div aria-live="polite" class="toast" hidden id="toast" role="status"></div>
+<button class="semantic-id-chip" hidden id="semantic-id-chip" title="Copy stable element ID" type="button"><span class="id-kind" id="semantic-id-kind">ID</span><code id="semantic-id-value"></code><span aria-hidden="true" class="id-copy">⧉</span></button>
+<nav class="editor-dock" aria-label="Editor actions">
+<button data-state-control disabled id="add-node" title="Add node" type="button"><span aria-hidden="true">＋</span><span>追加</span></button>
+<button data-state-control disabled id="undo" title="Undo" type="button"><span aria-hidden="true">↶</span><span>戻す</span></button>
+<button data-state-control disabled id="redo" title="Redo" type="button"><span aria-hidden="true">↷</span><span>進む</span></button>
+<button data-state-control disabled id="delete" title="Delete selection" type="button"><span aria-hidden="true">⌫</span><span>削除</span></button>
+<button data-state-control disabled id="open-link" title="Open selected region link" type="button"><span aria-hidden="true">↗</span><span>開く</span></button>
+<button aria-controls="handoff-layer" aria-haspopup="dialog" class="handoff-fab" data-state-control disabled id="handoff-fab" type="button"><span aria-hidden="true">AI</span><span>渡す</span><b class="handoff-count" id="handoff-draft-count">0</b></button>
+</nav>
+</section>
+</main>
+
+<div class="handoff-layer" hidden id="handoff-layer" role="presentation">
+<section aria-labelledby="handoff-title" aria-modal="true" class="handoff-sheet" role="dialog">
+<div aria-hidden="true" class="handoff-grabber"></div>
+<div class="handoff-head"><div><h2 id="handoff-title">ChatGPTへ渡す</h2><p>完全な #smap URL＋依頼を先にコピーし、現在Sceneの画像は必要時だけ生成します。</p></div><button aria-label="Close" class="handoff-close" id="handoff-close" type="button">×</button></div>
+<div class="handoff-selected"><span>Target</span><code id="handoff-selected-id">current scene</code></div>
+<label for="handoff-request">変更依頼</label>
+<textarea id="handoff-request" placeholder="例: 選択中の要素を右へ移動し、名称を短くして" rows="3"></textarea>
+<div class="handoff-budget"><span class="step">1</span><strong>State URL</strong><output id="handoff-text-size">Preparing</output><span class="step">2</span><strong>Current image</strong><output id="handoff-image-size">On demand</output></div>
+<div class="handoff-copy-actions"><button class="handoff-copy-secondary" disabled id="handoff-copy-text" type="button">① URL＋依頼</button><button class="handoff-copy-secondary" disabled id="handoff-copy-image" type="button">② 画像</button></div>
+<output aria-live="polite" class="handoff-copy-status" id="handoff-copy-status">Preparing transfer…</output>
+<section aria-label="Source export" class="handoff-source">
+<div class="handoff-source-head"><strong>Source</strong><span>現在URLから正規化して出力</span></div>
+<div class="handoff-source-actions"><button class="handoff-copy-secondary" id="handoff-copy-state" type="button">State JSONL</button><button class="handoff-copy-secondary" id="handoff-copy-log" type="button">DecisionLog</button><button class="handoff-copy-secondary" id="handoff-copy-envelope" type="button">Envelope JSON</button></div>
+<output aria-live="polite" class="handoff-source-status" id="handoff-source-status">承認済みState・全履歴・共有Envelopeを選べます。</output>
+</section>
+<p class="handoff-note">Androidでclipboard履歴が1件だけなら、①を貼付後、この画面へ戻って②を使います。画像生成に失敗しても①とSourceは利用できます。</p>
+</section>
+</div>
+
+<div class="source-layer" hidden id="source-layer" role="presentation">
+<section aria-labelledby="source-title" aria-modal="true" class="source-sheet" role="dialog">
+<div class="source-head"><div><h2 id="source-title">Source</h2><p>URLから復元できる現在State、承認履歴、完全Envelopeを取り出します。</p></div><button aria-label="Close" class="source-close" id="source-close" type="button">×</button></div>
+<label class="source-format-label" for="source-format">形式<select id="source-format"><option value="state">State JSONL</option><option value="log">DecisionLog JSONL</option><option value="envelope">Envelope JSON</option></select></label>
+<textarea aria-label="Source output" class="source-output" id="source-output" readonly spellcheck="false"></textarea>
+<output aria-live="polite" class="source-status" id="source-status">形式を選んでコピーできます。</output>
+<button class="source-copy" disabled id="source-copy" type="button">コピー</button>
+</section>
+</div>
+
+<div class="review-layer" hidden id="review-layer" role="presentation">
+<section aria-labelledby="review-title" aria-modal="true" class="review-sheet" role="dialog">
+<div aria-hidden="true" class="review-grabber"></div>
+<div class="review-head"><div><h2 id="review-title">変更を確認</h2><p>Proposalを検査し、AcceptまでDecisionLogを変更しません。</p></div><button aria-label="Close" class="review-close" id="review-close" type="button">×</button></div>
+<output class="review-source" id="review-source">Waiting for Proposal</output>
+<output class="review-delivery" data-kind="info" id="review-delivery">Delivery not planned</output>
+<output aria-live="polite" class="review-status" id="review-status">#smap URLまたはLocal DraftからProposalを受け取ります。</output>
+<div class="review-preview" hidden id="review-preview-panel">
+<div class="review-hashes"><div class="review-hash"><span>Before</span><code id="review-before-hash"></code></div><div class="review-hash"><span>After</span><code id="review-after-hash"></code></div></div>
+<ol class="review-diff" id="review-diff"></ol>
+<div class="review-urls"><div class="review-url"><span>Before URL</span><code id="review-before-url"></code></div><div class="review-url"><span>After URL</span><code id="review-after-url"></code></div></div>
+<div class="review-actions"><button class="review-primary review-accept" disabled id="review-accept" type="button">Accept</button><button class="review-secondary review-reject" disabled id="review-reject" type="button">Reject</button></div>
+<div class="review-copy-actions"><button class="review-secondary" disabled id="review-copy-before" type="button">Before URL</button><button class="review-secondary" disabled id="review-copy-after" type="button">After URL</button></div>
+</div>
+</section>
+</div>
+
+<script id="semantic-page-config" type="application/json">{"route":"app","mode":"authoring","title":"Semantic Map","mapId":"","view":{"pattern":"map/1"},"artifactStore":null}</script>
+<script id="semantic-initial-state" type="application/x-ndjson">{"type":"meta","schema":"semantic-map-state/1","root":"delivery","title":"Product delivery graph"}
+{"type":"region","id":"delivery","parent":null,"label":"Product delivery graph","kind":"root","bounds":[0,0,1100,620],"summary":"graph/1で価値提供の接続と判断を表す"}
+{"type":"region","id":"request","parent":"delivery","label":"顧客要求","kind":"input","bounds":[80,230,190,100],"summary":"解くべき成果を受け取る"}
+{"type":"region","id":"decision","parent":"delivery","label":"採否判断","kind":"decision","bounds":[330,215,210,130],"summary":"目的・検証可能性・費用で絞る"}
+{"type":"region","id":"build","parent":"delivery","label":"最小実装","kind":"process","bounds":[610,230,190,100],"summary":"必要な差分だけを作る"}
+{"type":"region","id":"proof","parent":"delivery","label":"検証証跡","kind":"output","bounds":[860,230,190,100],"summary":"再現可能な成果を返す"}
+{"type":"region","id":"stop","parent":"delivery","label":"中断","kind":"terminal","bounds":[350,430,170,90],"summary":"必要条件が欠ける場合は止める"}
+{"type":"relation","id":"g1","from":"request","to":"decision","kind":"flows","label":"評価"}
+{"type":"relation","id":"g2","from":"decision","to":"build","kind":"accepts","label":"採用"}
+{"type":"relation","id":"g3","from":"decision","to":"stop","kind":"rejects","label":"不足"}
+{"type":"relation","id":"g4","from":"build","to":"proof","kind":"proves","label":"検証"}</script>
+
+<script type="module" src="../index.js"></script>
+</body>
+</html>

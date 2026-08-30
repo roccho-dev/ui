@@ -1,0 +1,9 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"module","title":"URL先のSeq Scene"}
+{"type":"region","id":"module","parent":null,"label":"URL先のSeq Scene","kind":"root","bounds":[0,0,760,390],"summary":"親Scene内へ合成される読み取り専用のseq/1 Scene"}
+{"type":"region","id":"agent","parent":"module","label":"Agent","kind":"actor","bounds":[30,90,120,72],"summary":"変更案を組み立てる主体"}
+{"type":"region","id":"browser","parent":"module","label":"Browser","kind":"actor","bounds":[30,220,120,72],"summary":"検査・reduce・描画を担う主体"}
+{"type":"region","id":"receive","parent":"module","label":"Proposal受信","kind":"task","bounds":[180,80,140,72],"summary":"完全な#smapからProposalを読む","temporal":{"actor":"browser","ordinal":{"start":0,"end":0},"calendar":{"start":"2026-08-24","end":"2026-08-24"}}}
+{"type":"region","id":"reduce","parent":"module","label":"fork reduce","kind":"task","bounds":[360,190,140,72],"summary":"Baseを変更せずafter Stateを検証","temporal":{"actor":"browser","ordinal":{"start":1,"end":2},"calendar":{"start":"2026-08-25","end":"2026-08-26"}}}
+{"type":"region","id":"scene","parent":"module","label":"Scene合成","kind":"task","bounds":[550,190,150,72],"summary":"1 Scene 1 Patternで親region内へ投影","temporal":{"actor":"agent","ordinal":{"start":3,"end":3},"calendar":{"start":"2026-08-27","end":"2026-08-27"}}}
+{"type":"relation","id":"child-r1","from":"receive","to":"reduce","kind":"message","label":"Proposal"}
+{"type":"relation","id":"child-r2","from":"reduce","to":"scene","kind":"dependency","label":"validated State"}

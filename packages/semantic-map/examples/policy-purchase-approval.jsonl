@@ -1,0 +1,33 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"purchase-policy-model","title":"購買承認Policy"}
+{"type":"region","id":"purchase-policy-model","parent":null,"label":"購買承認Policy","kind":"policy-model/1","bounds":[0,0,1600,980],"summary":"Policy概念型を購買承認へ具体化"}
+{"type":"region","id":"purchase-approval","parent":"purchase-policy-model","label":"purchase-approval","kind":"policy","bounds":[180,80,260,150],"summary":"購買要求を金額別に判断","order":1}
+{"type":"region","id":"small-purchase","parent":"purchase-approval","label":"5万円未満","kind":"rule","bounds":[180,260,220,140],"summary":"小額購入","order":0}
+{"type":"region","id":"small-condition","parent":"small-purchase","label":"amount < 5万円","kind":"condition","bounds":[200,290,180,80],"summary":"購入額が5万円未満","order":0}
+{"type":"region","id":"small-effect","parent":"small-purchase","label":"自動承認","kind":"effect","bounds":[200,390,180,80],"summary":"人の承認を要求しない","order":1}
+{"type":"region","id":"medium-purchase","parent":"purchase-approval","label":"5万〜30万円","kind":"rule","bounds":[440,260,220,140],"summary":"中額購入","order":1}
+{"type":"region","id":"medium-condition","parent":"medium-purchase","label":"5万 ≤ amount ≤ 30万","kind":"condition","bounds":[460,290,180,80],"summary":"購入額が5万から30万円","order":0}
+{"type":"region","id":"medium-effect","parent":"medium-purchase","label":"部門長承認","kind":"effect","bounds":[460,390,180,80],"summary":"部門長の承認を要求","order":1}
+{"type":"region","id":"large-purchase","parent":"purchase-approval","label":"30万円超","kind":"rule","bounds":[700,260,220,140],"summary":"高額購入","order":2}
+{"type":"region","id":"large-condition","parent":"large-purchase","label":"amount > 30万円","kind":"condition","bounds":[720,290,180,80],"summary":"購入額が30万円超","order":0}
+{"type":"region","id":"large-effect","parent":"large-purchase","label":"部門長 + 経理承認","kind":"effect","bounds":[720,390,180,80],"summary":"二つの役割による承認を要求","order":1}
+{"type":"region","id":"requester-user","parent":"purchase-policy-model","label":"requester-user","kind":"subject","bounds":[40,650,180,90],"summary":"購買を依頼する主体","order":0}
+{"type":"region","id":"requester","parent":"purchase-policy-model","label":"requester","kind":"role","bounds":[300,650,180,90],"summary":"購買要求を作る役割","order":2}
+{"type":"region","id":"department-head","parent":"purchase-policy-model","label":"department-head","kind":"role","bounds":[520,650,180,90],"summary":"部門承認を行う役割","order":3}
+{"type":"region","id":"finance","parent":"purchase-policy-model","label":"finance","kind":"role","bounds":[740,650,180,90],"summary":"経理承認を行う役割","order":4}
+{"type":"region","id":"purchase-request","parent":"purchase-policy-model","label":"purchase.request","kind":"capability","bounds":[300,800,200,90],"summary":"購買要求を作る操作","order":5}
+{"type":"region","id":"approve-department","parent":"purchase-policy-model","label":"purchase.approve.department","kind":"capability","bounds":[540,800,230,90],"summary":"部門承認操作","order":6}
+{"type":"region","id":"approve-finance","parent":"purchase-policy-model","label":"purchase.approve.finance","kind":"capability","bounds":[810,800,220,90],"summary":"経理承認操作","order":7}
+{"type":"region","id":"purchase-order","parent":"purchase-policy-model","label":"purchase-order","kind":"resource","bounds":[1120,800,200,90],"summary":"購買対象","order":8}
+{"type":"relation","id":"requester-user-holds-requester","from":"requester-user","to":"requester","kind":"holdsRole","label":"holdsRole"}
+{"type":"relation","id":"requester-includes-request","from":"requester","to":"purchase-request","kind":"includesCapability","label":"includesCapability"}
+{"type":"relation","id":"department-includes-approve","from":"department-head","to":"approve-department","kind":"includesCapability","label":"includesCapability"}
+{"type":"relation","id":"finance-includes-approve","from":"finance","to":"approve-finance","kind":"includesCapability","label":"includesCapability"}
+{"type":"relation","id":"request-acts-on-order","from":"purchase-request","to":"purchase-order","kind":"actsOn","label":"actsOn"}
+{"type":"relation","id":"department-approval-acts-on-order","from":"approve-department","to":"purchase-order","kind":"actsOn","label":"actsOn"}
+{"type":"relation","id":"finance-approval-acts-on-order","from":"approve-finance","to":"purchase-order","kind":"actsOn","label":"actsOn"}
+{"type":"relation","id":"policy-governs-request","from":"purchase-approval","to":"purchase-request","kind":"governs","label":"governs"}
+{"type":"relation","id":"policy-governs-department-approval","from":"purchase-approval","to":"approve-department","kind":"governs","label":"governs"}
+{"type":"relation","id":"policy-governs-finance-approval","from":"purchase-approval","to":"approve-finance","kind":"governs","label":"governs"}
+{"type":"relation","id":"medium-requires-department","from":"medium-effect","to":"department-head","kind":"requiresRole","label":"requiresRole"}
+{"type":"relation","id":"large-requires-department","from":"large-effect","to":"department-head","kind":"requiresRole","label":"requiresRole"}
+{"type":"relation","id":"large-requires-finance","from":"large-effect","to":"finance","kind":"requiresRole","label":"requiresRole"}

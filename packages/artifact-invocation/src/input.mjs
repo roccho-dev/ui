@@ -166,15 +166,21 @@ const invocationView = (request, metadata) => deepFreeze({
   constraints: request.constraints,
   expects: request.expects ?? [],
   id: request.id,
-  inputs: metadata.map(input => ({
-    bytes: input.bytes,
-    entries: input.entries ?? null,
-    id: input.id,
-    mediaType: input.mediaType,
-    schema: input.schema,
-    sha256: input.sha256,
-    shape: input.shape,
-  })),
+  inputs: metadata.map(input => {
+    const declared = request.inputs.find(candidate => candidate.id === input.id);
+    invariant(declared, `input metadata is unknown: ${input.id}`);
+    return {
+      bytes: input.bytes,
+      entries: input.entries ?? null,
+      id: input.id,
+      mediaType: input.mediaType,
+      mutable: declared.source.kind === "inline" && !Object.hasOwn(declared, "digest"),
+      schema: input.schema,
+      sha256: input.sha256,
+      shape: input.shape,
+      sourceKind: declared.source.kind,
+    };
+  }),
   intent: request.intent,
   schema: request.schema,
 });

@@ -1,0 +1,44 @@
+{
+  "schema": "artifact-capability-fixture/2",
+  "id": "render-semantic-map.tampered",
+  "kind": "destructive",
+  "request": {
+    "schema": "artifact-invocation/2",
+    "id": "request.render.semantic-map.tampered",
+    "intent": "render",
+    "inputs": [
+      {
+        "id": "map",
+        "mediaType": "application/vnd.roccho.semantic-map-envelope+json",
+        "schema": "semantic-map-envelope/3",
+        "source": {
+          "kind": "inline",
+          "value": {
+            "schema": "semantic-map-envelope/3",
+            "log": "{\"operations\":[{\"mapId\":\"urn:uuid:00000000-0000-4000-8000-000000000001\",\"records\":[{\"root\":\"delivery\",\"schema\":\"semantic-map-state/1\",\"title\":\"Tampered delivery graph\",\"type\":\"meta\"},{\"bounds\":[0,0,1100,620],\"id\":\"delivery\",\"kind\":\"root\",\"label\":\"Product delivery graph\",\"parent\":null,\"summary\":\"graph/1で価値提供の接続と判断を表す\",\"type\":\"region\"},{\"bounds\":[80,230,190,100],\"id\":\"request\",\"kind\":\"input\",\"label\":\"顧客要求\",\"parent\":\"delivery\",\"summary\":\"解くべき成果を受け取る\",\"type\":\"region\"},{\"bounds\":[330,215,210,130],\"id\":\"decision\",\"kind\":\"decision\",\"label\":\"採否判断\",\"parent\":\"delivery\",\"summary\":\"目的・検証可能性・費用で絞る\",\"type\":\"region\"},{\"bounds\":[610,230,190,100],\"id\":\"build\",\"kind\":\"process\",\"label\":\"最小実装\",\"parent\":\"delivery\",\"summary\":\"必要な差分だけを作る\",\"type\":\"region\"},{\"bounds\":[860,230,190,100],\"id\":\"proof\",\"kind\":\"output\",\"label\":\"検証証跡\",\"parent\":\"delivery\",\"summary\":\"再現可能な成果を返す\",\"type\":\"region\"},{\"bounds\":[350,430,170,90],\"id\":\"stop\",\"kind\":\"terminal\",\"label\":\"中断\",\"parent\":\"delivery\",\"summary\":\"必要条件が欠ける場合は止める\",\"type\":\"region\"},{\"from\":\"request\",\"id\":\"g1\",\"kind\":\"flows\",\"label\":\"評価\",\"to\":\"decision\",\"type\":\"relation\"},{\"from\":\"decision\",\"id\":\"g2\",\"kind\":\"accepts\",\"label\":\"採用\",\"to\":\"build\",\"type\":\"relation\"},{\"from\":\"decision\",\"id\":\"g3\",\"kind\":\"rejects\",\"label\":\"不足\",\"to\":\"stop\",\"type\":\"relation\"},{\"from\":\"build\",\"id\":\"g4\",\"kind\":\"proves\",\"label\":\"検証\",\"to\":\"proof\",\"type\":\"relation\"}],\"type\":\"CreateMap\"}],\"parent\":null,\"schema\":\"semantic-map-decision/2\",\"stateHash\":\"sha256:ca986da1bbd86a68ed70958fbbae3bc7c208e1d3b362e5a792d7f61052d2b343\"}\n",
+            "proposal": null,
+            "view": {
+              "pattern": "graph/1"
+            }
+          }
+        }
+      }
+    ],
+    "constraints": {
+      "allowedRuntimes": [
+        "browser"
+      ],
+      "noUpload": true
+    },
+    "expects": [
+      "semantic-map-render-receipt/1"
+    ]
+  },
+  "expected": {
+    "status": "FAIL",
+    "outputContracts": []
+  },
+  "runtimes": [
+    "browser"
+  ]
+}

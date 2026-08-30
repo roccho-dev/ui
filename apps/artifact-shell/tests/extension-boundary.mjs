@@ -37,6 +37,7 @@ const coreRoots = [
   path.join(appRoot, "src"),
   path.join(appRoot, "index.html"),
 ];
+const baseCapabilityCount = (await fs.readdir(path.join(appRoot, "capabilities"), { withFileTypes: true })).filter(entry => entry.isDirectory()).length;
 const coreBefore = await digestFiles(coreRoots);
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "artifact-shell-extension-"));
 const capabilitiesRoot = path.join(temporary, "capabilities");
@@ -70,9 +71,9 @@ await fs.writeFile(path.join(echoRoot, "fixtures", "pass.json"), `${JSON.stringi
 await fs.writeFile(path.join(echoRoot, "fixtures", "destructive.json"), `${JSON.stringify({ schema: "artifact-capability-fixture/2", id: "echo-text.destructive", kind: "destructive", runtimes: ["browser", "node"], request: { ...echoRequest, id: "request.echo.text.destructive", inputs: [{ ...echoRequest.inputs[0], digest: `sha256:${"0".repeat(64)}` }] }, expected: { status: "INCONCLUSIVE", outputContracts: [] } }, null, 2)}\n`);
 
 const build = await buildRegistry({ capabilitiesRoot, check: false, output: generated });
-equal(build.manifests.length, 4);
+equal(build.manifests.length, baseCapabilityCount + 1);
 const registry = await import(`${pathToFileURL(generated).href}?proof=${Date.now()}`);
-equal(registry.TRUSTED_ARTIFACT_CAPABILITIES.length, 4);
+equal(registry.TRUSTED_ARTIFACT_CAPABILITIES.length, baseCapabilityCount + 1);
 equal(registry.TRUSTED_ARTIFACT_CAPABILITIES.some(item => item.id === "echo.text"), true);
 
 const engineRequests = [];

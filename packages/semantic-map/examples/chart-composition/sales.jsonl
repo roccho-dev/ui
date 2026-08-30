@@ -1,0 +1,6 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"sales-root","title":"月次売上"}
+{"type":"region","id":"sales-root","parent":null,"label":"月次売上","kind":"root","bounds":[0,0,1000,320],"summary":"独立した縦棒chart URL"}
+{"type":"region","id":"sales-0","parent":"sales-root","label":"4月","kind":"chart-item","bounds":[0,0,170,70],"summary":"4月: 18","order":0,"value":18}
+{"type":"region","id":"sales-1","parent":"sales-root","label":"5月","kind":"chart-item","bounds":[0,0,170,70],"summary":"5月: 27","order":1,"value":27}
+{"type":"region","id":"sales-2","parent":"sales-root","label":"6月","kind":"chart-item","bounds":[0,0,170,70],"summary":"6月: 35","order":2,"value":35}
+{"type":"region","id":"sales-3","parent":"sales-root","label":"7月","kind":"chart-item","bounds":[0,0,170,70],"summary":"7月: 31","order":3,"value":31}

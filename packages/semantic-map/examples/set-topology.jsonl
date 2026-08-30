@@ -1,0 +1,5 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"map","title":"集合意味 roundtrip proof"}
+{"type":"region","id":"map","parent":null,"label":"集合意味 roundtrip proof","kind":"root","bounds":[0,0,900,600],"summary":"maxGraph操作を意味Decisionへ変換し再投影する"}
+{"type":"region","id":"a","parent":"map","label":"集合 A","kind":"set","bounds":[120,190,260,220],"summary":"集合A","set":{"complete":false}}
+{"type":"region","id":"b","parent":"map","label":"集合 B","kind":"set","bounds":[520,190,260,220],"summary":"集合B。左へドラッグすると積集合を意味として記録する","set":{"complete":false}}
+{"type":"relation","id":"set-topology.a.b.disjoint","from":"a","to":"b","kind":"disjointWith","label":"排他"}

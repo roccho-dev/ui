@@ -1,0 +1,45 @@
+{
+  "schema": "decision-packet-example-build/1",
+  "status": "PASS",
+  "input": {
+    "path": "input/decision-packet.json",
+    "sha256": "sha256:2355419770b3d5ef0e0fd38ee94db8c2fe5efd3babf29aa0702978e0a92610fa"
+  },
+  "packet": {
+    "decisionId": "ui-public-decision-packet-semantic-map",
+    "checkpointId": "ui-proposals-2e644226-semantic-map-candidate",
+    "digest": "sha256:1db0330173e190e378c0ab9b4bf5efc1b4509cc722468851642d4053767478ab"
+  },
+  "projection": {
+    "contract": "semantic-map-envelope/3",
+    "sha256": "sha256:386b6e27993c40c09dae8516de0170f344ac65f77a6309c8e0f89f490e648e38"
+  },
+  "output": {
+    "html": {
+      "path": "dist/index.html",
+      "bytes": 2470217,
+      "sha256": "sha256:5ddd3c9327083d844563e79d145326038b2c7a2c0a72e2276c7c18157f8de446"
+    },
+    "agent": {
+      "path": "dist/agent.json",
+      "bytes": 4122,
+      "sha256": "sha256:2355419770b3d5ef0e0fd38ee94db8c2fe5efd3babf29aa0702978e0a92610fa"
+    }
+  },
+  "semanticMap": {
+    "schema": "semantic-map-example-build/1",
+    "status": "PASS",
+    "input": {
+      "path": "input/envelope.json",
+      "sha256": "sha256:f069130a0592d3acaa9c65926c20a68f3981d789c2e82f330adc2d3dba3154aa"
+    },
+    "output": {
+      "path": "dist/index.html",
+      "bytes": 2470217,
+      "sha256": "sha256:5ddd3c9327083d844563e79d145326038b2c7a2c0a72e2276c7c18157f8de446"
+    },
+    "modules": 190,
+    "pattern": "graph/1"
+  },
+  "generatedArtifactsAreAuthority": false
+}

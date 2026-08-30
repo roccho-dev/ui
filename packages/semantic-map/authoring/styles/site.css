@@ -1,0 +1,35 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #17202a;
+  background: #f7f9fb;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body { display: grid; place-items: center; padding: 24px; }
+main { width: min(760px, 100%); }
+a { color: inherit; }
+.kicker { margin: 0 0 8px; color: #647386; font-size: 11px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+h1 { margin: 0 0 14px; font-size: clamp(34px, 9vw, 64px); line-height: 1; letter-spacing: -.055em; }
+.lead { margin: 0; max-width: 640px; color: #536274; font-size: 16px; line-height: 1.75; }
+.route-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+.route-card { display: block; min-height: 142px; padding: 18px; border: 1px solid #d7e0e8; border-radius: 18px; background: #fff; text-decoration: none; box-shadow: 0 10px 32px rgba(28, 40, 53, .06); }
+.route-card:hover { border-color: #9eabd0; transform: translateY(-1px); }
+.route-card code { display: block; color: #4354b6; font: 800 13px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.route-card strong { display: block; margin-top: 14px; font-size: 20px; }
+.route-card span { display: block; margin-top: 7px; color: #647386; font-size: 13px; line-height: 1.55; }
+.help-doc { padding: 8px 0 32px; }
+.help-doc h1 { font-size: clamp(30px, 8vw, 52px); }
+.help-doc h2 { margin: 28px 0 8px; font-size: 18px; }
+.help-doc p, .help-doc li { color: #4d5c6d; line-height: 1.72; }
+.help-doc p { margin: 8px 0; }
+.help-doc ul { margin: 8px 0; padding-left: 20px; }
+.help-doc code { padding: 2px 5px; border-radius: 5px; background: #edf1f6; color: #3445a7; font: 750 .92em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.help-nav { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 24px; }
+.help-nav a { padding: 9px 12px; border: 1px solid #d4dde6; border-radius: 10px; background: #fff; text-decoration: none; font-weight: 800; font-size: 13px; }
+.principles { padding: 13px 15px; border-left: 4px solid #6576d4; border-radius: 8px; background: #eef1ff; }
+@media (max-width: 560px) {
+  body { place-items: start; padding: max(22px, env(safe-area-inset-top)) 16px 24px; }
+  .route-grid { grid-template-columns: 1fr; }
+  .route-card { min-height: 124px; }
+}

@@ -133,6 +133,18 @@ await rejects(() => resolveArtifactInputs({
 equal(inlineResolved.evidence[0].sha256, urlResolved.evidence[0].sha256);
 equal(urlResolved.evidence[0].sha256, fileResolved.evidence[0].sha256);
 equal(Object.hasOwn(inlineResolved.input.invocation.inputs[0], "source"), false);
+equal(inlineResolved.input.invocation.inputs[0].sourceKind, "inline");
+equal(inlineResolved.input.invocation.inputs[0].mutable, true);
+equal(urlResolved.input.invocation.inputs[0].sourceKind, "url");
+equal(urlResolved.input.invocation.inputs[0].mutable, false);
+equal(fileResolved.input.invocation.inputs[0].sourceKind, "file");
+equal(fileResolved.input.invocation.inputs[0].mutable, false);
+const immutableInlineResolved = await resolveArtifactInputs({
+  limits,
+  request: { ...baseRequest, id: "request.inline-immutable", inputs: [{ ...baseRequest.inputs[0], digest: inlineResolved.evidence[0].sha256 }] },
+});
+equal(immutableInlineResolved.input.invocation.inputs[0].sourceKind, "inline");
+equal(immutableInlineResolved.input.invocation.inputs[0].mutable, false);
 const firstCopy = inlineResolved.input.readBytes("payload");
 firstCopy[0] = 0;
 equal(new TextDecoder().decode(inlineResolved.input.readBytes("payload")), '{"a":1,"z":2}');

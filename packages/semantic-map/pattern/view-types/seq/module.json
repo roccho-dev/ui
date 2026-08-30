@@ -1,0 +1,1 @@
+{"schema":"semantic-view-type-module/1","order":30,"id":"seq/1","status":"supported","surface":"maxgraph","config":{"key":"seq","fields":["axis","groupBy"]},"coordinates":{"seqOrdinal":"ordinal/1","seqCalendar":"calendar/1"},"capabilities":{"editable":true}}

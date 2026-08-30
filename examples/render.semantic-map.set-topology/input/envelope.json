@@ -1,0 +1,13 @@
+{
+  "schema": "semantic-map-envelope/3",
+  "log": "{\"operations\":[{\"mapId\":\"urn:uuid:00000000-0000-4000-8000-000000000099\",\"records\":[{\"root\":\"map\",\"schema\":\"semantic-map-state/1\",\"title\":\"集合意味 roundtrip proof\",\"type\":\"meta\"},{\"bounds\":[0,0,900,600],\"id\":\"map\",\"kind\":\"root\",\"label\":\"集合意味 roundtrip proof\",\"parent\":null,\"summary\":\"maxGraph操作を意味Decisionへ変換し再投影する\",\"type\":\"region\"},{\"bounds\":[120,190,260,220],\"id\":\"a\",\"kind\":\"set\",\"label\":\"集合 A\",\"parent\":\"map\",\"set\":{\"complete\":false},\"summary\":\"集合A\",\"type\":\"region\"},{\"bounds\":[520,190,260,220],\"id\":\"b\",\"kind\":\"set\",\"label\":\"集合 B\",\"parent\":\"map\",\"set\":{\"complete\":false},\"summary\":\"集合B。左へドラッグすると積集合を意味として記録する\",\"type\":\"region\"},{\"from\":\"a\",\"id\":\"set-topology.a.b.disjoint\",\"kind\":\"disjointWith\",\"label\":\"排他\",\"to\":\"b\",\"type\":\"relation\"}],\"type\":\"CreateMap\"}],\"parent\":null,\"schema\":\"semantic-map-decision/2\",\"stateHash\":\"sha256:d6e260f939ac76ad2747dbd79b46fb7fea838efb3baec491125ecf0120ca173b\"}\n",
+  "proposal": null,
+  "view": {
+    "pattern": "map/1",
+    "frame": {
+      "select": [
+        "b"
+      ]
+    }
+  }
+}

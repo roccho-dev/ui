@@ -1,0 +1,50 @@
+export { canonicalClone, canonicalJson, canonicalValue } from '../domain/index.js';
+export { SHA256_PATTERN, sha256 } from './sha256.js';
+export { stateHash } from './state-hash.js';
+export {
+  DECISION_SCHEMA,
+  appendDecision,
+  createDecision,
+  createDecisionLog,
+  decisionId,
+  decisionLine,
+  normalizeDecision,
+  parseDecisionLog,
+  previewDecision,
+  verifyDecisionLog,
+} from './decision-log.js';
+export {
+  ENVELOPE_SCHEMA,
+  createEnvelope,
+  inspectEnvelope,
+  normalizeFrame,
+  normalizeView,
+  projectView,
+} from './envelope.js';
+export {
+  CHART_PATTERN,
+  GRAPH_PATTERN,
+  MAP_PATTERN,
+  PATTERN_CHART,
+  PATTERN_GRAPH,
+  PATTERN_MAP,
+  PATTERN_SEQ,
+  RESERVED_PATTERNS,
+  SEQ_AXES,
+  SEQ_GROUPS,
+  SEQ_ITEM_KINDS,
+  SEQ_PATTERN,
+  SEQ_RELATION_KINDS,
+  SUPPORTED_PATTERNS,
+  coordinateSpaceForPattern,
+  defaultViewForPattern,
+  normalizeChartView,
+  normalizePattern,
+  normalizePatternConfig,
+  normalizeSeqView,
+  patternCapabilities,
+  patternConfigKey,
+  relationVisualForPattern,
+  shapeForPattern,
+  validatePatternDomain,
+} from '../pattern/index.js';

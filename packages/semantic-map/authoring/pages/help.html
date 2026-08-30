@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Help — Semantic Map</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+<main class="help-doc">
+<nav class="help-nav"><a href="/">Home</a><a href="/app">App</a><a href="/app/example">Example</a></nav>
+<p class="kicker">Semantic Map / Help</p>
+<h1>図を変更するための全契約</h1>
+<p>正本は承認済み変更を1行ずつ足す<strong>DecisionLog</strong>です。<strong>State</strong>はLogを決定的にreduceした現在値、<strong>Proposal</strong>は未承認候補、SceneとmaxGraphは表示です。</p>
+<h2>URL・保存・Source</h2>
+<p>小さい成果物は副作用のない<code>/app#smap=&lt;token&gt;</code>です。大きい成果物は<code>artifactStore.endpoint</code>からcredentialなし・no-referrer・redirect拒否のGETで取得し、Content-Type、最大bytes、SHA-256を検査する<code>#smap-ref</code>です。読む権限と書く権限は別です。</p>
+<p>Accept、URL ProposalのReject、Pattern変更は先に配送計画を作ります。上限内なら即確定し、上限超過なら保存先・公開範囲・保持・費用を見せ、明示確認後だけPOSTします。typed receiptのdigest、stored、locationが一致した後だけURLとruntimeを変えます。自動publish、QUERY、placeholder originは使いません。</p>
+<p><strong>Source</strong>から承認済みState JSONL、任意のproposalStateJSONL、DecisionLog JSONL、Envelope JSONを取得できます。元の空白やキー順ではなく、同じ意味のcanonical出力です。</p>
+<h2>Pattern</h2>
+<p><strong>1 Scene＝1 Pattern</strong>です。<code>map/1</code>は位置、<code>graph/1</code>は接続、<code>seq/1</code>は時間、<code>chart/1</code>は棒・折れ線・円・ドーナツ・散布・heatmap・sunburstを表します。同じStateを再投影し、ViewだけをURLで変えます。</p>
+<h2>URL Portal・resource</h2>
+<p><strong>Envelope/3</strong>はDecisionLog・Proposal・Viewを運び、<strong>GeoSpec</strong>と<strong>Policy</strong>はdomain意味を保ちます。子mapの名前空間は<code>@mount/</code>です。</p>
+<p>子<code>#smap</code>はID分離、読取専用、Proposal拒否、循環・深さ・件数制限で開きます。外部resourceはResource・Placement・Actionを分け、document sandbox、target、adapterをtrusted runtimeが強制します。</p>
+<h2>編集と承認</h2>
+<p>GUI操作はLocal Draftへ積みます。全更新は「事前検査→必要時だけ明示保存→確定」の一経路です。保存失敗や並行変更ではLog、State、Proposal、View、URLを変えません。Local DraftのRejectは通信せず現在URLを保ちます。</p>
+<h2>境界</h2>
+<p>secret、旧<code>#doc</code>・<code>#apply</code>、shortener、bundled backend、認証、DB、自動mergeはありません。URL上限8,192文字、Scene上限2,048要素を超えたらfail-closedです。</p>
+<p class="principles"><strong>YAGNI:</strong> 未要求を作らない。<strong>KISS:</strong> 1 Log、1 Envelope。<strong>DRY:</strong> 契約と検証を共通化。<strong>SOLID:</strong> Domain、Pattern、Protocol、Transport、Projection、Renderer、Appを分ける。</p>
+</main>
+</body>
+</html>

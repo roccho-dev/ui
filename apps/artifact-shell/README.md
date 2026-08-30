@@ -73,3 +73,6 @@ schema + state + surface
 Trusted `Button` components may emit `artifact.state.patch` with an `artifact-state-action/1` context. The shell applies a bounded patch only below the selected input's `/state`, validates the complete next `artifact-invocation/2`, compiles it through the existing `#invoke` URL codec, updates browser history, and re-executes the request. `popstate` and a fresh browser load both restore the request from the URL.
 
 The shell contains no app-name switch. New app meaning remains in capability data or a new additive capability directory; URL transport, history, validation, execution, and receipts remain shared.
+## Package-owned accepted input replacement
+
+A package that validates and commits its own non-authoritative input may use the host-provided `artifact-input-action-port/1`. Its `replace` operation carries the exact prior value; the shell rejects stale or immutable inputs, validates the complete next `artifact-invocation/2`, updates `#invoke`, and preserves the mounted surface. `render.semantic-map@1` uses this only after a local accepted DecisionLog or View change. UI candidates, URLs and receipts remain non-authority.

@@ -1,0 +1,79 @@
+{
+  "schema": "semantic-map-canonical-selection/1",
+  "base": {
+    "bundle": "legacy-source-01.git.bundle",
+    "commit": "a5c451e39c279bc131534fa984557d23adc8420a",
+    "decision": "base"
+  },
+  "accepted": [
+    {
+      "bundle": "legacy-source-02.git.bundle",
+      "commit": "d4db4af94d2bb920616be61588a4bf8bab63b400",
+      "ref": "candidate/104354",
+      "intent": "neutral temporal State and seq projection",
+      "normalization": "accepted as lineage; active patterns remain map/1 graph/1 seq/1"
+    },
+    {
+      "bundle": "legacy-source-03.git.bundle",
+      "commit": "b110d742c81f27d01e8e95c8d52a90b9f10829a6",
+      "ref": "candidate/geo-geospec",
+      "intent": "vendored map assets and preserved GeoSpec",
+      "normalization": "GeoSpec is stored in neutral State and projected through map/1"
+    },
+    {
+      "bundle": "legacy-source-04.git.bundle",
+      "commit": "eb3cf22fab3d9616a25a51ed2880a2936fa7ffcc",
+      "ref": "candidate/policy",
+      "intent": "versioned policy semantics",
+      "normalization": "fail-closed validation activates only when root kind is policy-model/1"
+    },
+    {
+      "bundle": "legacy-source-05.git.bundle",
+      "commit": "5d5fa7b5141ebe2c96083ed8ce4feb5848a86ffe",
+      "ref": "candidate/frame-theme",
+      "intent": "separate graph frame and renderer theme",
+      "normalization": "frame belongs to View; theme belongs only to renderer-maxgraph"
+    },
+    {
+      "bundle": "legacy-source-06.git.bundle",
+      "commit": "f9386e1db5d8bfff777fec47d4a76abf5a048826",
+      "ref": "candidate/fail-closed",
+      "intent": "stable mounted host and fail-closed current contracts",
+      "normalization": "current-only Envelope/3 and stable mounted host with progressive detail"
+    }
+  ],
+  "rejected": [
+    {
+      "bundle": "legacy-source-07.git.bundle",
+      "commit": "c23383804591c5a671339bf1ac57b4e0222bed85",
+      "ref": "candidate/101240",
+      "reason": "superseded by 104354 neutral temporal contract"
+    },
+    {
+      "bundle": "legacy-source-08.git.bundle",
+      "commit": "66b959751b8bf35c1f16ab7948194fcd1721ce79",
+      "ref": "candidate/geo-rebased",
+      "reason": "superseded by GeoSpec-preserving candidate"
+    },
+    {
+      "bundle": "legacy-source-09.git.bundle",
+      "commit": "fb805b6f00e49d4cd1ecc69d5e14ad5f1c57e282",
+      "ref": "candidate/geo-examples",
+      "reason": "examples-only geometry contract superseded by GeoSpec-preserving candidate"
+    },
+    {
+      "bundle": "legacy-source-10.git.bundle",
+      "commit": "19cbff8477c6e2a1901448d75201491539c824fa",
+      "ref": "candidate/graph-v3",
+      "reason": "parallel graph/view design superseded by frame-theme separation"
+    }
+  ],
+  "rules": {
+    "bundleValidityIsNecessaryNotSufficient": true,
+    "testsPassingIsNecessaryNotSufficient": true,
+    "selectedIntentIsReconstructedOnBase": true,
+    "acceptedCommitsMustBeAncestors": true,
+    "rejectedCommitsMustNotBeAncestors": true,
+    "legacyCompatibilityIsForbidden": true
+  }
+}

@@ -1,0 +1,15 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"policy-model","title":"Policy概念型"}
+{"type":"region","id":"policy-model","parent":null,"label":"Policy概念型","kind":"policy-model/1","bounds":[0,0,1200,760],"summary":"Policy・Role・Capabilityを同じ意味契約で表す"}
+{"type":"region","id":"policy","parent":"policy-model","label":"Policy","kind":"policy","bounds":[120,100,220,130],"summary":"判断規則の集合","order":1}
+{"type":"region","id":"rule","parent":"policy","label":"Rule","kind":"rule","bounds":[150,140,180,100],"summary":"ConditionとEffectの組","order":0}
+{"type":"region","id":"condition","parent":"rule","label":"Condition","kind":"condition","bounds":[170,170,150,80],"summary":"Ruleが成立する条件","order":0}
+{"type":"region","id":"effect","parent":"rule","label":"Effect","kind":"effect","bounds":[170,270,150,80],"summary":"成立時に要求される結果","order":1}
+{"type":"region","id":"subject","parent":"policy-model","label":"Subject","kind":"subject","bounds":[50,400,180,100],"summary":"行為主体","order":0}
+{"type":"region","id":"role","parent":"policy-model","label":"Role","kind":"role","bounds":[320,400,180,100],"summary":"責務と権限の束","order":2}
+{"type":"region","id":"capability","parent":"policy-model","label":"Capability","kind":"capability","bounds":[590,400,200,100],"summary":"実行可能な操作","order":3}
+{"type":"region","id":"resource","parent":"policy-model","label":"Resource","kind":"resource","bounds":[900,400,180,100],"summary":"操作対象","order":4}
+{"type":"relation","id":"subject-holds-role","from":"subject","to":"role","kind":"holdsRole","label":"holdsRole"}
+{"type":"relation","id":"role-includes-capability","from":"role","to":"capability","kind":"includesCapability","label":"includesCapability"}
+{"type":"relation","id":"capability-acts-on-resource","from":"capability","to":"resource","kind":"actsOn","label":"actsOn"}
+{"type":"relation","id":"policy-governs-capability","from":"policy","to":"capability","kind":"governs","label":"governs"}
+{"type":"relation","id":"effect-requires-role","from":"effect","to":"role","kind":"requiresRole","label":"requiresRole"}

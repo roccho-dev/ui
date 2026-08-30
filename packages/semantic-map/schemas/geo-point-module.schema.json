@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-map.local/schemas/geo-point-module.schema.json",
+  "title": "Semantic Map Geo Point Module Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "name", "features"],
+  "properties": {
+    "type": {"const": "FeatureCollection"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "features": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 64,
+      "contains": {
+        "type": "object",
+        "required": ["properties"],
+        "properties": {
+          "properties": {
+            "type": "object",
+            "required": ["anchor"],
+            "properties": {"anchor": {"const": true}}
+          }
+        }
+      },
+      "minContains": 1,
+      "maxContains": 1,
+      "items": {"$ref": "#/$defs/feature"}
+    }
+  },
+  "$defs": {
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id", "properties", "geometry"],
+      "properties": {
+        "type": {"const": "Feature"},
+        "id": {"type": "string", "minLength": 1, "maxLength": 120},
+        "properties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["label"],
+          "properties": {
+            "label": {"type": "string", "minLength": 1, "maxLength": 120},
+            "anchor": {"type": "boolean"},
+            "accuracyMeters": {"type": "number", "minimum": 0},
+            "summary": {"type": "string", "maxLength": 1000}
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "coordinates"],
+          "properties": {
+            "type": {"const": "Point"},
+            "coordinates": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {"type": "number", "minimum": -180, "maximum": 180},
+                {
+                  "type": "number",
+                  "minimum": -85.0511287798066,
+                  "maximum": 85.0511287798066
+                }
+              ],
+              "items": false
+            }
+          }
+        }
+      }
+    }
+  }
+}
