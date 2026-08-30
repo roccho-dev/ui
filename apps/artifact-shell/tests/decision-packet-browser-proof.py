@@ -68,7 +68,7 @@ def main() -> None:
             assert element is not None
             child = element.content_frame()
             assert child is not None
-            child.locator("#graph-container svg").wait_for(state="attached", timeout=30_000)
+            child.locator("#graph-container svg").first.wait_for(state="attached", timeout=30_000)
             rendered = child.evaluate(
                 """() => ({
                   ready: globalThis.semanticMapSite?.ready === true,
