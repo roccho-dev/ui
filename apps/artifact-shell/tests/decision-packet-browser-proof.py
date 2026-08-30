@@ -64,7 +64,10 @@ def main() -> None:
             assert "render.decision-packet@1" in page.locator("#progress").inner_text()
             frame_element = page.locator("#surface iframe[data-package='semantic-map']")
             frame_element.wait_for(state="attached", timeout=30_000)
-            child = frame_element.content_frame()
+            element = frame_element.element_handle()
+            assert element is not None
+            child = element.content_frame()
+            assert child is not None
             child.locator("#graph-container svg").wait_for(state="attached", timeout=30_000)
             rendered = child.evaluate(
                 """() => ({
