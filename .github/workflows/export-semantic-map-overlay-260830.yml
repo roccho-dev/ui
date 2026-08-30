@@ -1,0 +1,66 @@
+name: Export exact semantic-map overlay 260830
+
+on:
+  push:
+    branches:
+      - tmp/export-ui-latest-260830
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    env:
+      ISSUE: '178'
+      MARKER: semantic-map-meaning-recovery-carrier/1
+      CHUNKS: '7'
+      ARCHIVE_SHA256: 19f82381b03d651106b6a5aa375597021699aaa15f23261a7268836b73b56c2e
+      BASE64_SHA256: 1448c432905376a5ad3ff2b41c7299be3e46818dc6cbe56f84e1b30e40ddabae
+      ARCHIVE_BYTES: '92628'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct exact reviewed overlay
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments?per_page=100" | jq -s 'add' > comments.json
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, re
+          comments = json.loads(pathlib.Path('comments.json').read_text(encoding='utf-8'))
+          marker = f"<!-- {os.environ['MARKER']} -->"
+          count = int(os.environ['CHUNKS'])
+          chunks = {}
+          for comment in comments:
+              body = comment.get('body') or ''
+              if marker not in body:
+                  continue
+              match = re.search(r'^chunk:\s*(\d+)/(\d+)\s*$', body, re.MULTILINE)
+              assert match, 'chunk metadata missing'
+              index, total = map(int, match.groups())
+              assert total == count and index not in chunks, (index, total)
+              chunks[index] = re.sub(r'\s+', '', body.split('\ndata:\n', 1)[1])
+          assert set(chunks) == set(range(count)), sorted(chunks)
+          encoded = ''.join(chunks[i] for i in range(count)).encode('ascii')
+          assert hashlib.sha256(encoded).hexdigest() == os.environ['BASE64_SHA256']
+          archive = base64.b64decode(encoded, validate=True)
+          assert len(archive) == int(os.environ['ARCHIVE_BYTES'])
+          assert hashlib.sha256(archive).hexdigest() == os.environ['ARCHIVE_SHA256']
+          pathlib.Path('semantic-map-overlay.tar.xz').write_bytes(archive)
+          PY
+          xz --test semantic-map-overlay.tar.xz
+          tar -tJf semantic-map-overlay.tar.xz > overlay-files.txt
+          test "$(wc -l < overlay-files.txt)" -eq 60
+          sha256sum semantic-map-overlay.tar.xz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semantic-map-overlay-260830
+          path: |
+            semantic-map-overlay.tar.xz
+            overlay-files.txt
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
