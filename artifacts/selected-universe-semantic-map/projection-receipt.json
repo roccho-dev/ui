@@ -1,0 +1,27 @@
+{
+  "schema": "ui.semanticMapProjectionReceipt/1",
+  "status": "PASS",
+  "authority": false,
+  "htmlPurpose": "visual-evaluation-only",
+  "meaning": {
+    "bytes": 1378,
+    "sha256": "sha256:d29c4cbee8e3c38fc9a29e9dbe2d39e0a6989a62ba2771302b85711025c9ebc3",
+    "rows": 4
+  },
+  "profile": {
+    "bytes": 897,
+    "sha256": "sha256:135ba5e65d0c939967d953ad39068bd371c46d30393a94a794c2a1f6403ae611",
+    "profileId": "governance.selectedUniverseRepo.v1/map/1"
+  },
+  "projection": {
+    "pattern": "map/1",
+    "mapId": "urn:roccho:governance:selected-universe",
+    "stateHash": "sha256:70c0dec23c66140af759a05446049d01efef4c2cfd6d9ea7e2cb711117679c3e",
+    "regionCount": 5,
+    "relationCount": 0
+  },
+  "source": {
+    "uiCommit": "5b1101daedb6c64261c1fae52f065a51cf0be36f",
+    "uiTree": "c40e1ad7cd4843b7a7c59a21ed74b153d5644a55"
+  }
+}
