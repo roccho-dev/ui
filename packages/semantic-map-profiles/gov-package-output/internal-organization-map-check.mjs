@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import { projectInternalOrganizationBundle } from './project.mjs';
+import { projectInternalOrganizationBundle } from './internal-organization-map-project.mjs';
 
 const profile = JSON.parse(
-  (await fs.readFile(new URL('./profile.jsonl', import.meta.url), 'utf8')).trim(),
+  (await fs.readFile(new URL('./internal-organization-map-profile.jsonl', import.meta.url), 'utf8')).trim(),
 );
 const digest = `sha256:${'a'.repeat(64)}`;
 const sourceKinds = {
