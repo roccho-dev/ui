@@ -8,7 +8,7 @@ const exampleUrl = new URL('../examples/example.jsonl', import.meta.url);
 const governanceUrl = new URL('../examples/governance-scale.jsonl', import.meta.url);
 const before = readFileSync(exampleUrl);
 const governanceBefore = readFileSync(governanceUrl);
-execFileSync(process.execPath, ['--experimental-default-type=module', 'scripts/regenerate_example.mjs'], {
+execFileSync(process.execPath, ['scripts/regenerate_example.mjs'], {
   cwd: new URL('..', import.meta.url),
   stdio: ['ignore', 'pipe', 'pipe'],
 });
