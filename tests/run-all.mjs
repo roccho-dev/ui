@@ -28,4 +28,5 @@ import "./check-markdown-document-renderer.mjs";
 import "./check-markdown-renderer-boundary-regressions.mjs";
 import "./check-pr-governance.mjs";
 import "./check-ci-workflows.mjs";
+import "./check-connectability.mjs";
 console.log("ui-all-checks-pass");
