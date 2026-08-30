@@ -1,0 +1,36 @@
+name: Export exact UI proposals source 260830
+
+on:
+  push:
+    branches:
+      - tmp/export-ui-latest-260830
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build exact base bundle
+        shell: bash
+        env:
+          BASE_SHA: f0c1ff68889e21a3cd203dd2a4ef4e2ed0bc6bb7
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$BASE_SHA"
+          git branch export-ui-proposals "$BASE_SHA"
+          git bundle create ui-proposals-f0c1ff.bundle refs/heads/export-ui-proposals
+          git bundle verify ui-proposals-f0c1ff.bundle
+          sha256sum ui-proposals-f0c1ff.bundle > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-proposals-f0c1ff-source
+          path: |
+            ui-proposals-f0c1ff.bundle
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
