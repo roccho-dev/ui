@@ -53,7 +53,7 @@ const catalogIdentity = index => Object.freeze({
   capability: Object.freeze({ engineDigest: D("6"), id: "render.a2ui.app", version: "1" }),
   codec: Object.freeze({ digest: D("4"), id: "url-module", version: "1" }),
   profile: Object.freeze({ digest: D("7"), id: "invocation-index.public", version: "1" }),
-  projection: Object.freeze({ intent: "render.a2ui.app", version: "1" }),
+  projection: Object.freeze({ intent: "interact", version: "1" }),
   request: createArtifactInvocationIndexRequest({ id: "catalog.invocations", index }),
   runtime: Object.freeze({ id: "artifact-shell", kernelDigest: D("5"), path: "./index.html", version: "2" }),
   semantic: Object.freeze({ digest: index.digest, id: "catalog.invocations" }),
@@ -127,7 +127,7 @@ test("index_is_rendered_by_existing_artifact_shell", async () => {
   const request = createArtifactInvocationIndexRequest({ id: "catalog.invocations", index });
   assert.equal(app.schema, "a2ui-app/1");
   assert.equal(request.schema, "artifact-invocation/2");
-  assert.equal(request.intent, "render.a2ui.app");
+  assert.equal(request.intent, "interact");
 });
 test("direct_navigation_and_refresh_preserve_catalog_identity", async () => {
   const index = await built(source(a), source(b));
@@ -167,7 +167,7 @@ test("no_dedicated_index_app_database_or_search_server_is_added", async () => {
   const index = await built(source(a));
   const request = createArtifactInvocationIndexRequest({ id: "catalog.invocations", index });
   const app = request.inputs[0].source.value;
-  assert.equal(request.intent, "render.a2ui.app");
+  assert.equal(request.intent, "interact");
   assert.equal(app.surface.components.every(component => ["Button", "Card", "Column", "Divider", "Text"].includes(component.component)), true);
   assert.equal(canonicalJson(index).includes("database"), false);
 });
