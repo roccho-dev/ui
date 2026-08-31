@@ -1,0 +1,46 @@
+name: fix ui-193 Canon RED syntax
+
+on:
+  push:
+    branches:
+      - codex/ui-193-legacy-invocation-import
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[ui-193-red-syntax-fixed]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Remove accidental await from non-async assertion closures
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/check-legacy-invocation-import.mjs')
+          text = path.read_text()
+          old = '''  const value = seed([entry()]);
+  await assert.rejects(() => importLegacyInvocationSeed({ discover: () => { called = true; }, seed: value, seedDigest: await digestValue(value) }), /discover.*not allowed/u);'''
+          new = '''  const value = seed([entry()]);
+  const seedDigest = await digestValue(value);
+  await assert.rejects(() => importLegacyInvocationSeed({ discover: () => { called = true; }, seed: value, seedDigest }), /discover.*not allowed/u);'''
+          if old not in text:
+              raise SystemExit('discovery assertion anchor missing')
+          text = text.replace(old, new, 1)
+          old = '''  const value = seed([entry()]);
+  await assert.rejects(() => importLegacyInvocationSeed({ crawler: true, seed: value, seedDigest: await digestValue(value) }), /crawler.*not allowed/u);'''
+          new = '''  const value = seed([entry()]);
+  const seedDigest = await digestValue(value);
+  await assert.rejects(() => importLegacyInvocationSeed({ crawler: true, seed: value, seedDigest }), /crawler.*not allowed/u);'''
+          if old not in text:
+              raise SystemExit('crawler assertion anchor missing')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/check-legacy-invocation-import.mjs
+          git commit -m "test: fix ui-193 Canon RED syntax [ui-193-red-syntax-fixed]"
+          git push origin HEAD:${GITHUB_REF_NAME}
