@@ -30,6 +30,7 @@ import "./check-connectability.mjs";
 import "./check-semantic-map-ownership.mjs";
 import "./check-version-fixed-invocation.mjs";
 import "./check-artifact-invocation-index.mjs";
+import "./check-legacy-invocation-import.mjs";
 import "./check-pr-governance.mjs";
 import "./check-ci-workflows.mjs";
 console.log("ui-all-checks-pass");
