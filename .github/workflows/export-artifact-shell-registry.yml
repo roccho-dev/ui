@@ -1,0 +1,32 @@
+name: export artifact-shell registry
+
+on:
+  push:
+    branches:
+      - codex/ui-191-version-fixed-invocation
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Generate and emit compressed registry
+        run: |
+          node apps/artifact-shell/scripts/build-registry.mjs
+          python3 - <<'PY'
+          import base64, gzip, pathlib
+          data = pathlib.Path('apps/artifact-shell/generated/capability-registry.mjs').read_bytes()
+          encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode('ascii')
+          print('REGISTRY_GZIP_BASE64_BEGIN')
+          for offset in range(0, len(encoded), 120):
+              print(encoded[offset:offset + 120])
+          print('REGISTRY_GZIP_BASE64_END')
+          PY
