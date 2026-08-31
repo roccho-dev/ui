@@ -1,0 +1,28 @@
+{
+  "kind": "modeling.proposal.v1",
+  "id": "proposal-ui-evidence-260709",
+  "targetRef": {
+    "kind": "ui.targetRef.v1",
+    "targetKind": "projectionNode",
+    "targetId": "repo:ops-fixture",
+    "authority": false,
+    "proposalOnly": true
+  },
+  "status": "proposed",
+  "operation": {
+    "kind": "repoMap.addEdge.v1",
+    "from": "pkg:core",
+    "to": "pkg:ui",
+    "relation": "uses"
+  },
+  "evidence": [
+    {
+      "kind": "evidence.note.v1",
+      "source": "agent-task-fixture",
+      "summary": "Potential dependency edge should be reviewed by a human before queue admission."
+    }
+  ],
+  "authority": false,
+  "promotionOwner": "ops",
+  "generatedArtifactsAreAuthority": false
+}
