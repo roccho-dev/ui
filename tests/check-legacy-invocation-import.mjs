@@ -89,7 +89,8 @@ test("bounded_seed_digest_is_required", async () => {
 test("unbounded_discovery_is_not_performed", async () => {
   let called = false;
   const value = seed([entry()]);
-  await assert.rejects(() => importLegacyInvocationSeed({ discover: () => { called = true; }, seed: value, seedDigest: await digestValue(value) }), /discover.*not allowed/u);
+  const seedDigest = await digestValue(value);
+  await assert.rejects(() => importLegacyInvocationSeed({ discover: () => { called = true; }, seed: value, seedDigest }), /discover.*not allowed/u);
   assert.equal(called, false);
 });
 test("original_url_bytes_are_preserved", async () => {
@@ -193,7 +194,8 @@ test("secret_bearing_legacy_url_is_quarantined_not_exposed", async () => {
 });
 test("no_second_codec_crawler_database_or_repair_service_is_added", async () => {
   const value = seed([entry()]);
-  await assert.rejects(() => importLegacyInvocationSeed({ crawler: true, seed: value, seedDigest: await digestValue(value) }), /crawler.*not allowed/u);
+  const seedDigest = await digestValue(value);
+  await assert.rejects(() => importLegacyInvocationSeed({ crawler: true, seed: value, seedDigest }), /crawler.*not allowed/u);
   const imported = await run([entry()]);
   const index = await buildArtifactInvocationIndex({ legacySources: imported.records, sources: [] });
   const app = createArtifactInvocationIndexApp(index);
