@@ -34,3 +34,15 @@ export { createArtifactCapabilityRegistry } from "./registry.mjs";
 export { requiredInputFeatures, resolveArtifactInputs } from "./input.mjs";
 export { loadArtifactCapabilityEngine } from "./engine.mjs";
 export { createArtifactInvocationRuntime } from "./runtime.mjs";
+export {
+  ARTIFACT_INVOCATION_CODEC_ID,
+  ARTIFACT_INVOCATION_CODEC_VERSION,
+  ARTIFACT_INVOCATION_FRAGMENT,
+  ARTIFACT_INVOCATION_OBSERVATION_SCHEMA,
+  ARTIFACT_INVOCATION_REFERENCE_SCHEMA,
+  compileArtifactInvocationReference,
+  createArtifactInvocationIdentity,
+  decodeArtifactInvocationReference,
+  verifyArtifactInvocationProof,
+  verifyArtifactInvocationReference,
+} from "./reference.mjs";
