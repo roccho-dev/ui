@@ -1,8 +1,10 @@
 import { validateArtifactInvocation, validateSha256, verifyArtifactInvocationReference } from "../../../packages/artifact-invocation/src/index.mjs";
 import { canonicalJson, sha256Hex } from "../../../packages/url-module/src/index.mjs";
+import { verifyLegacyInvocationRecord } from "./legacy-invocation-import.mjs";
 
 export const ARTIFACT_INVOCATION_INDEX_SCHEMA = "artifact-invocation-index/1";
 export const ARTIFACT_INVOCATION_INDEX_ROW_SCHEMA = "artifact-invocation-index-row/1";
+export const ARTIFACT_INVOCATION_INDEX_LEGACY_ROW_SCHEMA = "artifact-invocation-index-legacy-row/1";
 export const ARTIFACT_INVOCATION_INDEX_SOURCE_SCHEMA = "artifact-invocation-index-source/1";
 export const ARTIFACT_INVOCATION_INDEX_OBSERVATION_SCHEMA = "artifact-invocation-index-observation/1";
 
@@ -101,6 +103,20 @@ const sourceToRow = async value => {
   });
 };
 
+const legacySourceToRow = async value => {
+  const legacy = await verifyLegacyInvocationRecord(value);
+  return Object.freeze({
+    authority: false,
+    id: legacy.id,
+    legacy,
+    reference: legacy.originalUrl ?? legacy.normalized?.invocation?.reference ?? `quarantined:${legacy.originalUrlDigest}`,
+    schema: ARTIFACT_INVOCATION_INDEX_LEGACY_ROW_SCHEMA,
+    sourceRefs: legacy.sourceRefs,
+    status: legacy.classification,
+    title: legacy.title,
+  });
+};
+
 const encodeRows = rows => rows.length === 0 ? "" : `${rows.map(canonicalLine).join("\n")}\n`;
 const buildFromRows = async rows => {
   const rowBytes = encodeRows(rows);
@@ -121,15 +137,20 @@ const buildFromRows = async rows => {
   });
 };
 
-export const buildArtifactInvocationIndex = async ({ sources }) => {
+export const buildArtifactInvocationIndex = async options => {
+  exactKeys(options, ["sources"], ["legacySources"], "input");
+  const sources = options.sources;
+  const legacySources = options.legacySources ?? [];
   invariant(Array.isArray(sources), "sources must be an array");
+  invariant(Array.isArray(legacySources), "legacySources must be an array");
   const byId = new Map();
-  for (const value of sources) {
-    const row = await sourceToRow(value);
+  const add = row => {
     const encoded = canonicalLine(row);
     if (byId.has(row.id)) invariant(byId.get(row.id) === encoded, `conflicting duplicate invocation: ${row.id}`);
     else byId.set(row.id, encoded);
-  }
+  };
+  for (const value of sources) add(await sourceToRow(value));
+  for (const value of legacySources) add(await legacySourceToRow(value));
   const rows = [...byId.values()].map(JSON.parse).sort((left, right) => left.id.localeCompare(right.id));
   return buildFromRows(rows);
 };
@@ -151,6 +172,19 @@ const rowToSource = row => {
   });
 };
 
+const rowToLegacySource = row => {
+  exactKeys(row, ["authority", "id", "legacy", "reference", "schema", "sourceRefs", "status", "title"], [], "legacy row");
+  invariant(row.authority === false, "legacy row.authority must be false");
+  invariant(row.schema === ARTIFACT_INVOCATION_INDEX_LEGACY_ROW_SCHEMA, "legacy row.schema is unsupported");
+  invariant(row.id === row.legacy?.id, "legacy row identity mismatch");
+  invariant(row.status === row.legacy?.classification, "legacy row status mismatch");
+  invariant(canonicalLine(row.sourceRefs) === canonicalLine(row.legacy?.sourceRefs), "legacy row sourceRefs mismatch");
+  invariant(row.title === row.legacy?.title, "legacy row title mismatch");
+  const expectedReference = row.legacy.originalUrl ?? row.legacy.normalized?.invocation?.reference ?? `quarantined:${row.legacy.originalUrlDigest}`;
+  invariant(row.reference === expectedReference, "legacy row reference mismatch");
+  return row.legacy;
+};
+
 export const parseArtifactInvocationIndex = async jsonl => {
   invariant(typeof jsonl === "string" && jsonl.endsWith("\n") && !jsonl.includes("\r"), "jsonl must be canonical newline-terminated text");
   const lines = jsonl.slice(0, -1).split("\n");
@@ -164,12 +198,22 @@ export const parseArtifactInvocationIndex = async jsonl => {
   invariant(meta.schema === ARTIFACT_INVOCATION_INDEX_SCHEMA, "meta.schema is unsupported");
   digest(meta.entriesDigest, "meta.entriesDigest");
   invariant(Number.isSafeInteger(meta.rowCount) && meta.rowCount === rows.length, "meta.rowCount mismatch");
-  const rebuilt = await buildArtifactInvocationIndex({ sources: rows.map(rowToSource) });
+  const sources = [];
+  const legacySources = [];
+  for (const row of rows) {
+    if (row?.schema === ARTIFACT_INVOCATION_INDEX_ROW_SCHEMA) sources.push(rowToSource(row));
+    else if (row?.schema === ARTIFACT_INVOCATION_INDEX_LEGACY_ROW_SCHEMA) legacySources.push(rowToLegacySource(row));
+    else throw new Error(`artifact-invocation-index: row.schema is unsupported: ${String(row?.schema ?? "<missing>")}`);
+  }
+  const rebuilt = await buildArtifactInvocationIndex({ legacySources, sources });
   invariant(rebuilt.jsonl === jsonl, "jsonl is not the canonical reconstructable index");
   return rebuilt;
 };
 
 const componentId = (index, suffix) => `invocation-${index}-${suffix}`;
+const openReferenceForRow = row => row.schema === ARTIFACT_INVOCATION_INDEX_ROW_SCHEMA
+  ? row.reference
+  : row.legacy?.normalized?.invocation?.reference ?? null;
 export const createArtifactInvocationIndexApp = index => {
   invariant(index?.schema === ARTIFACT_INVOCATION_INDEX_SCHEMA && Array.isArray(index.rows), "index is invalid");
   const components = [
@@ -184,20 +228,22 @@ export const createArtifactInvocationIndexApp = index => {
     const sourceId = componentId(item, "source");
     const referenceId = componentId(item, "reference");
     const openId = componentId(item, "open");
+    const openReference = openReferenceForRow(row);
+    const children = [titleId, statusId, sourceId, referenceId, ...(openReference ? [openId] : [])];
     components.push(
-      Object.freeze({ children: [titleId, statusId, sourceId, referenceId, openId], component: "Card", id: componentId(item, "card") }),
+      Object.freeze({ children, component: "Card", id: componentId(item, "card") }),
       Object.freeze({ component: "Text", id: titleId, text: row.title, variant: "h2" }),
       Object.freeze({ component: "Text", id: statusId, text: `status=${row.status}` }),
       Object.freeze({ component: "Text", id: sourceId, text: `sources=${row.sourceRefs.join(",")}` }),
       Object.freeze({ component: "Text", id: referenceId, text: row.reference, variant: "caption" }),
-      Object.freeze({
-        action: "artifact.invocation.open",
-        component: "Button",
-        context: Object.freeze({ history: "push", reference: row.reference, schema: "artifact-invocation-open-action/1" }),
-        id: openId,
-        label: "Open exact version",
-      }),
     );
+    if (openReference) components.push(Object.freeze({
+      action: "artifact.invocation.open",
+      component: "Button",
+      context: Object.freeze({ history: "push", reference: openReference, schema: "artifact-invocation-open-action/1" }),
+      id: openId,
+      label: "Open exact version",
+    }));
   }
   return Object.freeze({
     schema: "a2ui-app/1",
