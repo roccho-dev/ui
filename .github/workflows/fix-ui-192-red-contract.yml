@@ -1,0 +1,33 @@
+name: fix ui-192 red contract
+
+on:
+  push:
+    branches:
+      - codex/ui-192-invocation-index
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[red-contract-fixed]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Align catalog request with existing render.a2ui.app contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/check-artifact-invocation-index.mjs')
+          text = path.read_text()
+          text = text.replace('projection: Object.freeze({ intent: "render.a2ui.app", version: "1" })', 'projection: Object.freeze({ intent: "interact", version: "1" })')
+          text = text.replace('assert.equal(request.intent, "render.a2ui.app");', 'assert.equal(request.intent, "interact");')
+          path.write_text(text)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/check-artifact-invocation-index.mjs
+          git commit -m "test: align index RED with existing A2UI intent [red-contract-fixed]"
+          git push origin HEAD:${GITHUB_REF_NAME}
