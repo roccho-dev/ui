@@ -1,0 +1,32 @@
+name: refresh ui-192 artifact-shell registry
+
+on:
+  push:
+    branches:
+      - codex/ui-192-invocation-index
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: ${{ !contains(github.event.head_commit.message, '[ui-192-registry-generated]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Regenerate and commit exact Artifact Shell registry
+        run: |
+          node apps/artifact-shell/scripts/build-registry.mjs
+          if git diff --quiet -- apps/artifact-shell/generated/capability-registry.mjs; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          git commit -m "chore: refresh ui-192 artifact-shell registry [ui-192-registry-generated]"
+          git push origin HEAD:${GITHUB_REF_NAME}
