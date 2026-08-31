@@ -1,6 +1,6 @@
 import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
 import { readUrlModule } from "../../../packages/url-module/src/index.mjs";
-import { ARTIFACT_INPUT_ACTION, ARTIFACT_STATE_ACTION, applyArtifactAction, createArtifactInvocationUrl } from "./invocation-action.mjs";
+import { ARTIFACT_INPUT_ACTION, ARTIFACT_INVOCATION_OPEN_ACTION, ARTIFACT_STATE_ACTION, applyArtifactAction, createArtifactInvocationUrl } from "./invocation-action.mjs";
 import { createArtifactShellServices } from "./services.mjs";
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell: ${message}`); };
@@ -110,7 +110,7 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
     services: createArtifactShellServices({
       document: scope.document,
       eventTarget: scope,
-      onAction: detail => detail?.action === ARTIFACT_STATE_ACTION ? dispatchAction(detail) : undefined,
+      onAction: detail => detail?.action === ARTIFACT_STATE_ACTION || detail?.action === ARTIFACT_INVOCATION_OPEN_ACTION ? dispatchAction(detail) : undefined,
       onInputAction: detail => detail?.action === ARTIFACT_INPUT_ACTION ? dispatchAction(detail) : undefined,
       surfaceMount: elements.surface,
     }),
@@ -172,6 +172,19 @@ export const createArtifactShell = async ({ elements, registry: registryInput, s
     const compiled = applyArtifactAction({ detail, request: activeRequest });
     const method = `${compiled.history}State`;
     invariant(scope.history && typeof scope.history[method] === "function", `history.${method} is unavailable`);
+    if (compiled.navigate) {
+      const target = new URL(compiled.reference, scope.location.href);
+      invariant(target.origin === scope.location.origin, "invocation navigation must remain same-origin");
+      scope.history[method](null, "", target.href);
+      await restoreFromLocation();
+      return Object.freeze({
+        action: detail.action,
+        history: compiled.history,
+        href: target.href,
+        navigated: true,
+        schema: "artifact-shell-action-commit/1",
+      });
+    }
     const href = await createArtifactInvocationUrl({ base: scope.location.href, request: compiled.request });
     scope.history[method](null, "", href);
     if (compiled.reexecute) return execute(compiled.request);

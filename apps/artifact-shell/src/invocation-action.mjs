@@ -5,6 +5,8 @@ export const ARTIFACT_STATE_ACTION_SCHEMA = "artifact-state-action/1";
 export const ARTIFACT_STATE_ACTION = "artifact.state.patch";
 export const ARTIFACT_INPUT_ACTION_SCHEMA = "artifact-input-action/1";
 export const ARTIFACT_INPUT_ACTION = "artifact.input.replace";
+export const ARTIFACT_INVOCATION_OPEN_ACTION_SCHEMA = "artifact-invocation-open-action/1";
+export const ARTIFACT_INVOCATION_OPEN_ACTION = "artifact.invocation.open";
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-shell-action: ${message}`); };
 const plain = value => value !== null
@@ -23,6 +25,18 @@ const token = (value, name) => {
 };
 const historyMode = (value, name = "context.history") => {
   invariant(value === "push" || value === "replace", `${name} is invalid`);
+  return value;
+};
+const invocationReference = value => {
+  invariant(typeof value === "string" && value.length > 0 && value.length <= 65_536, "context.reference is invalid");
+  const marker = "#invoke=";
+  const markerAt = value.indexOf(marker);
+  invariant(value.startsWith("./") && markerAt > 2 && value.indexOf("#", markerAt + 1) < 0, "context.reference must be a Release-root-relative #invoke reference");
+  const runtimePath = value.slice(0, markerAt);
+  invariant(!runtimePath.includes("?") && !runtimePath.includes("\\"), "context.reference runtime path is unsafe");
+  const segments = runtimePath.slice(2).split("/");
+  invariant(segments.every(segment => segment.length > 0 && segment !== "." && segment !== ".." && !["current", "head", "latest"].includes(segment.toLowerCase())), "context.reference runtime path is mutable or unsafe");
+  invariant(/^[A-Za-z0-9_-]+$/u.test(value.slice(markerAt + marker.length)), "context.reference invoke token is invalid");
   return value;
 };
 const mutableInlineInput = (request, inputId, actionName) => {
@@ -139,10 +153,23 @@ export const applyArtifactInputAction = ({ detail, request: requestInput }) => {
   return Object.freeze({ history: context.history, reexecute: false, request: validateArtifactInvocation(nextRequest) });
 };
 
+export const applyArtifactInvocationOpenAction = ({ detail }) => {
+  invariant(plain(detail), "detail must be a plain object");
+  invariant(detail.action === ARTIFACT_INVOCATION_OPEN_ACTION, `detail.action must be ${ARTIFACT_INVOCATION_OPEN_ACTION}`);
+  exactKeys(detail.context, ["history", "reference", "schema"], [], "context");
+  invariant(detail.context.schema === ARTIFACT_INVOCATION_OPEN_ACTION_SCHEMA, `context.schema must be ${ARTIFACT_INVOCATION_OPEN_ACTION_SCHEMA}`);
+  return Object.freeze({
+    history: historyMode(detail.context.history),
+    navigate: true,
+    reference: invocationReference(detail.context.reference),
+  });
+};
+
 export const applyArtifactAction = ({ detail, request }) => {
   invariant(plain(detail), "detail must be a plain object");
   if (detail.action === ARTIFACT_STATE_ACTION) return applyArtifactStateAction({ detail, request });
   if (detail.action === ARTIFACT_INPUT_ACTION) return applyArtifactInputAction({ detail, request });
+  if (detail.action === ARTIFACT_INVOCATION_OPEN_ACTION) return applyArtifactInvocationOpenAction({ detail });
   throw new Error(`artifact-shell-action: detail.action is unsupported: ${String(detail.action ?? "<missing>")}`);
 };
 
