@@ -1,4 +1,4 @@
-name: export artifact-shell registry
+name: refresh artifact-shell registry
 
 on:
   push:
@@ -6,27 +6,27 @@ on:
       - codex/ui-191-version-fixed-invocation
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  refresh:
+    if: ${{ !contains(github.event.head_commit.message, '[registry-generated]') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Generate and emit compressed registry
+      - name: Regenerate and commit exact registry bytes
         run: |
           node apps/artifact-shell/scripts/build-registry.mjs
-          python3 - <<'PY'
-          import base64, gzip, pathlib
-          data = pathlib.Path('apps/artifact-shell/generated/capability-registry.mjs').read_bytes()
-          encoded = base64.b64encode(gzip.compress(data, mtime=0)).decode('ascii')
-          print('REGISTRY_GZIP_BASE64_BEGIN')
-          for offset in range(0, len(encoded), 120):
-              print(encoded[offset:offset + 120])
-          print('REGISTRY_GZIP_BASE64_END')
-          PY
+          if git diff --quiet -- apps/artifact-shell/generated/capability-registry.mjs; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          git commit -m "chore: refresh artifact-shell registry [registry-generated]"
+          git push origin HEAD:${GITHUB_REF_NAME}
