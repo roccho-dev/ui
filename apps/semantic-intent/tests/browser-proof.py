@@ -44,7 +44,7 @@ def main() -> None:
     executable = os.environ.get("CHROMIUM_EXECUTABLE")
     page_errors: list[str] = []
     intent_bodies: list[str] = []
-    modes = iter(["abort", "pending", "applied", "rejected", "permanent_failure"])
+    modes = iter(["abort", "pending", "applied", "rejected", "failed", "permanent_failure"])
 
     def route_intent(route: Route, request: Request) -> None:
         raw = request.post_data or ""
@@ -76,12 +76,19 @@ def main() -> None:
                 "not_started",
                 receipt_id="receipt-browser-3",
             )
+        elif mode == "failed":
+            response_body = result(
+                intent["intent_id"],
+                "failed",
+                "not_started",
+                receipt_id="receipt-browser-4",
+            )
         else:
             response_body = result(
                 intent["intent_id"],
                 "accepted",
                 "permanent_failure",
-                receipt_id="receipt-browser-4",
+                receipt_id="receipt-browser-5",
             )
         route.fulfill(status=200, content_type="application/json", body=response_body)
 
@@ -108,6 +115,7 @@ def main() -> None:
             assert page.locator("#topic-id").input_value() == ""
             assert page.locator("#topic-title").input_value() == ""
             assert page.locator("#body").input_value() == ""
+            assert page.locator("#authority-state").get_attribute("data-state") == "not_accepted"
 
             page.locator("#topic-id").fill("ui-198")
             page.locator("#topic-title").fill("最小意味論ログ")
@@ -139,6 +147,11 @@ def main() -> None:
             page.locator("#local-state[data-state='rejected']").wait_for(timeout=10_000)
             assert page.locator("#github-state").get_attribute("data-state") == "not_started"
 
+            page.locator("#body").fill("Local failure stateを表示する。")
+            page.locator("#submit-intent").click()
+            page.locator("#local-state[data-state='failed']").wait_for(timeout=10_000)
+            assert page.locator("#github-state").get_attribute("data-state") == "not_started"
+
             page.locator("#body").fill("GitHub permanent failure stateを表示する。")
             page.locator("#submit-intent").click()
             page.locator("#github-state[data-state='permanent_failure']").wait_for(timeout=10_000)
@@ -147,6 +160,8 @@ def main() -> None:
             assert page.locator(
                 "[name='endpoint'], [name='repository'], [name='issue_number'], [name='path']"
             ).count() == 0
+            assert page.locator("#authority-state").get_attribute("data-state") == "not_accepted"
+            assert "本UIの権限外" in page.locator("#authority-state").inner_text()
             assert page_errors == []
             browser.close()
     finally:
@@ -167,7 +182,9 @@ def main() -> None:
             "local_accepted_github_pending",
             "github_applied",
             "local_rejected",
+            "local_failed",
             "github_permanent_failure",
+            "adrs_authority_not_accepted",
         ],
     }, ensure_ascii=False, indent=2))
 
