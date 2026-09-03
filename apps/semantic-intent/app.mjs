@@ -14,6 +14,7 @@ const localState = document.querySelector("#local-state");
 const githubState = document.querySelector("#github-state");
 const issueIdentity = document.querySelector("#issue-identity");
 const diagnostics = document.querySelector("#diagnostics");
+const fields = [topicId, topicTitle, body];
 
 const TRANSPORT_LABELS = Object.freeze({
   idle: "未送信",
@@ -45,18 +46,26 @@ function setOutput(element, value, labels) {
   element.textContent = labels[value] ?? value;
 }
 
+function setControlsDisabled(value) {
+  submitButton.disabled = value;
+  for (const field of fields) field.disabled = value;
+}
+
 function render(result) {
   setOutput(transportState, result.transport_state, TRANSPORT_LABELS);
   setOutput(localState, result.local_state ?? "unknown", LOCAL_LABELS);
   setOutput(githubState, result.github_state ?? "unknown", GITHUB_LABELS);
   issueIdentity.textContent = result.issue_number ? `#${result.issue_number}` : "—";
   diagnostics.textContent = JSON.stringify(result, null, 2);
-  retryButton.hidden = result.transport_state !== "unknown";
+
+  const unresolved = result.transport_state === "unknown";
+  retryButton.hidden = !unresolved;
+  setControlsDisabled(unresolved);
 }
 
 function setSending(value) {
   sending = value;
-  submitButton.disabled = value;
+  setControlsDisabled(value);
   retryButton.disabled = value;
   if (value) setOutput(transportState, "sending", TRANSPORT_LABELS);
 }
@@ -75,6 +84,8 @@ async function sendPrepared(submission) {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (retrySubmission) return;
+
   const draft = {
     topic_id: topicId.value,
     body: body.value,
