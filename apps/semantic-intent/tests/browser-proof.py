@@ -125,10 +125,16 @@ def main() -> None:
             assert page.locator("#local-state").get_attribute("data-state") == "unknown"
             assert page.locator("#github-state").get_attribute("data-state") == "unknown"
             assert not page.locator("#retry-intent").is_hidden()
+            assert page.locator("#submit-intent").is_disabled()
+            assert page.locator("#topic-id").is_disabled()
+            assert page.locator("#topic-title").is_disabled()
+            assert page.locator("#body").is_disabled()
 
             page.locator("#retry-intent").click()
             page.locator("#github-state[data-state='pending']").wait_for(timeout=10_000)
             assert page.locator("#local-state").get_attribute("data-state") == "accepted"
+            assert not page.locator("#submit-intent").is_disabled()
+            assert not page.locator("#body").is_disabled()
             assert len(intent_bodies) == 2
             assert intent_bodies[0] == intent_bodies[1], "retry must reuse byte-identical prepared request"
             assert json.loads(intent_bodies[0])["intent_id"] == json.loads(intent_bodies[1])["intent_id"]
@@ -176,6 +182,7 @@ def main() -> None:
         "intentRequests": len(intent_bodies),
         "loadEffects": 0,
         "retryBytesStable": intent_bodies[0] == intent_bodies[1],
+        "ambiguousNewSubmitBlocked": True,
         "subsequentTitleOmitted": "topic_title" not in json.loads(intent_bodies[2]),
         "visibleStates": [
             "transport_unknown",
