@@ -32,6 +32,25 @@ const pendingFixture = await fixture("result-pending.json");
 const appliedFixture = await fixture("result-applied.json");
 const rejectedFixture = await fixture("result-rejected.json");
 const permanentFailureFixture = await fixture("result-permanent-failure.json");
+const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+
+assert.deepEqual(
+  {
+    request: [Buffer.byteLength(requestFixture), sha256(requestFixture)],
+    pending: [Buffer.byteLength(pendingFixture), sha256(pendingFixture)],
+    applied: [Buffer.byteLength(appliedFixture), sha256(appliedFixture)],
+    rejected: [Buffer.byteLength(rejectedFixture), sha256(rejectedFixture)],
+    permanentFailure: [Buffer.byteLength(permanentFailureFixture), sha256(permanentFailureFixture)],
+  },
+  {
+    request: [230, "8a094d3755e5f196b29d10ade7a259bba5f0f67ab243950180457969e015bb29"],
+    pending: [140, "ae56fc72d4597d3c6585afe6be699ac8a6bfe4fe989239cdb503c1401223fe5b"],
+    applied: [184, "bd763236d279efe326a9372bb471d512bb4aa53207ac596fcceba9ec5d2db71c"],
+    rejected: [144, "d0bcb7dcd05d05cd1578d8316872354bdd0f82f9f529c2ad1700ee69c70a59a6"],
+    permanentFailure: [150, "980077450366e5ab4acdde8403950e3361713fd53a91b9a8bee0e7e9a7e70fe1"],
+  },
+  "all shared request/result fixtures are exact bytes",
+);
 
 const source = await readFile(new URL("../src/intent-client.mjs", import.meta.url), "utf8");
 assert.doesNotMatch(source, /(?:from|import)\s*["']node:/u, "browser module imports no Node builtin");
@@ -48,11 +67,6 @@ const submission = createSemanticIntentSubmission(
 
 assert.deepEqual(submission.intent, JSON.parse(requestFixture));
 assert.equal(submission.requestBody, requestFixture, "client emits the parent-frozen request bytes");
-assert.equal(Buffer.byteLength(requestFixture), 230);
-assert.equal(
-  createHash("sha256").update(requestFixture).digest("hex"),
-  "8a094d3755e5f196b29d10ade7a259bba5f0f67ab243950180457969e015bb29",
-);
 assert.ok(Object.isFrozen(submission));
 assert.ok(Object.isFrozen(submission.intent));
 assert.ok(Object.isFrozen(submission.intent.target_ref));
@@ -220,6 +234,7 @@ console.log(JSON.stringify({
   endpoint: SEMANTIC_INTENT_ENDPOINT,
   requestSchema: SEMANTIC_INTENT_SCHEMA,
   resultSchema: SEMANTIC_INTENT_RESULT_SCHEMA,
-  requestSha256: createHash("sha256").update(requestFixture).digest("hex"),
+  requestSha256: sha256(requestFixture),
+  resultFixtureCount: 4,
   retryBytesStable: calls[0].options.body === calls[1].options.body,
 }, null, 2));
