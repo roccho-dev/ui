@@ -23,7 +23,7 @@ def free_port() -> int:
 
 def result(intent_id: str, local_state: str, github_state: str, **extra: object) -> str:
     payload: dict[str, object] = {
-        "schema": "semantic.intent.result.v1",
+        "schema": "semantic-intent.result.v1",
         "intent_id": intent_id,
         "local_state": local_state,
         "github_state": github_state,
