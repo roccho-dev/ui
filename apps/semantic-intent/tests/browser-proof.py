@@ -44,12 +44,24 @@ def main() -> None:
     executable = os.environ.get("CHROMIUM_EXECUTABLE")
     page_errors: list[str] = []
     intent_bodies: list[str] = []
-    modes = iter(["abort", "pending", "applied", "rejected", "failed", "permanent_failure"])
+    modes = iter([
+        "abort",
+        "pending",
+        "applied",
+        "bad_type",
+        "rejected",
+        "failed",
+        "permanent_failure",
+    ])
 
     def route_intent(route: Route, request: Request) -> None:
         raw = request.post_data or ""
         intent_bodies.append(raw)
         intent = json.loads(raw)
+        assert intent["schema"] == "semantic-intent.v1"
+        assert intent["kind"] == "record"
+        assert request.method == "POST"
+
         mode = next(modes)
         if mode == "abort":
             route.abort()
@@ -69,6 +81,9 @@ def main() -> None:
                 issue_number=198,
                 receipt_id="receipt-browser-2",
             )
+        elif mode == "bad_type":
+            route.fulfill(status=502, content_type="text/html", body="<p>invalid upstream response</p>")
+            return
         elif mode == "rejected":
             response_body = result(
                 intent["intent_id"],
@@ -148,10 +163,19 @@ def main() -> None:
             assert applied_request["intent_id"] != json.loads(intent_bodies[1])["intent_id"]
             assert "topic_title" not in applied_request, "subsequent topic event omits the create-only title"
 
-            page.locator("#body").fill("Local reject stateを表示する。")
+            page.locator("#body").fill("Invalid responseでも同じintentを保持する。")
             page.locator("#submit-intent").click()
+            page.locator("#transport-state[data-state='rejected']").wait_for(timeout=10_000)
+            assert page.locator("#local-state").get_attribute("data-state") == "unknown"
+            assert page.locator("#github-state").get_attribute("data-state") == "unknown"
+            assert not page.locator("#retry-intent").is_hidden()
+            assert page.locator("#submit-intent").is_disabled()
+
+            page.locator("#retry-intent").click()
             page.locator("#local-state[data-state='rejected']").wait_for(timeout=10_000)
             assert page.locator("#github-state").get_attribute("data-state") == "not_started"
+            assert intent_bodies[3] == intent_bodies[4], "invalid response retry must reuse exact bytes"
+            assert json.loads(intent_bodies[3])["intent_id"] == json.loads(intent_bodies[4])["intent_id"]
 
             page.locator("#body").fill("Local failure stateを表示する。")
             page.locator("#submit-intent").click()
@@ -181,11 +205,16 @@ def main() -> None:
         "status": "semantic-intent-static-browser-proof-pass",
         "intentRequests": len(intent_bodies),
         "loadEffects": 0,
-        "retryBytesStable": intent_bodies[0] == intent_bodies[1],
+        "retryBytesStable": (
+            intent_bodies[0] == intent_bodies[1]
+            and intent_bodies[3] == intent_bodies[4]
+        ),
         "ambiguousNewSubmitBlocked": True,
+        "invalidResponseNewSubmitBlocked": True,
         "subsequentTitleOmitted": "topic_title" not in json.loads(intent_bodies[2]),
         "visibleStates": [
             "transport_unknown",
+            "transport_rejected_local_unknown",
             "local_accepted_github_pending",
             "github_applied",
             "local_rejected",
