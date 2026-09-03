@@ -93,8 +93,7 @@ function assertText(value, label) {
   return value;
 }
 
-function assertOptionalPositiveInteger(value, label) {
-  if (value === undefined) return undefined;
+function assertPositiveInteger(value, label) {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new TypeError(`${label} must be a positive safe integer`);
   }
@@ -222,7 +221,7 @@ export function parseSemanticIntentResult(value, { expectedIntentId } = {}) {
     ["issue_number", "result.issue_number"],
     ["comment_id", "result.comment_id"],
   ]) {
-    if (OWN.call(input, key)) result[key] = assertOptionalPositiveInteger(input[key], label);
+    if (OWN.call(input, key)) result[key] = assertPositiveInteger(input[key], label);
   }
   if (OWN.call(input, "receipt_id")) {
     result.receipt_id = assertIdentifier(input.receipt_id, "result.receipt_id");
