@@ -58,7 +58,7 @@ function render(result) {
   issueIdentity.textContent = result.issue_number ? `#${result.issue_number}` : "—";
   diagnostics.textContent = JSON.stringify(result, null, 2);
 
-  const unresolved = result.transport_state === "unknown";
+  const unresolved = retrySubmission !== null;
   retryButton.hidden = !unresolved;
   setControlsDisabled(unresolved);
 }
@@ -74,7 +74,7 @@ async function sendPrepared(submission) {
   if (sending) return;
   setSending(true);
   const result = await submitSemanticIntent(submission);
-  retrySubmission = result.transport_state === "unknown" ? submission : null;
+  retrySubmission = result.local_state === "unknown" ? submission : null;
   if (result.local_state === "accepted" || result.local_state === "no_change") {
     topicTitle.value = "";
   }
