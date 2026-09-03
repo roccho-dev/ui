@@ -1377,6 +1377,51 @@
       "sourceCommit": "5b1101daedb6c64261c1fae52f065a51cf0be36f",
       "sourcePath": "schemas/geo-spec.schema.json",
       "reason": "retired-product-identifier-removed-from-current-source"
+    },
+    {
+      "id": "proposal-review-model-260904",
+      "target": "packages/semantic-map/authoring/main.js",
+      "fromSha256": "0cfc611a7db992dd339282245b4e92b23e7b748a24cc60effe313e0d1de9c449",
+      "toSha256": "619c2c718ae079fa4756637a1f51f78e4d8fc687054c157591d7329482b6571b",
+      "sourceCommit": "ce2e3a9452bc82e9177ae152675a880331502f3b",
+      "sourcePath": "packages/semantic-map/authoring/main.js",
+      "reason": "review-scene-projection-without-store-mutation"
+    },
+    {
+      "id": "proposal-review-model-260904",
+      "target": "packages/semantic-map/authoring/pages/app.html",
+      "fromSha256": "5c195fe5d9ef16234137ba84ab3b3bf46058c9bf7d9e5305675038b555529f8b",
+      "toSha256": "efc315a7dae1de5436701e4f7b5ce5357f6546568f3f155ea4748f510f57e5bc",
+      "sourceCommit": "ce2e3a9452bc82e9177ae152675a880331502f3b",
+      "sourcePath": "packages/semantic-map/authoring/pages/app.html",
+      "reason": "proposal-identity-and-provenance-review-surface"
+    },
+    {
+      "id": "proposal-review-model-260904",
+      "target": "packages/semantic-map/authoring/review.js",
+      "fromSha256": "d6e16c57eb19922e914f69ff51e3bbe794972cfff8127383b6fac591c7bf93cf",
+      "toSha256": "7d75669b3e6b3ee8402330b5c3515d0051db7a6d35c9e86cfd80e60093bcc78c",
+      "sourceCommit": "ce2e3a9452bc82e9177ae152675a880331502f3b",
+      "sourcePath": "packages/semantic-map/authoring/review.js",
+      "reason": "single-review-model-for-text-and-graph"
+    },
+    {
+      "id": "proposal-review-model-260904",
+      "target": "packages/semantic-map/authoring/styles/review.css",
+      "fromSha256": "336bd4d3421567117b20073a518cb9ec511b7936e9202487ce052538550e126a",
+      "toSha256": "f618fd01960eb40de582b7161959266f26427af9276ba52e83bfbb66a477a809",
+      "sourceCommit": "ce2e3a9452bc82e9177ae152675a880331502f3b",
+      "sourcePath": "packages/semantic-map/authoring/styles/review.css",
+      "reason": "non-authority-diff-overlay-and-side-review"
+    },
+    {
+      "id": "proposal-review-model-260904",
+      "target": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "fromSha256": "0b74ea2020d5cceaec19b86c001bcb7e1927d2ddba357267e6cd3f5cce9e479f",
+      "toSha256": "46bef25259ff6c39dafe5a264dad23bba330d7c27e07bcbb5d52f97592c7cea3",
+      "sourceCommit": "ce2e3a9452bc82e9177ae152675a880331502f3b",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "reason": "renderer-only-review-decoration"
     }
   ]
 }
