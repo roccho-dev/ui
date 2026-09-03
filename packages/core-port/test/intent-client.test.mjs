@@ -186,6 +186,10 @@ assert.deepEqual(
   JSON.parse(permanentFailureFixture),
 );
 assert.throws(
+  () => parseSemanticIntentResult({ ...JSON.parse(appliedFixture), issue_number: undefined }),
+  /positive safe integer/u,
+);
+assert.throws(
   () => parseSemanticIntentResult({
     schema: SEMANTIC_INTENT_RESULT_SCHEMA,
     intent_id: "intent-001",
