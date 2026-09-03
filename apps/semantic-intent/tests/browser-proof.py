@@ -105,7 +105,13 @@ def main() -> None:
             assert intent_bodies == [], "page load must not submit an intent"
             page.reload(wait_until="networkidle", timeout=30_000)
             assert intent_bodies == [], "refresh/render/import must not submit an intent"
+            assert page.locator("#topic-id").input_value() == ""
+            assert page.locator("#topic-title").input_value() == ""
+            assert page.locator("#body").input_value() == ""
 
+            page.locator("#topic-id").fill("ui-198")
+            page.locator("#topic-title").fill("最小意味論ログ")
+            page.locator("#body").fill("最小の意味論ログを記録する。")
             page.locator("#submit-intent").click()
             page.locator("#transport-state[data-state='unknown']").wait_for(timeout=10_000)
             assert page.locator("#local-state").get_attribute("data-state") == "unknown"
