@@ -28,15 +28,15 @@
     <form id="intent-form">
       <label>
         Topic ID
-        <input id="topic-id" name="topic_id" value="ui-198" required autocomplete="off">
+        <input id="topic-id" name="topic_id" required autocomplete="off" placeholder="topic-id">
       </label>
       <label>
-        Topic title（初回のみ）
-        <input id="topic-title" name="topic_title" value="最小意味論ログ" autocomplete="off">
+        Topic title（新規topicの初回だけ）
+        <input id="topic-title" name="topic_title" autocomplete="off" placeholder="既存topicでは空欄">
       </label>
       <label>
         Body
-        <textarea id="body" name="body" required>最小の意味論ログを記録する。</textarea>
+        <textarea id="body" name="body" required placeholder="記録する意味を入力"></textarea>
       </label>
       <div class="actions">
         <button id="submit-intent" type="submit">記録する</button>
