@@ -1,8 +1,8 @@
 const OWN = Object.prototype.hasOwnProperty;
 const UTF8 = new TextEncoder();
 
-export const SEMANTIC_INTENT_SCHEMA = "semantic.intent.v1";
-export const SEMANTIC_INTENT_RESULT_SCHEMA = "semantic.intent.result.v1";
+export const SEMANTIC_INTENT_SCHEMA = "semantic-intent.v1";
+export const SEMANTIC_INTENT_RESULT_SCHEMA = "semantic-intent.result.v1";
 export const SEMANTIC_INTENT_ENDPOINT = "/api/intents";
 export const SEMANTIC_INTENT_KIND = "record";
 
