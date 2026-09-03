@@ -118,12 +118,15 @@ def main() -> None:
             assert len(intent_bodies) == 2
             assert intent_bodies[0] == intent_bodies[1], "retry must reuse byte-identical prepared request"
             assert json.loads(intent_bodies[0])["intent_id"] == json.loads(intent_bodies[1])["intent_id"]
+            assert page.locator("#topic-title").input_value() == "", "accepted first event retires the first-topic title"
 
             page.locator("#body").fill("GitHub applied stateを表示する。")
             page.locator("#submit-intent").click()
             page.locator("#github-state[data-state='applied']").wait_for(timeout=10_000)
             assert page.locator("#issue-identity").inner_text() == "#198"
-            assert json.loads(intent_bodies[2])["intent_id"] != json.loads(intent_bodies[1])["intent_id"]
+            applied_request = json.loads(intent_bodies[2])
+            assert applied_request["intent_id"] != json.loads(intent_bodies[1])["intent_id"]
+            assert "topic_title" not in applied_request, "subsequent topic event omits the create-only title"
 
             page.locator("#body").fill("Local reject stateを表示する。")
             page.locator("#submit-intent").click()
@@ -152,6 +155,7 @@ def main() -> None:
         "intentRequests": len(intent_bodies),
         "loadEffects": 0,
         "retryBytesStable": intent_bodies[0] == intent_bodies[1],
+        "subsequentTitleOmitted": "topic_title" not in json.loads(intent_bodies[2]),
         "visibleStates": [
             "transport_unknown",
             "local_accepted_github_pending",
