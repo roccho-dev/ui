@@ -1,70 +1,40 @@
+import { createSemanticMap } from '../domain/index.js';
 import { projectView } from '../protocol/index.js';
+import { createSemanticReviewModel } from './review-model.js';
+import { createSemanticReviewOverlay } from './review-overlay.js';
 import { copyText, waitFor, waitForApp } from './shared.js';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(`semantic-review: ${message}`);
 }
 
-function regionMap(snapshot) {
-  return new Map(snapshot.regions.map((region) => [region.id, region]));
+function deltaSummary(model) {
+  const { regions, relations, changed } = model.delta.counts;
+  if (model.delta.netNoop) return 'Net no-op · Operation trace retained';
+  return [
+    `Changed ${changed}`,
+    `regions +${regions.added} −${regions.removed} Δ${regions.changed}`,
+    `relations +${relations.added} −${relations.removed} Δ${relations.changed}`,
+  ].join(' · ');
 }
 
-function relationMap(snapshot) {
-  return new Map(snapshot.relations.map((relation) => [relation.id, relation]));
-}
-
-function boundsText(bounds) {
-  if (!bounds) return '—';
-  return `[${[bounds.x, bounds.y, bounds.width, bounds.height].map((value) => Number(value.toFixed(2))).join(', ')}]`;
-}
-
-function sourceText(value) {
-  return value.length <= 160 ? value : `${value.slice(0, 120)}… (${value.length} chars)`;
-}
-
-function describeEntry(entry) {
-  const operation = entry.operation;
-  const beforeRegions = regionMap(entry.before);
-  const afterRegions = regionMap(entry.after);
-  const beforeRelations = relationMap(entry.before);
-  const afterRelations = relationMap(entry.after);
-  switch (operation.type) {
-    case 'RenameRegion':
-      return `RenameRegion · ${operation.regionId}: 「${beforeRegions.get(operation.regionId)?.label ?? '—'}」→「${afterRegions.get(operation.regionId)?.label ?? '—'}」`;
-    case 'SetRegionOrder':
-      return `SetRegionOrder · ${operation.regionId}: ${beforeRegions.get(operation.regionId)?.order ?? '—'} → ${afterRegions.get(operation.regionId)?.order ?? '—'}`;
-    case 'SetRegionTemporal':
-      return `SetRegionTemporal · ${operation.regionId}: ${JSON.stringify(beforeRegions.get(operation.regionId)?.temporal ?? null)} → ${JSON.stringify(afterRegions.get(operation.regionId)?.temporal ?? null)}`;
-    case 'SetRegionLink':
-      return `SetRegionLink · ${operation.regionId}: ${beforeRegions.get(operation.regionId)?.href ?? '—'} → ${afterRegions.get(operation.regionId)?.href ?? '—'}`;
-    case 'AddRegion':
-      return `AddRegion · ${operation.regionId} in ${afterRegions.get(operation.regionId)?.parent ?? '—'} · ${boundsText(afterRegions.get(operation.regionId)?.bounds)}`;
-    case 'MoveRegions': {
-      const id = operation.regionIds[0];
-      return `MoveRegions · ${operation.regionIds.join(', ')} · ${boundsText(beforeRegions.get(id)?.bounds)} → ${boundsText(afterRegions.get(id)?.bounds)}`;
-    }
-    case 'ResizeRegions': {
-      const id = operation.items[0]?.regionId;
-      return `ResizeRegions · ${operation.items.map((item) => item.regionId).join(', ')} · ${boundsText(beforeRegions.get(id)?.bounds)} → ${boundsText(afterRegions.get(id)?.bounds)}`;
-    }
-    case 'PlaceTemporalRegions':
-      return `PlaceTemporalRegions · ${operation.axis} · ${operation.items.map((item) => `${item.regionId}[${item.start}..${item.end}]@${item.actor ?? 'unassigned'}`).join(', ')}`;
-    case 'ConnectRegions': {
-      const relation = afterRelations.get(operation.relationId);
-      return `ConnectRegions · ${relation?.from ?? operation.from} → ${relation?.to ?? operation.to} · ${relation?.label || relation?.kind || ''}`;
-    }
-    case 'MountRegionModule':
-      return `MountRegionModule · ${operation.regionId} ← ${sourceText(operation.src)}`;
-    case 'UnmountRegionModule':
-      return `UnmountRegionModule · ${operation.regionId}`;
-    case 'RemoveSelection': {
-      const regions = operation.regionIds.filter((id) => beforeRegions.has(id) && !afterRegions.has(id));
-      const relations = operation.relationIds.filter((id) => beforeRelations.has(id) && !afterRelations.has(id));
-      return `RemoveSelection · region [${regions.join(', ')}] relation [${relations.join(', ')}]`;
-    }
-    default:
-      return operation.type;
+function appendSourceRef(list, value) {
+  const item = document.createElement('li');
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('not a review link');
+    const anchor = document.createElement('a');
+    anchor.href = url.href;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.textContent = value;
+    item.append(anchor);
+  } catch (_) {
+    const code = document.createElement('code');
+    code.textContent = value;
+    item.append(code);
   }
+  list.append(item);
 }
 
 async function install() {
@@ -75,8 +45,18 @@ async function install() {
   const status = document.getElementById('review-status');
   const previewPanel = document.getElementById('review-preview-panel');
   const diffList = document.getElementById('review-diff');
+  const baseLabelOutput = document.getElementById('review-base-label');
+  const deltaSummaryOutput = document.getElementById('review-delta-summary');
+  const baseHeadOutput = document.getElementById('review-base-head');
+  const proposalParentOutput = document.getElementById('review-proposal-parent');
+  const proposalIdOutput = document.getElementById('review-proposal-id');
+  const proposalDigestOutput = document.getElementById('review-proposal-digest');
   const beforeHashOutput = document.getElementById('review-before-hash');
   const afterHashOutput = document.getElementById('review-after-hash');
+  const reasonOutput = document.getElementById('review-reason');
+  const assessmentWrap = document.getElementById('review-assessment-wrap');
+  const assessmentOutput = document.getElementById('review-assessment');
+  const sourceRefsOutput = document.getElementById('review-source-refs');
   const beforeUrlOutput = document.getElementById('review-before-url');
   const afterUrlOutput = document.getElementById('review-after-url');
   const acceptButton = document.getElementById('review-accept');
@@ -114,6 +94,7 @@ async function install() {
 
   function clear() {
     pending = null;
+    app.adapter.clearReviewOverlay();
     previewPanel.hidden = true;
     acceptButton.disabled = true;
     acceptButton.textContent = 'Accept';
@@ -123,10 +104,25 @@ async function install() {
     copyAfterButton.disabled = true;
     deliveryOutput.textContent = 'Delivery not planned';
     deliveryOutput.dataset.kind = 'info';
+    baseLabelOutput.textContent = 'Base';
+    baseLabelOutput.dataset.current = 'false';
+    deltaSummaryOutput.textContent = 'No semantic delta';
+    deltaSummaryOutput.dataset.netNoop = 'true';
+    reasonOutput.textContent = 'Not supplied';
+    assessmentWrap.hidden = true;
+    assessmentOutput.textContent = '';
+    sourceRefsOutput.hidden = true;
+    sourceRefsOutput.replaceChildren();
     diffList.replaceChildren();
   }
 
-  async function simulate(proposal, { source, local, view = runtime.view } = {}) {
+  async function simulate(proposal, {
+    source,
+    local,
+    view = runtime.view,
+    metadata = null,
+    currentProofVerifier = null,
+  } = {}) {
     const preview = await runtime.preview(proposal);
     const beforeView = projectView(view, runtime.records);
     const afterView = projectView(view, preview.records);
@@ -134,9 +130,30 @@ async function install() {
     const rejection = await runtime.preflightReject({ local, view: beforeView });
     const beforeUrl = rejection.delivery.url ?? rejection.delivery.plannedUrl ?? rejection.delivery.code;
     const afterUrl = preflight.delivery.url ?? preflight.delivery.plannedUrl ?? preflight.delivery.code;
+
+    const beforeDomain = createSemanticMap(runtime.records);
+    const afterDomain = createSemanticMap(preview.records);
+    const resolver = globalThis.semanticMapModuleResolver;
+    const beforeModules = await resolver.resolve(beforeDomain, {
+      mapId: runtime.mapId,
+      head: runtime.head,
+      view: beforeView,
+    });
+    const afterModules = await resolver.resolve(afterDomain, {
+      mapId: runtime.mapId,
+      head: preview.head,
+      view: afterView,
+    });
+    const beforeScene = app.projectDomain(beforeDomain, beforeView, beforeModules);
+    const afterScene = app.projectDomain(afterDomain, afterView, afterModules);
+    const model = await createSemanticReviewModel({ preview, metadata, currentProofVerifier });
+    const overlay = createSemanticReviewOverlay(model, beforeScene, afterScene);
+
     return Object.freeze({
       proposal,
       preview,
+      model,
+      overlay,
       preflight,
       delivery: preflight.delivery,
       rejection,
@@ -145,11 +162,11 @@ async function install() {
       view: afterView,
       beforeView,
       afterView,
-      beforeHash: runtime.stateHash,
-      afterHash: preview.stateHash,
+      beforeHash: model.identities.baseStateHash,
+      afterHash: model.identities.afterStateHash,
       beforeUrl,
       afterUrl,
-      diffs: Object.freeze(preview.entries.map(describeEntry)),
+      diffs: Object.freeze(model.trace.map((entry) => entry.summary)),
     });
   }
 
@@ -171,14 +188,34 @@ async function install() {
 
   function render(value) {
     pending = value;
+    const { model } = value;
+    app.adapter.setReviewOverlay(value.overlay);
     previewPanel.hidden = false;
-    diffList.replaceChildren(...value.diffs.map((text) => {
+    diffList.replaceChildren(...model.trace.map((entry) => {
       const item = document.createElement('li');
-      item.textContent = text;
+      item.textContent = entry.summary;
+      item.dataset.operationType = entry.type;
       return item;
     }));
-    beforeHashOutput.textContent = value.beforeHash;
-    afterHashOutput.textContent = value.afterHash;
+
+    baseLabelOutput.textContent = model.baseLabel === 'current' ? 'Current' : 'Base';
+    baseLabelOutput.dataset.current = String(model.baseLabel === 'current');
+    deltaSummaryOutput.textContent = deltaSummary(model);
+    deltaSummaryOutput.dataset.netNoop = String(model.delta.netNoop);
+    baseHeadOutput.textContent = model.identities.baseHead;
+    proposalParentOutput.textContent = model.identities.proposalParent;
+    proposalIdOutput.textContent = model.identities.proposalId;
+    proposalDigestOutput.textContent = model.identities.proposalDigest;
+    beforeHashOutput.textContent = model.identities.baseStateHash;
+    afterHashOutput.textContent = model.identities.afterStateHash;
+
+    reasonOutput.textContent = model.provenance.reason ?? 'Not supplied';
+    assessmentWrap.hidden = model.provenance.assessment === null;
+    assessmentOutput.textContent = model.provenance.assessment ?? '';
+    sourceRefsOutput.replaceChildren();
+    for (const ref of model.provenance.sourceRefs) appendSourceRef(sourceRefsOutput, ref);
+    sourceRefsOutput.hidden = model.provenance.sourceRefs.length === 0;
+
     beforeUrlOutput.textContent = value.beforeUrl;
     afterUrlOutput.textContent = value.afterUrl;
     beforeUrlOutput.title = value.beforeUrl;
@@ -229,9 +266,15 @@ async function install() {
     }
   }
 
-  async function openDraft() {
+  async function openDraft(metadata = null, currentProofVerifier = null) {
     const proposal = await runtime.createDraftProposal();
-    return previewProposal(proposal, { source: 'local', local: true, view: runtime.view });
+    return previewProposal(proposal, {
+      source: 'local',
+      local: true,
+      view: runtime.view,
+      metadata,
+      currentProofVerifier,
+    });
   }
 
   async function acceptPending() {
@@ -246,6 +289,7 @@ async function install() {
       });
       lastAccepted = Object.freeze({ ...accepted, result });
       pending = null;
+      app.adapter.clearReviewOverlay();
       acceptButton.textContent = 'Accepted';
       rejectButton.disabled = true;
       afterUrlOutput.textContent = result.url;
@@ -307,6 +351,8 @@ async function install() {
   });
   layer.addEventListener('click', (event) => { if (event.target === layer) close(); });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !layer.hidden) close(); });
+
+  clear();
 
   const api = Object.freeze({
     ready: true,
