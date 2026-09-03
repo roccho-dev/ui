@@ -418,6 +418,18 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     return Object.freeze({ view: currentView, modules, scene: lastScene });
   }
 
+  function projectDomain(domain, view = currentView, resolvedModules = modules) {
+    const normalizedView = normalizeView(view);
+    const presentationProjection = projectPresentation(domain, normalizedView);
+    const candidate = new SemanticProjector(domain, resolvedModules, normalizedView, {
+      presentationProjection,
+    });
+    return candidate.project({
+      scale: adapter.camera().scale,
+      viewport: adapter.viewport(),
+    });
+  }
+
   adapter.setOperationHandler((operation) => {
     if (readOnly) throw new Error('semantic-map: embedded module is read-only');
     const recovery = normalizeMeaningRecoveryResult(translateOperation(operation, Object.freeze({
@@ -862,6 +874,8 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     reset: resetCamera,
     refreshModules,
     setView,
+    projectDomain,
+    currentScene: () => lastScene,
     get view() { return currentView; },
     notify: showToast,
     showError: (message) => showToast(message, true),

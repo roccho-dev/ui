@@ -216,13 +216,36 @@ def main() -> None:
                             selection:adapter.selectionSnapshot(),
                             head:semanticMapRuntime.head,
                             stateHash:semanticMapRuntime.stateHash,
+                            graphCells:adapter.cellsByRegionId.size,
+                            graphEdges:adapter.edgesByProjectionKey.size,
                           };
                           semanticMapApp.operation({
                             type:'PlaceTemporalRegions',
                             axis:'ordinal',
                             items:[{regionId:'accept',actor:'human',start:3,end:3}],
                           });
-                          await semanticMapReview.openDraft();
+                          await semanticMapReview.openDraft({
+                            reason:'Move Accept into the reviewed ordinal position.',
+                            sourceRefs:['https://github.com/roccho-dev/ui/issues/197','sha256:browser-proof'],
+                            assessment:'Proposal only; no current or authority mutation before Accept.',
+                          });
+                          const pendingReview=semanticMapReview.pending();
+                          const review={
+                            model:structuredClone(pendingReview.model),
+                            overlay:adapter.reviewOverlaySnapshot(),
+                            dom:{
+                              baseLabel:document.getElementById('review-base-label').textContent,
+                              baseCurrent:document.getElementById('review-base-label').dataset.current,
+                              delta:document.getElementById('review-delta-summary').textContent,
+                              reason:document.getElementById('review-reason').textContent,
+                              sourceRefs:[...document.querySelectorAll('#review-source-refs li')].map((item)=>item.textContent),
+                              overlayGroups:document.querySelectorAll('[data-layer=semantic-review]').length,
+                              overlayRegions:document.querySelectorAll('[data-layer=semantic-review] [data-review-kind=region]').length,
+                              overlayPointerEvents:getComputedStyle(document.querySelector('[data-layer=semantic-review]')).pointerEvents,
+                              graphCells:adapter.cellsByRegionId.size,
+                              graphEdges:adapter.edgesByProjectionKey.size,
+                            },
+                          };
                           const accepted=await semanticMapReview.acceptPending();
                           await nextFrames();
                           const afterAppend={
@@ -234,6 +257,7 @@ def main() -> None:
                             humanLane:geometry('@root/guide/lane-bg-human'),
                             accept:geometry('accept'),
                             review:geometry('review'),
+                            reviewOverlay:adapter.reviewOverlaySnapshot(),
                           };
                           return {
                             initial,
@@ -248,6 +272,7 @@ def main() -> None:
                               expectedMaximum:5.2,expectedMinimum:Math.min(0.42,fitCamera.scale),
                             },
                             pinch:{during:pinchDuring,after:pinchAfter},
+                            review,
                             append:{before:beforeAppend,after:afterAppend,accepted},
                             zoomButtons:document.querySelectorAll('#zoom-in-button,#zoom-out-button').length,
                           };
@@ -277,6 +302,27 @@ def main() -> None:
                     assert seq_ux["pinch"]["after"]["counts"]["setCamera"] == 1
                     assert seq_ux["pinch"]["after"]["counts"]["project"] == 1
                     assert seq_ux["pinch"]["after"]["counts"]["render"] == 1
+                    assert seq_ux["review"]["model"]["schema"] == "semantic-map-review-model/1"
+                    assert seq_ux["review"]["model"]["authority"] is False
+                    assert seq_ux["review"]["model"]["status"] == "proposal"
+                    assert seq_ux["review"]["model"]["baseLabel"] == "base"
+                    assert seq_ux["review"]["model"]["trace"][0]["type"] == "PlaceTemporalRegions"
+                    assert seq_ux["review"]["model"]["delta"]["regions"][0]["id"] == "accept"
+                    assert seq_ux["review"]["model"]["delta"]["regions"][0]["status"] == "changed"
+                    assert seq_ux["review"]["overlay"]["active"] is True
+                    assert seq_ux["review"]["overlay"]["overlay"]["authority"] is False
+                    assert seq_ux["review"]["dom"]["baseLabel"] == "Base"
+                    assert seq_ux["review"]["dom"]["baseCurrent"] == "false"
+                    assert seq_ux["review"]["dom"]["reason"] == "Move Accept into the reviewed ordinal position."
+                    assert seq_ux["review"]["dom"]["sourceRefs"] == [
+                        "https://github.com/roccho-dev/ui/issues/197", "sha256:browser-proof"
+                    ]
+                    assert seq_ux["review"]["dom"]["overlayGroups"] == 1
+                    assert seq_ux["review"]["dom"]["overlayRegions"] >= 1
+                    assert seq_ux["review"]["dom"]["overlayPointerEvents"] == "none"
+                    assert seq_ux["review"]["dom"]["graphCells"] == seq_ux["append"]["before"]["graphCells"]
+                    assert seq_ux["review"]["dom"]["graphEdges"] == seq_ux["append"]["before"]["graphEdges"]
+                    assert seq_ux["append"]["after"]["reviewOverlay"]["active"] is False
                     assert seq_ux["append"]["before"]["selection"] == {"regionIds": ["review"], "relationIds": []}
                     assert seq_ux["append"]["before"]["camera"] == seq_ux["append"]["after"]["camera"]
                     assert seq_ux["append"]["before"]["selection"] == seq_ux["append"]["after"]["selection"]
@@ -330,6 +376,41 @@ def main() -> None:
                         }"""
                     )
                     assert handoff["text"] and "#smap=" in handoff["url"]
+
+                    rejected_review = page.evaluate(
+                        """async () => {
+                          const target=semanticMapApp.adapter.lastScene.representations.find((item)=>!item.readOnly&&!item.isRoot&&!item.isGuide);
+                          const id=target.sourceRegionId;
+                          const original=semanticMapApp.store.domain.regions.get(id).label;
+                          const before={head:semanticMapRuntime.head,stateHash:semanticMapRuntime.stateHash,label:original};
+                          semanticMapApp.operation({type:'RenameRegion',regionId:id,label:`${original} · reject`});
+                          await semanticMapReview.openDraft({reason:'Reject overlay cleanup proof'});
+                          const open=semanticMapApp.adapter.reviewOverlaySnapshot();
+                          const rejected=await semanticMapReview.rejectPending();
+                          await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+                          return {
+                            rejected,
+                            open,
+                            after:{
+                              head:semanticMapRuntime.head,
+                              stateHash:semanticMapRuntime.stateHash,
+                              label:semanticMapApp.store.domain.regions.get(id).label,
+                              draft:semanticMapRuntime.draftCount(),
+                              overlay:semanticMapApp.adapter.reviewOverlaySnapshot(),
+                              overlayGroups:document.querySelectorAll('[data-layer=semantic-review]').length,
+                            },
+                            before,
+                          };
+                        }"""
+                    )
+                    assert rejected_review["rejected"] is True
+                    assert rejected_review["open"]["active"] is True
+                    assert rejected_review["after"]["head"] == rejected_review["before"]["head"]
+                    assert rejected_review["after"]["stateHash"] == rejected_review["before"]["stateHash"]
+                    assert rejected_review["after"]["label"] == rejected_review["before"]["label"]
+                    assert rejected_review["after"]["draft"] == 0
+                    assert rejected_review["after"]["overlay"]["active"] is False
+                    assert rejected_review["after"]["overlayGroups"] == 0
                 page.close()
             context.close()
             browser.close()

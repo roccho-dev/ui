@@ -95,7 +95,19 @@
 <output class="review-delivery" data-kind="info" id="review-delivery">Delivery not planned</output>
 <output aria-live="polite" class="review-status" id="review-status">#smap URLまたはLocal DraftからProposalを受け取ります。</output>
 <div class="review-preview" hidden id="review-preview-panel">
-<div class="review-hashes"><div class="review-hash"><span>Before</span><code id="review-before-hash"></code></div><div class="review-hash"><span>After</span><code id="review-after-hash"></code></div></div>
+<div class="review-summary"><output class="review-base-label" id="review-base-label">Base</output><output class="review-delta-summary" id="review-delta-summary">No semantic delta</output></div>
+<div class="review-legend" aria-label="Proposal graph diff legend"><span data-review-status="added">＋ Added</span><span data-review-status="removed">− Removed</span><span data-review-status="changed">Δ Changed</span></div>
+<div class="review-identities">
+<div class="review-hash"><span>Base head</span><code id="review-base-head"></code></div>
+<div class="review-hash"><span>Proposal parent</span><code id="review-proposal-parent"></code></div>
+<div class="review-hash"><span>Proposal ID</span><code id="review-proposal-id"></code></div>
+<div class="review-hash"><span>Proposal digest</span><code id="review-proposal-digest"></code></div>
+<div class="review-hash"><span>Base state</span><code id="review-before-hash"></code></div>
+<div class="review-hash"><span>After state</span><code id="review-after-hash"></code></div>
+</div>
+<div class="review-rationale"><span>Reason</span><p id="review-reason">Not supplied</p></div>
+<div class="review-rationale" hidden id="review-assessment-wrap"><span>Assessment · proposal only</span><p id="review-assessment"></p></div>
+<ul class="review-source-refs" hidden id="review-source-refs"></ul>
 <ol class="review-diff" id="review-diff"></ol>
 <div class="review-urls"><div class="review-url"><span>Before URL</span><code id="review-before-url"></code></div><div class="review-url"><span>After URL</span><code id="review-after-url"></code></div></div>
 <div class="review-actions"><button class="review-primary review-accept" disabled id="review-accept" type="button">Accept</button><button class="review-secondary review-reject" disabled id="review-reject" type="button">Reject</button></div>
