@@ -66,6 +66,9 @@ async function sendPrepared(submission) {
   setSending(true);
   const result = await submitSemanticIntent(submission);
   retrySubmission = result.transport_state === "unknown" ? submission : null;
+  if (result.local_state === "accepted" || result.local_state === "no_change") {
+    topicTitle.value = "";
+  }
   setSending(false);
   render(result);
 }
