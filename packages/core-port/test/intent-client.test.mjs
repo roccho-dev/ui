@@ -51,14 +51,14 @@ assert.equal(submission.requestBody, requestFixture, "client emits the parent-fr
 assert.equal(Buffer.byteLength(requestFixture), 230);
 assert.equal(
   createHash("sha256").update(requestFixture).digest("hex"),
-  "c1ac1ac878f9f24b9bba91fcb40bcfbbc65be966c08984a4fb4dfccab6723efe",
+  "8a094d3755e5f196b29d10ade7a259bba5f0f67ab243950180457969e015bb29",
 );
 assert.ok(Object.isFrozen(submission));
 assert.ok(Object.isFrozen(submission.intent));
 assert.ok(Object.isFrozen(submission.intent.target_ref));
 
-assert.equal(SEMANTIC_INTENT_SCHEMA, "semantic.intent.v1");
-assert.equal(SEMANTIC_INTENT_RESULT_SCHEMA, "semantic.intent.result.v1");
+assert.equal(SEMANTIC_INTENT_SCHEMA, "semantic-intent.v1");
+assert.equal(SEMANTIC_INTENT_RESULT_SCHEMA, "semantic-intent.result.v1");
 assert.equal(SEMANTIC_INTENT_KIND, "record");
 assert.equal(SEMANTIC_INTENT_ENDPOINT, "/api/intents");
 assert.deepEqual(SEMANTIC_INTENT_LIMITS, {
