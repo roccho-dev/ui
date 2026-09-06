@@ -23,11 +23,15 @@
           };
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           nativeBuildInputs = [ pkgs.python3 ];
-          npmBuildScript = "build:standalone";
+          buildPhase = ''
+            runHook preBuild
+            npm --prefix tests/fixtures/purpose-atlas-v6-a2ui run build:standalone
+            runHook postBuild
+          '';
           installPhase = ''
             runHook preInstall
             mkdir -p "$out"
-            cp -R dist "$out/dist"
+            cp -R tests/fixtures/purpose-atlas-v6-a2ui/dist "$out/dist"
             test -s "$out/dist/registry/index.html"
             test -s "$out/dist/registry/packages/purpose-atlas-registry-dev/index.html"
             test -s "$out/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
