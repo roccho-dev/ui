@@ -57,6 +57,7 @@ try {
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "ui-registry-foundation-"));
 try {
   fs.mkdirSync(path.join(fixture, "packages", "browser", "src"), { recursive: true });
+  fs.mkdirSync(path.join(fixture, "packages", "browser", "public", "src"), { recursive: true });
   const rootManifestPath = path.join(fixture, "package.json");
   const browserManifestPath = path.join(fixture, "packages", "browser", "package.json");
   const rootManifest = { name: "fixture-root", uiRegistry: { packages: ["packages/browser"], browserEntry: null, componentRegistry: { id: "default", module: "registry.mjs", export: "defaultRegistry" } } };
@@ -65,10 +66,10 @@ try {
   fs.writeFileSync(browserManifestPath, JSON.stringify(browserManifest));
   fs.writeFileSync(path.join(fixture, "registry.mjs"), "export function defaultRegistry() { return { list: () => [{ id: 'FixtureThing' }] }; }\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "index.html"), '<script type="module" src="src/main.js"></script>');
-  fs.writeFileSync(path.join(fixture, "packages", "browser", "graph.html"), '<link rel="stylesheet" href="/src/graph.css"><object data="/src/graph.json"></object><script type="module" src="/src/graph.js"></script>');
+  fs.writeFileSync(path.join(fixture, "packages", "browser", "graph.html"), "<link rel=\"stylesheet\" href='/src/graph.css'><object data=\"/src/graph.json\"></object><script type=\"module\" src='/src/graph.js'></script>");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "main.js"), "export const ready = true;\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.js"), "export const graph = 1;\n");
-  fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.css"), "body { color: green; }\n");
+  fs.writeFileSync(path.join(fixture, "packages", "browser", "public", "src", "graph.css"), "body { color: green; }\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.json"), '{"graph":1}\n');
   const fixturePackages = packageEndpointInventory({ repoRoot: fixture });
   assert.equal(fixturePackages[1].url, "/registry/packages/browser-package/");
@@ -103,13 +104,21 @@ try {
     assert.equal(endpoint.status, 200);
     assert.equal(endpoint.headers.get("x-package-endpoint"), "graph/1");
     const endpointBody = await endpoint.text();
-    assert.match(endpointBody, /src="\/registry\/packages\/browser-package\/src\/graph\.js"/);
-    assert.match(endpointBody, /href="\/registry\/packages\/browser-package\/src\/graph\.css"/);
+    assert.match(endpointBody, /src='\/registry\/packages\/browser-package\/src\/graph\.js'/);
+    assert.match(endpointBody, /href='\/registry\/packages\/browser-package\/src\/graph\.css'/);
     assert.match(endpointBody, /data="\/registry\/packages\/browser-package\/src\/graph\.json"/);
     const resource = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.js`);
     assert.equal(resource.status, 200);
     assert.equal(resource.headers.get("x-package-key"), "browser-package");
     assert.match(await resource.text(), /graph = 1/);
+    const publicStyle = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.css`);
+    assert.equal(publicStyle.status, 200);
+    assert.match(await publicStyle.text(), /color: green/);
+    for (const htmlPath of ["index.html", "graph.html"]) {
+      const html = await fetch(`${fixtureBase}/registry/packages/browser-package/${htmlPath}`);
+      assert.equal(html.status, 404, htmlPath);
+      assert.equal(await html.text(), "Not Found", htmlPath);
+    }
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ui-registry-outside-"));
     try {
       fs.writeFileSync(path.join(outside, "secret.js"), "export const secret = true;\n");
@@ -128,14 +137,22 @@ try {
     for (const rawPath of [
       "/registry/../",
       "/registry/components/../",
+      "/registry%2F..%2Fpackage.json",
+      "/reg%69stry%2F..%2Fpackage.json",
+      "/registry\\..\\package.json",
+      "/registry%ZZ",
       "/registry/packages/browser-package/src/%2e%2e/package.json",
       "/registry/packages/browser-package/src/../../../package.json",
       "/registry/packages/browser-package/src\\..\\package.json",
     ]) {
       const escape = await rawFixtureRequest(rawPath);
       assert.equal(escape.response.statusCode, 404, rawPath);
+      assert.equal(escape.response.headers.location, undefined, rawPath);
       assert.equal(escape.body, "Not Found", rawPath);
     }
+    const survivingRoute = await fetch(`${fixtureBase}/registry/components/FixtureThing/`);
+    assert.equal(survivingRoute.status, 200);
+    assert.equal(survivingRoute.headers.get("x-registry-key"), "FixtureThing");
   } finally {
     await new Promise((resolve, reject) => fixtureServer.close((error) => error ? reject(error) : resolve()));
   }

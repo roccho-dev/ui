@@ -49,6 +49,17 @@ function realFile(candidate, root, label) {
   return real;
 }
 
+function resolvePackageResource(packageRoot, resourcePath, { allowHtml = false, label = "package resource" } = {}) {
+  assertLiteralRelative(resourcePath, label);
+  if (!allowHtml && path.extname(resourcePath).toLowerCase() === ".html") {
+    throw new Error(`${label} cannot expose undeclared HTML`);
+  }
+  const direct = path.resolve(packageRoot, resourcePath);
+  const publicFile = path.resolve(packageRoot, "public", resourcePath);
+  if (fs.existsSync(direct)) return { file: realFile(direct, packageRoot, label), resourcePath };
+  return { file: realFile(publicFile, packageRoot, label), resourcePath };
+}
+
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -98,7 +109,7 @@ export function packageEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
       assertLiteralRelative(configuredEntry, `browser entry: ${manifestPath}`);
       if (!configuredEntry.endsWith(".html")) throw new Error(`browser entry must be HTML or null: ${manifestPath}`);
     }
-    const browserEntryReal = configuredEntry === null ? null : realFile(path.resolve(packageRoot, configuredEntry), packageRoot, "browser entry");
+    const browserEntryReal = configuredEntry === null ? null : resolvePackageResource(packageRoot, configuredEntry, { allowHtml: true, label: "browser entry" }).file;
     const endpointDeclarations = Object.hasOwn(manifest.uiRegistry, "browserEndpoints") ? manifest.uiRegistry.browserEndpoints : [];
     if (!Array.isArray(endpointDeclarations)) throw new Error(`browserEndpoints must be an array: ${manifestPath}`);
     if (configuredEntry === null && endpointDeclarations.length > 0) throw new Error(`headless package cannot declare browserEndpoints: ${manifestPath}`);
@@ -108,7 +119,7 @@ export function packageEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
       const id = assertRouteSegment(endpoint.id, `browser endpoint id: ${manifestPath}`);
       assertLiteralRelative(endpoint.entry, `browser endpoint entry: ${manifestPath}`);
       if (!endpoint.entry.endsWith(".html")) throw new Error(`browser endpoint entry must be HTML: ${manifestPath}`);
-      const entryReal = realFile(path.resolve(packageRoot, endpoint.entry), packageRoot, "browser endpoint entry");
+      const entryReal = resolvePackageResource(packageRoot, endpoint.entry, { allowHtml: true, label: "browser endpoint entry" }).file;
       return {
         ...endpoint, kind, id,
         entryPath: path.relative(realRepoRoot, entryReal).replaceAll("\\", "/"),
@@ -125,7 +136,7 @@ export function packageEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
       manifestPath: path.relative(realRepoRoot, manifestPath).replaceAll("\\", "/"),
       packageRoot: path.relative(realRepoRoot, packageRoot).replaceAll("\\", "/") || ".",
       packageRootReal: packageRoot,
-      browserEntry: browserEntryReal ? path.relative(realRepoRoot, browserEntryReal).replaceAll("\\", "/") : null,
+      browserEntry: configuredEntry,
       browserEntryReal,
       componentRegistry,
       browserEndpoints,
@@ -179,14 +190,21 @@ function componentShell(item) {
   return shell(`${item.key} / UI component registry`, `<main data-package-key="${escapeHtml(item.packageKey)}" data-registry-key="${escapeHtml(item.key)}"><nav><a href="/registry/">UI package registry</a></nav><h1>${escapeHtml(item.key)}</h1><pre id="registry-entry">${escapeHtml(JSON.stringify(item.entry, null, 2))}</pre></main>`);
 }
 
-function packageHtml(item, entryReal = item.browserEntryReal) {
-  return fs.readFileSync(entryReal, "utf8").replaceAll(/(<(?:script|img|source|video|audio|embed)\b[^>]*\bsrc|<link\b[^>]*\bhref|<object\b[^>]*\bdata)="(?![a-z][a-z0-9+.-]*:|\/\/)([^"?#]+)([^\"]*)"/gi,
-    (_match, prefix, source, suffix) => {
-      const unresolved = source.startsWith("/") ? path.resolve(item.packageRootReal, source.slice(1)) : path.resolve(path.dirname(entryReal), source);
-      const resource = realFile(unresolved, item.packageRootReal, "browser resource");
-      const packagePath = path.relative(item.packageRootReal, resource).replaceAll("\\", "/");
-      return `${prefix}="${item.url}${packagePath}${suffix}"`;
-    });
+function packageHtml(item, entryReal = item.browserEntryReal, entryPath = item.browserEntry) {
+  return fs.readFileSync(entryReal, "utf8").replaceAll(
+    /(<(?:script|img|source|video|audio|embed)\b[^>]*?\bsrc\b|<link\b[^>]*?\bhref\b|<object\b[^>]*?\bdata\b)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
+    (match, prefix, doubleQuoted, singleQuoted, unquoted) => {
+      const value = doubleQuoted ?? singleQuoted ?? unquoted;
+      if (!value || /^(?:[a-z][a-z0-9+.-]*:|\/\/|[?#])/i.test(value)) return match;
+      if (unquoted !== undefined) throw new Error("local browser resources must use a quoted attribute");
+      const [, source, suffix] = /^([^?#]+)(.*)$/.exec(value);
+      const entryRelative = path.posix.dirname(entryPath) === "." ? "" : path.posix.dirname(entryPath);
+      const resourcePath = source.startsWith("/") ? source.slice(1) : path.posix.normalize(path.posix.join(entryRelative, source));
+      const resource = resolvePackageResource(item.packageRootReal, resourcePath, { label: "browser resource" });
+      const quote = doubleQuoted !== undefined ? '"' : "'";
+      return `${prefix}=${quote}${item.url}${resource.resourcePath}${suffix}${quote}`;
+    },
+  );
 }
 
 function write(response, status, body, headers = {}) {
@@ -203,7 +221,15 @@ export async function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } =
   return (request, response) => {
     const requestTarget = request.url || "/";
     const rawPathname = requestTarget.split(/[?#]/, 1)[0];
-    const rawRegistryTarget = rawPathname === "/registry" || rawPathname.startsWith(REGISTRY_PREFIX);
+    let decodedPathname = null;
+    try {
+      decodedPathname = decodeURIComponent(rawPathname).replaceAll("\\", "/");
+    } catch {
+      // A literal registry boundary with malformed percent encoding is still reserved.
+    }
+    const rawRegistryTarget = rawPathname === "/registry" || rawPathname.startsWith(REGISTRY_PREFIX) ||
+      rawPathname.startsWith("/registry\\") || rawPathname.startsWith("/registry%") ||
+      decodedPathname === "/registry" || decodedPathname?.startsWith(REGISTRY_PREFIX);
     if (rawRegistryTarget && (rawPathname.includes("%") || rawPathname.includes("\\") ||
         rawPathname.split("/").some((part) => part === "." || part === ".."))) {
       write(response, 404, "Not Found");
@@ -218,7 +244,7 @@ export async function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } =
     const endpoint = endpointByUrl.get(pathname);
     if (endpoint) {
       try {
-        write(response, 200, packageHtml(endpoint.item, endpoint.endpoint.entryReal), {
+        write(response, 200, packageHtml(endpoint.item, endpoint.endpoint.entryReal, endpoint.endpoint.entry), {
           "cache-control": "no-store", "x-package-key": endpoint.item.key,
           "x-package-endpoint": `${endpoint.endpoint.kind}/${endpoint.endpoint.id}`,
         });
@@ -251,18 +277,15 @@ export async function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } =
         write(response, 404, "Not Found");
         return true;
       }
-      const direct = path.resolve(resourceOwner.packageRootReal, relativeResource);
-      const publicFile = path.resolve(resourceOwner.packageRootReal, "public", relativeResource);
-      const unresolved = fs.existsSync(direct) ? direct : publicFile;
-      let file;
+      let resource;
       try {
-        file = realFile(unresolved, resourceOwner.packageRootReal, "package resource");
+        resource = resolvePackageResource(resourceOwner.packageRootReal, relativeResource);
       } catch {
         write(response, 404, "Not Found");
         return true;
       }
-      response.writeHead(200, { "content-type": TYPES.get(path.extname(file)) || "application/octet-stream", "x-package-key": resourceOwner.key });
-      response.end(fs.readFileSync(file));
+      response.writeHead(200, { "content-type": TYPES.get(path.extname(resource.file)) || "application/octet-stream", "x-package-key": resourceOwner.key });
+      response.end(fs.readFileSync(resource.file));
       return true;
     }
     write(response, 404, "Not Found");
