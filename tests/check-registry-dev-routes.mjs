@@ -9,15 +9,15 @@ import { componentEndpointInventory, createRegistryRequestHandler, packageEndpoi
 import { createStaticServer } from "../scripts/serve-static.mjs";
 
 const packages = packageEndpointInventory();
-assert.deepEqual(packages.map(({ key, renderable, componentRegistry }) => ({ key, renderable, componentRegistry })), [
+assert.deepEqual(packages.map(({ key, renderable, componentRegistry }) => ({ key, renderable, componentRegistry: componentRegistry?.id ?? null })), [
   { key: "ui", renderable: false, componentRegistry: null },
   { key: "ui-modeling-corr-port", renderable: false, componentRegistry: "default" },
 ]);
-const components = componentEndpointInventory();
+const components = await componentEndpointInventory();
 assert.deepEqual(components.map(({ key }) => key), defaultRegistry().list().map(({ id }) => id));
 assert.ok(components.length > 0);
 
-const server = createStaticServer();
+const server = await createStaticServer();
 server.listen(0, "127.0.0.1");
 await once(server, "listening");
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -57,16 +57,25 @@ try {
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "ui-registry-foundation-"));
 try {
   fs.mkdirSync(path.join(fixture, "packages", "browser", "src"), { recursive: true });
-  fs.writeFileSync(path.join(fixture, "package.json"), JSON.stringify({ name: "fixture-root", uiRegistry: { packages: ["packages/browser"], browserEntry: null, componentRegistry: "default" } }));
-  fs.writeFileSync(path.join(fixture, "packages", "browser", "package.json"), JSON.stringify({ name: "browser-package", uiRegistry: { browserEntry: "index.html", componentRegistry: null, browserEndpoints: [{ kind: "graph", id: "1", entry: "graph.html" }] } }));
+  const rootManifestPath = path.join(fixture, "package.json");
+  const browserManifestPath = path.join(fixture, "packages", "browser", "package.json");
+  const rootManifest = { name: "fixture-root", uiRegistry: { packages: ["packages/browser"], browserEntry: null, componentRegistry: { id: "default", module: "registry.mjs", export: "defaultRegistry" } } };
+  const browserManifest = { name: "browser-package", uiRegistry: { browserEntry: "index.html", componentRegistry: null, browserEndpoints: [{ kind: "graph", id: "1", entry: "graph.html" }] } };
+  fs.writeFileSync(rootManifestPath, JSON.stringify(rootManifest));
+  fs.writeFileSync(browserManifestPath, JSON.stringify(browserManifest));
+  fs.writeFileSync(path.join(fixture, "registry.mjs"), "export function defaultRegistry() { return { list: () => [{ id: 'FixtureThing' }] }; }\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "index.html"), '<script type="module" src="src/main.js"></script>');
-  fs.writeFileSync(path.join(fixture, "packages", "browser", "graph.html"), '<script type="module" src="src/graph.js"></script>');
+  fs.writeFileSync(path.join(fixture, "packages", "browser", "graph.html"), '<link rel="stylesheet" href="/src/graph.css"><object data="/src/graph.json"></object><script type="module" src="/src/graph.js"></script>');
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "main.js"), "export const ready = true;\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.js"), "export const graph = 1;\n");
+  fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.css"), "body { color: green; }\n");
+  fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.json"), '{"graph":1}\n');
   const fixturePackages = packageEndpointInventory({ repoRoot: fixture });
   assert.equal(fixturePackages[1].url, "/registry/packages/browser-package/");
   assert.equal(fixturePackages[1].browserEndpoints[0].url, "/registry/packages/browser-package/graph/1/");
-  const fixtureHandler = createRegistryRequestHandler({ repoRoot: fixture });
+  const fixtureComponents = await componentEndpointInventory({ repoRoot: fixture, packages: fixturePackages });
+  assert.deepEqual(fixtureComponents.map(({ key, packageKey }) => ({ key, packageKey })), [{ key: "FixtureThing", packageKey: "fixture-root" }]);
+  const fixtureHandler = await createRegistryRequestHandler({ repoRoot: fixture });
   const fixtureServer = http.createServer((request, response) => {
     if (!fixtureHandler(request, response)) {
       response.writeHead(404);
@@ -93,11 +102,24 @@ try {
     const endpoint = await fetch(`${fixtureBase}/registry/packages/browser-package/graph/1/`);
     assert.equal(endpoint.status, 200);
     assert.equal(endpoint.headers.get("x-package-endpoint"), "graph/1");
-    assert.match(await endpoint.text(), /src="\/registry\/packages\/browser-package\/src\/graph\.js"/);
+    const endpointBody = await endpoint.text();
+    assert.match(endpointBody, /src="\/registry\/packages\/browser-package\/src\/graph\.js"/);
+    assert.match(endpointBody, /href="\/registry\/packages\/browser-package\/src\/graph\.css"/);
+    assert.match(endpointBody, /data="\/registry\/packages\/browser-package\/src\/graph\.json"/);
     const resource = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.js`);
     assert.equal(resource.status, 200);
     assert.equal(resource.headers.get("x-package-key"), "browser-package");
     assert.match(await resource.text(), /graph = 1/);
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ui-registry-outside-"));
+    try {
+      fs.writeFileSync(path.join(outside, "secret.js"), "export const secret = true;\n");
+      fs.symlinkSync(outside, path.join(fixture, "packages", "browser", "linked"), "junction");
+      const escapedResource = await fetch(`${fixtureBase}/registry/packages/browser-package/linked/secret.js`);
+      assert.equal(escapedResource.status, 404);
+      assert.equal(await escapedResource.text(), "Not Found");
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
     for (const bad of ["graph/2/", "src/missing.js"]) {
       const response = await fetch(`${fixtureBase}/registry/packages/browser-package/${bad}`, { redirect: "manual" });
       assert.equal(response.status, 404, bad);
@@ -117,6 +139,28 @@ try {
   } finally {
     await new Promise((resolve, reject) => fixtureServer.close((error) => error ? reject(error) : resolve()));
   }
+
+  const invalidManifestCases = [
+    [{ ...browserManifest, name: "bad/name" }, /package name.*literal URL segment/],
+    [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEntry: null } }, /headless package cannot declare browserEndpoints/],
+    [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: [{ kind: "bad/kind", id: "1", entry: "graph.html" }] } }, /endpoint kind.*literal URL segment/],
+    [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: [{ kind: "graph", id: "bad/id", entry: "graph.html" }] } }, /endpoint id.*literal URL segment/],
+    [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: [{ kind: "graph", id: "1", entry: "src/graph.js" }] } }, /endpoint entry must be HTML/],
+    [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: null } }, /browserEndpoints must be an array/],
+  ];
+  for (const [manifest, pattern] of invalidManifestCases) {
+    fs.writeFileSync(browserManifestPath, JSON.stringify(manifest));
+    assert.throws(() => packageEndpointInventory({ repoRoot: fixture }), pattern);
+  }
+  fs.writeFileSync(browserManifestPath, JSON.stringify(browserManifest));
+  fs.writeFileSync(rootManifestPath, JSON.stringify({ ...rootManifest, uiRegistry: { ...rootManifest.uiRegistry, componentRegistry: "default" } }));
+  assert.throws(() => packageEndpointInventory({ repoRoot: fixture }), /componentRegistry must be null or the declared default registry source/);
+  const { componentRegistry: _omitted, ...incompleteRegistry } = rootManifest.uiRegistry;
+  fs.writeFileSync(rootManifestPath, JSON.stringify({ ...rootManifest, uiRegistry: incompleteRegistry }));
+  assert.throws(() => packageEndpointInventory({ repoRoot: fixture }), /no explicit uiRegistry.componentRegistry/);
+  fs.writeFileSync(path.join(fixture, "invalid-registry.mjs"), "export function defaultRegistry() { return { list: () => [{ id: 'bad/id' }] }; }\n");
+  fs.writeFileSync(rootManifestPath, JSON.stringify({ ...rootManifest, uiRegistry: { ...rootManifest.uiRegistry, componentRegistry: { id: "default", module: "invalid-registry.mjs", export: "defaultRegistry" } } }));
+  await assert.rejects(() => componentEndpointInventory({ repoRoot: fixture }), /component registry id.*literal URL segment/);
 } finally {
   fs.rmSync(fixture, { recursive: true, force: true });
 }

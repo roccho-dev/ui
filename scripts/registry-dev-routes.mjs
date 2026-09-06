@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { defaultRegistry } from "../packages/core-port/src/catalog.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REGISTRY_PREFIX = "/registry/";
 const PACKAGE_PREFIX = `${REGISTRY_PREFIX}packages/`;
@@ -32,92 +31,131 @@ function assertLiteralRelative(value, label) {
   }
 }
 
+function assertRouteSegment(value, label) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value) || value === "." || value === "..") {
+    throw new Error(`${label} must be one literal URL segment`);
+  }
+  return value;
+}
+
+function realFile(candidate, root, label) {
+  let real;
+  try {
+    real = fs.realpathSync(candidate);
+  } catch {
+    throw new Error(`${label} does not exist: ${candidate}`);
+  }
+  if (!isWithin(root, real) || !fs.statSync(real).isFile()) throw new Error(`${label} escapes its declared root: ${candidate}`);
+  return real;
+}
+
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 function manifestPaths(repoRoot) {
-  const rootManifestPath = path.resolve(repoRoot, "package.json");
+  const realRepoRoot = fs.realpathSync(repoRoot);
+  const rootManifestPath = realFile(path.resolve(realRepoRoot, "package.json"), realRepoRoot, "root manifest");
   const rootManifest = JSON.parse(fs.readFileSync(rootManifestPath, "utf8"));
   const packagePaths = rootManifest.uiRegistry?.packages;
   if (!Array.isArray(packagePaths)) throw new Error("root manifest must declare uiRegistry.packages");
   const result = [rootManifestPath, ...packagePaths.map((packagePath) => {
     assertLiteralRelative(packagePath, "uiRegistry package declaration");
-    const manifestPath = path.resolve(repoRoot, packagePath, "package.json");
-    if (!isWithin(repoRoot, manifestPath)) throw new Error(`package manifest escapes repository: ${packagePath}`);
-    return manifestPath;
+    return realFile(path.resolve(realRepoRoot, packagePath, "package.json"), realRepoRoot, "package manifest");
   })];
   if (new Set(result.map((item) => item.toLowerCase())).size !== result.length) {
-    throw new Error("uiRegistry package declarations contain duplicate manifest paths");
+    throw new Error("uiRegistry package declarations contain duplicate real manifest paths");
   }
-  return result;
+  return { realRepoRoot, paths: result };
+}
+
+function componentRegistryDeclaration(value, packageRoot, manifestPath) {
+  if (value === null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.id !== "default" ||
+      typeof value.module !== "string" || value.export !== "defaultRegistry") {
+    throw new Error(`componentRegistry must be null or the declared default registry source: ${manifestPath}`);
+  }
+  assertLiteralRelative(value.module, `component registry module: ${manifestPath}`);
+  if (!/\.[cm]?js$/.test(value.module)) throw new Error(`component registry module must be JavaScript: ${manifestPath}`);
+  return { id: value.id, module: value.module, export: value.export, modulePath: realFile(path.resolve(packageRoot, value.module), packageRoot, "component registry module") };
 }
 
 export function packageEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
-  const packages = manifestPaths(repoRoot).map((manifestPath) => {
+  const { realRepoRoot, paths } = manifestPaths(repoRoot);
+  const packages = paths.map((manifestPath) => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    if (typeof manifest.name !== "string" || !manifest.name) throw new Error(`package manifest has no name: ${manifestPath}`);
+    const key = assertRouteSegment(manifest.name, `package name: ${manifestPath}`);
     if (!manifest.uiRegistry || !Object.hasOwn(manifest.uiRegistry, "browserEntry")) {
       throw new Error(`package manifest has no explicit uiRegistry.browserEntry: ${manifestPath}`);
     }
-    const packageRoot = path.dirname(manifestPath);
+    if (!Object.hasOwn(manifest.uiRegistry, "componentRegistry")) {
+      throw new Error(`package manifest has no explicit uiRegistry.componentRegistry: ${manifestPath}`);
+    }
+    const packageRoot = fs.realpathSync(path.dirname(manifestPath));
     const configuredEntry = manifest.uiRegistry.browserEntry;
     if (configuredEntry !== null) {
       assertLiteralRelative(configuredEntry, `browser entry: ${manifestPath}`);
       if (!configuredEntry.endsWith(".html")) throw new Error(`browser entry must be HTML or null: ${manifestPath}`);
     }
-    const browserEntryPath = configuredEntry === null ? null : path.resolve(packageRoot, configuredEntry);
-    if (browserEntryPath && (!isWithin(packageRoot, browserEntryPath) || !fs.existsSync(browserEntryPath))) {
-      throw new Error(`browser entry does not exist inside package: ${manifestPath}`);
-    }
-    const browserEndpoints = (manifest.uiRegistry.browserEndpoints ?? []).map((endpoint) => {
-      if (!endpoint || typeof endpoint.kind !== "string" || typeof endpoint.id !== "string") {
-        throw new Error(`invalid browser endpoint: ${manifestPath}`);
-      }
-      if (!endpoint.kind || !endpoint.id || endpoint.kind.includes("/") || endpoint.id.includes("/")) {
-        throw new Error(`browser endpoint kind and id must be non-empty path segments: ${manifestPath}`);
-      }
+    const browserEntryReal = configuredEntry === null ? null : realFile(path.resolve(packageRoot, configuredEntry), packageRoot, "browser entry");
+    const endpointDeclarations = Object.hasOwn(manifest.uiRegistry, "browserEndpoints") ? manifest.uiRegistry.browserEndpoints : [];
+    if (!Array.isArray(endpointDeclarations)) throw new Error(`browserEndpoints must be an array: ${manifestPath}`);
+    if (configuredEntry === null && endpointDeclarations.length > 0) throw new Error(`headless package cannot declare browserEndpoints: ${manifestPath}`);
+    const browserEndpoints = endpointDeclarations.map((endpoint) => {
+      if (!endpoint || typeof endpoint !== "object" || Array.isArray(endpoint)) throw new Error(`invalid browser endpoint: ${manifestPath}`);
+      const kind = assertRouteSegment(endpoint.kind, `browser endpoint kind: ${manifestPath}`);
+      const id = assertRouteSegment(endpoint.id, `browser endpoint id: ${manifestPath}`);
       assertLiteralRelative(endpoint.entry, `browser endpoint entry: ${manifestPath}`);
-      const entryPath = path.resolve(packageRoot, endpoint.entry);
-      if (!isWithin(packageRoot, entryPath) || !fs.existsSync(entryPath)) {
-        throw new Error(`browser endpoint entry does not exist inside package: ${entryPath}`);
-      }
+      if (!endpoint.entry.endsWith(".html")) throw new Error(`browser endpoint entry must be HTML: ${manifestPath}`);
+      const entryReal = realFile(path.resolve(packageRoot, endpoint.entry), packageRoot, "browser endpoint entry");
       return {
-        ...endpoint,
-        entryPath: path.relative(repoRoot, entryPath).replaceAll("\\", "/"),
-        url: `${PACKAGE_PREFIX}${encodeURIComponent(manifest.name)}/${encodeURIComponent(endpoint.kind)}/${encodeURIComponent(endpoint.id)}/`,
+        ...endpoint, kind, id,
+        entryPath: path.relative(realRepoRoot, entryReal).replaceAll("\\", "/"),
+        entryReal,
+        url: `${PACKAGE_PREFIX}${key}/${kind}/${id}/`,
       };
     });
     if (new Set(browserEndpoints.map(({ url }) => url)).size !== browserEndpoints.length) {
       throw new Error(`duplicate package browser endpoints: ${manifestPath}`);
     }
+    const componentRegistry = componentRegistryDeclaration(manifest.uiRegistry.componentRegistry, packageRoot, manifestPath);
     return {
-      key: manifest.name,
-      manifestPath: path.relative(repoRoot, manifestPath).replaceAll("\\", "/"),
-      packageRoot: path.relative(repoRoot, packageRoot).replaceAll("\\", "/") || ".",
-      browserEntry: browserEntryPath ? path.relative(repoRoot, browserEntryPath).replaceAll("\\", "/") : null,
-      componentRegistry: manifest.uiRegistry.componentRegistry ?? null,
+      key,
+      manifestPath: path.relative(realRepoRoot, manifestPath).replaceAll("\\", "/"),
+      packageRoot: path.relative(realRepoRoot, packageRoot).replaceAll("\\", "/") || ".",
+      packageRootReal: packageRoot,
+      browserEntry: browserEntryReal ? path.relative(realRepoRoot, browserEntryReal).replaceAll("\\", "/") : null,
+      browserEntryReal,
+      componentRegistry,
       browserEndpoints,
-      renderable: Boolean(browserEntryPath),
-      url: `${PACKAGE_PREFIX}${encodeURIComponent(manifest.name)}/`,
+      renderable: Boolean(browserEntryReal),
+      url: `${PACKAGE_PREFIX}${key}/`,
     };
   }).sort((left, right) => left.manifestPath.localeCompare(right.manifestPath));
   if (new Set(packages.map(({ key }) => key)).size !== packages.length) throw new Error("duplicate uiRegistry package names");
   return packages;
 }
 
-export function componentEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
-  const owners = packageEndpointInventory({ repoRoot }).filter(({ componentRegistry }) => componentRegistry === "default");
+export async function componentEndpointInventory({ repoRoot = DEFAULT_ROOT, packages = packageEndpointInventory({ repoRoot }) } = {}) {
+  const owners = packages.filter(({ componentRegistry }) => componentRegistry?.id === "default");
   if (owners.length !== 1) throw new Error("exactly one package must own the default component registry");
   const [owner] = owners;
-  const entries = defaultRegistry().list();
-  if (new Set(entries.map(({ id }) => id)).size !== entries.length) throw new Error("default registry contains duplicate keys");
-  return entries.map((entry) => ({
+  const declaration = owner.componentRegistry;
+  const source = await import(pathToFileURL(declaration.modulePath).href);
+  const factory = source[declaration.export];
+  if (typeof factory !== "function") throw new Error(`declared registry export is not a function: ${declaration.export}`);
+  const registry = factory();
+  if (!registry || typeof registry.list !== "function") throw new Error("declared registry factory must return a registry with list()");
+  const entries = registry.list();
+  if (!Array.isArray(entries)) throw new Error("declared registry list() must return an array");
+  const keys = entries.map((entry) => assertRouteSegment(entry?.id, "component registry id"));
+  if (new Set(keys).size !== keys.length) throw new Error("default registry contains duplicate keys");
+  return entries.map((entry, index) => ({
     packageKey: owner.key,
-    key: entry.id,
+    key: keys[index],
     entry,
-    url: `${COMPONENT_PREFIX}${encodeURIComponent(entry.id)}/`,
+    url: `${COMPONENT_PREFIX}${keys[index]}/`,
   }));
 }
 
@@ -134,22 +172,20 @@ function aggregateShell(packages, components) {
     const label = item.renderable ? `<a href="${item.url}">${identity}</a>` : `<span>${identity}</span>`;
     return `<li data-package-key="${identity}" data-package-status="${item.renderable ? "browser-renderable" : "non-renderable"}">${label} <span class="status">${item.renderable ? escapeHtml(item.browserEntry) : "non-renderable"}</span>${endpoints || componentsForOwner ? `<ul>${endpoints}${componentsForOwner}</ul>` : ""}</li>`;
   }).join("");
-  return shell("UI package registry", `<main data-registry-aggregate="packages"><h1>UI package registry</h1><p>Generated from canonical package manifests and the default component registry.</p><ul id="package-endpoints">${packageRows}</ul></main>`);
+  return shell("UI package registry", `<main data-registry-aggregate="packages"><h1>UI package registry</h1><p>Generated from canonical package manifests and the declared default component registry.</p><ul id="package-endpoints">${packageRows}</ul></main>`);
 }
 
 function componentShell(item) {
   return shell(`${item.key} / UI component registry`, `<main data-package-key="${escapeHtml(item.packageKey)}" data-registry-key="${escapeHtml(item.key)}"><nav><a href="/registry/">UI package registry</a></nav><h1>${escapeHtml(item.key)}</h1><pre id="registry-entry">${escapeHtml(JSON.stringify(item.entry, null, 2))}</pre></main>`);
 }
 
-function packageHtml(repoRoot, item, entry = item.browserEntry) {
-  const entryPath = path.resolve(repoRoot, entry);
-  const packageRoot = path.resolve(repoRoot, item.packageRoot);
-  return fs.readFileSync(entryPath, "utf8").replaceAll(/(src|href)="(?![a-z]+:|\/)([^"?#]+)([^\"]*)"/gi,
-    (_match, attribute, source, suffix) => {
-      const resource = path.resolve(path.dirname(entryPath), source);
-      if (!isWithin(packageRoot, resource)) throw new Error(`browser asset escapes package root: ${source}`);
-      const packagePath = path.relative(packageRoot, resource).replaceAll("\\", "/");
-      return `${attribute}="${item.url}${packagePath}${suffix}"`;
+function packageHtml(item, entryReal = item.browserEntryReal) {
+  return fs.readFileSync(entryReal, "utf8").replaceAll(/(<(?:script|img|source|video|audio|embed)\b[^>]*\bsrc|<link\b[^>]*\bhref|<object\b[^>]*\bdata)="(?![a-z][a-z0-9+.-]*:|\/\/)([^"?#]+)([^\"]*)"/gi,
+    (_match, prefix, source, suffix) => {
+      const unresolved = source.startsWith("/") ? path.resolve(item.packageRootReal, source.slice(1)) : path.resolve(path.dirname(entryReal), source);
+      const resource = realFile(unresolved, item.packageRootReal, "browser resource");
+      const packagePath = path.relative(item.packageRootReal, resource).replaceAll("\\", "/");
+      return `${prefix}="${item.url}${packagePath}${suffix}"`;
     });
 }
 
@@ -158,9 +194,9 @@ function write(response, status, body, headers = {}) {
   response.end(body);
 }
 
-export function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } = {}) {
+export async function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } = {}) {
   const packages = packageEndpointInventory({ repoRoot });
-  const components = componentEndpointInventory({ repoRoot });
+  const components = await componentEndpointInventory({ repoRoot, packages });
   const packageByUrl = new Map(packages.filter(({ renderable }) => renderable).map((item) => [item.url, item]));
   const endpointByUrl = new Map(packages.flatMap((item) => item.browserEndpoints.map((endpoint) => [endpoint.url, { item, endpoint }])));
   const componentByUrl = new Map(components.map((item) => [item.url, item]));
@@ -181,15 +217,23 @@ export function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } = {}) {
     }
     const endpoint = endpointByUrl.get(pathname);
     if (endpoint) {
-      write(response, 200, packageHtml(repoRoot, endpoint.item, endpoint.endpoint.entryPath), {
-        "cache-control": "no-store", "x-package-key": endpoint.item.key,
-        "x-package-endpoint": `${endpoint.endpoint.kind}/${endpoint.endpoint.id}`,
-      });
+      try {
+        write(response, 200, packageHtml(endpoint.item, endpoint.endpoint.entryReal), {
+          "cache-control": "no-store", "x-package-key": endpoint.item.key,
+          "x-package-endpoint": `${endpoint.endpoint.kind}/${endpoint.endpoint.id}`,
+        });
+      } catch {
+        write(response, 404, "Not Found");
+      }
       return true;
     }
     const packageItem = packageByUrl.get(pathname);
     if (packageItem) {
-      write(response, 200, packageHtml(repoRoot, packageItem), { "cache-control": "no-store", "x-package-key": packageItem.key });
+      try {
+        write(response, 200, packageHtml(packageItem), { "cache-control": "no-store", "x-package-key": packageItem.key });
+      } catch {
+        write(response, 404, "Not Found");
+      }
       return true;
     }
     const component = componentByUrl.get(pathname);
@@ -207,11 +251,13 @@ export function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } = {}) {
         write(response, 404, "Not Found");
         return true;
       }
-      const packageRoot = path.resolve(repoRoot, resourceOwner.packageRoot);
-      const direct = path.resolve(packageRoot, relativeResource);
-      const publicFile = path.resolve(packageRoot, "public", relativeResource);
-      const file = fs.existsSync(direct) ? direct : publicFile;
-      if (!isWithin(packageRoot, file) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+      const direct = path.resolve(resourceOwner.packageRootReal, relativeResource);
+      const publicFile = path.resolve(resourceOwner.packageRootReal, "public", relativeResource);
+      const unresolved = fs.existsSync(direct) ? direct : publicFile;
+      let file;
+      try {
+        file = realFile(unresolved, resourceOwner.packageRootReal, "package resource");
+      } catch {
         write(response, 404, "Not Found");
         return true;
       }

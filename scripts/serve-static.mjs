@@ -26,8 +26,8 @@ function resolveRequest(url) {
   return resolved;
 }
 
-export function createStaticServer() {
-  const handleRegistryRequest = createRegistryRequestHandler();
+export async function createStaticServer() {
+  const handleRegistryRequest = await createRegistryRequestHandler();
   return http.createServer((req, res) => {
     if (handleRegistryRequest(req, res)) return;
     const file = resolveRequest(req.url || "/");
@@ -48,8 +48,8 @@ export function createStaticServer() {
   });
 }
 
-export function startStaticServer({ host = HOST, port = PORT } = {}) {
-  const server = createStaticServer();
+export async function startStaticServer({ host = HOST, port = PORT } = {}) {
+  const server = await createStaticServer();
   server.listen(port, host, () => {
     const address = server.address();
     console.log(`purpose-atlas-host http://${host}:${address.port}/`);
@@ -58,5 +58,5 @@ export function startStaticServer({ host = HOST, port = PORT } = {}) {
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  startStaticServer();
+  await startStaticServer();
 }
