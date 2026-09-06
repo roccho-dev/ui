@@ -17,14 +17,15 @@ function escapeHtml(value) {
 function canonicalManifestPaths() {
   const rootManifestPath = resolve(REPO_ROOT, 'package.json');
   const rootManifest = JSON.parse(readFileSync(rootManifestPath, 'utf8'));
-  if (!Array.isArray(rootManifest.workspaces)) throw new Error('root package manifest must declare workspace packages');
-  const workspaceManifests = rootManifest.workspaces.map((workspace) => {
-    if (typeof workspace !== 'string' || /[*?{}[\]]/.test(workspace)) {
-      throw new Error('ui registry workspace declarations must be literal package paths');
+  const packagePaths = rootManifest.uiRegistry?.packages;
+  if (!Array.isArray(packagePaths)) throw new Error('root package manifest must declare ui registry packages');
+  const packageManifests = packagePaths.map((packagePath) => {
+    if (typeof packagePath !== 'string' || /[*?{}[\]]/.test(packagePath)) {
+      throw new Error('ui registry package declarations must be literal package paths');
     }
-    return resolve(REPO_ROOT, workspace, 'package.json');
+    return resolve(REPO_ROOT, packagePath, 'package.json');
   });
-  return [rootManifestPath, ...workspaceManifests];
+  return [rootManifestPath, ...packageManifests];
 }
 
 export function packageEndpointInventory() {

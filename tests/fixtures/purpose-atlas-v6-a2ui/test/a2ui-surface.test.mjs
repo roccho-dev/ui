@@ -128,7 +128,7 @@ test('canonical package and component routes are generated and the aggregate sta
 
     const packages = packageEndpointInventory();
     const rootManifest = JSON.parse(await readFile(new URL('../../../../package.json', import.meta.url), 'utf8'));
-    const expectedManifestPaths = ['package.json', ...rootManifest.workspaces.map((path) => `${path}/package.json`)].sort();
+    const expectedManifestPaths = ['package.json', ...rootManifest.uiRegistry.packages.map((path) => `${path}/package.json`)].sort();
     assert.deepEqual(packages.map(({manifestPath}) => manifestPath), expectedManifestPaths);
     for (const item of packages) {
       const manifest = JSON.parse(await readFile(new URL(`../../../../${item.manifestPath}`, import.meta.url), 'utf8'));
