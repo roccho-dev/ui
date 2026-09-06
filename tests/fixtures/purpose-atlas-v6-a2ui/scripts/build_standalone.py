@@ -21,7 +21,7 @@ def dist_asset_path(url: str) -> Path:
 
 
 def main() -> None:
-    index = (DIST / "registry" / "index.html").read_text(encoding="utf-8")
+    index = (DIST / "registry" / "packages" / "purpose-atlas-registry-dev" / "index.html").read_text(encoding="utf-8")
     css_path = dist_asset_path(required_match(r'href="([^"]+\.css)"', index, "CSS"))
     js_path = dist_asset_path(required_match(r'src="([^"]+\.js)"', index, "JavaScript"))
     css = css_path.read_text(encoding="utf-8")

@@ -1,6 +1,9 @@
 import {defineConfig} from 'vite';
 import {fileURLToPath} from 'node:url';
-import {registryDevRoutesPlugin} from './src/registry-dev-routes.js';
+import {packageEndpointInventory, registryDevRoutesPlugin} from './src/registry-dev-routes.js';
+
+const browserEntries = packageEndpointInventory().filter(({renderable}) => renderable)
+  .map(({browserEntry}) => fileURLToPath(new URL(`../../../${browserEntry}`, import.meta.url)));
 
 export default defineConfig({
   root: fileURLToPath(new URL('./', import.meta.url)),
@@ -14,7 +17,7 @@ export default defineConfig({
         const pathname = new URL(request.url || '/', 'http://127.0.0.1').pathname;
         if (pathname === '/' || pathname === '/purpose-atlas' || pathname.startsWith('/purpose-atlas/')) {
           response.statusCode = 404;
-          response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          response.setHeader('Content-Type', 'text/html; charset=utf-8');
           response.end('Not Found');
           return;
         }
@@ -28,7 +31,7 @@ export default defineConfig({
     sourcemap: true,
     target: 'es2022',
     rollupOptions: {
-      input: fileURLToPath(new URL('./registry/index.html', import.meta.url)),
+      input: [fileURLToPath(new URL('./registry/index.html', import.meta.url)), ...browserEntries],
     },
   },
   server: {

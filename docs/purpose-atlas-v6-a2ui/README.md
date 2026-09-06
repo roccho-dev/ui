@@ -15,7 +15,7 @@ candidateはgoldenと同じ見た目であるだけでなく、t0〜t40の意味
 dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html
     A2UI runtime、surface JSONL、CSS、bundleを内包した単一HTML
 
-dist/registry/index.html + dist/assets/* + dist/a2ui/*
+dist/registry/index.html + dist/registry/packages/purpose-atlas-registry-dev/index.html + dist/assets/* + dist/a2ui/*
     通常のVite production build
 
 golden/source/*

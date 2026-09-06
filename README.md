@@ -183,8 +183,9 @@ The Purpose Decision Atlas v6 A2UI witness is the repository's only
 serve-capable package. The repository root remains a headless registry library.
 
 - package name: `purpose-atlas-registry-dev`
-- browser route: `/registry/`; component routes: `/registry/<registry-key>/`
-- source entry: `tests/fixtures/purpose-atlas-v6-a2ui/registry/index.html`
+- browser aggregate: `/registry/`; package route: `/registry/packages/purpose-atlas-registry-dev/`
+- component routes: `/registry/packages/ui-modeling-corr-port/components/<registry-key>/`
+- package source entry: `tests/fixtures/purpose-atlas-v6-a2ui/registry/packages/purpose-atlas-registry-dev/index.html`
 - source fixture package: tests/fixtures/purpose-atlas-v6-a2ui
 - A2UI surface JSONL: tests/fixtures/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl
 - custom component: AtlasSourceSurface

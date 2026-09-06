@@ -42,7 +42,7 @@ export const purposeAtlasHtmlBox = makeAdapterBox({
   adapterKind: "html",
   accepts: "a2ui.surface.v0.9",
   produces: "html.document",
-  assets: ["tests/fixtures/purpose-atlas-v6-a2ui/registry/index.html"],
+  assets: ["tests/fixtures/purpose-atlas-v6-a2ui/registry/packages/purpose-atlas-registry-dev/index.html"],
 });
 
 // A2UI/SDUI surface adapter: consumes the registry view model, not raw DOM.

@@ -16,7 +16,8 @@ const dataContractPath = path.join(atlasDocsRoot, "A2UI-DATA-CONTRACT.md");
 const atlasReadmePath = path.join(atlasDocsRoot, "README.md");
 const goldenLockPath = path.join(atlasRoot, "golden/GOLDEN_LOCK.json");
 const packagePath = path.join(atlasRoot, "package.json");
-const packageEntryPath = path.join(atlasRoot, "registry/index.html");
+const aggregateEntryPath = path.join(atlasRoot, "registry/index.html");
+const packageEntryPath = path.join(atlasRoot, "registry/packages/purpose-atlas-registry-dev/index.html");
 
 const contractPhrases = [
   "ADRS projected input",
@@ -75,9 +76,12 @@ function collectFiles(dir, prefix = "") {
 }
 
 const html = fs.readFileSync(packageEntryPath, "utf8");
-assert.match(html, /UI component registry/);
+assert.match(html, /purpose-atlas-registry-dev/);
 assert.match(html, /purpose-atlas-app/);
 assert.doesNotMatch(html, /need-zoom-purpose-lineage/);
+const aggregateHtml = fs.readFileSync(aggregateEntryPath, "utf8");
+assert.match(aggregateHtml, /UI package registry/);
+assert.doesNotMatch(aggregateHtml, /purpose-atlas-app|<script/);
 
 const packageManifest = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 assert.equal(packageManifest.name, "purpose-atlas-registry-dev");
@@ -144,8 +148,8 @@ assert.equal(atlasEntry.family, "purpose_atlas");
 assert.equal(atlasEntry.childrenPolicy, "none");
 assert.ok(atlasEntry.actions.includes("atlas.recordMismatch"));
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
-assert.deepEqual(purposeAtlasHtmlBox.assets, ["tests/fixtures/purpose-atlas-v6-a2ui/registry/index.html"]);
-assert.deepEqual(atlasEntry.adapterAssets.html, ["tests/fixtures/purpose-atlas-v6-a2ui/registry/index.html"]);
+assert.deepEqual(purposeAtlasHtmlBox.assets, ["tests/fixtures/purpose-atlas-v6-a2ui/registry/packages/purpose-atlas-registry-dev/index.html"]);
+assert.deepEqual(atlasEntry.adapterAssets.html, ["tests/fixtures/purpose-atlas-v6-a2ui/registry/packages/purpose-atlas-registry-dev/index.html"]);
 
 if (fs.existsSync(path.join(root, ".git"))) {
   const trackedAtlasFiles = execFileSync(

@@ -30,6 +30,7 @@ require(package["devDependencies"].get("vite") == "8.0.16", "Vite must be pinned
 require(package["devDependencies"].get("esbuild") == "0.28.1", "esbuild must be pinned")
 
 require((ROOT / "dist/registry/index.html").exists(), "named production build missing")
+require((ROOT / "dist/registry/packages/purpose-atlas-registry-dev/index.html").exists(), "package production build missing")
 require((ROOT / "dist/a2ui/purpose-atlas.surface.jsonl").exists(), "A2UI JSONL missing from production build")
 require((ROOT / "dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html").exists(), "standalone preview missing")
 require((ROOT / "golden/source/ui-shell.html").exists(), "uncompressed latest source UI golden missing")
@@ -92,7 +93,7 @@ actions = {
 require(len(actions) == 15, "all 15 Atlas actions must be declared")
 
 test_cases = sum(len(re.findall(r"\btest\(", path.read_text(encoding="utf-8"))) for path in (ROOT / "test").glob("*.test.mjs"))
-require(test_cases == 14, "expected 14 verification test cases")
+require(test_cases == 15, "expected 15 verification test cases")
 
 report = {
     "status": "pass",

@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Purpose Decision Atlas v6: latest source HTML UI preserved as golden, running on A2UI with cached renderer improvements.",
+  "uiRegistry": {
+    "browserEntry": "registry/packages/purpose-atlas-registry-dev/index.html",
+    "componentRegistry": null
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 18083 --strictPort",
     "build": "vite build",

@@ -6,7 +6,7 @@ import {createServer as createNetServer} from 'node:net';
 import {A2uiMessageSchema} from '@a2ui/web_core/v0_9';
 import {createServer} from 'vite';
 import {validateAtlasMessages} from '../src/a2ui/validate-messages.js';
-import {registryEndpointInventory} from '../src/registry-dev-routes.js';
+import {packageEndpointInventory, registryEndpointInventory} from '../src/registry-dev-routes.js';
 import * as ui from '../../../../src/index.mjs';
 
 const surfacePath = new URL('../public/a2ui/purpose-atlas.surface.jsonl', import.meta.url);
@@ -105,7 +105,7 @@ test('undeclared component properties are rejected by strict catalog schemas', a
   assert.throws(() => validateAtlasMessages(records), /property error/);
 });
 
-test('canonical registry routes are generated and stale public routes stay negative', async () => {
+test('canonical package and component routes are generated and the aggregate stays stable', async () => {
   const temporaryPort = await osAssignedLoopbackPort();
   const server = await createServer({
     configFile: fileURLToPath(new URL('../vite.config.js', import.meta.url)),
@@ -122,18 +122,31 @@ test('canonical registry routes are generated and stale public routes stay negat
     const named = await fetch(`http://127.0.0.1:${address.port}/registry/`, {redirect: 'manual'});
     const namedBody = await named.text();
     assert.equal(named.status, 200);
-    assert.match(namedBody, /<title>UI component registry<\/title>/);
-    assert.doesNotMatch(namedBody, /Purpose Atlas registry/);
-    assert.match(namedBody, /<purpose-atlas-app>/);
-    const viteClientPath = namedBody.match(/<script type="module" src="([^"]*@vite\/client)"><\/script>/)?.[1];
-    assert.equal(viteClientPath, '/registry/@vite/client');
-    const viteClient = await fetch(new URL(viteClientPath, named.url));
-    const viteClientBody = await viteClient.text();
-    assert.equal(viteClient.status, 200);
-    const entryPath = namedBody.match(/<script type="module" src="([^"]*src\/main\.js)"><\/script>/)?.[1];
-    assert.ok(entryPath);
+    assert.match(namedBody, /<title>UI package registry<\/title>/);
+    assert.match(namedBody, /data-registry-aggregate="packages"/);
+    assert.doesNotMatch(namedBody, /purpose-atlas-app|data-package-surface="selected"|<script/);
+
+    const packages = packageEndpointInventory();
+    const rootManifest = JSON.parse(await readFile(new URL('../../../../package.json', import.meta.url), 'utf8'));
+    const expectedManifestPaths = ['package.json', ...rootManifest.workspaces.map((path) => `${path}/package.json`)].sort();
+    assert.deepEqual(packages.map(({manifestPath}) => manifestPath), expectedManifestPaths);
+    for (const item of packages) {
+      const manifest = JSON.parse(await readFile(new URL(`../../../../${item.manifestPath}`, import.meta.url), 'utf8'));
+      assert.equal(item.key, manifest.name);
+      assert.equal(item.renderable, manifest.uiRegistry.browserEntry !== null);
+      assert.equal(item.componentRegistry, manifest.uiRegistry.componentRegistry ?? null);
+    }
+    for (const item of packages) assert.match(namedBody, new RegExp(`data-package-key="${item.key}"`));
+    const browserPackage = packages.find(({renderable}) => renderable);
+    const packageResponse = await fetch(new URL(browserPackage.url, named.url), {redirect: 'manual'});
+    const packageBody = await packageResponse.text();
+    assert.equal(packageResponse.status, 200);
+    assert.match(packageBody, /data-package-surface="selected"/);
+    assert.match(packageBody, /<purpose-atlas-app>/);
+    const entryPath = packageBody.match(/<script type="module" src="([^"]*src\/main\.js)"><\/script>/)?.[1];
+    assert.equal(new URL(entryPath, packageResponse.url).pathname, '/registry/src/main.js');
     const entry = await fetch(new URL(entryPath, named.url));
-    assert.equal(entry.status, 200, `entry source must resolve at ${entryPath}`);
+    assert.equal(entry.status, 200);
     const entryBody = await entry.text();
     assert.match(entryBody, /\/registry\/src\/app\.js/);
     const appSource = await fetch(new URL('/registry/src/app.js', named.url));
@@ -141,10 +154,10 @@ test('canonical registry routes are generated and stale public routes stay negat
     assert.equal(appSource.status, 200);
     assert.match(appBody, /PurposeAtlasApp/);
     const dependencyPaths = [...new Set(
-      [viteClientBody, appBody].flatMap((source) => [...source.matchAll(/["'](\/registry\/node_modules\/[^"']+)["']/g)]
+      [appBody].flatMap((source) => [...source.matchAll(/["'](\/registry\/node_modules\/[^"']+)["']/g)]
         .map((match) => match[1])),
     )];
-    assert.ok(dependencyPaths.length >= 3);
+    assert.ok(dependencyPaths.length >= 2);
     for (const path of dependencyPaths) {
       assert.equal((await fetch(new URL(path, named.url))).status, 200, `transformed dependency must resolve at ${path}`);
     }
@@ -163,9 +176,11 @@ test('canonical registry routes are generated and stale public routes stay negat
     assert.doesNotMatch(rootBody, /purpose-atlas-app|Purpose Atlas/i);
 
     const built = await readFile(new URL('../dist/registry/index.html', import.meta.url), 'utf8');
-    assert.match(built, /<title>UI component registry<\/title>/);
-    assert.match(built, /<purpose-atlas-app>/);
-    const builtAssets = [...built.matchAll(/(?:href|src)="(\/registry\/assets\/[^"]+)"/g)]
+    assert.match(built, /<title>UI package registry<\/title>/);
+    assert.doesNotMatch(built, /purpose-atlas-app|data-package-surface="selected"/);
+    const builtPackage = await readFile(new URL('../dist/registry/packages/purpose-atlas-registry-dev/index.html', import.meta.url), 'utf8');
+    assert.match(builtPackage, /<purpose-atlas-app>/);
+    const builtAssets = [...builtPackage.matchAll(/(?:href|src)="(\/registry\/assets\/[^"]+)"/g)]
       .map((match) => match[1]);
     assert.equal(builtAssets.length, 2);
     for (const asset of builtAssets) {
@@ -182,6 +197,7 @@ test('canonical registry routes are generated and stale public routes stay negat
       const endpoint = await fetch(new URL(url, named.url), {redirect: 'manual'});
       const endpointBody = await endpoint.text();
       assert.equal(endpoint.status, 200, `${key} endpoint must be reachable`);
+      assert.equal(endpoint.headers.get('x-package-key'), 'ui-modeling-corr-port');
       assert.equal(endpoint.headers.get('x-registry-key'), key);
       assert.match(endpointBody, new RegExp(`data-registry-key="${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
       assert.match(endpointBody, new RegExp(`&quot;id&quot;: &quot;${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}&quot;`));
@@ -193,20 +209,22 @@ test('canonical registry routes are generated and stale public routes stay negat
       .sort((a, b) => a.exportName.localeCompare(b.exportName));
     for (const descriptor of descriptorExports) {
       assert.equal(canonicalKeys.includes(descriptor.key), false);
-      const response = await fetch(new URL(`/registry/${encodeURIComponent(descriptor.key)}/`, named.url), {redirect: 'manual'});
+      const response = await fetch(new URL(`/registry/packages/ui-modeling-corr-port/components/${encodeURIComponent(descriptor.key)}/`, named.url), {redirect: 'manual'});
       assert.equal(response.status, 404);
       assert.equal(response.headers.has('location'), false);
     }
 
-    const unknown = await fetch(new URL('/registry/not-a-registry-key/', named.url), {redirect: 'manual'});
+    const unknown = await fetch(new URL('/registry/packages/not-a-package/', named.url), {redirect: 'manual'});
     assert.equal(unknown.status, 404);
     assert.equal(unknown.headers.has('location'), false);
     assert.equal(await unknown.text(), 'Not Found');
     const malformedComponentPaths = [
-      '/registry/App',
-      '/registry/App/extra/',
-      '/registry/%41pp/',
-      '/registry/%ZZ/',
+      '/registry/packages/ui-modeling-corr-port/',
+      '/registry/packages/ui-modeling-corr-port/components/App',
+      '/registry/packages/ui-modeling-corr-port/components/App/extra/',
+      '/registry/packages/ui-modeling-corr-port/components/%41pp/',
+      '/registry/App/',
+      '/registry/NeedZoom/',
     ];
     for (const path of malformedComponentPaths) {
       const response = await fetch(new URL(path, named.url), {redirect: 'manual'});
@@ -233,9 +251,9 @@ test('canonical registry routes are generated and stale public routes stay negat
       status: 'canonical-registry-dev-route-pass',
       port: address.port,
       portAllocation: 'os-assigned-loopback',
-      namedRoute: {path: '/registry/', status: named.status, title: 'UI component registry'},
+      namedRoute: {path: '/registry/', status: named.status, title: 'UI package registry', staticWithoutClientMount: true},
+      packages,
       boundSources: {
-        viteClientStatus: viteClient.status,
         entryStatus: entry.status,
         appStatus: appSource.status,
         surfaceStatus: servedSurface.status,
@@ -243,7 +261,7 @@ test('canonical registry routes are generated and stale public routes stay negat
         idDependencyStatus: idDependency.status,
       },
       rootRoute: {path: '/', status: root.status, location: root.headers.get('location')},
-      buildOutput: 'dist/registry/index.html',
+      buildOutputs: ['dist/registry/index.html', 'dist/registry/packages/purpose-atlas-registry-dev/index.html'],
       registryEndpoints: inventory.map(({key, url}) => ({key, url})),
       exportedDescriptors: descriptorExports,
       unknownComponentStatus: unknown.status,
