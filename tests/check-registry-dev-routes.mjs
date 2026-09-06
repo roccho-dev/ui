@@ -66,7 +66,9 @@ try {
   fs.writeFileSync(browserManifestPath, JSON.stringify(browserManifest));
   fs.writeFileSync(path.join(fixture, "registry.mjs"), "export function defaultRegistry() { return { list: () => [{ id: 'FixtureThing' }] }; }\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "index.html"), '<script type="module" src="src/main.js"></script>');
-  fs.writeFileSync(path.join(fixture, "packages", "browser", "graph.html"), "<link rel=\"stylesheet\" href='/src/graph.css'><object data=\"/src/graph.json\"></object><script type=\"module\" src='/src/graph.js'></script>");
+  const graphHtmlPath = path.join(fixture, "packages", "browser", "graph.html");
+  const graphHtml = "<link rel=\"stylesheet\" href='/src/graph.css'><object data=\"/src/graph.json\"></object><script type=\"module\" data-src=\"/missing-shadow.js\" src='/src/graph.js'></script>";
+  fs.writeFileSync(graphHtmlPath, graphHtml);
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "main.js"), "export const ready = true;\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.js"), "export const graph = 1;\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "public", "src", "graph.css"), "body { color: green; }\n");
@@ -107,6 +109,7 @@ try {
     assert.match(endpointBody, /src='\/registry\/packages\/browser-package\/src\/graph\.js'/);
     assert.match(endpointBody, /href='\/registry\/packages\/browser-package\/src\/graph\.css'/);
     assert.match(endpointBody, /data="\/registry\/packages\/browser-package\/src\/graph\.json"/);
+    assert.match(endpointBody, /data-src="\/missing-shadow\.js"/);
     const resource = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.js`);
     assert.equal(resource.status, 200);
     assert.equal(resource.headers.get("x-package-key"), "browser-package");
@@ -114,6 +117,14 @@ try {
     const publicStyle = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.css`);
     assert.equal(publicStyle.status, 200);
     assert.match(await publicStyle.text(), /color: green/);
+    const emittedData = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.json`);
+    assert.equal(emittedData.status, 200);
+    assert.equal((await emittedData.json()).graph, 1);
+    for (const deniedResource of ["public/src/graph.css"]) {
+      const denied = await fetch(`${fixtureBase}/registry/packages/browser-package/${deniedResource}`);
+      assert.equal(denied.status, 404, deniedResource);
+      assert.equal(await denied.text(), "Not Found", deniedResource);
+    }
     for (const htmlPath of ["index.html", "graph.html"]) {
       const html = await fetch(`${fixtureBase}/registry/packages/browser-package/${htmlPath}`);
       assert.equal(html.status, 404, htmlPath);
@@ -137,10 +148,15 @@ try {
     for (const rawPath of [
       "/registry/../",
       "/registry/components/../",
+      "/prefix/../registry/components/FixtureThing/",
+      "/prefix/%2e%2e/registry/components/FixtureThing/",
       "/registry%2F..%2Fpackage.json",
       "/reg%69stry%2F..%2Fpackage.json",
+      "/reg%ZZistry/",
       "/registry\\..\\package.json",
       "/registry%ZZ",
+      "http://example.test/registry/components/FixtureThing/",
+      "//example.test/registry/components/FixtureThing/",
       "/registry/packages/browser-package/src/%2e%2e/package.json",
       "/registry/packages/browser-package/src/../../../package.json",
       "/registry/packages/browser-package/src\\..\\package.json",
@@ -157,12 +173,21 @@ try {
     await new Promise((resolve, reject) => fixtureServer.close((error) => error ? reject(error) : resolve()));
   }
 
+  fs.writeFileSync(path.join(fixture, "packages", "browser", "frame.html"), "<!doctype html><title>frame</title>");
+  fs.writeFileSync(graphHtmlPath, '<iframe src="/frame.html"></iframe>');
+  await assert.rejects(() => createRegistryRequestHandler({ repoRoot: fixture }), /browser resource cannot expose undeclared HTML/);
+  fs.writeFileSync(graphHtmlPath, '<script src=/src/graph.js></script>');
+  await assert.rejects(() => createRegistryRequestHandler({ repoRoot: fixture }), /local browser resources must use a quoted attribute/);
+  fs.writeFileSync(graphHtmlPath, graphHtml);
+
   const invalidManifestCases = [
     [{ ...browserManifest, name: "bad/name" }, /package name.*literal URL segment/],
     [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEntry: null } }, /headless package cannot declare browserEndpoints/],
     [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: [{ kind: "bad/kind", id: "1", entry: "graph.html" }] } }, /endpoint kind.*literal URL segment/],
     [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: [{ kind: "graph", id: "bad/id", entry: "graph.html" }] } }, /endpoint id.*literal URL segment/],
     [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: [{ kind: "graph", id: "1", entry: "src/graph.js" }] } }, /endpoint entry must be HTML/],
+    [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEntry: "public/index.html" } }, /route-serializable names and cannot name physical public/],
+    [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: [{ kind: "graph", id: "1", entry: "bad name.html" }] } }, /route-serializable names/],
     [{ ...browserManifest, uiRegistry: { ...browserManifest.uiRegistry, browserEndpoints: null } }, /browserEndpoints must be an array/],
   ];
   for (const [manifest, pattern] of invalidManifestCases) {

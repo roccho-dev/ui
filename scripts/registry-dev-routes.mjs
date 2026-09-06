@@ -38,6 +38,14 @@ function assertRouteSegment(value, label) {
   return value;
 }
 
+function assertRouteSerializablePath(value, label) {
+  assertLiteralRelative(value, label);
+  const segments = value.split("/");
+  if (segments[0] === "public" || segments.some((segment) => encodeURIComponent(segment) !== segment)) {
+    throw new Error(`${label} must use route-serializable names and cannot name physical public/`);
+  }
+}
+
 function realFile(candidate, root, label) {
   let real;
   try {
@@ -50,14 +58,17 @@ function realFile(candidate, root, label) {
 }
 
 function resolvePackageResource(packageRoot, resourcePath, { allowHtml = false, label = "package resource" } = {}) {
-  assertLiteralRelative(resourcePath, label);
+  assertRouteSerializablePath(resourcePath, label);
   if (!allowHtml && path.extname(resourcePath).toLowerCase() === ".html") {
     throw new Error(`${label} cannot expose undeclared HTML`);
   }
   const direct = path.resolve(packageRoot, resourcePath);
   const publicFile = path.resolve(packageRoot, "public", resourcePath);
-  if (fs.existsSync(direct)) return { file: realFile(direct, packageRoot, label), resourcePath };
-  return { file: realFile(publicFile, packageRoot, label), resourcePath };
+  const file = fs.existsSync(direct) ? realFile(direct, packageRoot, label) : realFile(publicFile, packageRoot, label);
+  const logicalHtml = path.extname(resourcePath).toLowerCase() === ".html";
+  const realHtml = path.extname(file).toLowerCase() === ".html";
+  if (logicalHtml !== realHtml) throw new Error(`${label} logical and real HTML types disagree`);
+  return { file, resourcePath };
 }
 
 function escapeHtml(value) {
@@ -191,20 +202,23 @@ function componentShell(item) {
 }
 
 function packageHtml(item, entryReal = item.browserEntryReal, entryPath = item.browserEntry) {
-  return fs.readFileSync(entryReal, "utf8").replaceAll(
-    /(<(?:script|img|source|video|audio|embed)\b[^>]*?\bsrc\b|<link\b[^>]*?\bhref\b|<object\b[^>]*?\bdata\b)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
-    (match, prefix, doubleQuoted, singleQuoted, unquoted) => {
-      const value = doubleQuoted ?? singleQuoted ?? unquoted;
-      if (!value || /^(?:[a-z][a-z0-9+.-]*:|\/\/|[?#])/i.test(value)) return match;
-      if (unquoted !== undefined) throw new Error("local browser resources must use a quoted attribute");
-      const [, source, suffix] = /^([^?#]+)(.*)$/.exec(value);
-      const entryRelative = path.posix.dirname(entryPath) === "." ? "" : path.posix.dirname(entryPath);
-      const resourcePath = source.startsWith("/") ? source.slice(1) : path.posix.normalize(path.posix.join(entryRelative, source));
-      const resource = resolvePackageResource(item.packageRootReal, resourcePath, { label: "browser resource" });
-      const quote = doubleQuoted !== undefined ? '"' : "'";
-      return `${prefix}=${quote}${item.url}${resource.resourcePath}${suffix}${quote}`;
-    },
-  );
+  const entryRelative = path.posix.dirname(entryPath) === "." ? "" : path.posix.dirname(entryPath);
+  return fs.readFileSync(entryReal, "utf8").replaceAll(/<(?:script|img|source|video|audio|embed|iframe|input|link|object)\b[^>]*>/gi, (tag) => {
+    const tagName = /^<([a-z]+)/i.exec(tag)[1].toLowerCase();
+    const resourceAttribute = tagName === "link" ? "href" : tagName === "object" ? "data" : "src";
+    return tag.replaceAll(/(\s+)([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g,
+      (attribute, whitespace, name, doubleQuoted, singleQuoted, unquoted) => {
+        if (name.toLowerCase() !== resourceAttribute) return attribute;
+        const value = doubleQuoted ?? singleQuoted ?? unquoted;
+        if (!value || /^(?:[a-z][a-z0-9+.-]*:|\/\/|[?#])/i.test(value)) return attribute;
+        if (unquoted !== undefined) throw new Error("local browser resources must use a quoted attribute");
+        const [, source, suffix] = /^([^?#]+)(.*)$/.exec(value);
+        const resourcePath = source.startsWith("/") ? source.slice(1) : path.posix.normalize(path.posix.join(entryRelative, source));
+        const resource = resolvePackageResource(item.packageRootReal, resourcePath, { label: "browser resource" });
+        const quote = doubleQuoted !== undefined ? '"' : "'";
+        return `${whitespace}${name}=${quote}${item.url}${resource.resourcePath}${suffix}${quote}`;
+      });
+  });
 }
 
 function write(response, status, body, headers = {}) {
@@ -212,31 +226,70 @@ function write(response, status, body, headers = {}) {
   response.end(body);
 }
 
+function normalizeAliasPath(value) {
+  const segments = value.replaceAll("\\", "/").split("/");
+  const stack = [];
+  for (const segment of segments) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") stack.pop();
+    else stack.push(segment);
+  }
+  return `/${stack.join("/")}`;
+}
+
+function tolerantPercentDecode(value) {
+  return value.replaceAll(/%([0-9A-Fa-f]{2})/g, (_match, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
+}
+
+function touchesRegistryNamespace(rawTarget) {
+  const decodedTarget = tolerantPercentDecode(rawTarget);
+  const malformedElided = decodedTarget.replaceAll(/%(?![0-9A-Fa-f]{2})[^/?#\\]{0,2}/g, "");
+  const candidates = [decodedTarget, malformedElided];
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(decodedTarget) || decodedTarget.startsWith("//")) {
+    try {
+      candidates.push(new URL(decodedTarget, "http://registry.invalid").pathname);
+    } catch {
+      // The tolerant candidate below still reserves recognizable registry aliases.
+    }
+  }
+  return candidates.some((candidate) => {
+    const pathname = candidate.split(/[?#]/, 1)[0];
+    const normalized = normalizeAliasPath(pathname);
+    return normalized === "/registry" || normalized.startsWith(REGISTRY_PREFIX) ||
+      /(?:^|[\\/])registry(?:$|[\\/%?#])/.test(pathname);
+  });
+}
+
+function classifyRequestTarget(requestTarget) {
+  const originForm = requestTarget.startsWith("/") && !requestTarget.startsWith("//");
+  const rawPathname = originForm ? requestTarget.split(/[?#]/, 1)[0] : null;
+  const canonicalRegistryPath = rawPathname && (rawPathname === "/registry" || rawPathname.startsWith(REGISTRY_PREFIX));
+  const canonicalSegments = canonicalRegistryPath && !requestTarget.includes("#") && !rawPathname.includes("%") && !rawPathname.includes("\\") &&
+    rawPathname.split("/").every((segment, index, all) => index === 0 || segment !== "." && segment !== ".." && (segment || index === all.length - 1));
+  if (canonicalSegments) return { ownership: "registry", pathname: rawPathname };
+  if (touchesRegistryNamespace(requestTarget)) return { ownership: "reject", pathname: null };
+  return { ownership: "legacy", pathname: null };
+}
+
 export async function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } = {}) {
   const packages = packageEndpointInventory({ repoRoot });
   const components = await componentEndpointInventory({ repoRoot, packages });
+  for (const item of packages.filter(({ renderable }) => renderable)) {
+    packageHtml(item);
+    for (const endpoint of item.browserEndpoints) packageHtml(item, endpoint.entryReal, endpoint.entry);
+  }
   const packageByUrl = new Map(packages.filter(({ renderable }) => renderable).map((item) => [item.url, item]));
   const endpointByUrl = new Map(packages.flatMap((item) => item.browserEndpoints.map((endpoint) => [endpoint.url, { item, endpoint }])));
   const componentByUrl = new Map(components.map((item) => [item.url, item]));
   return (request, response) => {
     const requestTarget = request.url || "/";
-    const rawPathname = requestTarget.split(/[?#]/, 1)[0];
-    let decodedPathname = null;
-    try {
-      decodedPathname = decodeURIComponent(rawPathname).replaceAll("\\", "/");
-    } catch {
-      // A literal registry boundary with malformed percent encoding is still reserved.
-    }
-    const rawRegistryTarget = rawPathname === "/registry" || rawPathname.startsWith(REGISTRY_PREFIX) ||
-      rawPathname.startsWith("/registry\\") || rawPathname.startsWith("/registry%") ||
-      decodedPathname === "/registry" || decodedPathname?.startsWith(REGISTRY_PREFIX);
-    if (rawRegistryTarget && (rawPathname.includes("%") || rawPathname.includes("\\") ||
-        rawPathname.split("/").some((part) => part === "." || part === ".."))) {
+    const classification = classifyRequestTarget(requestTarget);
+    if (classification.ownership === "reject") {
       write(response, 404, "Not Found");
       return true;
     }
-    const pathname = new URL(requestTarget, "http://127.0.0.1").pathname;
-    if (pathname !== "/registry" && !pathname.startsWith(REGISTRY_PREFIX)) return false;
+    if (classification.ownership === "legacy") return false;
+    const pathname = classification.pathname;
     if (pathname === REGISTRY_PREFIX) {
       write(response, 200, aggregateShell(packages, components), { "cache-control": "no-store" });
       return true;
