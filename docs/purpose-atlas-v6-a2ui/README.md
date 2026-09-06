@@ -15,7 +15,7 @@ candidateはgoldenと同じ見た目であるだけでなく、t0〜t40の意味
 dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html
     A2UI runtime、surface JSONL、CSS、bundleを内包した単一HTML
 
-dist/index.html + dist/assets/* + dist/a2ui/*
+dist/registry/index.html + dist/assets/* + dist/a2ui/*
     通常のVite production build
 
 golden/source/*
@@ -107,10 +107,17 @@ npm ci
 npm run dev
 ```
 
+The named package is `purpose-atlas-registry-dev`. It is served only at
+`http://127.0.0.1:18083/registry/`; `/` intentionally has no UI,
+redirect, or SPA fallback. `npm run verify:dev` uses a temporary OS-assigned
+loopback port to verify the same positive and negative route boundary plus the
+named production build output.
+
 production build:
 
 ```bash
 npm run build
+npm run build:standalone
 npm run preview
 ```
 

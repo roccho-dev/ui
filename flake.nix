@@ -22,12 +22,12 @@
           };
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           nativeBuildInputs = [ pkgs.python3 ];
-          npmBuildScript = "build";
+          npmBuildScript = "build:standalone";
           installPhase = ''
             runHook preInstall
             mkdir -p "$out"
             cp -R dist "$out/dist"
-            test -s "$out/dist/index.html"
+            test -s "$out/dist/registry/index.html"
             test -s "$out/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
             test -s "$out/dist/a2ui/purpose-atlas.surface.jsonl"
             runHook postInstall
@@ -93,11 +93,12 @@
         '';
 
         purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html-check" { } ''
-          test -s ${purposeAtlasPreview}/dist/index.html
+          test -s ${purposeAtlasPreview}/dist/registry/index.html
           test -s ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html
           test -s ${purposeAtlasPreview}/dist/a2ui/purpose-atlas.surface.jsonl
           mkdir -p "$out"
-          cp ${purposeAtlasPreview}/dist/index.html "$out/index.html"
+          mkdir -p "$out/registry"
+          cp ${purposeAtlasPreview}/dist/registry/index.html "$out/registry/index.html"
           cp ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html "$out/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
         '';
       });

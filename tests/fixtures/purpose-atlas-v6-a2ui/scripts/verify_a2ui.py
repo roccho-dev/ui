@@ -22,15 +22,15 @@ package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
 data = json.loads((ROOT / "src/data/atlas-data.json").read_text(encoding="utf-8"))
 golden_lock = json.loads((ROOT / "golden/GOLDEN_LOCK.json").read_text(encoding="utf-8"))
 
-require(package["name"] == "purpose-atlas-v6-a2ui-source-ui-refactor", "package identity mismatch")
+require(package["name"] == "purpose-atlas-registry-dev", "package identity mismatch")
 require(package["version"] == "6.2.0", "package version mismatch")
 require(package["dependencies"].get("@a2ui/web_core") == "0.10.1", "web_core must be pinned")
 require(package["dependencies"].get("@a2ui/lit") == "0.10.1", "lit renderer must be pinned")
 require(package["devDependencies"].get("vite") == "8.0.16", "Vite must be pinned")
 require(package["devDependencies"].get("esbuild") == "0.28.1", "esbuild must be pinned")
 
-require((ROOT / "dist/index.html").exists(), "production build missing")
-require((ROOT / "dist/a2ui/purpose-atlas.surface.jsonl").exists(), "A2UI JSONL missing from dist")
+require((ROOT / "dist/registry/index.html").exists(), "named production build missing")
+require((ROOT / "dist/a2ui/purpose-atlas.surface.jsonl").exists(), "A2UI JSONL missing from production build")
 require((ROOT / "dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html").exists(), "standalone preview missing")
 require((ROOT / "golden/source/ui-shell.html").exists(), "uncompressed latest source UI golden missing")
 

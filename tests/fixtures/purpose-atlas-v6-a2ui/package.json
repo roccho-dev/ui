@@ -1,19 +1,21 @@
 {
-  "name": "purpose-atlas-v6-a2ui-source-ui-refactor",
+  "name": "purpose-atlas-registry-dev",
   "version": "6.2.0",
   "private": true,
   "type": "module",
   "description": "Purpose Decision Atlas v6: latest source HTML UI preserved as golden, running on A2UI with cached renderer improvements.",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "vite build && python3 scripts/build_standalone.py",
-    "preview": "vite preview --host 0.0.0.0",
+    "dev": "vite --host 127.0.0.1 --port 18083 --strictPort",
+    "build": "vite build",
+    "build:standalone": "npm run build && python3 scripts/build_standalone.py",
+    "preview": "vite preview --host 127.0.0.1",
     "test": "node --test test/*.test.mjs",
     "lint:a2ui": "node scripts/validate-a2ui.mjs",
     "verify:static": "python3 scripts/verify_a2ui.py",
     "verify:browser": "python3 scripts/browser_verify.py",
     "verify:golden": "python3 scripts/verify_golden.py",
-    "verify": "npm run test && npm run lint:a2ui && npm run build && npm run verify:static && npm run verify:browser && npm run verify:golden && python3 scripts/finalize_evidence.py"
+    "verify:dev": "npm run build && node --test test/a2ui-surface.test.mjs",
+    "verify": "npm run test && npm run lint:a2ui && npm run build:standalone && npm run verify:static && npm run verify:browser && npm run verify:golden && python3 scripts/finalize_evidence.py"
   },
   "dependencies": {
     "@a2ui/lit": "0.10.1",

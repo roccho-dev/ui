@@ -16,12 +16,16 @@ def required_match(pattern: str, text: str, label: str) -> str:
     return match.group(1)
 
 
+def dist_asset_path(url: str) -> Path:
+    return DIST / url.removeprefix("/registry/").lstrip("/")
+
+
 def main() -> None:
-    index = (DIST / "index.html").read_text(encoding="utf-8")
-    css_name = required_match(r'href="([^"]+\.css)"', index, "CSS").lstrip("/")
-    js_name = required_match(r'src="([^"]+\.js)"', index, "JavaScript").lstrip("/")
-    css = (DIST / css_name).read_text(encoding="utf-8")
-    javascript = (DIST / js_name).read_text(encoding="utf-8")
+    index = (DIST / "registry" / "index.html").read_text(encoding="utf-8")
+    css_path = dist_asset_path(required_match(r'href="([^"]+\.css)"', index, "CSS"))
+    js_path = dist_asset_path(required_match(r'src="([^"]+\.js)"', index, "JavaScript"))
+    css = css_path.read_text(encoding="utf-8")
+    javascript = js_path.read_text(encoding="utf-8")
     javascript = re.sub(r"\n?//# sourceMappingURL=.*?$", "", javascript, flags=re.MULTILINE)
     javascript = javascript.replace("</script", "<\\/script")
     surface = (DIST / "a2ui" / "purpose-atlas.surface.jsonl").read_text(encoding="utf-8")
