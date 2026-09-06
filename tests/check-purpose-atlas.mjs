@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,9 @@ const atlasDataPath = path.join(atlasRoot, "src/data/atlas-data.json");
 const dataContractPath = path.join(atlasDocsRoot, "A2UI-DATA-CONTRACT.md");
 const atlasReadmePath = path.join(atlasDocsRoot, "README.md");
 const goldenLockPath = path.join(atlasRoot, "golden/GOLDEN_LOCK.json");
+const packagePath = path.join(atlasRoot, "package.json");
+const aggregateEntryPath = path.join(atlasRoot, "registry/index.html");
+const packageEntryPath = path.join(atlasRoot, "registry/packages/purpose-atlas-registry-dev/index.html");
 
 const contractPhrases = [
   "ADRS projected input",
@@ -64,17 +68,25 @@ function sha256File(filePath) {
 
 function collectFiles(dir, prefix = "") {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (!prefix && entry.isDirectory() && ["node_modules", "dist", "evidence"].includes(entry.name)) return [];
     const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
     const full = path.join(dir, entry.name);
     return entry.isDirectory() ? collectFiles(full, relative) : [relative];
   });
 }
 
-const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-assert.match(html, /Purpose Decision Atlas v6/);
-assert.match(html, /__purposeAtlasSurfaceJsonl/);
+const html = fs.readFileSync(packageEntryPath, "utf8");
+assert.match(html, /purpose-atlas-registry-dev/);
 assert.match(html, /purpose-atlas-app/);
 assert.doesNotMatch(html, /need-zoom-purpose-lineage/);
+const aggregateHtml = fs.readFileSync(aggregateEntryPath, "utf8");
+assert.match(aggregateHtml, /UI package registry/);
+assert.doesNotMatch(aggregateHtml, /purpose-atlas-app|<script/);
+
+const packageManifest = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+assert.equal(packageManifest.name, "purpose-atlas-registry-dev");
+assert.equal(packageManifest.scripts.dev, "vite --host 127.0.0.1 --port 18083 --strictPort");
+assert.equal(packageManifest.scripts["verify:dev"], "npm run build && node --test test/a2ui-surface.test.mjs");
 
 const rootReadme = fs.readFileSync(path.join(root, "README.md"), "utf8");
 const atlasReadme = fs.readFileSync(atlasReadmePath, "utf8");
@@ -136,11 +148,22 @@ assert.equal(atlasEntry.family, "purpose_atlas");
 assert.equal(atlasEntry.childrenPolicy, "none");
 assert.ok(atlasEntry.actions.includes("atlas.recordMismatch"));
 assert.equal(purposeAtlasHtmlBox.accepts, "a2ui.surface.v0.9");
-assert.deepEqual(purposeAtlasHtmlBox.assets, ["index.html"]);
+assert.deepEqual(purposeAtlasHtmlBox.assets, ["tests/fixtures/purpose-atlas-v6-a2ui/registry/packages/purpose-atlas-registry-dev/index.html"]);
+assert.deepEqual(atlasEntry.adapterAssets.html, ["tests/fixtures/purpose-atlas-v6-a2ui/registry/packages/purpose-atlas-registry-dev/index.html"]);
 
-assert.equal(fs.existsSync(path.join(atlasRoot, "dist")), false, "generated dist must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "evidence")), false, "generated evidence must not be tracked as fixture authority");
-assert.equal(fs.existsSync(path.join(atlasRoot, "MANIFEST.sha256")), false, "generated manifest must not be tracked as fixture authority");
+if (fs.existsSync(path.join(root, ".git"))) {
+  const trackedAtlasFiles = execFileSync(
+    "git",
+    ["ls-files", "--", "tests/fixtures/purpose-atlas-v6-a2ui"],
+    { cwd: root, encoding: "utf8" },
+  ).trim().split(/\r?\n/).filter(Boolean);
+  assert.equal(trackedAtlasFiles.some((file) => /\/(?:dist|evidence)\//.test(file)), false, "generated outputs must not be tracked as fixture authority");
+  assert.equal(trackedAtlasFiles.some((file) => file.endsWith("/MANIFEST.sha256")), false, "generated manifest must not be tracked as fixture authority");
+} else {
+  assert.equal(fs.existsSync(path.join(atlasRoot, "dist")), false, "generated dist must not be present in the source tree");
+  assert.equal(fs.existsSync(path.join(atlasRoot, "evidence")), false, "generated evidence must not be present in the source tree");
+  assert.equal(fs.existsSync(path.join(atlasRoot, "MANIFEST.sha256")), false, "generated manifest must not be present in the source tree");
+}
 
 const atlasFiles = collectFiles(atlasRoot);
 assert.deepEqual(

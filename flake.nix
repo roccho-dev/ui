@@ -16,18 +16,24 @@
         pkgs.buildNpmPackage {
           pname = "purpose-atlas-preview-html";
           version = "6.2.0";
-          src = ./tests/fixtures/purpose-atlas-v6-a2ui;
+          src = ./.;
+          npmRoot = "tests/fixtures/purpose-atlas-v6-a2ui";
           npmDeps = pkgs.importNpmLock {
             npmRoot = ./tests/fixtures/purpose-atlas-v6-a2ui;
           };
           npmConfigHook = pkgs.importNpmLock.npmConfigHook;
           nativeBuildInputs = [ pkgs.python3 ];
-          npmBuildScript = "build";
+          buildPhase = ''
+            runHook preBuild
+            npm --prefix tests/fixtures/purpose-atlas-v6-a2ui run build:standalone
+            runHook postBuild
+          '';
           installPhase = ''
             runHook preInstall
             mkdir -p "$out"
-            cp -R dist "$out/dist"
-            test -s "$out/dist/index.html"
+            cp -R tests/fixtures/purpose-atlas-v6-a2ui/dist "$out/dist"
+            test -s "$out/dist/registry/index.html"
+            test -s "$out/dist/registry/packages/purpose-atlas-registry-dev/index.html"
             test -s "$out/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
             test -s "$out/dist/a2ui/purpose-atlas.surface.jsonl"
             runHook postInstall
@@ -93,11 +99,15 @@
         '';
 
         purpose-atlas-preview-html = pkgs.runCommand "purpose-atlas-preview-html-check" { } ''
-          test -s ${purposeAtlasPreview}/dist/index.html
+          test -s ${purposeAtlasPreview}/dist/registry/index.html
+          test -s ${purposeAtlasPreview}/dist/registry/packages/purpose-atlas-registry-dev/index.html
           test -s ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html
           test -s ${purposeAtlasPreview}/dist/a2ui/purpose-atlas.surface.jsonl
           mkdir -p "$out"
-          cp ${purposeAtlasPreview}/dist/index.html "$out/index.html"
+          mkdir -p "$out/registry"
+          mkdir -p "$out/registry/packages/purpose-atlas-registry-dev"
+          cp ${purposeAtlasPreview}/dist/registry/index.html "$out/registry/index.html"
+          cp ${purposeAtlasPreview}/dist/registry/packages/purpose-atlas-registry-dev/index.html "$out/registry/packages/purpose-atlas-registry-dev/index.html"
           cp ${purposeAtlasPreview}/dist/purpose-atlas-v6-a2ui-ui-refactor.preview.html "$out/purpose-atlas-v6-a2ui-ui-refactor.preview.html"
         '';
       });

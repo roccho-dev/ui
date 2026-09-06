@@ -16,9 +16,9 @@ produces renderer-neutral projections.
 
 ## Scope
 
--  (Purpose Atlas A2UI v0.9 source UI root: )
-  accepted input kinds, produced output kinds, props/state/events, adapter
-  assets, stability).
+- Purpose Atlas A2UI v0.9 registry-development package metadata: accepted
+  input kinds, produced output kinds, props/state/events, adapter assets, and
+  stability.
 - A default catalog of A2UI/SDUI components: primitives, layout, action, slide,
   and questionnaire/flow families, plus `need_zoom` surface components.
 - Recursive node-tree projection with deterministic handling of unknown types.
@@ -172,22 +172,27 @@ own renderer state. CLI/TUI adapters can be added without changing the core
 registry schema.
 
 - htmlBox, cssBox, jsBox (need_zoom surface)
-- purposeAtlasHtmlBox (Purpose Atlas A2UI v0.9 source UI root: index.html)
+- purposeAtlasHtmlBox (Purpose Atlas A2UI v0.9 witness mounted by the registry
+  development surface)
 - questionnaireHtmlBox (A2UI/SDUI view model)
 - cliBox (future text surface)
 
-## Purpose Atlas A2UI Root
+## Purpose Atlas registry-development package
 
-The current human-facing root is the Purpose Decision Atlas v6 A2UI witness:
+The Purpose Decision Atlas v6 A2UI witness is the repository's only
+serve-capable package. The repository root remains a headless registry library.
 
-- browser root: index.html
+- package name: `purpose-atlas-registry-dev`
+- browser aggregate: `/registry/`; package route: `/registry/packages/purpose-atlas-registry-dev/`
+- component routes: `/registry/packages/ui-modeling-corr-port/components/<registry-key>/`
+- package source entry: `tests/fixtures/purpose-atlas-v6-a2ui/registry/packages/purpose-atlas-registry-dev/index.html`
 - source fixture package: tests/fixtures/purpose-atlas-v6-a2ui
 - A2UI surface JSONL: tests/fixtures/purpose-atlas-v6-a2ui/public/a2ui/purpose-atlas.surface.jsonl
 - custom component: AtlasSourceSurface
 - adapter descriptor: purposeAtlasHtmlBox
 - golden fixtures: tests/fixtures/purpose-atlas-v6-a2ui/golden; generated preview/evidence: Nix and CI artifacts
 
-The root HTML is adapter material. The UI contract remains A2UI v0.9 surface
+The package HTML is adapter material. The UI contract remains A2UI v0.9 surface
 JSONL, an allowlisted AtlasSourceSurface component, and the source/golden
 witness package under tests/fixtures/purpose-atlas-v6-a2ui.
 
@@ -213,10 +218,16 @@ canonical state, merge readiness, or fire/operation authority.
 owner, hold decision, replay state, and in-memory UI interactions are render
 behavior only. They do not store or approve canonical ADR/domain decisions.
 
-Fixed local host command:
+Fixed local package host:
 
-  npm run host
-  purpose-atlas-host http://127.0.0.1:18083/
+```sh
+cd tests/fixtures/purpose-atlas-v6-a2ui
+npm run dev
+```
+
+`purpose-atlas-registry-dev` is available at
+`http://127.0.0.1:18083/registry/`. The server root intentionally has no
+UI, redirect, or SPA fallback.
 
 Port 18083 is intentionally fixed for recognition and review. Do not rotate it per run.
 
