@@ -67,15 +67,33 @@ try {
   fs.writeFileSync(path.join(fixture, "registry.mjs"), "export function defaultRegistry() { return { list: () => [{ id: 'FixtureThing' }] }; }\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "index.html"), '<script type="module" src="src/main.js"></script>');
   const graphHtmlPath = path.join(fixture, "packages", "browser", "graph.html");
-  const graphHtml = "<link rel=\"stylesheet\" href='/src/graph.css'><object data=\"/src/graph.json\"></object><script type=\"module\" data-src=\"/missing-shadow.js\" src='/src/graph.js'></script>";
+  const graphHtml = `<!doctype html>
+<!-- <img src="/missing-comment.png"> -->
+<p>Not a start tag: < img src="/missing-spaced.png"></p>
+<link data-note="1 > 0" rel="stylesheet" href='/src/graph.css'>
+<object data="/src/graph.json"></object>
+<img src="/src/image.png" data-src="/missing-shadow.png" srcset="https://cdn.example/a.png 1x, //cdn.example/b.png 2x">
+<source src='/src/source.bin'>
+<video src="/src/video.bin" poster='/src/poster.png'></video>
+<audio src="/src/audio.bin"></audio><embed src='/src/embed.bin'>
+<iframe src="https://example.test/frame.html"></iframe>
+<input type="image" src='/src/input.png'><track src="/src/track.vtt">
+<style>.example::after { content: "<img src='/missing-style.png'> >"; }</style>
+<script type="module" data-src="/missing-shadow.js" src='/src/graph.js'>const fake = "<img src='/missing-script.png'>";</script>`;
   fs.writeFileSync(graphHtmlPath, graphHtml);
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "main.js"), "export const ready = true;\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.js"), "export const graph = 1;\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "public", "src", "graph.css"), "body { color: green; }\n");
   fs.writeFileSync(path.join(fixture, "packages", "browser", "src", "graph.json"), '{"graph":1}\n');
+  for (const name of ["image.png", "source.bin", "video.bin", "poster.png", "audio.bin", "embed.bin", "input.png", "track.vtt"]) {
+    fs.writeFileSync(path.join(fixture, "packages", "browser", "src", name), `fixture:${name}\n`);
+  }
+  fs.symlinkSync(path.join(fixture, "packages", "browser", "public"), path.join(fixture, "packages", "browser", "internal-public"), "junction");
   const fixturePackages = packageEndpointInventory({ repoRoot: fixture });
   assert.equal(fixturePackages[1].url, "/registry/packages/browser-package/");
+  assert.equal(fixturePackages[1].browserEntryBranch, "direct");
   assert.equal(fixturePackages[1].browserEndpoints[0].url, "/registry/packages/browser-package/graph/1/");
+  assert.equal(fixturePackages[1].browserEndpoints[0].entryBranch, "direct");
   const fixtureComponents = await componentEndpointInventory({ repoRoot: fixture, packages: fixturePackages });
   assert.deepEqual(fixtureComponents.map(({ key, packageKey }) => ({ key, packageKey })), [{ key: "FixtureThing", packageKey: "fixture-root" }]);
   const fixtureHandler = await createRegistryRequestHandler({ repoRoot: fixture });
@@ -101,7 +119,8 @@ try {
   try {
     const index = await fetch(`${fixtureBase}/registry/packages/browser-package/`);
     assert.equal(index.status, 200);
-    assert.match(await index.text(), /src="\/registry\/packages\/browser-package\/src\/main\.js"/);
+    const indexBody = await index.text();
+    assert.match(indexBody, /src="\/registry\/packages\/browser-package\/src\/main\.js"/);
     const endpoint = await fetch(`${fixtureBase}/registry/packages/browser-package/graph/1/`);
     assert.equal(endpoint.status, 200);
     assert.equal(endpoint.headers.get("x-package-endpoint"), "graph/1");
@@ -110,17 +129,23 @@ try {
     assert.match(endpointBody, /href='\/registry\/packages\/browser-package\/src\/graph\.css'/);
     assert.match(endpointBody, /data="\/registry\/packages\/browser-package\/src\/graph\.json"/);
     assert.match(endpointBody, /data-src="\/missing-shadow\.js"/);
-    const resource = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.js`);
-    assert.equal(resource.status, 200);
-    assert.equal(resource.headers.get("x-package-key"), "browser-package");
-    assert.match(await resource.text(), /graph = 1/);
-    const publicStyle = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.css`);
-    assert.equal(publicStyle.status, 200);
-    assert.match(await publicStyle.text(), /color: green/);
-    const emittedData = await fetch(`${fixtureBase}/registry/packages/browser-package/src/graph.json`);
-    assert.equal(emittedData.status, 200);
-    assert.equal((await emittedData.json()).graph, 1);
-    for (const deniedResource of ["public/src/graph.css"]) {
+    assert.match(endpointBody, /src="\/registry\/packages\/browser-package\/src\/image\.png"/);
+    assert.match(endpointBody, /poster='\/registry\/packages\/browser-package\/src\/poster\.png'/);
+    assert.match(endpointBody, /srcset="https:\/\/cdn\.example\/a\.png 1x, \/\/cdn\.example\/b\.png 2x"/);
+    assert.match(endpointBody, /missing-comment\.png/);
+    assert.match(endpointBody, /missing-spaced\.png/);
+    assert.match(endpointBody, /missing-script\.png/);
+    assert.match(endpointBody, /missing-style\.png/);
+    const emittedUrls = [...`${indexBody}\n${endpointBody}`.matchAll(/\s(?:src|href|data|poster)=["'](\/registry\/packages\/browser-package\/[^"']+)["']/g)]
+      .map((match) => match[1]);
+    assert.equal(new Set(emittedUrls).size, 12);
+    for (const url of new Set(emittedUrls)) {
+      const resource = await fetch(`${fixtureBase}${url}`);
+      assert.equal(resource.status, 200, url);
+      assert.equal(resource.headers.get("x-package-key"), "browser-package", url);
+      assert.ok((await resource.arrayBuffer()).byteLength > 0, url);
+    }
+    for (const deniedResource of ["public/src/graph.css", "Public/src/graph.css", "internal-public/src/graph.css"]) {
       const denied = await fetch(`${fixtureBase}/registry/packages/browser-package/${deniedResource}`);
       assert.equal(denied.status, 404, deniedResource);
       assert.equal(await denied.text(), "Not Found", deniedResource);
@@ -152,7 +177,12 @@ try {
       "/prefix/%2e%2e/registry/components/FixtureThing/",
       "/registry%2F..%2Fpackage.json",
       "/reg%69stry%2F..%2Fpackage.json",
-      "/reg%ZZistry/",
+      "/reg%Zistry/",
+      "/%72egistry%Z/",
+      "/reg%69stry%00",
+      "/reg%69stry%C0%AF",
+      "/prefix%3F/../registry/",
+      "/prefix%23/../registry/",
       "/registry\\..\\package.json",
       "/registry%ZZ",
       "http://example.test/registry/components/FixtureThing/",
@@ -160,6 +190,7 @@ try {
       "/registry/packages/browser-package/src/%2e%2e/package.json",
       "/registry/packages/browser-package/src/../../../package.json",
       "/registry/packages/browser-package/src\\..\\package.json",
+      "/registry/packages/browser-package/src/GRAPH.js",
     ]) {
       const escape = await rawFixtureRequest(rawPath);
       assert.equal(escape.response.statusCode, 404, rawPath);
@@ -174,10 +205,19 @@ try {
   }
 
   fs.writeFileSync(path.join(fixture, "packages", "browser", "frame.html"), "<!doctype html><title>frame</title>");
-  fs.writeFileSync(graphHtmlPath, '<iframe src="/frame.html"></iframe>');
-  await assert.rejects(() => createRegistryRequestHandler({ repoRoot: fixture }), /browser resource cannot expose undeclared HTML/);
-  fs.writeFileSync(graphHtmlPath, '<script src=/src/graph.js></script>');
-  await assert.rejects(() => createRegistryRequestHandler({ repoRoot: fixture }), /local browser resources must use a quoted attribute/);
+  const invalidHtmlCases = [
+    ['<iframe src="/frame.html"></iframe>', /browser resource cannot expose undeclared HTML/],
+    ['<script src=/src/graph.js></script>', /local browser resources must use a quoted attribute/],
+    ['<img srcset="/src/image.png 1x">', /local srcset browser resources are unsupported/],
+    ['<source srcset="/src/image.png 1x">', /local srcset browser resources are unsupported/],
+    ['<img src="">', /browser resource URL must name a file/],
+    ['<img src="?variant=1">', /browser resource URL must name a file/],
+    ['<link href="#theme">', /browser resource URL must name a file/],
+  ];
+  for (const [invalidHtml, pattern] of invalidHtmlCases) {
+    fs.writeFileSync(graphHtmlPath, invalidHtml);
+    await assert.rejects(() => createRegistryRequestHandler({ repoRoot: fixture }), pattern);
+  }
   fs.writeFileSync(graphHtmlPath, graphHtml);
 
   const invalidManifestCases = [

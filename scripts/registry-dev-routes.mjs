@@ -41,9 +41,22 @@ function assertRouteSegment(value, label) {
 function assertRouteSerializablePath(value, label) {
   assertLiteralRelative(value, label);
   const segments = value.split("/");
-  if (segments[0] === "public" || segments.some((segment) => encodeURIComponent(segment) !== segment)) {
+  if (path.posix.normalize(value) !== value || segments[0].toLowerCase() === "public" ||
+      segments.some((segment) => encodeURIComponent(segment) !== segment)) {
     throw new Error(`${label} must use route-serializable names and cannot name physical public/`);
   }
+}
+
+function realDirectory(candidate, root, label, { optional = false } = {}) {
+  if (optional && !fs.existsSync(candidate)) return null;
+  let real;
+  try {
+    real = fs.realpathSync(candidate);
+  } catch {
+    throw new Error(`${label} does not exist: ${candidate}`);
+  }
+  if (!isWithin(root, real) || !fs.statSync(real).isDirectory()) throw new Error(`${label} escapes its declared root: ${candidate}`);
+  return real;
 }
 
 function realFile(candidate, root, label) {
@@ -57,18 +70,43 @@ function realFile(candidate, root, label) {
   return real;
 }
 
-function resolvePackageResource(packageRoot, resourcePath, { allowHtml = false, label = "package resource" } = {}) {
+function hasExactPathSpelling(root, relativePath) {
+  let directory = root;
+  for (const segment of relativePath.split("/")) {
+    if (!fs.readdirSync(directory).includes(segment)) return false;
+    directory = path.join(directory, segment);
+  }
+  return true;
+}
+
+function resolvePackageResource(packageRoot, publicRoot, resourcePath, { allowHtml = false, label = "package resource" } = {}) {
   assertRouteSerializablePath(resourcePath, label);
   if (!allowHtml && path.extname(resourcePath).toLowerCase() === ".html") {
     throw new Error(`${label} cannot expose undeclared HTML`);
   }
   const direct = path.resolve(packageRoot, resourcePath);
-  const publicFile = path.resolve(packageRoot, "public", resourcePath);
-  const file = fs.existsSync(direct) ? realFile(direct, packageRoot, label) : realFile(publicFile, packageRoot, label);
+  let file;
+  let selectedRoot;
+  let branch;
+  if (fs.existsSync(direct)) {
+    file = realFile(direct, packageRoot, label);
+    if (publicRoot && isWithin(publicRoot, file)) throw new Error(`${label} direct path aliases physical public/`);
+    selectedRoot = packageRoot;
+    branch = "direct";
+  } else {
+    if (!publicRoot) throw new Error(`${label} does not exist: ${direct}`);
+    file = realFile(path.resolve(publicRoot, resourcePath), publicRoot, label);
+    selectedRoot = publicRoot;
+    branch = "public";
+  }
+  const canonicalRelative = path.relative(selectedRoot, file).replaceAll("\\", "/");
+  if (canonicalRelative !== resourcePath || !hasExactPathSpelling(selectedRoot, resourcePath)) {
+    throw new Error(`${label} path spelling does not match its real file`);
+  }
   const logicalHtml = path.extname(resourcePath).toLowerCase() === ".html";
   const realHtml = path.extname(file).toLowerCase() === ".html";
   if (logicalHtml !== realHtml) throw new Error(`${label} logical and real HTML types disagree`);
-  return { file, resourcePath };
+  return { file, resourcePath, branch };
 }
 
 function escapeHtml(value) {
@@ -115,12 +153,14 @@ export function packageEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
       throw new Error(`package manifest has no explicit uiRegistry.componentRegistry: ${manifestPath}`);
     }
     const packageRoot = fs.realpathSync(path.dirname(manifestPath));
+    const packagePublicRoot = realDirectory(path.resolve(packageRoot, "public"), packageRoot, "package public root", { optional: true });
     const configuredEntry = manifest.uiRegistry.browserEntry;
     if (configuredEntry !== null) {
       assertLiteralRelative(configuredEntry, `browser entry: ${manifestPath}`);
       if (!configuredEntry.endsWith(".html")) throw new Error(`browser entry must be HTML or null: ${manifestPath}`);
     }
-    const browserEntryReal = configuredEntry === null ? null : resolvePackageResource(packageRoot, configuredEntry, { allowHtml: true, label: "browser entry" }).file;
+    const browserEntryResource = configuredEntry === null ? null : resolvePackageResource(packageRoot, packagePublicRoot, configuredEntry, { allowHtml: true, label: "browser entry" });
+    const browserEntryReal = browserEntryResource?.file ?? null;
     const endpointDeclarations = Object.hasOwn(manifest.uiRegistry, "browserEndpoints") ? manifest.uiRegistry.browserEndpoints : [];
     if (!Array.isArray(endpointDeclarations)) throw new Error(`browserEndpoints must be an array: ${manifestPath}`);
     if (configuredEntry === null && endpointDeclarations.length > 0) throw new Error(`headless package cannot declare browserEndpoints: ${manifestPath}`);
@@ -130,11 +170,13 @@ export function packageEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
       const id = assertRouteSegment(endpoint.id, `browser endpoint id: ${manifestPath}`);
       assertLiteralRelative(endpoint.entry, `browser endpoint entry: ${manifestPath}`);
       if (!endpoint.entry.endsWith(".html")) throw new Error(`browser endpoint entry must be HTML: ${manifestPath}`);
-      const entryReal = resolvePackageResource(packageRoot, endpoint.entry, { allowHtml: true, label: "browser endpoint entry" }).file;
+      const entryResource = resolvePackageResource(packageRoot, packagePublicRoot, endpoint.entry, { allowHtml: true, label: "browser endpoint entry" });
+      const entryReal = entryResource.file;
       return {
         ...endpoint, kind, id,
         entryPath: path.relative(realRepoRoot, entryReal).replaceAll("\\", "/"),
         entryReal,
+        entryBranch: entryResource.branch,
         url: `${PACKAGE_PREFIX}${key}/${kind}/${id}/`,
       };
     });
@@ -147,8 +189,10 @@ export function packageEndpointInventory({ repoRoot = DEFAULT_ROOT } = {}) {
       manifestPath: path.relative(realRepoRoot, manifestPath).replaceAll("\\", "/"),
       packageRoot: path.relative(realRepoRoot, packageRoot).replaceAll("\\", "/") || ".",
       packageRootReal: packageRoot,
+      packagePublicRootReal: packagePublicRoot,
       browserEntry: configuredEntry,
       browserEntryReal,
+      browserEntryBranch: browserEntryResource?.branch ?? null,
       componentRegistry,
       browserEndpoints,
       renderable: Boolean(browserEntryReal),
@@ -201,24 +245,138 @@ function componentShell(item) {
   return shell(`${item.key} / UI component registry`, `<main data-package-key="${escapeHtml(item.packageKey)}" data-registry-key="${escapeHtml(item.key)}"><nav><a href="/registry/">UI package registry</a></nav><h1>${escapeHtml(item.key)}</h1><pre id="registry-entry">${escapeHtml(JSON.stringify(item.entry, null, 2))}</pre></main>`);
 }
 
-function packageHtml(item, entryReal = item.browserEntryReal, entryPath = item.browserEntry) {
-  const entryRelative = path.posix.dirname(entryPath) === "." ? "" : path.posix.dirname(entryPath);
-  return fs.readFileSync(entryReal, "utf8").replaceAll(/<(?:script|img|source|video|audio|embed|iframe|input|link|object)\b[^>]*>/gi, (tag) => {
-    const tagName = /^<([a-z]+)/i.exec(tag)[1].toLowerCase();
-    const resourceAttribute = tagName === "link" ? "href" : tagName === "object" ? "data" : "src";
-    return tag.replaceAll(/(\s+)([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g,
-      (attribute, whitespace, name, doubleQuoted, singleQuoted, unquoted) => {
-        if (name.toLowerCase() !== resourceAttribute) return attribute;
-        const value = doubleQuoted ?? singleQuoted ?? unquoted;
-        if (!value || /^(?:[a-z][a-z0-9+.-]*:|\/\/|[?#])/i.test(value)) return attribute;
-        if (unquoted !== undefined) throw new Error("local browser resources must use a quoted attribute");
-        const [, source, suffix] = /^([^?#]+)(.*)$/.exec(value);
-        const resourcePath = source.startsWith("/") ? source.slice(1) : path.posix.normalize(path.posix.join(entryRelative, source));
-        const resource = resolvePackageResource(item.packageRootReal, resourcePath, { label: "browser resource" });
-        const quote = doubleQuoted !== undefined ? '"' : "'";
-        return `${whitespace}${name}=${quote}${item.url}${resource.resourcePath}${suffix}${quote}`;
-      });
+const RESOURCE_ATTRIBUTES = new Map([
+  ["script", new Set(["src"])],
+  ["img", new Set(["src", "srcset"])],
+  ["source", new Set(["src", "srcset"])],
+  ["video", new Set(["src", "poster"])],
+  ["audio", new Set(["src"])],
+  ["embed", new Set(["src"])],
+  ["iframe", new Set(["src"])],
+  ["input", new Set(["src"])],
+  ["link", new Set(["href"])],
+  ["object", new Set(["data"])],
+  ["track", new Set(["src"])],
+]);
+
+function externalResource(value) {
+  return /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(value);
+}
+
+function findStartTagEnd(html, start) {
+  let quote = null;
+  for (let index = start; index < html.length; index += 1) {
+    const character = html[index];
+    if (quote) {
+      if (character === quote) quote = null;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === ">") {
+      return index + 1;
+    }
+  }
+  throw new Error("browser entry contains an unterminated start tag");
+}
+
+function localSrcset(value) {
+  if (/^data:/i.test(value.trim())) return false;
+  return value.split(",").some((candidate) => {
+    const url = candidate.trim().split(/\s+/, 1)[0];
+    return !url || !externalResource(url);
   });
+}
+
+function rewriteStartTag(tag, tagName, item, entryRelative) {
+  const admitted = RESOURCE_ATTRIBUTES.get(tagName);
+  if (!admitted) return tag;
+  const nameMatch = /^<[A-Za-z][A-Za-z0-9:-]*/.exec(tag);
+  let cursor = nameMatch[0].length;
+  const replacements = [];
+  while (cursor < tag.length - 1) {
+    while (/\s/.test(tag[cursor])) cursor += 1;
+    if (tag[cursor] === ">" || tag[cursor] === "/") { cursor += 1; continue; }
+    const attributeStart = cursor;
+    while (cursor < tag.length && !/[\s=/>]/.test(tag[cursor])) cursor += 1;
+    if (cursor === attributeStart) throw new Error("browser entry contains an unsupported start-tag form");
+    const attributeName = tag.slice(attributeStart, cursor).toLowerCase();
+    while (/\s/.test(tag[cursor])) cursor += 1;
+    if (tag[cursor] !== "=") {
+      if (admitted.has(attributeName)) throw new Error("browser resource URL must name a file");
+      continue;
+    }
+    cursor += 1;
+    while (/\s/.test(tag[cursor])) cursor += 1;
+    const quote = tag[cursor] === '"' || tag[cursor] === "'" ? tag[cursor] : null;
+    const valueStart = quote ? ++cursor : cursor;
+    if (quote) {
+      while (cursor < tag.length && tag[cursor] !== quote) cursor += 1;
+      if (cursor >= tag.length) throw new Error("browser entry contains an unterminated quoted attribute");
+    } else {
+      while (cursor < tag.length && !/[\s>]/.test(tag[cursor])) cursor += 1;
+    }
+    const valueEnd = cursor;
+    if (quote) cursor += 1;
+    if (!admitted.has(attributeName)) continue;
+    const value = tag.slice(valueStart, valueEnd);
+    if (attributeName === "srcset") {
+      if (localSrcset(value)) throw new Error("local srcset browser resources are unsupported");
+      continue;
+    }
+    if (!value || value.startsWith("?") || value.startsWith("#")) {
+      throw new Error("browser resource URL must name a file");
+    }
+    if (externalResource(value)) continue;
+    if (!quote) throw new Error("local browser resources must use a quoted attribute");
+    const match = /^([^?#]+)(.*)$/.exec(value);
+    if (!match?.[1]) throw new Error("browser resource URL must name a file");
+    const [, source, suffix] = match;
+    const resourcePath = source.startsWith("/") ? source.slice(1) : path.posix.normalize(path.posix.join(entryRelative, source));
+    const resource = resolvePackageResource(item.packageRootReal, item.packagePublicRootReal, resourcePath, { label: "browser resource" });
+    replacements.push({ start: valueStart, end: valueEnd, value: `${item.url}${resource.resourcePath}${suffix}` });
+  }
+  let rewritten = tag;
+  for (const replacement of replacements.reverse()) {
+    rewritten = `${rewritten.slice(0, replacement.start)}${replacement.value}${rewritten.slice(replacement.end)}`;
+  }
+  return rewritten;
+}
+
+function packageHtml(item, entryReal = item.browserEntryReal, entryPath = item.browserEntry) {
+  const html = fs.readFileSync(entryReal, "utf8");
+  const entryRelative = path.posix.dirname(entryPath) === "." ? "" : path.posix.dirname(entryPath);
+  let result = "";
+  let cursor = 0;
+  while (cursor < html.length) {
+    const start = html.indexOf("<", cursor);
+    if (start === -1) return result + html.slice(cursor);
+    result += html.slice(cursor, start);
+    if (html.startsWith("<!--", start)) {
+      const end = html.indexOf("-->", start + 4);
+      if (end === -1) throw new Error("browser entry contains an unterminated comment");
+      result += html.slice(start, end + 3);
+      cursor = end + 3;
+      continue;
+    }
+    const nameMatch = /^<([A-Za-z][A-Za-z0-9:-]*)/.exec(html.slice(start));
+    if (!nameMatch) {
+      result += "<";
+      cursor = start + 1;
+      continue;
+    }
+    const tagName = nameMatch[1].toLowerCase();
+    const end = findStartTagEnd(html, start + nameMatch[0].length);
+    result += rewriteStartTag(html.slice(start, end), tagName, item, entryRelative);
+    cursor = end;
+    if (tagName === "script" || tagName === "style") {
+      const closing = new RegExp(`</${tagName}\\s*>`, "ig");
+      closing.lastIndex = cursor;
+      const match = closing.exec(html);
+      if (!match) throw new Error(`browser entry contains an unterminated ${tagName} element`);
+      result += html.slice(cursor, match.index + match[0].length);
+      cursor = match.index + match[0].length;
+    }
+  }
+  return result;
 }
 
 function write(response, status, body, headers = {}) {
@@ -226,48 +384,70 @@ function write(response, status, body, headers = {}) {
   response.end(body);
 }
 
-function normalizeAliasPath(value) {
+function registryPathTrace(value) {
   const segments = value.replaceAll("\\", "/").split("/");
+  const stack = [];
+  let entered = false;
+  for (const segment of segments) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") stack.pop();
+    else stack.push(segment);
+    if (stack[0] === "registry") entered = true;
+  }
+  const normalized = `/${stack.join("/")}`;
+  return { entered, normalized, exits: entered && normalized !== "/registry" && !normalized.startsWith(REGISTRY_PREFIX) };
+}
+
+function strictDecode(value) {
+  if (/%(?![0-9A-Fa-f]{2})/.test(value)) throw new Error("invalid percent triplet");
+  const decoded = decodeURIComponent(value);
+  if (/[\u0000-\u001f\u007f]/.test(decoded)) throw new Error("decoded request target contains a control character");
+  return decoded;
+}
+
+function undecodableMayNameRegistry(value) {
+  const asciiProjection = value.replaceAll(/%([0-7][0-9A-Fa-f])/g, (_match, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
+  const segments = asciiProjection.replaceAll("\\", "/").split("/");
   const stack = [];
   for (const segment of segments) {
     if (!segment || segment === ".") continue;
     if (segment === "..") stack.pop();
     else stack.push(segment);
+    if (stack[0]?.startsWith("reg") || "registry".startsWith(stack[0] ?? "") && stack[0]?.length >= 3) return true;
   }
-  return `/${stack.join("/")}`;
-}
-
-function tolerantPercentDecode(value) {
-  return value.replaceAll(/%([0-9A-Fa-f]{2})/g, (_match, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
-}
-
-function touchesRegistryNamespace(rawTarget) {
-  const decodedTarget = tolerantPercentDecode(rawTarget);
-  const malformedElided = decodedTarget.replaceAll(/%(?![0-9A-Fa-f]{2})[^/?#\\]{0,2}/g, "");
-  const candidates = [decodedTarget, malformedElided];
-  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(decodedTarget) || decodedTarget.startsWith("//")) {
-    try {
-      candidates.push(new URL(decodedTarget, "http://registry.invalid").pathname);
-    } catch {
-      // The tolerant candidate below still reserves recognizable registry aliases.
-    }
-  }
-  return candidates.some((candidate) => {
-    const pathname = candidate.split(/[?#]/, 1)[0];
-    const normalized = normalizeAliasPath(pathname);
-    return normalized === "/registry" || normalized.startsWith(REGISTRY_PREFIX) ||
-      /(?:^|[\\/])registry(?:$|[\\/%?#])/.test(pathname);
-  });
+  return false;
 }
 
 function classifyRequestTarget(requestTarget) {
-  const originForm = requestTarget.startsWith("/") && !requestTarget.startsWith("//");
-  const rawPathname = originForm ? requestTarget.split(/[?#]/, 1)[0] : null;
-  const canonicalRegistryPath = rawPathname && (rawPathname === "/registry" || rawPathname.startsWith(REGISTRY_PREFIX));
-  const canonicalSegments = canonicalRegistryPath && !requestTarget.includes("#") && !rawPathname.includes("%") && !rawPathname.includes("\\") &&
-    rawPathname.split("/").every((segment, index, all) => index === 0 || segment !== "." && segment !== ".." && (segment || index === all.length - 1));
+  const delimiter = requestTarget.search(/[?#]/);
+  const rawPathname = delimiter === -1 ? requestTarget : requestTarget.slice(0, delimiter);
+  const suffix = delimiter === -1 ? "" : requestTarget.slice(delimiter);
+  const originForm = rawPathname.startsWith("/") && !rawPathname.startsWith("//");
+  let decoded;
+  try {
+    decoded = strictDecode(rawPathname);
+  } catch {
+    return { ownership: undecodableMayNameRegistry(rawPathname) ? "reject" : "legacy", pathname: null };
+  }
+  let aliasPath = decoded;
+  if (!originForm) {
+    try {
+      if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(decoded)) aliasPath = new URL(decoded).pathname;
+      else if (decoded.startsWith("//")) aliasPath = new URL(`http:${decoded}`).pathname;
+    } catch {
+      return { ownership: registryPathTrace(decoded).entered ? "reject" : "legacy", pathname: null };
+    }
+  }
+  const trace = registryPathTrace(aliasPath);
+  const directlyNamesRegistry = trace.normalized === "/registry" || trace.normalized.startsWith(REGISTRY_PREFIX);
+  const literalRegistry = rawPathname === "/registry" || rawPathname.startsWith(REGISTRY_PREFIX);
+  const canonicalSegments = originForm && literalRegistry && decoded === rawPathname && !suffix.includes("#") &&
+    !rawPathname.includes("\\") && rawPathname.split("/").every((segment, index, all) =>
+      index === 0 || segment !== "." && segment !== ".." && (segment || index === all.length - 1));
   if (canonicalSegments) return { ownership: "registry", pathname: rawPathname };
-  if (touchesRegistryNamespace(requestTarget)) return { ownership: "reject", pathname: null };
+  if (trace.entered || trace.exits || directlyNamesRegistry) {
+    return { ownership: "reject", pathname: null };
+  }
   return { ownership: "legacy", pathname: null };
 }
 
@@ -332,7 +512,7 @@ export async function createRegistryRequestHandler({ repoRoot = DEFAULT_ROOT } =
       }
       let resource;
       try {
-        resource = resolvePackageResource(resourceOwner.packageRootReal, relativeResource);
+        resource = resolvePackageResource(resourceOwner.packageRootReal, resourceOwner.packagePublicRootReal, relativeResource);
       } catch {
         write(response, 404, "Not Found");
         return true;
