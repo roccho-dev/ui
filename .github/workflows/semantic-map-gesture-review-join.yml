@@ -1,0 +1,30 @@
+name: Semantic Map gesture-review join
+
+on:
+  pull_request:
+    paths:
+      - packages/semantic-map/**
+      - examples/render.semantic-map.set-topology/**
+      - .github/workflows/semantic-map-gesture-review-join.yml
+  workflow_dispatch:
+
+jobs:
+  gesture-review-join:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install pinned browser proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Resolve pinned Chromium
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
+      - name: Prove actual gesture through review and fresh JSONL replay
+        run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
