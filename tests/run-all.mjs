@@ -1,3 +1,4 @@
+import "./check-ui-207-contract.mjs";
 import "./check-ui-modeling.mjs";
 import "./check-registry.mjs";
 import "./check-mention-a11y.mjs";
