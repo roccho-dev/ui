@@ -279,11 +279,24 @@ function findStartTagEnd(html, start) {
 }
 
 function localSrcset(value) {
-  if (/^data:/i.test(value.trim())) return false;
-  return value.split(",").some((candidate) => {
-    const url = candidate.trim().split(/\s+/, 1)[0];
-    return !url || !externalResource(url);
-  });
+  const candidates = [];
+  let cursor = 0;
+  while (cursor < value.length) {
+    while (cursor < value.length && /[\s,]/.test(value[cursor])) cursor += 1;
+    if (cursor === value.length) break;
+    const start = cursor;
+    const dataUrl = value.slice(cursor, cursor + 5).toLowerCase() === "data:";
+    while (cursor < value.length && !/\s/.test(value[cursor]) && (dataUrl || value[cursor] !== ",")) cursor += 1;
+    let url = value.slice(start, cursor);
+    const trailingSeparator = dataUrl && url.endsWith(",");
+    if (trailingSeparator) url = url.replace(/,+$/, "");
+    if (!url) return true;
+    candidates.push(url);
+    if (trailingSeparator) continue;
+    while (cursor < value.length && value[cursor] !== ",") cursor += 1;
+    if (cursor < value.length) cursor += 1;
+  }
+  return candidates.length === 0 || candidates.some((url) => !externalResource(url));
 }
 
 function rewriteStartTag(tag, tagName, item, entryRelative) {
@@ -405,19 +418,6 @@ function strictDecode(value) {
   return decoded;
 }
 
-function undecodableMayNameRegistry(value) {
-  const asciiProjection = value.replaceAll(/%([0-7][0-9A-Fa-f])/g, (_match, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
-  const segments = asciiProjection.replaceAll("\\", "/").split("/");
-  const stack = [];
-  for (const segment of segments) {
-    if (!segment || segment === ".") continue;
-    if (segment === "..") stack.pop();
-    else stack.push(segment);
-    if (stack[0]?.startsWith("reg") || "registry".startsWith(stack[0] ?? "") && stack[0]?.length >= 3) return true;
-  }
-  return false;
-}
-
 function classifyRequestTarget(requestTarget) {
   const delimiter = requestTarget.search(/[?#]/);
   const rawPathname = delimiter === -1 ? requestTarget : requestTarget.slice(0, delimiter);
@@ -427,7 +427,7 @@ function classifyRequestTarget(requestTarget) {
   try {
     decoded = strictDecode(rawPathname);
   } catch {
-    return { ownership: undecodableMayNameRegistry(rawPathname) ? "reject" : "legacy", pathname: null };
+    return { ownership: "reject", pathname: null };
   }
   let aliasPath = decoded;
   if (!originForm) {

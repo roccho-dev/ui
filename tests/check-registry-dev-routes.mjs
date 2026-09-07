@@ -73,7 +73,7 @@ try {
 <link data-note="1 > 0" rel="stylesheet" href='/src/graph.css'>
 <object data="/src/graph.json"></object>
 <img src="/src/image.png" data-src="/missing-shadow.png" srcset="https://cdn.example/a.png 1x, //cdn.example/b.png 2x">
-<source src='/src/source.bin'>
+<source src='/src/source.bin' srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA== 1x">
 <video src="/src/video.bin" poster='/src/poster.png'></video>
 <audio src="/src/audio.bin"></audio><embed src='/src/embed.bin'>
 <iframe src="https://example.test/frame.html"></iframe>
@@ -132,6 +132,7 @@ try {
     assert.match(endpointBody, /src="\/registry\/packages\/browser-package\/src\/image\.png"/);
     assert.match(endpointBody, /poster='\/registry\/packages\/browser-package\/src\/poster\.png'/);
     assert.match(endpointBody, /srcset="https:\/\/cdn\.example\/a\.png 1x, \/\/cdn\.example\/b\.png 2x"/);
+    assert.match(endpointBody, /srcset="data:image\/gif;base64,R0lGODlhAQABAIAAAAUEBA== 1x"/);
     assert.match(endpointBody, /missing-comment\.png/);
     assert.match(endpointBody, /missing-spaced\.png/);
     assert.match(endpointBody, /missing-script\.png/);
@@ -191,6 +192,10 @@ try {
       "/registry/packages/browser-package/src/../../../package.json",
       "/registry/packages/browser-package/src\\..\\package.json",
       "/registry/packages/browser-package/src/GRAPH.js",
+      "/legacy%Z",
+      "/legacy%00",
+      "/legacy%C0%AF",
+      "/legacy%1F",
     ]) {
       const escape = await rawFixtureRequest(rawPath);
       assert.equal(escape.response.statusCode, 404, rawPath);
@@ -210,6 +215,9 @@ try {
     ['<script src=/src/graph.js></script>', /local browser resources must use a quoted attribute/],
     ['<img srcset="/src/image.png 1x">', /local srcset browser resources are unsupported/],
     ['<source srcset="/src/image.png 1x">', /local srcset browser resources are unsupported/],
+    ['<source srcset="https://cdn.example/image.png 1x, /src/image.png 2x">', /local srcset browser resources are unsupported/],
+    ['<img srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA== 1x, /src/image.png 2x">', /local srcset browser resources are unsupported/],
+    ['<img srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA==, /src/image.png 2x">', /local srcset browser resources are unsupported/],
     ['<img src="">', /browser resource URL must name a file/],
     ['<img src="?variant=1">', /browser resource URL must name a file/],
     ['<link href="#theme">', /browser resource URL must name a file/],
