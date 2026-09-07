@@ -260,7 +260,12 @@ const RESOURCE_ATTRIBUTES = new Map([
 ]);
 
 function externalResource(value) {
+  if (/^https?:/i.test(value)) return /^https?:\/\//i.test(value);
   return /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(value);
+}
+
+function httpShorthand(value) {
+  return /^https?:(?!\/\/)/i.test(value);
 }
 
 function findStartTagEnd(html, start) {
@@ -279,6 +284,7 @@ function findStartTagEnd(html, start) {
 }
 
 function localSrcset(value) {
+  if (/&(?:#(?:x[0-9a-f]+|\d+)|[a-z][a-z0-9]+);?/i.test(value)) return true;
   const candidates = [];
   let cursor = 0;
   while (cursor < value.length) {
@@ -338,6 +344,7 @@ function rewriteStartTag(tag, tagName, item, entryRelative) {
     if (!value || value.startsWith("?") || value.startsWith("#")) {
       throw new Error("browser resource URL must name a file");
     }
+    if (httpShorthand(value)) throw new Error("same-scheme HTTP shorthand is unsupported");
     if (externalResource(value)) continue;
     if (!quote) throw new Error("local browser resources must use a quoted attribute");
     const match = /^([^?#]+)(.*)$/.exec(value);
@@ -429,15 +436,12 @@ function classifyRequestTarget(requestTarget) {
   } catch {
     return { ownership: "reject", pathname: null };
   }
-  let aliasPath = decoded;
-  if (!originForm) {
-    try {
-      if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(decoded)) aliasPath = new URL(decoded).pathname;
-      else if (decoded.startsWith("//")) aliasPath = new URL(`http:${decoded}`).pathname;
-    } catch {
-      return { ownership: registryPathTrace(decoded).entered ? "reject" : "legacy", pathname: null };
-    }
+  const absoluteForm = /^[A-Za-z][A-Za-z0-9+.-]*:/.test(decoded);
+  const networkForm = /^[\\/]{2}/.test(decoded);
+  if (absoluteForm || networkForm) {
+    return { ownership: "reject", pathname: null };
   }
+  const aliasPath = decoded;
   const trace = registryPathTrace(aliasPath);
   const directlyNamesRegistry = trace.normalized === "/registry" || trace.normalized.startsWith(REGISTRY_PREFIX);
   const literalRegistry = rawPathname === "/registry" || rawPathname.startsWith(REGISTRY_PREFIX);

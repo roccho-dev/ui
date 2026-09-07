@@ -187,7 +187,13 @@ try {
       "/registry\\..\\package.json",
       "/registry%ZZ",
       "http://example.test/registry/components/FixtureThing/",
+      "http://example.test/package.json",
+      "http://example.test/registry/../package.json",
+      "https://example.test/ordinary.txt",
       "//example.test/registry/components/FixtureThing/",
+      "//example.test/package.json",
+      "//example.test/registry/../package.json",
+      "/%5Cexample.test/package.json",
       "/registry/packages/browser-package/src/%2e%2e/package.json",
       "/registry/packages/browser-package/src/../../../package.json",
       "/registry/packages/browser-package/src\\..\\package.json",
@@ -205,6 +211,9 @@ try {
     const survivingRoute = await fetch(`${fixtureBase}/registry/components/FixtureThing/`);
     assert.equal(survivingRoute.status, 200);
     assert.equal(survivingRoute.headers.get("x-registry-key"), "FixtureThing");
+    const survivingLegacy = await rawFixtureRequest("/ordinary.txt");
+    assert.equal(survivingLegacy.response.statusCode, 404);
+    assert.equal(survivingLegacy.body, "outside");
   } finally {
     await new Promise((resolve, reject) => fixtureServer.close((error) => error ? reject(error) : resolve()));
   }
@@ -216,8 +225,12 @@ try {
     ['<img srcset="/src/image.png 1x">', /local srcset browser resources are unsupported/],
     ['<source srcset="/src/image.png 1x">', /local srcset browser resources are unsupported/],
     ['<source srcset="https://cdn.example/image.png 1x, /src/image.png 2x">', /local srcset browser resources are unsupported/],
+    ['<source srcset="https://cdn.example/image.png 1x, &#47;src/image.png 2x">', /local srcset browser resources are unsupported/],
     ['<img srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA== 1x, /src/image.png 2x">', /local srcset browser resources are unsupported/],
     ['<img srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA==, /src/image.png 2x">', /local srcset browser resources are unsupported/],
+    ['<img srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA== 1x&#44; /src/image.png 2x">', /local srcset browser resources are unsupported/],
+    ['<img src="http:src/image.png">', /same-scheme HTTP shorthand is unsupported/],
+    ['<source srcset="http:src/image.png 1x">', /local srcset browser resources are unsupported/],
     ['<img src="">', /browser resource URL must name a file/],
     ['<img src="?variant=1">', /browser resource URL must name a file/],
     ['<link href="#theme">', /browser resource URL must name a file/],
