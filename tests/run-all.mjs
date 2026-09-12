@@ -26,6 +26,7 @@ import "./check-ui-package-evidence.mjs";
 import "./check-ui-gov-package-output.mjs";
 import "./check-markdown-document-renderer.mjs";
 import "./check-markdown-renderer-boundary-regressions.mjs";
+import "../packages/core-port/test/intent-client.test.mjs";
 import "./check-connectability.mjs";
 import "./check-semantic-map-ownership.mjs";
 import "./check-pr-governance.mjs";
