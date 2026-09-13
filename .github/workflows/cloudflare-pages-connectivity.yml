@@ -97,6 +97,7 @@ jobs:
           test -n "$chrome"
           adapters=(shell graph map seq presentation control-reference graph-reference)
           for adapter in "${adapters[@]}"; do
+            echo "adapter=$adapter"
             target="$DEPLOYMENT/adapters/$adapter/"
             output="$RUNNER_TEMP/adapter-$adapter.html"
             "$chrome" --headless=new --no-sandbox --disable-gpu \
@@ -104,7 +105,15 @@ jobs:
             grep -q 'data-adapter-status="pass"' "$output"
             grep -q '>PASS</output>' "$output"
           done
-          printf '%s\n' '{"schema":"ui.adapter-browser-proof/1","status":"PASS","adapters":["shell","graph","map","seq","presentation","control-reference","graph-reference"]}'
+
+          presentation="$RUNNER_TEMP/presentation.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu \
+            --virtual-time-budget=20000 --dump-dom \
+            'https://stg-mobile-agent.pages.dev/business-model/' > "$presentation"
+          grep -q 'data-status="pass"' "$presentation"
+          grep -q 'id="surface"' "$presentation"
+
+          printf '%s\n' '{"schema":"ui.adapter-browser-proof/2","status":"PASS","adapters":["shell","graph","map","seq","presentation","control-reference","graph-reference"],"presentationTarget":"PASS"}'
 
       - name: Emit proof receipt
         shell: bash
