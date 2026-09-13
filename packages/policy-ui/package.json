@@ -1,0 +1,20 @@
+{
+  "name": "@roccho/policy-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "files": ["asset-manifest.json", "assets", "src/control-graph.mjs"],
+  "exports": {
+    "./asset-manifest.json": "./asset-manifest.json",
+    "./control-graph": "./src/control-graph.mjs"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/assets.test.mjs test/browser.test.mjs"
+  },
+  "devDependencies": {
+    "@roccho/graph-editor": "file:../graph-editor",
+    "esbuild": "0.28.2"
+  }
+}

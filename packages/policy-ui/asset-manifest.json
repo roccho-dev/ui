@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "id": "shell.index",
+      "file": "assets/index.html",
+      "contentType": "text/html; charset=utf-8",
+      "sha256": "adfed30839c90f8982c76f1b8d521b9c94f6fc9978b8b4fd618e53e3c38ecab2"
+    },
+    {
+      "id": "shell.control",
+      "file": "assets/control.html",
+      "contentType": "text/html; charset=utf-8",
+      "sha256": "80c7ee7a3bcd834d0ae118cce54ca10d59ca9b662495310786f6bfe8673fca4a"
+    },
+    {
+      "id": "shell.task",
+      "file": "assets/task.html",
+      "contentType": "text/html; charset=utf-8",
+      "sha256": "70efaf081e037f2b7df4c88586f8c28c1847a7b942b894fc0065275ddf7903cf"
+    },
+    {
+      "id": "shell.graph",
+      "file": "assets/graph.html",
+      "contentType": "text/html; charset=utf-8",
+      "sha256": "6077da90c813f6a68e9a67eb6e84c1ec1ce7db7ba79fe270f8dd1595c5a995ac"
+    },
+    {
+      "id": "module.control",
+      "file": "assets/control.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "60463000f9c3b8eb6c0b2ad352cd416bb1bb1d5ae33e0b9352225a97a1fc0583"
+    },
+    {
+      "id": "module.graph",
+      "file": "assets/graph.mjs",
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "67d877c2b320934dab587530c68b794a02f0ab37b2b4a8f7cb7f15d3ebff523b"
+    },
+    {
+      "id": "style.graph",
+      "file": "assets/graph.css",
+      "contentType": "text/css; charset=utf-8",
+      "sha256": "70ee08192aaba5960d8bd6de77ded2fdd8b3eafc357925fac1b560e655d913dd"
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+.roccho-graph-editor,
+.roccho-graph-editor * {
+  box-sizing: border-box;
+}
+
+.roccho-graph-editor {
+  color: #191919;
+  font: 14px/1.5 system-ui, sans-serif;
+}
+
+.roccho-graph-editor__heading {
+  margin: 8px 0;
+  font-size: 28px;
+}
+
+.roccho-graph-editor__scope,
+.roccho-graph-editor__help {
+  color: #555;
+}
+
+.roccho-graph-editor__frame {
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid #cbd1d9;
+  border-radius: 12px;
+  background: #f7f8fa;
+}
+
+.roccho-graph-editor__frame-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.roccho-graph-editor__frame-output {
+  font-weight: 650;
+}
+
+.roccho-graph-editor__status {
+  min-height: 1.5em;
+}
+
+.roccho-graph-editor__status--error {
+  color: #a20d16;
+}
+
+.roccho-graph-editor__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: 14px;
+  align-items: start;
+}
+
+.roccho-graph-editor__viewport {
+  width: 100%;
+  height: min(480px, 65vh);
+  max-height: 480px;
+  overflow: auto;
+  border: 1px solid #cbd1d9;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.roccho-graph-editor__viewport:focus {
+  outline: 3px solid #2367d1;
+  outline-offset: 2px;
+}
+
+.roccho-graph-editor__canvas {
+  position: relative;
+  background: #fff;
+}
+
+.roccho-graph-editor__projection {
+  max-height: 480px;
+  overflow: auto;
+  padding: 0 10px;
+}
+
+.roccho-graph-editor__projection-heading {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.roccho-graph-editor__projection li {
+  margin: 3px 0;
+}
+
+.roccho-graph-editor__projection button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.roccho-graph-editor__help {
+  margin-top: 10px;
+}
+
+.roccho-graph-editor__help p {
+  margin: 0;
+}
+
+.roccho-graph-editor .mxCellEditor {
+  z-index: 2;
+  padding: 2px;
+  border: 1px solid #2367d1;
+  background: #fff;
+  color: #111;
+}
+
+.roccho-graph-editor a {
+  color: #174ea6;
+}
+
+@media (max-width: 760px) {
+  .roccho-graph-editor__body {
+    grid-template-columns: 1fr;
+  }
+
+  .roccho-graph-editor__projection {
+    max-height: 220px;
+    padding: 0;
+  }
+
+  .roccho-graph-editor__viewport {
+    height: min(400px, 55vh);
+  }
+}

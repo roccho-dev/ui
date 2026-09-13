@@ -1,0 +1,22 @@
+{
+  "name": "@roccho/graph-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "files": [
+    "src",
+    "style.css"
+  ],
+  "exports": {
+    ".": "./src/index.mjs",
+    "./style.css": "./style.css"
+  },
+  "scripts": {
+    "build": "node --check src/index.mjs && node --check src/model.mjs && node --check src/editor.mjs && node --check src/component.mjs",
+    "test": "node --test test/model.test.mjs test/package.test.mjs"
+  },
+  "dependencies": {
+    "@maxgraph/core": "0.24.0"
+  }
+}
