@@ -25,13 +25,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
-      - name: Require deploy configuration
+      - name: Require Cloudflare account credentials
         shell: bash
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
           test -n "${CLOUDFLARE_API_TOKEN:-}"
-          test -n "${CLOUDFLARE_PAGES_PROJECT:-}"
 
       - name: Build Artifact Shell publication
         shell: bash
@@ -41,6 +40,31 @@ jobs:
           test -s dist/index.html
           test -s dist/catalog.json
           test -s dist/artifact-manifest.json
+
+      - name: Require Pages project or list candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -n "${CLOUDFLARE_PAGES_PROJECT:-}"; then
+            printf 'Pages project: %s\n' "$CLOUDFLARE_PAGES_PROJECT"
+            exit 0
+          fi
+          response="$RUNNER_TEMP/cloudflare-pages-projects.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects?per_page=100" \
+            --output "$response"
+          python3 - "$response" <<'PY'
+          import json, sys
+          body = json.load(open(sys.argv[1], encoding="utf-8"))
+          if body.get("success") is not True:
+              raise SystemExit("Cloudflare Pages list failed")
+          names = sorted(x["name"] for x in body.get("result", []))
+          print("CLOUDFLARE_PAGES_PROJECT is required. Existing Pages projects:")
+          for name in names:
+              print(f"- {name}")
+          PY
+          exit 2
 
       - name: Deploy preview and exact-byte readback
         id: deploy
