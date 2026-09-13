@@ -106,7 +106,7 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
           };
       const blob = scope.URL.createObjectURL(new Blob([moduleSource], { type: "text/javascript" }));
       const configText = JSON.stringify(config).replaceAll("<", "\\u003c");
-      const bootstrap = `<script id="policy-app-config" type="application/json">${configText}</script><script type="module">import(${JSON.stringify(blob)}).catch(error=>{document.body.dataset.referenceError=error.message})</script>`;
+      const bootstrap = `<script id="policy-app-config" type="application/json">${configText}</script><script type="module" src="${blob}"></script>`;
       const styled = adapter.source.css ? template.replace("<!--POLICY_APP_STYLE-->", `<style>${css}</style>`) : template;
       const iframe = document.createElement("iframe");
       iframe.title = adapter.label;
@@ -116,10 +116,9 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
       await frameLoaded(iframe);
       await wait(() => {
         const child = iframe.contentDocument;
-        if (!child || child.body.dataset.referenceError) return false;
         return adapter.view === "control"
-          ? Boolean(child.querySelector("#tree .node"))
-          : Boolean(child.querySelector(".roccho-graph-editor")) && !child.querySelector(".roccho-graph-editor__status--error");
+          ? Boolean(child?.querySelector("#tree .node"))
+          : Boolean(child?.querySelector(".roccho-graph-editor")) && !child?.querySelector(".roccho-graph-editor__status--error");
       }, `${adapter.id} reference`);
       if (!visible(iframe)) throw new Error(`artifact-adapter: ${adapter.id} frame is not visible`);
       scope.URL.revokeObjectURL(blob);
