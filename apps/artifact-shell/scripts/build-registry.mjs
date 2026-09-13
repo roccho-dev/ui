@@ -169,6 +169,10 @@ export const buildRegistry = async options => {
     if (current !== source) throw new Error(`build-registry: generated registry is stale: ${options.output}`);
     return Object.freeze({ changed: false, manifests, output: options.output, runtimeBuild, source });
   }
+  // Publication consumes this same calculation without reading or writing the projection.
+  if (options.write === false) {
+    return Object.freeze({ changed: false, manifests, output: options.output, runtimeBuild, source });
+  }
   await fs.mkdir(outputDir, { recursive: true });
   await fs.writeFile(options.output, source);
   return Object.freeze({ changed: true, manifests, output: options.output, runtimeBuild, source });

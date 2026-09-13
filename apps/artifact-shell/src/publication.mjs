@@ -91,11 +91,21 @@ const publicationIndexHtml = source => {
 const viewHtml = title => `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>${title}</title>\n<style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:Canvas;color:CanvasText}main{width:min(960px,100%);margin:auto;padding:clamp(16px,4vw,40px);display:grid;gap:18px}header{display:flex;justify-content:space-between;gap:16px;align-items:baseline}section{border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:14px;padding:16px}pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}#surface:empty{display:none}</style>\n</head>\n<body><main><header><h1>${title}</h1><output id="status" data-state="loading">Loading</output></header><section id="surface"></section><section><h2>Result</h2><pre id="result"></pre></section><section><h2>Receipt</h2><pre id="receipt"></pre></section></main><script type="module" src="./view.mjs"></script></body></html>\n`;
 
 export const buildArtifactShellPublication = async ({ capabilitiesRoot, outputRoot, repoRoot }) => {
+  invariant(typeof outputRoot === "string" && outputRoot.length > 0, "outputRoot is required");
+  // Resolve the existing parent, not the leaf: even a dangling leaf symlink must
+  // be rejected by the exclusive mkdir. Outputs must not enter either input tree.
+  const requestedOutput = path.resolve(outputRoot);
+  const parent = await fs.realpath(path.dirname(requestedOutput));
+  outputRoot = path.join(parent, path.basename(requestedOutput));
+  for (const sourceRoot of [repoRoot, capabilitiesRoot]) {
+    const relative = path.relative(await fs.realpath(sourceRoot), outputRoot);
+    invariant(relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative), "outputRoot must be outside source roots");
+  }
+  // The parent must already exist. No replacement, cleanup, or recursive delete.
+  await fs.mkdir(outputRoot);
   const appRoot = path.join(repoRoot, "apps", "artifact-shell");
   const registryOutput = path.join(appRoot, "generated", "capability-registry.mjs");
-  const registry = await buildRegistry({ capabilitiesRoot, check: false, output: registryOutput });
-  await fs.rm(outputRoot, { recursive: true, force: true });
-  await fs.mkdir(outputRoot, { recursive: true });
+  const registry = await buildRegistry({ capabilitiesRoot, check: false, write: false, output: registryOutput });
 
   const kernelBody = Object.freeze({
     contract: ARTIFACT_INVOCATION_RUNTIME_CONTRACT,

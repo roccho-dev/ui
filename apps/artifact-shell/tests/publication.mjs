@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { createArtifactInvocationRuntime, validateArtifactCapabilityFixture } from "../../../packages/artifact-invocation/src/index.mjs";
 import { buildArtifactShellPublication } from "../src/publication.mjs";
+import { buildRegistry } from "../scripts/build-registry.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, "..");
@@ -26,6 +30,25 @@ const files = async root => {
   return result;
 };
 const snapshot = async root => Object.fromEntries(await Promise.all((await files(root)).map(async target => [path.relative(root, target).split(path.sep).join("/"), (await fs.readFile(target)).toString("base64")] )));
+// No Git metadata is required, so the same check runs against an immutable Nix source.
+const sourceSnapshot = async () => {
+  const result = {};
+  const walk = async directory => {
+    for (const entry of (await fs.readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      const target = path.join(directory, entry.name);
+      if (entry.isDirectory()) { await walk(target); continue; }
+      const stat = await fs.lstat(target, { bigint: true });
+      const bytes = entry.isSymbolicLink() ? Buffer.from(await fs.readlink(target)) : await fs.readFile(target);
+      result[path.relative(repoRoot, target).split(path.sep).join("/")] = {
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        mode: String(stat.mode), mtimeNs: String(stat.mtimeNs), ctimeNs: String(stat.ctimeNs),
+      };
+    }
+  };
+  await walk(repoRoot);
+  return result;
+};
 const staticImportSpecifiers = source => {
   const result = [];
   for (const pattern of [
@@ -51,13 +74,81 @@ const assertStaticModuleClosure = async root => {
 };
 const sourceCapabilityCount = (await fs.readdir(path.join(appRoot, "capabilities"), { withFileTypes: true })).filter(entry => entry.isDirectory()).length;
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "artifact-publication-"));
+const sourceBefore = await sourceSnapshot();
 try {
   const outputA = path.join(temp, "a");
   const outputB = path.join(temp, "b");
   const input = { capabilitiesRoot: path.join(appRoot, "capabilities"), repoRoot };
-  const first = await buildArtifactShellPublication({ ...input, outputRoot: outputA });
+  const rejectExisting = async outputRoot => {
+    await assert.rejects(() => buildArtifactShellPublication({ ...input, outputRoot }), { code: "EEXIST" });
+    assertions += 1;
+  };
+  const occupied = path.join(temp, "occupied");
+  await fs.mkdir(occupied);
+  await fs.writeFile(path.join(occupied, "sentinel"), "keep\n");
+  const occupiedBefore = await snapshot(occupied);
+  await rejectExisting(occupied);
+  deepEqual(await snapshot(occupied), occupiedBefore);
+  const empty = path.join(temp, "empty");
+  await fs.mkdir(empty);
+  await rejectExisting(empty);
+  deepEqual(await fs.readdir(empty), []);
+  const file = path.join(temp, "file");
+  await fs.writeFile(file, "keep\n");
+  await rejectExisting(file);
+  equal(await fs.readFile(file, "utf8"), "keep\n");
+  for (const [name, target] of [["link", occupied], ["dangling", path.join(temp, "absent")]]) {
+    const link = path.join(temp, name);
+    await fs.symlink(target, link, "dir");
+    await rejectExisting(link);
+    equal(await fs.readlink(link), target);
+  }
+  await assert.rejects(() => fs.lstat(path.join(temp, "absent")), { code: "ENOENT" }); assertions += 1;
+  const sourceAlias = path.join(temp, "source-alias");
+  await fs.symlink(repoRoot, sourceAlias, "dir");
+  await assert.rejects(
+    () => buildArtifactShellPublication({ ...input, outputRoot: path.join(sourceAlias, "must-not-be-created") }),
+    /outputRoot must be outside source roots/,
+  ); assertions += 1;
+  // Calculation must neither overwrite a stale projection nor create an absent one.
+  const projection = path.join(temp, "projection.mjs");
+  await fs.writeFile(projection, "sentinel\n");
+  const projectionBefore = await fs.stat(projection, { bigint: true });
+  const calculated = await buildRegistry({ capabilitiesRoot: input.capabilitiesRoot, output: projection, write: false });
+  equal(calculated.changed, false);
+  equal(await fs.readFile(projection, "utf8"), "sentinel\n");
+  equal((await fs.stat(projection, { bigint: true })).mtimeNs, projectionBefore.mtimeNs);
+  const absentProjection = path.join(temp, "no-projection", "registry.mjs");
+  await buildRegistry({ capabilitiesRoot: input.capabilitiesRoot, output: absentProjection, write: false });
+  await assert.rejects(() => fs.lstat(path.dirname(absentProjection)), { code: "ENOENT" }); assertions += 1;
+  // Both callers race for the same fresh root; exactly one owns the output.
+  const competitors = await Promise.allSettled([
+    buildArtifactShellPublication({ ...input, outputRoot: outputA }),
+    buildArtifactShellPublication({ ...input, outputRoot: outputA }),
+  ]);
+  equal(competitors.filter(result => result.status === "fulfilled").length, 1);
+  equal(competitors.filter(result => result.status === "rejected").length, 1);
+  equal(competitors.find(result => result.status === "rejected").reason.code, "EEXIST");
+  const first = competitors.find(result => result.status === "fulfilled").value;
   const second = await buildArtifactShellPublication({ ...input, outputRoot: outputB });
   deepEqual(await snapshot(outputA), await snapshot(outputB));
+  deepEqual(first.artifactManifest, second.artifactManifest);
+  const builtBefore = await snapshot(outputA);
+  await rejectExisting(outputA);
+  deepEqual(await snapshot(outputA), builtBefore);
+  const execute = promisify(execFile);
+  const cli = path.join(appRoot, "scripts", "build-publication.mjs");
+  await assert.rejects(() => execute(process.execPath, [cli, `--out=${occupied}`], { cwd: repoRoot }));
+  assertions += 1;
+  deepEqual(await snapshot(occupied), occupiedBefore);
+  for (const args of [["--out="], ["--unknown=value"], [`--out=${outputB}`, "--out=other"]]) {
+    await assert.rejects(() => execute(process.execPath, [cli, ...args], { cwd: repoRoot })); assertions += 1;
+  }
+  const cliResult = JSON.parse((await execute(process.execPath, [cli], { cwd: repoRoot })).stdout);
+  equal(cliResult.status, "PASS");
+  equal(cliResult.treeDigest, first.artifactManifest.treeDigest);
+  ok(path.isAbsolute(cliResult.outputRoot));
+  deepEqual(await snapshot(cliResult.outputRoot), await snapshot(outputA));
   equal(first.artifactManifest.treeDigest, second.artifactManifest.treeDigest);
   equal(first.catalog.schema, "artifact-capability-catalog/2");
   equal(first.catalog.capabilities.length, sourceCapabilityCount);
@@ -157,7 +248,9 @@ for (const [id, expected] of Object.entries(publishedJsonl)) {
   equal(first.artifactManifest.files.some(item => item.path === "index.html"), true);
   equal(first.artifactManifest.files.some(item => item.path === "entry.mjs"), true);
 
+  deepEqual(await sourceSnapshot(), sourceBefore);
   console.log(JSON.stringify({ schema: "check-receipt/1", checkId: "ui.artifact-shell.publication", ownerRepo: "ui", lane: "repo", kind: "normal", status: "PASS", assertions, capabilities: first.catalog.capabilities.length, nodeFixtures, treeDigest: first.artifactManifest.treeDigest }));
 } finally {
-  await fs.rm(temp, { recursive: true, force: true });
+  // Fresh outputs are retained for runner/OS disposal, including failed builds.
+  deepEqual(await sourceSnapshot(), sourceBefore);
 }
