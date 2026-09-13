@@ -1,0 +1,46 @@
+name: Cloudflare Pages connectivity
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/cloudflare-pages-connectivity.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connectivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: cloudflare-production
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read Pages projects
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          response="$RUNNER_TEMP/cloudflare-pages-projects.json"
+          status="$(curl --silent --show-error \
+            --output "$response" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects?per_page=1")"
+          test "$status" = "200"
+          python3 - "$response" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as f:
+              body = json.load(f)
+          if body.get("success") is not True or not isinstance(body.get("result"), list):
+              raise SystemExit("Cloudflare Pages API response was not successful")
+          info = body.get("result_info") or {}
+          print(json.dumps({
+              "schema": "ui.cloudflare-pages-connectivity/1",
+              "status": "PASS",
+              "project_count": info.get("total_count")
+          }, separators=(",", ":")))
+          PY
