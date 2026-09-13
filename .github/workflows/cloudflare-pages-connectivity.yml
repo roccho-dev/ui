@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/cloudflare-pages-connectivity.yml
+      - apps/artifact-shell/**
   workflow_dispatch:
 
 permissions:
@@ -33,6 +34,21 @@ jobs:
           test -n "${CLOUDFLARE_API_TOKEN:-}"
           test "$CLOUDFLARE_PAGES_PROJECT" = "stg-artifact-runtime"
 
+      - name: Check adapter architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE '(^|[^[:alnum:]_])class[[:space:]]+[[:alnum:]_$]+' \
+            apps/artifact-shell/adapters \
+            apps/artifact-shell/publication \
+            apps/artifact-shell/src/adapter.mjs \
+            apps/artifact-shell/mode.mjs
+          ! grep -R -nE 'export[[:space:]]+default' \
+            apps/artifact-shell/adapters \
+            apps/artifact-shell/publication \
+            apps/artifact-shell/src/adapter.mjs \
+            apps/artifact-shell/mode.mjs
+
       - name: Build Artifact Shell publication
         shell: bash
         run: |
@@ -41,6 +57,10 @@ jobs:
           test -s dist/index.html
           test -s dist/catalog.json
           test -s dist/artifact-manifest.json
+          for adapter in shell graph map seq presentation control-reference graph-reference; do
+            test -s "dist/adapters/$adapter/index.html"
+            test -s "dist/adapters/$adapter/adapter.json"
+          done
 
       - name: Deploy preview and exact-byte readback
         id: deploy
@@ -49,14 +69,16 @@ jobs:
           PREVIEW_BRANCH: ui-deploy-pr-${{ github.event.pull_request.number || github.run_id }}
         run: |
           set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
           output="$(npx --yes wrangler@4.112.0 pages deploy dist \
             --project-name "$CLOUDFLARE_PAGES_PROJECT" \
             --branch "$PREVIEW_BRANCH" \
-            --commit-hash "$GITHUB_SHA" \
-            --commit-message 'Artifact Shell preview proof' 2>&1)"
+            --commit-hash "$head_sha" \
+            --commit-message 'Artifact Shell adapter preview proof' 2>&1)"
           printf '%s\n' "$output"
           deployment="$(printf '%s\n' "$output" | grep -Eo 'https://[A-Za-z0-9.-]+\.pages\.dev' | head -n1)"
           test -n "$deployment"
+          echo "deployment=$deployment" >> "$GITHUB_OUTPUT"
 
           for path in index.html catalog.json artifact-manifest.json; do
             curl --fail --silent --show-error --location \
@@ -65,17 +87,43 @@ jobs:
             cmp "dist/$path" "$RUNNER_TEMP/remote-$path"
           done
 
-          python3 - "$deployment" dist/catalog.json dist/artifact-manifest.json <<'PY'
+      - name: Prove seven adapter surfaces in real Chrome
+        shell: bash
+        env:
+          DEPLOYMENT: ${{ steps.deploy.outputs.deployment }}
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+          adapters=(shell graph map seq presentation control-reference graph-reference)
+          for adapter in "${adapters[@]}"; do
+            target="$DEPLOYMENT/adapters/$adapter/"
+            output="$RUNNER_TEMP/adapter-$adapter.html"
+            "$chrome" --headless=new --no-sandbox --disable-gpu \
+              --virtual-time-budget=20000 --dump-dom "$target" > "$output"
+            grep -q 'data-adapter-status="pass"' "$output"
+            grep -q '>PASS</output>' "$output"
+          done
+          printf '%s\n' '{"schema":"ui.adapter-browser-proof/1","status":"PASS","adapters":["shell","graph","map","seq","presentation","control-reference","graph-reference"]}'
+
+      - name: Emit proof receipt
+        shell: bash
+        env:
+          DEPLOYMENT: ${{ steps.deploy.outputs.deployment }}
+        run: |
+          set -euo pipefail
+          python3 - "$DEPLOYMENT" dist/catalog.json dist/artifact-manifest.json <<'PY'
           import hashlib, json, pathlib, sys
           deployment = sys.argv[1]
           catalog = json.loads(pathlib.Path(sys.argv[2]).read_text())
           manifest = pathlib.Path(sys.argv[3]).read_bytes()
           print(json.dumps({
-              "schema": "ui.artifact-shell-pages-proof/1",
+              "schema": "ui.artifact-shell-pages-proof/2",
               "status": "PASS",
               "deployment": deployment,
               "project": "stg-artifact-runtime",
               "mode": "preview",
+              "adapters": ["shell", "graph", "map", "seq", "presentation", "control-reference", "graph-reference"],
               "capabilities": [f"{x['capability']['id']}@{x['capability']['version']}" for x in catalog["capabilities"]],
               "artifact_manifest_sha256": hashlib.sha256(manifest).hexdigest(),
           }, separators=(",", ":")))
