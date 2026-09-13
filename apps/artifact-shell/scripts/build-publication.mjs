@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildArtifactShellPublication } from "../src/publication.mjs";
+import { assertPublicationOutsideSources, buildArtifactShellPublication } from "../src/publication.mjs";
 const repoRoot = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 const args = Object.create(null);
 for (const argument of process.argv.slice(2)) {
@@ -15,11 +15,17 @@ for (const argument of process.argv.slice(2)) {
   }
   args[name] = value;
 }
-const outputRoot = args.out === undefined
-  ? path.join(await fs.mkdtemp(path.join(os.tmpdir(), "artifact-shell-publication-")), "publication")
-  : path.resolve(repoRoot, args.out);
+const capabilitiesRoot = path.resolve(repoRoot, args.capabilities ?? "apps/artifact-shell/capabilities");
+let outputRoot;
+if (args.out === undefined) {
+  const tempRoot = await fs.realpath(os.tmpdir());
+  await assertPublicationOutsideSources(tempRoot, { repoRoot, capabilitiesRoot });
+  outputRoot = path.join(await fs.mkdtemp(path.join(tempRoot, "artifact-shell-publication-")), "publication");
+} else {
+  outputRoot = path.resolve(repoRoot, args.out);
+}
 const result = await buildArtifactShellPublication({
-  capabilitiesRoot: path.resolve(repoRoot, args.capabilities ?? "apps/artifact-shell/capabilities"),
+  capabilitiesRoot,
   outputRoot,
   repoRoot,
 });
