@@ -74,10 +74,16 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
     }
 
     if (adapter.kind === "external") {
-      const iframe = frame(adapter.href);
-      await frameLoaded(iframe);
-      if (!visible(iframe)) throw new Error(`artifact-adapter: ${adapter.id} frame is not visible`);
-      pass({ href: iframe.src, loaded: true });
+      const panel = document.createElement("p");
+      const link = document.createElement("a");
+      link.href = adapter.href;
+      link.rel = "noopener noreferrer";
+      link.target = "_blank";
+      link.textContent = `open ${adapter.label}`;
+      panel.append(link);
+      mount.replaceChildren(panel);
+      await wait(() => visible(panel) && visible(link), `${adapter.id} handoff`);
+      pass({ href: link.href, handoff: true });
       return;
     }
 
