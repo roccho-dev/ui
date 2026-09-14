@@ -30,9 +30,12 @@ assert.equal(readUrlModuleToken({ fragment: "presentation", input: multi }), tok
 assert.equal(canonicalJson({ z: 1, a: -0 }), '{"a":0,"z":1}');
 assert.equal((await sha256Hex("proof")).length, 64);
 assert.equal(await readUrlModule({ fragment: "presentation", input: "#other=eA" }), null);
+const rawText = '{"type":"meta"}\n{"type":"region","label":" 日本語 "}\n';
+const rawUrl = await createUrlModuleUrl({ base: "https://example.invalid/graph/", fragment: "data", value: rawText });
+assert.equal(await readUrlModule({ fragment: "data", input: rawUrl }), rawText);
 await assert.rejects(readUrlModule({ fragment: "presentation", input: "#presentation=x&presentation=y" }), /duplicated/);
 await assert.rejects(readUrlModule({ fragment: "presentation", input: "#Bad=x" }), /fragment name is invalid/);
 await assert.rejects(readUrlModule({ fragment: "P", input: url }), /fragment name is invalid/);
 await assert.rejects(decodeUrlModule("***"), /base64url/);
 await assert.rejects(readUrlModule({ fragment: "presentation", input: `https://example.invalid/#presentation=${"a".repeat(MAX_URL_MODULE_CHARS)}` }), /URL exceeds/);
-console.log("url-module-tests-pass 18");
+console.log("url-module-tests-pass 19");

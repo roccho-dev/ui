@@ -1,6 +1,7 @@
 export const createAdapter = () => Object.freeze({
+  featureModule: 'packages/semantic-map/feature.mjs',
   id: 'graph',
-  kind: 'invocation',
+  kind: 'feature',
   label: 'graph',
-  source: 'examples/graph/example.json',
+  source: 'examples/graph/example.jsonl',
 });
