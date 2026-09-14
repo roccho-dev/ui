@@ -10,6 +10,7 @@ permissions:
 
 env:
   SOURCE_SHA: 1d2ef0d99f75d98ec96786d027358e7270b44801
+  PROOF_HARNESS_SHA: 413a52929d05839e631cfbe1cc9dccc459f77d2c
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
   CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
 
@@ -58,8 +59,14 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
           python3 -m playwright install --with-deps chromium
+      - name: Checkout pinned proof harness separately
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PROOF_HARNESS_SHA }}
+          path: _proof-harness
+          persist-credentials: false
       - name: Prove real authoring for every deployed Chart variant
-        run: python3 "$GITHUB_WORKSPACE/.github/scripts/chart-pr-224-authoring-proof.py"
+        run: python3 "$GITHUB_WORKSPACE/_proof-harness/.github/scripts/chart-pr-224-authoring-proof.py"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
