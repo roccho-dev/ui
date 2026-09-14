@@ -14,12 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          ref: 510dd9c9d50a7af458d7180ae3fd8ad2881f5c62
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: test "$(git rev-parse HEAD)" = "510dd9c9d50a7af458d7180ae3fd8ad2881f5c62"
       - run: node packages/semantic-map/tests/example_reproducibility.mjs
 
   semantic-rest:
@@ -27,12 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          ref: 510dd9c9d50a7af458d7180ae3fd8ad2881f5c62
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: test "$(git rev-parse HEAD)" = "510dd9c9d50a7af458d7180ae3fd8ad2881f5c62"
       - run: python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
       - run: node apps/artifact-shell/tests/semantic-map-capability.mjs
       - run: node tests/check-semantic-map-legacy-source-retirement.mjs
@@ -42,12 +42,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          ref: 510dd9c9d50a7af458d7180ae3fd8ad2881f5c62
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: test "$(git rev-parse HEAD)" = "510dd9c9d50a7af458d7180ae3fd8ad2881f5c62"
       - run: node packages/decision-packet/tests/example-reproducibility.mjs
 
   decision-rest:
@@ -55,11 +55,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          ref: 510dd9c9d50a7af458d7180ae3fd8ad2881f5c62
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: test "$(git rev-parse HEAD)" = "510dd9c9d50a7af458d7180ae3fd8ad2881f5c62"
       - run: node apps/artifact-shell/tests/decision-packet-capability.mjs
       - run: node tests/check-decision-packet-publication.mjs
