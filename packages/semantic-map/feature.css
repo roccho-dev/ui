@@ -1,0 +1,15 @@
+.semantic-map-feature {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: min(78vh, 900px);
+  min-height: 560px;
+  overflow: hidden;
+  background: #f8fafb;
+}
+
+.semantic-map-feature-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}

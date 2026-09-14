@@ -4,6 +4,12 @@ const sameOriginUrl = (value, base) => {
   invariant(url.origin === base.origin, `same-origin URL required: ${value}`);
   return url;
 };
+const readData = async base => {
+  if (!base.hash) return null;
+  const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);
+  const { readUrlModule } = await import(moduleUrl.href);
+  return readUrlModule({ fragment: 'data', input: base.href });
+};
 
 export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
   const base = new URL(scope.location.href);
@@ -27,12 +33,15 @@ export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
     scope.document.head.append(link);
   }
 
-  const inputResponse = await scope.fetch(new URL('./input.json', base), { cache: 'no-store', credentials: 'omit' });
-  invariant(inputResponse.ok, `input.json returned ${inputResponse.status}`);
-  const input = await inputResponse.json();
+  let input = await readData(base);
+  if (input === null) {
+    const inputResponse = await scope.fetch(new URL('./input.json', base), { cache: 'no-store', credentials: 'omit' });
+    invariant(inputResponse.ok, `input.json returned ${inputResponse.status}`);
+    input = await inputResponse.json();
+  }
   const module = await import(sameOriginUrl(feature.entry, base).href);
   invariant(typeof module.mountFeature === 'function', 'mountFeature export required');
-  const mounted = await module.mountFeature({ input, root, scope });
+  const mounted = await module.mountFeature({ feature, input, root, scope });
 
   scope.document.documentElement.dataset.status = 'pass';
   scope.uiFeatureProof = Object.freeze({ feature, mounted: mounted ?? null, status: 'PASS' });
