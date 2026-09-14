@@ -110,11 +110,15 @@ function graphRanks(domain, parentId, childIds) {
     [...adjacency].map(([id, targets]) => [id, Object.freeze([...targets].sort())]),
   );
   const components = stronglyConnectedComponents(ordered, sortedAdjacency);
+  const orderIndex = new Map(ordered.map((id, index) => [id, index]));
+  const orderedComponents = components.map((component) => Object.freeze(
+    [...component].sort((left, right) => orderIndex.get(left) - orderIndex.get(right)),
+  ));
   const componentByNode = new Map();
-  components.forEach((component, index) => component.forEach((node) => componentByNode.set(node, index)));
-  const componentKey = (index) => components[index][0];
-  const successors = new Map(components.map((_, index) => [index, new Set()]));
-  const predecessors = new Map(components.map((_, index) => [index, new Set()]));
+  orderedComponents.forEach((component, index) => component.forEach((node) => componentByNode.set(node, index)));
+  const componentKey = (index) => orderedComponents[index][0];
+  const successors = new Map(orderedComponents.map((_, index) => [index, new Set()]));
+  const predecessors = new Map(orderedComponents.map((_, index) => [index, new Set()]));
 
   for (const [from, targets] of sortedAdjacency) {
     const fromComponent = componentByNode.get(from);
@@ -126,11 +130,11 @@ function graphRanks(domain, parentId, childIds) {
     }
   }
 
-  const indegree = new Map(components.map((_, index) => [index, predecessors.get(index).size]));
-  const ready = components.map((_, index) => index)
+  const indegree = new Map(orderedComponents.map((_, index) => [index, predecessors.get(index).size]));
+  const ready = orderedComponents.map((_, index) => index)
     .filter((index) => indegree.get(index) === 0)
     .sort((a, b) => compareText(componentKey(a), componentKey(b)));
-  const ranks = new Map(components.map((_, index) => [index, 0]));
+  const ranks = new Map(orderedComponents.map((_, index) => [index, 0]));
   const topological = [];
 
   while (ready.length) {
@@ -138,7 +142,7 @@ function graphRanks(domain, parentId, childIds) {
     topological.push(current);
     const targets = [...successors.get(current)].sort((a, b) => compareText(componentKey(a), componentKey(b)));
     for (const target of targets) {
-      ranks.set(target, Math.max(ranks.get(target), ranks.get(current) + 1));
+      ranks.set(target, Math.max(ranks.get(target), ranks.get(current) + orderedComponents[current].length));
       indegree.set(target, indegree.get(target) - 1);
       if (indegree.get(target) === 0) {
         ready.push(target);
@@ -149,7 +153,8 @@ function graphRanks(domain, parentId, childIds) {
 
   const rankByNode = new Map();
   for (const componentIndex of topological) {
-    for (const node of components[componentIndex]) rankByNode.set(node, ranks.get(componentIndex));
+    const baseRank = ranks.get(componentIndex);
+    orderedComponents[componentIndex].forEach((node, offset) => rankByNode.set(node, baseRank + offset));
   }
   return rankByNode;
 }
