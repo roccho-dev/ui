@@ -25,8 +25,8 @@ export {
   isOperationType,
   normalizeOperation,
   normalizeOperations,
-} from './operation.js';
-export { SemanticDomainStore } from './domain-store.js';
+} from '../editor-core/operation.js';
+export { EditorCore, EditorCore as SemanticDomainStore } from '../editor-core/index.js';
 export { normalizeStateRecords, reduceOperations } from './reducer.js';
 export { SET_TOPOLOGIES, deriveSetSemantics } from './set-semantics.js';
 export {

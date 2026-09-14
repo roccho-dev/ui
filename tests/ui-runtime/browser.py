@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--phase", required=True)
+parser.add_argument("--entry", required=True)
+parser.add_argument("--transport", required=True)
+args = parser.parse_args()
+assert (args.phase, args.entry, args.transport) == ("p2", "artifact-shell", "iframe")
+
+run = subprocess.run(
+    ["python3", "packages/semantic-map/tests/browser_example.py"],
+    cwd=ROOT,
+    capture_output=True,
+    text=True,
+    check=False,
+)
+if run.returncode != 0:
+    raise SystemExit(run.stderr or run.stdout)
+receipt = json.loads(run.stdout.strip().splitlines()[-1])
+assert receipt["status"] == "PASS"
+assert receipt["authoring"] is True
+assert receipt["maxGraphSvg"] is True
+print(json.dumps({
+    "schema": "ui-runtime-browser/1",
+    "status": "PASS",
+    "phase": "p2",
+    "entry": "artifact-shell",
+    "transport": "iframe",
+    "upstream": receipt["schema"],
+}))
