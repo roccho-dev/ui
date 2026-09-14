@@ -22,7 +22,7 @@ jobs:
           path = Path('apps/artifact-shell/src/publication.mjs')
           text = path.read_text()
           old = 'href: new URL("./engine.mjs", publicationUrl).href'
-          new = 'href: `./${entry.root}/engine.mjs`'
+          new = 'href: \\`./\\${entry.root}/engine.mjs\\`'
           if text.count(old) != 1:
               raise SystemExit(f'expected one engine href, found {text.count(old)}')
           path.write_text(text.replace(old, new))
@@ -34,7 +34,7 @@ jobs:
           test ! -e packages/comptime/control.mjs
           ! grep -q 'compile:' apps/artifact-shell/adapters/control.mjs
           ! grep -R -nE 'proof:[[:space:]]*Object\.freeze' packages/control/feature.mjs packages/graph-editor/feature.mjs packages/presentation/feature.mjs
-          grep -F 'href: `./${entry.root}/engine.mjs`' apps/artifact-shell/src/publication.mjs
+          grep -F 'href: \`./\${entry.root}/engine.mjs\`' apps/artifact-shell/src/publication.mjs
       - name: Prove publication source tests
         run: node apps/artifact-shell/tests/publication.mjs
       - name: Build publication
