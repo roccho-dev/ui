@@ -11,6 +11,7 @@ import { materializeFeature } from './materialize-feature.mjs';
 
 const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/a2ui-browser/src',
+  'packages/business-model',
   'packages/control',
   'packages/core-port/src',
   'packages/graph-editor',
