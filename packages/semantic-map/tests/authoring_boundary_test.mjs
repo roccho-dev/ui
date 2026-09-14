@@ -10,11 +10,16 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const rendererIndex = read('packages/semantic-map/renderer-maxgraph/index.js');
 const authoringIndex = read('packages/semantic-map/renderer-maxgraph/authoring/index.js');
 const documentAuthoring = read('packages/semantic-map/renderer-maxgraph/authoring/document.js');
+const activeList = read('packages/semantic-map/renderer-maxgraph/authoring/active-list.js');
 const graphEditorBridge = read('packages/graph-editor/src/editor.mjs');
 
 assert.match(rendererIndex, /createSemanticAuthoring as createMaxGraphAdapter/);
-assert.match(authoringIndex, /createMaxGraphAdapter as createSemanticAuthoring/);
+assert.match(authoringIndex, /createMaxGraphAdapter/);
+assert.match(authoringIndex, /mountActiveList/);
+assert.match(authoringIndex, /activeList/);
 assert.match(authoringIndex, /createDocumentAuthoring/);
+assert.match(activeList, /data-maxgraph-active-list|dataset\.maxgraphActiveList/);
+assert.match(activeList, /onActivate/);
 assert.match(documentAuthoring, /vendor\/maxgraph/);
 assert.match(documentAuthoring, /insertRectangle/);
 assert.match(documentAuthoring, /deleteSelection/);
@@ -25,9 +30,10 @@ assert.doesNotMatch(graphEditorBridge, /vendor\/maxgraph/);
 assert.match(graphEditorBridge, /createDocumentAuthoring as createEditor/);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-maxgraph-authoring-boundary-test/1',
+  schema: 'semantic-map-maxgraph-authoring-boundary-test/2',
   status: 'PASS',
   semanticFeaturesUseAuthoringBoundary: true,
   graphEditorUsesAuthoringBoundary: true,
+  activeListOwnedByAuthoring: true,
   directGraphEditorMaxGraphImports: 0,
 }));
