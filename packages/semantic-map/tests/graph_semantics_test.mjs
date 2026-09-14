@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createSemanticMap, parseSemanticMapRecords } from '../domain/index.js';
-import { GRAPH_PATTERN, validatePatternDomain } from '../pattern/index.js';
+import { createGraphLayout, GRAPH_PATTERN, validatePatternDomain } from '../pattern/index.js';
 import { SemanticProjector } from '../projection/index.js';
 import { displayedRegionLabel } from '../renderer-maxgraph/labels.js';
 import { DEFAULT_THEME } from '../renderer-maxgraph/theme.js';
@@ -17,10 +17,18 @@ function project(domain, scale = 1, viewport = { x: -100, y: -100, width: 2400, 
   return new SemanticProjector(domain, null, { pattern: GRAPH_PATTERN }).project({ scale, viewport });
 }
 
-const flow = project(load('flow'));
+const flowDomain = load('flow');
+const flow = project(flowDomain);
 assert.ok(flow.relations.every((relation) => relation.directed), 'flow relations must be directed');
 assert.equal(flow.representations.find((item) => item.sourceRegionId === 'start')?.shape, 'graph-terminal');
 assert.equal(flow.representations.find((item) => item.sourceRegionId === 'done')?.shape, 'graph-terminal');
+const flowLR = createGraphLayout(flowDomain, { direction: 'LR' });
+const flowTB = createGraphLayout(flowDomain, { direction: 'TB' });
+assert.equal(flowLR.direction, 'LR');
+assert.equal(flowTB.direction, 'TB');
+assert.ok(flowLR.bounds.get('start').x < flowLR.bounds.get('review').x, 'LR must advance ranks on x');
+assert.ok(flowTB.bounds.get('start').y < flowTB.bounds.get('review').y, 'TB must advance ranks on y');
+assert.throws(() => createGraphLayout(flowDomain, { direction: 'diagonal' }), /unsupported direction/u);
 
 const state = project(load('state'));
 assert.equal(state.representations.find((item) => item.sourceRegionId === 'initial')?.shape, 'graph-terminal');
@@ -108,5 +116,6 @@ console.log(JSON.stringify({
   pass: true,
   complete: true,
   pattern: GRAPH_PATTERN,
+  layouts: ['LR', 'TB'],
   examples: ['flow', 'state', 'class', 'erd', 'subgraph', 'self-loop', 'adr344', 'architecture-nested'],
 }));
