@@ -15,6 +15,9 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/core-port/src',
   'packages/graph-editor',
   'packages/presentation',
+  'packages/semantic-map/renderer-maxgraph',
+  'packages/semantic-map/renderer-resource-dom',
+  'packages/semantic-map/resource-composition',
   'packages/semantic-map/vendor',
 ]);
 
