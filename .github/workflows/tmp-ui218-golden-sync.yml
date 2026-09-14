@@ -57,4 +57,4 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add examples/render.semantic-map.set-topology/dist/
           git commit -m 'chore(graph): refresh set-topology generated proof'
-          git push origin HEAD:tmp/ui218-golden-output-260915
+          git push origin HEAD:refs/heads/tmp/ui218-golden-output-260915
