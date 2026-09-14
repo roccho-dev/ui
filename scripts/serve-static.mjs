@@ -1,7 +1,8 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRegistryRequestHandler } from "./registry-dev-routes.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = 18083;
@@ -25,24 +26,37 @@ function resolveRequest(url) {
   return resolved;
 }
 
-const server = http.createServer((req, res) => {
-  const file = resolveRequest(req.url || "/");
-  if (!file) {
-    res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
-    res.end("forbidden");
-    return;
-  }
-  fs.readFile(file, (error, body) => {
-    if (error) {
-      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-      res.end("not found");
+export async function createStaticServer() {
+  const handleRegistryRequest = await createRegistryRequestHandler();
+  return http.createServer((req, res) => {
+    if (handleRegistryRequest(req, res)) return;
+    const file = resolveRequest(req.url || "/");
+    if (!file) {
+      res.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+      res.end("forbidden");
       return;
     }
-    res.writeHead(200, { "content-type": TYPES.get(path.extname(file)) || "application/octet-stream" });
-    res.end(body);
+    fs.readFile(file, (error, body) => {
+      if (error) {
+        res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+        res.end("not found");
+        return;
+      }
+      res.writeHead(200, { "content-type": TYPES.get(path.extname(file)) || "application/octet-stream" });
+      res.end(body);
+    });
   });
-});
+}
 
-server.listen(PORT, HOST, () => {
-  console.log(`purpose-atlas-host http://${HOST}:${PORT}/`);
-});
+export async function startStaticServer({ host = HOST, port = PORT } = {}) {
+  const server = await createStaticServer();
+  server.listen(port, host, () => {
+    const address = server.address();
+    console.log(`purpose-atlas-host http://${host}:${address.port}/`);
+  });
+  return server;
+}
+
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  await startStaticServer();
+}

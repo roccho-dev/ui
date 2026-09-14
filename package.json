@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "uiRegistry": {
+    "packages": [
+      "packages/core-port"
+    ],
+    "browserEntry": null,
+    "componentRegistry": null
+  },
   "workspaces": [
     "packages/core-port"
   ],
