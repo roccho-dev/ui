@@ -7,6 +7,7 @@ on:
       - examples/render.semantic-map.set-topology/**
       - apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py
+      - apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
       - .github/workflows/semantic-map-gesture-review-join.yml
   workflow_dispatch:
 
@@ -36,3 +37,5 @@ jobs:
         run: python3 apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
       - name: Prove pointer edge connect reconnect and undo redo
         run: python3 apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py
+      - name: Prove visible edge handle hit target and human-style drag
+        run: python3 apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
