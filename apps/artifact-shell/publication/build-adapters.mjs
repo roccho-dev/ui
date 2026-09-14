@@ -22,6 +22,7 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/semantic-map/projection',
   'packages/semantic-map/protocol',
   'packages/semantic-map/renderer-maxgraph',
+  'packages/semantic-map/renderer-resource-dom',
   'packages/semantic-map/resource-composition',
   'packages/semantic-map/vendor',
   'packages/url-module/src',
