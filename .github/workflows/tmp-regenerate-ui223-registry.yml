@@ -1,0 +1,33 @@
+name: Temporary regenerate UI223 registry
+
+on:
+  push:
+    paths:
+      - '.github/workflows/tmp-regenerate-ui223-registry.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/direct-feature-authoring-hydration-260914
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Regenerate registry and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/scripts/build-registry.mjs
+          node apps/artifact-shell/scripts/build-registry.mjs --check
+          git rm .github/workflows/tmp-regenerate-ui223-registry.yml
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          git config user.name roccho
+          git config user.email '40359643+roccho-dev@users.noreply.github.com'
+          git commit -m 'fix: regenerate capability registry for authoring runtime'
+          git push origin HEAD:fix/direct-feature-authoring-hydration-260914
