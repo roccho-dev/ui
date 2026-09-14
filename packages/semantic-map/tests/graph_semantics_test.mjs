@@ -13,11 +13,8 @@ function load(name) {
   return domain;
 }
 
-function project(domain, scale = 1) {
-  return new SemanticProjector(domain, null, { pattern: GRAPH_PATTERN }).project({
-    scale,
-    viewport: { x: -100, y: -100, width: 2400, height: 1600 },
-  });
+function project(domain, scale = 1, viewport = { x: -100, y: -100, width: 2400, height: 1600 }) {
+  return new SemanticProjector(domain, null, { pattern: GRAPH_PATTERN }).project({ scale, viewport });
 }
 
 const flow = project(load('flow'));
@@ -74,7 +71,7 @@ assert.equal(displayedRegionLabel(selfClaim, 0.35, DEFAULT_THEME, false), 'Claim
 const wrappedSingleLine = { ...selfClaim, label: 'CandidateData', bounds: { ...selfClaim.bounds, width: 180, height: 92 } };
 assert.equal(displayedRegionLabel(wrappedSingleLine, 0.4, DEFAULT_THEME, false), 'CandidateData', 'fitted labels may wrap instead of disappearing');
 
-const adr344 = project(load('adr344'));
+const adr344 = project(load('adr344'), 1, { x: -100, y: -100, width: 6000, height: 4000 });
 for (const id of ['meaning', 'phases', 'results', 'fact', 'claim', 'candidate', 'missing']) {
   assert.ok(adr344.representations.some((item) => item.sourceRegionId === id), `ADR #344 must render ${id}`);
 }
