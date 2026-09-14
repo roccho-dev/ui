@@ -34,8 +34,9 @@ jobs:
           PY
       - name: Run complete UI checks
         run: npm run check
-      - name: Prove migrated semantic-map in Chromium
+      - name: Prove browser surfaces in Chromium
         run: |
+          python3 apps/semantic-intent/tests/browser-proof.py
           python3 packages/semantic-map/tests/browser_example.py
           npm run proof:semantic-map-meaning-recovery
           python3 packages/decision-packet/tests/browser-example.py

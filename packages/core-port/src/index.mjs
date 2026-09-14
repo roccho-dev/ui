@@ -66,6 +66,20 @@ export {
   makeUiAction,
 } from "./log.mjs";
 
+export {
+  GITHUB_STATES,
+  LOCAL_STATES,
+  SEMANTIC_INTENT_ENDPOINT,
+  SEMANTIC_INTENT_KIND,
+  SEMANTIC_INTENT_LIMITS,
+  SEMANTIC_INTENT_RESULT_SCHEMA,
+  SEMANTIC_INTENT_SCHEMA,
+  TRANSPORT_STATES,
+  createSemanticIntentSubmission,
+  parseSemanticIntentResult,
+  submitSemanticIntent,
+} from "./intent-client.mjs";
+
 export { jsonlLines, parseJsonlLines } from "./jsonl.mjs";
 
 export {
