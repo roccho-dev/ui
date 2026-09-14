@@ -20,24 +20,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Re-run graph gates at deploy cut
+      - name: Graph gates
         run: |
           node packages/semantic-map/tests/graph_semantics_test.mjs
           node packages/semantic-map/tests/run.mjs
-
       - name: Build publication
         run: node apps/artifact-shell/scripts/build-publication.mjs --out=generated/ui-graph-218
-
       - name: Deploy publication
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
-          npx --yes wrangler@4 pages deploy generated/ui-graph-218 \
-            --project-name="$PROJECT_NAME" \
-            --branch="$GITHUB_REF_NAME"
+          npx --yes wrangler@4 pages deploy generated/ui-graph-218 --project-name="$PROJECT_NAME" --branch="$GITHUB_REF_NAME"
           base="https://${PROJECT_NAME}.pages.dev"
           for attempt in $(seq 1 30); do
             if curl -fsS "$base/index.html" >/dev/null; then
@@ -47,58 +40,9 @@ jobs:
             sleep 2
           done
           exit 1
-
       - name: Build exact proof URLs
         shell: bash
         run: |
-          cat > "$RUNNER_TEMP/adr344.jsonl" <<'EOF'
-          {"type":"meta","schema":"semantic-map-state/1","root":"adr344","title":"ADR #344 | Progressive refinement + Decision Model"}
-          {"type":"region","id":"adr344","parent":null,"label":"ADR #344 | proof-carrying phase transitions","kind":"root","bounds":[0,0,1800,1200],"summary":"meaning contract"}
-          {"type":"region","id":"world","parent":"adr344","label":"WorldEvidence","kind":"class","bounds":[0,0,240,130],"summary":"non-authority evidence"}
-          {"type":"region","id":"fact","parent":"adr344","label":"Fact","kind":"class","bounds":[0,0,260,190],"summary":"immutable record"}
-          {"type":"region","id":"fact.kind","parent":"fact","label":"kind / domain / subject / predicate / value","kind":"attribute","bounds":[0,0,240,40],"summary":"fact fields","order":0}
-          {"type":"region","id":"fact.source","parent":"fact","label":"source_reference / observed_at / digest","kind":"attribute","bounds":[0,0,240,40],"summary":"provenance","order":1}
-          {"type":"region","id":"condition","parent":"adr344","label":"Condition","kind":"class","bounds":[0,0,260,170],"summary":"immutable record"}
-          {"type":"region","id":"condition.fields","parent":"condition","label":"operator / value_type / effective_range","kind":"attribute","bounds":[0,0,240,40],"summary":"condition fields","order":0}
-          {"type":"region","id":"claim","parent":"adr344","label":"Claim","kind":"class","bounds":[0,0,280,210],"summary":"immutable record; Decision = Claim(role=decision)"}
-          {"type":"region","id":"claim.role","parent":"claim","label":"role: proposal | decision","kind":"attribute","bounds":[0,0,220,40],"summary":"role","order":0}
-          {"type":"region","id":"claim.fields","parent":"claim","label":"rationale / required_dependencies / relations[]","kind":"attribute","bounds":[0,0,250,40],"summary":"claim fields","order":1}
-          {"type":"region","id":"projection","parent":"adr344","label":"ProjectionResult","kind":"class","bounds":[0,0,280,190],"summary":"rebuildable non-authority"}
-          {"type":"region","id":"projection.fields","parent":"projection","label":"result / missing[] / unknown[] / conflict[]","kind":"attribute","bounds":[0,0,250,40],"summary":"projection result","order":0}
-          {"type":"region","id":"candidate","parent":"adr344","label":"CandidateData","kind":"state","bounds":[0,0,240,140],"summary":"immutable phase value"}
-          {"type":"region","id":"ready","parent":"adr344","label":"ReadyData","kind":"state","bounds":[0,0,240,140],"summary":"readiness proven"}
-          {"type":"region","id":"admitted","parent":"adr344","label":"AdmittedData","kind":"state","bounds":[0,0,240,140],"summary":"authority admitted"}
-          {"type":"region","id":"effect","parent":"adr344","label":"EffectResult","kind":"state","bounds":[0,0,240,140],"summary":"bounded external effect"}
-          {"type":"region","id":"observed","parent":"adr344","label":"ObservedData","kind":"state","bounds":[0,0,240,140],"summary":"observation appended"}
-          {"type":"region","id":"finding","parent":"adr344","label":"FindingData","kind":"state","bounds":[0,0,240,140],"summary":"candidate feedback"}
-          {"type":"region","id":"missing","parent":"adr344","label":"Missing","kind":"data","bounds":[0,0,180,90],"summary":"explicit result"}
-          {"type":"region","id":"admission-failure","parent":"adr344","label":"AdmissionFailure","kind":"data","bounds":[0,0,200,90],"summary":"explicit result"}
-          {"type":"region","id":"unknown","parent":"adr344","label":"ExplicitUnknown","kind":"data","bounds":[0,0,200,90],"summary":"explicit result"}
-          {"type":"relation","id":"r1","from":"world","to":"fact","kind":"dependency","label":"source_reference"}
-          {"type":"relation","id":"r2","from":"claim","to":"fact","kind":"dependency","label":"depends_on"}
-          {"type":"relation","id":"r3","from":"claim","to":"condition","kind":"dependency","label":"depends_on"}
-          {"type":"relation","id":"r4","from":"claim","to":"claim","kind":"dependency","label":"depends_on"}
-          {"type":"relation","id":"r5","from":"fact","to":"claim","kind":"dependency","label":"result_of [decision]"}
-          {"type":"relation","id":"r6","from":"fact","to":"fact","kind":"dependency","label":"supersedes / contradicts"}
-          {"type":"relation","id":"r7","from":"condition","to":"condition","kind":"dependency","label":"supersedes / contradicts"}
-          {"type":"relation","id":"r8","from":"fact","to":"projection","kind":"dependency","label":"project() input"}
-          {"type":"relation","id":"r9","from":"condition","to":"projection","kind":"dependency","label":"project() input"}
-          {"type":"relation","id":"r10","from":"claim","to":"projection","kind":"dependency","label":"project() input / rule"}
-          {"type":"relation","id":"r11","from":"projection","to":"candidate","kind":"flow","label":"candidate / gap"}
-          {"type":"relation","id":"r12","from":"candidate","to":"ready","kind":"transition","label":"refine() / Right"}
-          {"type":"relation","id":"r13","from":"candidate","to":"missing","kind":"transition","label":"refine() / Left"}
-          {"type":"relation","id":"r14","from":"ready","to":"admitted","kind":"transition","label":"admit() / Right"}
-          {"type":"relation","id":"r15","from":"ready","to":"admission-failure","kind":"transition","label":"admit() / Left"}
-          {"type":"relation","id":"r16","from":"admitted","to":"effect","kind":"transition","label":"execute()"}
-          {"type":"relation","id":"r17","from":"effect","to":"observed","kind":"transition","label":"observe() / observed"}
-          {"type":"relation","id":"r18","from":"effect","to":"unknown","kind":"transition","label":"observe() / unobserved"}
-          {"type":"relation","id":"r19","from":"observed","to":"fact","kind":"flow","label":"append observation Fact"}
-          {"type":"relation","id":"r20","from":"fact","to":"finding","kind":"flow","label":"observation / counterevidence"}
-          {"type":"relation","id":"r21","from":"projection","to":"finding","kind":"flow","label":"missing / unknown / conflict"}
-          {"type":"relation","id":"r22","from":"finding","to":"claim","kind":"flow","label":"propose() [role=proposal]"}
-          {"type":"relation","id":"r23","from":"claim","to":"claim","kind":"transition","label":"authority decision"}
-          {"type":"relation","id":"r24","from":"claim","to":"projection","kind":"flow","label":"reproject() [accept]"}
-          EOF
           node --input-type=module <<'NODE' > "$RUNNER_TEMP/proof-urls.json"
           import fs from 'node:fs/promises';
           import { createUrlModuleUrl } from './packages/url-module/src/index.mjs';
@@ -106,7 +50,7 @@ jobs:
           const sources = {
             self: 'packages/semantic-map/examples/graph/self-loop.jsonl',
             mimic: 'packages/semantic-map/examples/graph/architecture-nested.jsonl',
-            adr344: process.env.RUNNER_TEMP + '/adr344.jsonl',
+            adr344: 'packages/semantic-map/examples/graph/adr344.jsonl',
           };
           const urls = {};
           for (const [name, source] of Object.entries(sources)) {
@@ -114,13 +58,11 @@ jobs:
           }
           console.log(JSON.stringify(urls));
           NODE
-
       - name: Install pinned Chromium
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir 'playwright==1.57.0'
           python3 -m playwright install --with-deps chromium
-
-      - name: Prove exact deployed URLs
+      - name: Prove deployed visuals
         shell: bash
         run: |
           export PROOF_URLS_JSON="$RUNNER_TEMP/proof-urls.json"
@@ -133,8 +75,8 @@ jobs:
           urls = json.load(open(os.environ['PROOF_URLS_JSON'], encoding='utf-8'))
           expected = {
               'self': ['Claim', 'role: proposal | decision'],
-              'adr344': ['Fact', 'Condition', 'Claim', 'ProjectionResult', 'CandidateData', 'ReadyData', 'AdmittedData', 'EffectResult', 'ObservedData', 'FindingData', 'Missing', 'AdmissionFailure', 'ExplicitUnknown'],
-              'mimic': ['見えるんです', 'UI / Graph', 'AWS | Amazon S3', 'input.json', 'output.json', 'mieru-dev', '処理', '意味を持たない'],
+              'mimic': ['見えるんです', 'UI / Graph', '既存画面データ対応', 'AWS | Amazon S3', 'input.json', 'output.json', 'mieru-dev', '処理', '意味を持たない', '1 object / join不要 / 契約は統合'],
+              'adr344': ['Meaning authority', 'Progressive phase values', 'Explicit non-green results', 'Fact', 'Condition', 'Claim', 'ProjectionResult', 'CandidateData', 'ReadyData', 'AdmittedData', 'EffectResult', 'ObservedData', 'FindingData', 'Missing', 'AdmissionFailure', 'ExplicitUnknown'],
           }
           results = {}
           with sync_playwright() as p:
@@ -156,8 +98,8 @@ jobs:
                   svg = page.locator('svg').first.bounding_box()
                   assert svg and svg['width'] > 0 and svg['height'] > 0, f'{name}: empty SVG'
                   if name == 'self':
-                      paths = page.locator('svg path').count()
-                      assert paths >= 1, f'self: expected loop edge path, found {paths}'
+                      boxes = page.locator('svg path').evaluate_all("els => els.map(e => { const b=e.getBBox(); return {w:b.width,h:b.height}; })")
+                      assert any(b['w'] > 40 and b['h'] > 30 for b in boxes), f'self: no two-dimensional loop path: {boxes}'
                   if name == 'mimic':
                       def box(token):
                           loc = page.get_by_text(token, exact=False).first
@@ -167,14 +109,22 @@ jobs:
                           return value
                       ui, s3, dev = box('UI / Graph'), box('AWS | Amazon S3'), box('mieru-dev')
                       assert ui['x'] < s3['x'] < dev['x'], (ui, s3, dev)
-                      for token in ['input.json', 'output.json', '処理', '意味を持たない']: box(token)
+                      request, result = box('松本さん側'), box('既存画面データ対応')
+                      assert request['y'] < result['y'], (request, result)
+                  if name == 'adr344':
+                      meaning, phases, results_box = box = None, None, None
+                      locs = [page.get_by_text(t, exact=False).first for t in ['Meaning authority','Progressive phase values','Explicit non-green results']]
+                      bbs = []
+                      for loc in locs:
+                          loc.wait_for(state='visible', timeout=30000)
+                          bbs.append(loc.bounding_box())
+                      assert all(bbs), bbs
                   page.screenshot(path=f"{os.environ['SCREENSHOT_DIR']}/{name}.png", full_page=True)
-                  results[name] = {'http': response.status, 'paths': page.locator('svg path').count(), 'svg': [round(svg['width']), round(svg['height'])], 'status': 'PASS'}
+                  results[name] = {'http': response.status, 'status': 'PASS'}
                   page.close()
               browser.close()
-          print(json.dumps({'schema':'ui.graph218-deployed-proof/1','status':'PASS','url':os.environ['PAGES_BASE_URL'],'results':results}, ensure_ascii=False))
+          print(json.dumps({'schema':'ui.graph218-deployed-proof/2','status':'PASS','url':os.environ['PAGES_BASE_URL'],'results':results}, ensure_ascii=False))
           PY
-
       - uses: actions/upload-artifact@v4
         with:
           name: graph218-deployed-proof
