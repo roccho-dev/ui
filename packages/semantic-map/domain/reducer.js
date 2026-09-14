@@ -1,4 +1,4 @@
-import { executeReconnectRelation, normalizeOperations } from '../editor-core/operation.js';
+import { executeReconnectRelation, normalizeOperations } from './editor-operation.js';
 import { SemanticDomainStore } from './domain-store.js';
 import { createSemanticMap } from './semantic-map.js';
 

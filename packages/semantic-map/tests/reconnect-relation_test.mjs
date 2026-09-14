@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createSemanticMap, createSemanticMapEditorCore, reduceOperations } from '../domain/index.js';
 
 const records = [
@@ -56,7 +57,7 @@ function harness() {
 }
 
 const proof = harness();
-const result = proof.emit({ type: 'reconnect-relation', relationId: 'r1', from: 'a', to: 'c' });
+const result = proof.emit({ type: 'relation.reconnect', relationId: 'r1', from: 'a', to: 'c' });
 assert.equal(result.reconnectedRelationId, 'r1');
 assert.deepEqual(proof.core.runtime.domain.relations[0], {
   id: 'r1', from: 'a', to: 'c', kind: 'relates', label: '',
@@ -81,7 +82,7 @@ const beforeDeny = {
 };
 proof.setAllowed(false);
 assert.throws(
-  () => proof.emit({ type: 'reconnect-relation', relationId: 'r1', from: 'c', to: 'b' }),
+  () => proof.emit({ type: 'relation.reconnect', relationId: 'r1', from: 'c', to: 'b' }),
   /E_DENIED/u,
 );
 assert.deepEqual(proof.core.runtime.toRecords(), beforeDeny.records);
@@ -89,20 +90,28 @@ assert.deepEqual(proof.core.snapshot().draft, beforeDeny.draft);
 assert.deepEqual(proof.core.snapshot().selection, beforeDeny.selection);
 assert.equal(proof.core.snapshot().idSequence, beforeDeny.sequence);
 
-const reduced = reduceOperations(records, [
-  { type: 'ReconnectRelation', relationId: 'r1', from: 'c', to: 'b' },
-]);
-assert.deepEqual(reduced.records.at(-1), {
-  type: 'relation', id: 'r1', from: 'c', to: 'b', kind: 'relates', label: '',
-});
+const equality = harness();
+const equalityOperation = { type: 'ReconnectRelation', relationId: 'r1', from: 'c', to: 'b' };
+const equalityResult = equality.core.dispatch(equalityOperation);
+const reduced = reduceOperations(records, [equalityOperation]);
+assert.deepEqual(reduced.records, equality.core.runtime.toRecords());
+assert.deepEqual(reduced.entries[0].operation, equalityOperation);
+assert.deepEqual(reduced.entries[0].result, equalityResult);
 assert.equal(reduced.entries.length, 1);
 
+const coreSource = fs.readFileSync(new URL('../editor-core/core.js', import.meta.url), 'utf8');
+const reducerSource = fs.readFileSync(new URL('../domain/reducer.js', import.meta.url), 'utf8');
+assert.doesNotMatch(coreSource, /relation\.from\s*=|relation\.to\s*=/u, 'core must not duplicate reconnect application');
+assert.doesNotMatch(reducerSource, /\.\.\/editor-core\/operation\.js/u, 'domain must not depend on editor-core');
+
 console.log(JSON.stringify({
-  schema: 'semantic-map-reconnect-relation-test/2',
+  schema: 'semantic-map-reconnect-relation-test/3',
   status: 'PASS',
   relationIdPreserved: true,
   operationCount: 1,
   historyEntries: 1,
   replayable: true,
   denyAtomic: true,
+  singleSemanticOwner: true,
+  reducerCoreEquality: true,
 }));

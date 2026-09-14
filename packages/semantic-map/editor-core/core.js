@@ -1,7 +1,7 @@
 import { SemanticDomainStore as DomainStateStore } from '../domain/domain-store.js';
+import { executeReconnectRelation, normalizeOperation } from '../domain/editor-operation.js';
 import { createSemanticMap } from '../domain/semantic-map.js';
 import { gestureToOperation } from './commands.js';
-import { normalizeOperation } from './operation.js';
 import {
   assertAuthorityPort,
   assertDocumentPort,
@@ -377,30 +377,9 @@ class EditorCoreState extends DomainStateStore {
 
   execute(input) {
     const operation = normalizeOperation(input);
-    if (operation.type !== 'ReconnectRelation') return super.execute(operation);
-    const relation = this.relations.get(operation.relationId);
-    invariant(relation, `ReconnectRelation relation not found: ${operation.relationId}`);
-    invariant(this.regions.has(operation.from), `ReconnectRelation source not found: ${operation.from}`);
-    invariant(this.regions.has(operation.to), `ReconnectRelation target not found: ${operation.to}`);
-    invariant(operation.from !== operation.to, 'ReconnectRelation self relation is not allowed');
-    const duplicate = [...this.relations.values()].some((candidate) => (
-      candidate.id !== operation.relationId
-      && candidate.from === operation.from
-      && candidate.to === operation.to
-      && candidate.kind === relation.kind
-    ));
-    invariant(!duplicate, 'ReconnectRelation would duplicate another directed relation');
-    relation.from = operation.from;
-    relation.to = operation.to;
-    return {
-      operation,
-      result: {
-        relationIds: [relation.id],
-        reconnectedRelationId: relation.id,
-        from: relation.from,
-        to: relation.to,
-      },
-    };
+    return operation.type === 'ReconnectRelation'
+      ? executeReconnectRelation(this, operation)
+      : super.execute(operation);
   }
 
   replaceInput(input) {

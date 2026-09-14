@@ -25,7 +25,7 @@ export {
   isOperationType,
   normalizeOperation,
   normalizeOperations,
-} from '../editor-core/operation.js';
+} from './editor-operation.js';
 export { createSemanticMapEditorCore } from '../editor-core/index.js';
 export { normalizeStateRecords, reduceOperations } from './reducer.js';
 export { SET_TOPOLOGIES, deriveSetSemantics } from './set-semantics.js';
