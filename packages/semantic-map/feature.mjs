@@ -1,5 +1,5 @@
 const id = new URL(import.meta.url).searchParams.get('feature');
-const supported = new Set(['graph', 'map', 'seq']);
+const supported = new Set(['graph', 'map', 'seq', 'chart']);
 if (!supported.has(id)) throw new Error(`semantic-map-feature: unsupported feature ${String(id)}`);
 
 export const feature = Object.freeze({

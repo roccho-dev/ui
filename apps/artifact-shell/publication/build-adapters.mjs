@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { canonicalJson, createUrlModuleUrl } from '../../../packages/url-module/src/index.mjs';
+import { createAdapter as createChartAdapter } from '../adapters/chart.mjs';
 import { createAdapter as createControlAdapter } from '../adapters/control.mjs';
 import { createAdapter as createGraphAdapter } from '../adapters/graph.mjs';
 import { createAdapter as createGraphEditorAdapter } from '../adapters/graph-editor.mjs';
@@ -29,7 +30,7 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
 ]);
 
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
-  const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createPresentationAdapter(), createControlAdapter(), createGraphEditorAdapter()];
+  const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createChartAdapter(), createPresentationAdapter(), createControlAdapter(), createGraphEditorAdapter()];
   if (new Set(adapters.map(adapter => adapter.id)).size !== adapters.length) throw new Error('artifact-adapters: duplicate id');
 
   await fs.copyFile(path.join(appRoot, 'src', 'adapter.mjs'), path.join(outputRoot, 'adapter.mjs'));

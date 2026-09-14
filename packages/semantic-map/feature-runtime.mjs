@@ -6,7 +6,7 @@ import { SemanticProjector } from './projection/index.js';
 import { defaultViewForPattern } from './protocol/index.js';
 import { createSemanticAuthoring } from './renderer-maxgraph/authoring/index.js';
 
-const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1' });
+const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1', chart: 'chart/1' });
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-feature: ${message}`); };
 const frame = scope => new Promise(resolve => scope.requestAnimationFrame(() => resolve()));
 

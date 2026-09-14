@@ -9,6 +9,7 @@ const paths = [
   "adapters/graph/",
   "adapters/map/",
   "adapters/seq/",
+  "adapters/chart/",
   "adapters/presentation/",
   "adapters/control/",
   "adapters/graph-editor/",
