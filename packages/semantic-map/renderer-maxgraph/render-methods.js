@@ -228,6 +228,7 @@ function render(scene) {
     this.surfaceCompositionKey = nextCompositionKey;
   }
   const graph = this.graph;
+  graph.setAllowLoops(scene.pattern === 'graph/1');
   const parent = graph.getDefaultParent();
   const desiredRegionIds = new Set(scene.representations.map((item) => item.regionId));
   const desiredEdgeKeys = new Set(scene.relations.map(relationProjectionKey));
