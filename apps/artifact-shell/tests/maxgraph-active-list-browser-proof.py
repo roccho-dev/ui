@@ -12,6 +12,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[3]
 CAPABILITY = ROOT / "apps" / "artifact-shell" / "capabilities" / "render-semantic-map"
 CHROMIUM = os.environ.get("CHROMIUM_EXECUTABLE")
+REMOTE_BASE = os.environ.get("ARTIFACT_SHELL_BASE_URL")
 
 
 def fixture(name: str) -> dict[str, object]:
@@ -81,18 +82,27 @@ def active_state(child):
 
 
 def main() -> None:
-    listen = port()
-    server = subprocess.Popen(
-        ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
-        cwd=ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    server = None
+    if REMOTE_BASE:
+        base = REMOTE_BASE.rstrip("/")
+        entry = f"{base}/index.html"
+    else:
+        listen = port()
+        server = subprocess.Popen(
+            ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        base = f"http://127.0.0.1:{listen}"
+        entry = f"{base}/apps/artifact-shell/index.html"
+
     errors: list[str] = []
     requests: list[str] = []
     try:
-        time.sleep(0.4)
+        if server is not None:
+            time.sleep(0.4)
         with sync_playwright() as playwright:
             launch = {"headless": True, "args": ["--no-sandbox", "--disable-dev-shm-usage"]}
             if CHROMIUM:
@@ -102,8 +112,7 @@ def main() -> None:
             page = context.new_page()
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.on("request", lambda request: requests.append(request.url))
-            base = f"http://127.0.0.1:{listen}"
-            page.goto(f"{base}/apps/artifact-shell/index.html", wait_until="networkidle", timeout=30_000)
+            page.goto(entry, wait_until="networkidle", timeout=30_000)
             page.evaluate("() => { document.body.dataset.mode = 'invoke'; }")
             status = page.locator("#status")
             status.wait_for(state="attached", timeout=30_000)
@@ -164,13 +173,15 @@ def main() -> None:
             "patterns": proven,
             "selectionFromList": True,
             "externalRequests": 0,
+            "base": base,
         }, ensure_ascii=False))
     finally:
-        server.terminate()
-        try:
-            server.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            server.kill()
+        if server is not None:
+            server.terminate()
+            try:
+                server.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                server.kill()
 
 
 if __name__ == "__main__":
