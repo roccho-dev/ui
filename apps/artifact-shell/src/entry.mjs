@@ -20,7 +20,7 @@ const elements = Object.freeze({
 
 createArtifactShell({ elements }).then(async shell => {
   const webMcpPort = Object.freeze({
-    query: shell.snapshot,
+    query: shell.query,
     render: shell.execute,
     applyAction: shell.applyAction,
   });
