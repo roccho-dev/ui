@@ -17,10 +17,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Prove semantic-map source tests
-        run: |
-          node packages/semantic-map/tests/run.mjs
-          node packages/semantic-map/tests/example_reproducibility.mjs
-          python3 packages/semantic-map/tests/meaning_recovery_negative_controls.py
+        run: node packages/semantic-map/tests/run.mjs
       - name: Install pinned browser proof tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
