@@ -80,6 +80,20 @@ jobs:
           test -s dist/modules/packages/semantic-map/vendor/maxgraph/view/BaseGraph.js
           ! grep -R -nE 'stg-mobile-agent|raw\.githubusercontent\.com' dist/adapters/presentation dist/adapters/control dist/adapters/graph-editor dist/modules/packages/presentation dist/modules/packages/control dist/modules/packages/graph-editor
 
+      - name: Prove publication locally in Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/serve-static.mjs > "$RUNNER_TEMP/artifact-shell-static.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:18083/dist/index.html >/dev/null; then break; fi
+            sleep .1
+          done
+          curl --fail --silent http://127.0.0.1:18083/dist/index.html >/dev/null
+          bash apps/artifact-shell/tests/prove-publication-browser.sh http://127.0.0.1:18083/dist
+
       - name: Deploy preview and exact-byte readback
         id: deploy
         shell: bash
@@ -106,41 +120,13 @@ jobs:
             cmp "dist/$path" "$RUNNER_TEMP/remote-$path"
           done
 
-      - name: Prove direct features and invocation adapters in Chrome
+      - name: Prove deployed publication in Chrome
         shell: bash
         env:
           DEPLOYMENT: ${{ steps.deploy.outputs.deployment }}
         run: |
           set -euo pipefail
-          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
-          test -n "$chrome"
-          root="$RUNNER_TEMP/root.html"
-          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=5000 --dump-dom "$DEPLOYMENT/" > "$root"
-          for adapter in graph map seq presentation control graph-editor; do grep -q "href=\"adapters/$adapter/\"" "$root"; done
-          ! grep -q 'adapters/shell/' "$root"
-
-          check_feature() {
-            name="$1"; budget="$2"; shift 2
-            output="$RUNNER_TEMP/feature-$name.html"
-            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget="$budget" --dump-dom "$DEPLOYMENT/adapters/$name/" > "$output"
-            if ! grep -q 'data-status="pass"' "$output"; then
-              echo "feature=$name failed"
-              grep -E 'BLOCKED|fatal|data-status=' "$output" || true
-              exit 1
-            fi
-            for pattern in "$@"; do grep -q "$pattern" "$output"; done
-          }
-          check_feature presentation 30000 'class="profiled-app"' 'class="seq-svg"'
-          check_feature control 15000 'id="tree"' 'class="node"'
-          check_feature graph-editor 30000 'class="roccho-graph-editor"' 'roccho-graph-editor__canvas' '<svg' 'roccho-graph-editor__projection'
-
-          for adapter in graph map seq; do
-            output="$RUNNER_TEMP/adapter-$adapter.html"
-            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$DEPLOYMENT/adapters/$adapter/" > "$output"
-            grep -q 'data-adapter-status="pass"' "$output"
-            grep -q '>PASS</output>' "$output"
-          done
-          printf '%s\n' '{"schema":"ui.adapter-browser-proof/6","status":"PASS","directFeatures":["presentation","control","graph-editor"],"invocationAdapters":["graph","map","seq"],"host":"generic"}'
+          bash apps/artifact-shell/tests/prove-publication-browser.sh "$DEPLOYMENT"
 
       - name: Emit proof receipt
         shell: bash
