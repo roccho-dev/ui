@@ -2,7 +2,7 @@ import { createGraphLayout } from '../spatial-layout.js';
 import { isGraphItemKind } from './contract.js';
 
 const OVERVIEW_DETAIL_KINDS = new Set(['group', 'package', 'subgraph']);
-const OVERVIEW_DETAIL_AREA_PX2 = 40_000;
+const OVERVIEW_DETAIL_AREA_PX2 = 16_000;
 
 function orderedItemIds(domain, regionId) {
   return [...(domain.children.get(regionId) ?? [])]
