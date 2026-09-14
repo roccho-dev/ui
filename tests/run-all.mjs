@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildRegistry } from "../apps/artifact-shell/scripts/build-registry.mjs";
 import "./check-ui-modeling.mjs";
 import "./check-registry.mjs";
 import "./check-mention-a11y.mjs";
@@ -32,4 +36,21 @@ import "./check-pr-governance.mjs";
 import "./check-ci-workflows.mjs";
 import "./ui-runtime/architecture.mjs";
 import "./ui-runtime/mutations.mjs";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const registry = await buildRegistry({
+  capabilitiesRoot: path.join(repoRoot, "apps", "artifact-shell", "capabilities"),
+  output: path.join(repoRoot, "apps", "artifact-shell", "generated", "capability-registry.mjs"),
+  check: false,
+  write: false,
+});
+const registryBytes = Buffer.from(registry.source, "utf8");
+const encoded = registryBytes.toString("base64");
+const chunkSize = 16000;
+const chunks = Math.ceil(encoded.length / chunkSize);
+console.log(`UI_P2_REGISTRY_DIAGNOSTIC sha256=${createHash("sha256").update(registryBytes).digest("hex")} bytes=${registryBytes.length} chunks=${chunks}`);
+for (let index = 0; index < chunks; index += 1) {
+  const chunk = encoded.slice(index * chunkSize, (index + 1) * chunkSize);
+  console.log(`UI_P2_REGISTRY_CHUNK ${String(index + 1).padStart(3, "0")}/${String(chunks).padStart(3, "0")} ${chunk}`);
+}
 console.log("ui-all-checks-pass");
