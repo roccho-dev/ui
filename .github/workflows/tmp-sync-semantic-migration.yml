@@ -1,4 +1,4 @@
-name: Temporary audit semantic migration manifest
+name: Temporary sync semantic migration manifest
 
 on:
   push:
@@ -6,43 +6,113 @@ on:
       - .github/workflows/tmp-sync-semantic-migration.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  audit:
+  sync:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
-          persist-credentials: false
+          fetch-depth: 0
+          persist-credentials: true
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: List every migration hash mismatch
+      - name: Reconstruct migration evolution from git history
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import { createHash } from 'node:crypto';
-          const path = 'packages/semantic-map/migration-manifest.json';
-          const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+          import { execFileSync } from 'node:child_process';
+
+          const manifestPath = 'packages/semantic-map/migration-manifest.json';
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const digest = value => createHash('sha256').update(value).digest('hex');
+          const gitText = args => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }).trimEnd();
+          const gitBuffer = args => execFileSync('git', args, { maxBuffer: 16 * 1024 * 1024 });
+
           const byTarget = new Map();
           for (const evolution of manifest.evolutions ?? []) {
             const list = byTarget.get(evolution.target) ?? [];
             list.push(evolution);
             byTarget.set(evolution.target, list);
           }
-          const mismatches = [];
+
+          const appended = [];
           for (const entry of manifest.entries) {
             let expected = entry.targetSha256;
             for (const evolution of byTarget.get(entry.target) ?? []) {
-              if (evolution.fromSha256 !== expected) throw new Error(`broken chain ${entry.target}: ${evolution.fromSha256} != ${expected}`);
+              if (evolution.fromSha256 !== expected) {
+                throw new Error(`broken existing evolution chain ${entry.target}: ${evolution.fromSha256} != ${expected}`);
+              }
               expected = evolution.toSha256;
             }
-            const actual = createHash('sha256').update(fs.readFileSync(entry.target)).digest('hex');
-            if (actual !== expected) mismatches.push({ target: entry.target, expected, actual });
+
+            const actual = digest(fs.readFileSync(entry.target));
+            if (actual === expected) continue;
+
+            const log = gitText(['log', '--reverse', '--format=%H%x09%s', '--', entry.target]);
+            const states = [];
+            for (const line of log.split('\n').filter(Boolean)) {
+              const tab = line.indexOf('\t');
+              const commit = line.slice(0, tab);
+              const subject = line.slice(tab + 1);
+              let content;
+              try {
+                content = gitBuffer(['show', `${commit}:${entry.target}`]);
+              } catch {
+                continue;
+              }
+              const hash = digest(content);
+              if (states.at(-1)?.hash === hash) continue;
+              states.push({ commit, subject, hash });
+            }
+
+            const start = states.findLastIndex(state => state.hash === expected);
+            if (start < 0) throw new Error(`cannot anchor git history for ${entry.target} at ${expected}`);
+
+            let cursor = expected;
+            for (const state of states.slice(start + 1)) {
+              if (state.hash === cursor) continue;
+              const suffix = entry.target
+                .replace(/^packages\/semantic-map\//, '')
+                .replace(/[^a-zA-Z0-9]+/g, '-')
+                .replace(/^-|-$/g, '')
+                .toLowerCase();
+              const evolution = {
+                id: `history-${state.commit.slice(0, 12)}-${suffix}`,
+                target: entry.target,
+                fromSha256: cursor,
+                toSha256: state.hash,
+                sourceCommit: state.commit,
+                sourcePath: entry.target,
+                reason: state.subject,
+              };
+              manifest.evolutions.push(evolution);
+              appended.push(evolution);
+              cursor = state.hash;
+            }
+
+            if (cursor !== actual) {
+              throw new Error(`git history endpoint mismatch ${entry.target}: ${cursor} != ${actual}`);
+            }
           }
-          console.log(JSON.stringify({ schema: 'semantic-map-migration-mismatch-audit/1', mismatches }, null, 2));
-          if (mismatches.length === 0) process.exit(0);
-          process.exit(1);
+
+          fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+          console.log(JSON.stringify({ schema: 'semantic-map-migration-history-sync/1', appended }, null, 2));
           NODE
+      - name: Verify migration manifest
+        run: node tests/check-semantic-map-migration.mjs
+      - name: Commit migration history
+        run: |
+          git add packages/semantic-map/migration-manifest.json
+          if git diff --cached --quiet; then
+            echo "manifest already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: record semantic migration evolutions"
+          git push origin HEAD:${GITHUB_REF_NAME}
