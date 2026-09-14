@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ui-deploy
     env:
-      CANDIDATE_SHA: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+      CANDIDATE_SHA: 72e044d6f46c982762e129b1c4c8e7f962617106
       PROJECT_NAME: ui-graph-218
       DEPLOY_BRANCH: ui218-on-222-final
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          ref: 72e044d6f46c982762e129b1c4c8e7f962617106
           persist-credentials: false
 
       - name: Bind exact candidate
@@ -34,6 +34,7 @@ jobs:
           node apps/artifact-shell/scripts/build-registry.mjs --check
           node packages/semantic-map/tests/graph_semantics_test.mjs
           node packages/semantic-map/tests/run.mjs
+          python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
 
       - name: Build publication outside source tree
         shell: bash
