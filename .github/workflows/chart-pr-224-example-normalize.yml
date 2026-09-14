@@ -1,0 +1,83 @@
+name: Chart PR 224 example normalization
+
+on:
+  pull_request:
+    branches:
+      - automation/chart-pr-224-example-normalize-260915
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: feat/chart-first-class-260915
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Move Chart fixture authority to top-level examples
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path('packages/semantic-map/tests/chart_test.mjs'): {
+                  '../examples/chart.jsonl': '../../../examples/chart/bar-horizontal.jsonl',
+                  '../examples/chart-scatter.jsonl': '../../../examples/chart/scatter.jsonl',
+                  '../examples/chart-heatmap.jsonl': '../../../examples/chart/heatmap.jsonl',
+                  '../examples/chart-sunburst.jsonl': '../../../examples/chart/sunburst.jsonl',
+              },
+              Path('packages/semantic-map/tests/chart_url_composition_fixture.mjs'): {
+                  '../examples/chart-composition/sales.jsonl': '../../../examples/chart/bar-vertical.jsonl',
+                  '../examples/chart-composition/active.jsonl': '../../../examples/chart/line.jsonl',
+                  '../examples/chart-composition/share.jsonl': '../../../examples/chart/pie.jsonl',
+              },
+          }
+          for path, changes in replacements.items():
+              text = path.read_text(encoding='utf-8')
+              for old, new in changes.items():
+                  count = text.count(old)
+                  if count == 0:
+                      raise SystemExit(f'missing expected reference {old} in {path}')
+                  text = text.replace(old, new)
+              path.write_text(text, encoding='utf-8')
+          PY
+
+          git rm \
+            examples/chart/example.jsonl \
+            packages/semantic-map/examples/chart.jsonl \
+            packages/semantic-map/examples/chart-scatter.jsonl \
+            packages/semantic-map/examples/chart-heatmap.jsonl \
+            packages/semantic-map/examples/chart-sunburst.jsonl \
+            packages/semantic-map/examples/chart-composition/sales.jsonl \
+            packages/semantic-map/examples/chart-composition/active.jsonl \
+            packages/semantic-map/examples/chart-composition/share.jsonl
+
+          if git grep -n -E 'examples/(chart\.jsonl|chart-scatter\.jsonl|chart-heatmap\.jsonl|chart-sunburst\.jsonl|chart-composition/(sales|active|share)\.jsonl)'; then
+            echo 'legacy Chart example reference remains' >&2
+            exit 1
+          fi
+
+          node packages/semantic-map/tests/chart_test.mjs
+          node packages/semantic-map/tests/chart_url_composition_fixture.mjs https://semantic.test/app >/tmp/chart-url-composition.json
+          node packages/semantic-map/tests/run.mjs
+          git diff --check
+
+      - name: Commit normalized examples
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/semantic-map/tests/chart_test.mjs packages/semantic-map/tests/chart_url_composition_fixture.mjs examples/chart packages/semantic-map/examples
+          git status --short
+          git commit -m 'refactor: normalize Chart examples'
+          git push origin HEAD:"$TARGET_BRANCH"
