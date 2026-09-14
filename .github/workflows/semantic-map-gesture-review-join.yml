@@ -1,20 +1,24 @@
 name: Semantic Map gesture-review join
 
 on:
-  pull_request:
-    paths:
-      - packages/semantic-map/**
-      - examples/render.semantic-map.set-topology/**
-      - .github/workflows/semantic-map-gesture-review-join.yml
+  push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  gesture-review-join:
+  split-and-prove:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.sha }}
+          persist-credentials: true
+      - name: Split maxGraph responsibilities
+        run: node scripts/split-maxgraph-adapter.mjs
+      - name: Prove semantic-map source tests
+        run: node packages/semantic-map/tests/run.mjs
       - name: Install pinned browser proof tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
@@ -26,5 +30,21 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
-      - name: Prove actual gesture through review and fresh JSONL replay
-        run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
+      - name: Prove semantic-map Chromium behavior
+        run: |
+          python3 packages/semantic-map/tests/browser_example.py
+          PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
+      - name: Commit proven split
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'no split output'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/semantic-map/renderer-maxgraph
+          git commit -m 'refactor: split maxGraph adapter responsibilities'
+          git push origin "HEAD:$BRANCH"
