@@ -1,0 +1,39 @@
+name: Temporary graph218 long-label width
+
+on:
+  push:
+    branches:
+      - feat/graph1-structured-graph-260914
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[graph218-label-width]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Expand long graph leaves
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/semantic-map/pattern/view-types/spatial-layout.js')
+          s = p.read_text()
+          s = s.replace('const GRAPH_STRUCTURED_LEAF_WIDTH = 320;\n', 'const GRAPH_STRUCTURED_LEAF_WIDTH = 320;\nconst GRAPH_LONG_LABEL_MIN_CHARS = 24;\nconst GRAPH_LONG_LABEL_HEIGHT = 110;\n', 1)
+          s = s.replace('    const headerHeight = GRAPH_HEADER + itemCount * GRAPH_ITEM_ROW_HEIGHT;\n    if (childIds.length === 0) {\n      const leaf = Object.freeze({\n        width: itemCount > 0 ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,\n        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y),', "    const headerHeight = GRAPH_HEADER + itemCount * GRAPH_ITEM_ROW_HEIGHT;\n    const region = domain.regions.get(id);\n    const longLabel = region.label.length >= GRAPH_LONG_LABEL_MIN_CHARS;\n    if (childIds.length === 0) {\n      const leaf = Object.freeze({\n        width: itemCount > 0 || longLabel ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,\n        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y, longLabel ? GRAPH_LONG_LABEL_HEIGHT : 0),", 1)
+          p.write_text(s)
+          PY
+      - name: Gates
+        run: |
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+      - name: Commit
+        run: |
+          git config user.name roccho
+          git config user.email 40359643+roccho-dev@users.noreply.github.com
+          git add packages/semantic-map/pattern/view-types/spatial-layout.js
+          git commit -m '[graph218-label-width] fix: size long graph labels for readable overview'
+          git push origin HEAD:feat/graph1-structured-graph-260914
