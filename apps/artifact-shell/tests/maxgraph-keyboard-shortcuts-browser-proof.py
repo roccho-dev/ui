@@ -60,7 +60,9 @@ def submit_request(page, request: dict[str, object]) -> None:
 
 
 def focus_canvas(child) -> None:
-    child.locator("#graph-container").click(position={"x": 12, "y": 12})
+    canvas = child.locator("#graph-container")
+    canvas.focus()
+    assert child.evaluate("() => document.activeElement === document.querySelector('#graph-container')") is True
 
 
 def main() -> None:
@@ -219,6 +221,7 @@ def main() -> None:
         print(json.dumps({
             "schema": "maxgraph-keyboard-shortcuts-browser-proof/1",
             "status": "PASS",
+            "focusableCanvas": True,
             "toolShortcuts": ["V", "H", "Space", "Escape"],
             "editShortcuts": ["N", "Enter", "F2", "Delete", "Backspace", "Arrow", "Shift+Arrow"],
             "historyShortcuts": ["Ctrl+Z", "Ctrl+Y"],
