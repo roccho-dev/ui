@@ -1,5 +1,2 @@
-export {
-  createSemanticAuthoring,
-  createSemanticAuthoring as createMaxGraphAdapter,
-} from './authoring/index.js';
+export { createMaxGraphAdapter } from './adapter.js';
 export { DEFAULT_THEME } from './theme.js';
