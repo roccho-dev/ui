@@ -1,0 +1,65 @@
+name: Chart authoring no false green v5
+
+on:
+  pull_request:
+    branches:
+      - automation/chart-authoring-no-false-green-v5-260915
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: feat/chart-first-class-260915
+
+jobs:
+  patch-and-prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch exact maxGraph editing plugin identity
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          adapter = Path('packages/semantic-map/renderer-maxgraph/adapter.js')
+          text = adapter.read_text(encoding='utf-8')
+          old = "  const editingPlugin = this.graph.getPlugin('Editing');\n"
+          new = "  const editingPlugin = this.graph.getPlugin('CellEditorHandler');\n"
+          if text.count(old) != 1:
+              raise SystemExit('adapter editing plugin anchor changed')
+          adapter.write_text(text.replace(old, new), encoding='utf-8')
+
+          boundary = Path('packages/semantic-map/tests/authoring_boundary_test.mjs')
+          text = boundary.read_text(encoding='utf-8')
+          old = "assert.match(adapter, /editingPlugin\\?\\.editingCell === cell/);\n"
+          new = "assert.match(adapter, /getPlugin\\('CellEditorHandler'\\)/);\n" + old
+          if text.count(old) != 1:
+              raise SystemExit('authoring boundary editing assertion anchor changed')
+          boundary.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+
+          git diff --check
+          node packages/semantic-map/tests/authoring_boundary_test.mjs
+          node packages/semantic-map/tests/chart_test.mjs
+          node packages/semantic-map/tests/run.mjs
+          out="$RUNNER_TEMP/artifact-shell-publication"
+          npm run build:artifact-shell-publication -- --out="$out"
+          for variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do
+            test -f "$out/adapters/chart/$variant/index.html"
+          done
+      - name: Commit only after all proof passes
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/semantic-map/renderer-maxgraph/adapter.js packages/semantic-map/tests/authoring_boundary_test.mjs
+          git commit -m 'fix: verify the actual maxGraph cell editor'
+          git push origin HEAD:"$TARGET_BRANCH"
