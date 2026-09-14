@@ -213,7 +213,7 @@ assert.throws(() => core.dispatch({ type: 'history.undo' }), /destroyed/u);
 assert.throws(() => first.surface.emit({
   type: 'selection.changed',
   selection: { regionIds: [], relationIds: [] },
-}), /function/u);
+}), /surface gesture handler unavailable/u);
 
 const remounted = createHarness();
 assert.equal(remounted.core.dispatch({
