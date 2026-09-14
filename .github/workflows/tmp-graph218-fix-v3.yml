@@ -10,74 +10,34 @@ permissions:
 
 jobs:
   fix-v3:
-    if: ${{ !contains(github.event.head_commit.message, '[graph218-loop]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Prove current structured label is hidden
-        shell: bash
-        run: |
-          set +e
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import { createSemanticMap, parseSemanticMapRecords } from './packages/semantic-map/domain/index.js';
-          import { SemanticProjector } from './packages/semantic-map/projection/index.js';
-          import { GRAPH_PATTERN } from './packages/semantic-map/pattern/index.js';
-          import { displayedRegionLabel } from './packages/semantic-map/renderer-maxgraph/labels.js';
-          import { DEFAULT_THEME } from './packages/semantic-map/renderer-maxgraph/theme.js';
-          const text = fs.readFileSync('./packages/semantic-map/examples/graph/self-loop.jsonl', 'utf8');
-          const domain = createSemanticMap(parseSemanticMapRecords(text));
-          const scene = new SemanticProjector(domain, null, { pattern: GRAPH_PATTERN }).project({ scale: 1, viewport: { x: -100, y: -100, width: 2400, height: 1600 } });
-          const claim = scene.representations.find(item => item.sourceRegionId === 'claim');
-          console.log(JSON.stringify({ raw: claim?.label, displayed: displayedRegionLabel(claim, 1, DEFAULT_THEME, false), bounds: claim?.bounds }));
-          process.exit(displayedRegionLabel(claim, 1, DEFAULT_THEME, false).includes('Claim') ? 1 : 0);
-          NODE
-          status=$?
-          set -e
-          test "$status" -eq 0
-
-      - name: Expand only structured graph leaf width
+      - name: Apply structured width and proof when needed
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('packages/semantic-map/pattern/view-types/spatial-layout.js')
-          text = path.read_text()
-          old = "const GRAPH_LEAF_WIDTH = 180;\n"
-          new = "const GRAPH_LEAF_WIDTH = 180;\nconst GRAPH_STRUCTURED_LEAF_WIDTH = 320;\n"
-          if old not in text:
-              raise SystemExit('leaf width anchor missing')
-          text = text.replace(old, new, 1)
-          old = """      const leaf = Object.freeze({
-        width: GRAPH_LEAF_WIDTH,
-        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y),
-        offsets: new Map(),
-      });
-"""
-          new = """      const leaf = Object.freeze({
-        width: itemCount > 0 ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,
-        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y),
-        offsets: new Map(),
-      });
-"""
-          if old not in text:
-              raise SystemExit('leaf block anchor missing')
-          path.write_text(text.replace(old, new, 1))
+
+          layout = Path('packages/semantic-map/pattern/view-types/spatial-layout.js')
+          text = layout.read_text()
+          if 'GRAPH_STRUCTURED_LEAF_WIDTH' not in text:
+              text = text.replace('const GRAPH_LEAF_WIDTH = 180;\n', 'const GRAPH_LEAF_WIDTH = 180;\nconst GRAPH_STRUCTURED_LEAF_WIDTH = 320;\n', 1)
+              text = text.replace('width: GRAPH_LEAF_WIDTH,', 'width: itemCount > 0 ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,', 1)
+              layout.write_text(text)
 
           test = Path('packages/semantic-map/tests/graph_semantics_test.mjs')
           text = test.read_text()
-          anchor = "assert.equal(selfRelation.directed, true);\n"
-          addition = """assert.equal(selfRelation.directed, true);
-const selfClaim = selfLoop.representations.find((item) => item.sourceRegionId === 'claim');
-assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /Claim/u, 'structured self-loop node label must remain visible');
-assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /role: proposal \| decision/u, 'structured self-loop rows must remain visible');
-"""
-          if anchor not in text:
-              raise SystemExit('self relation test anchor missing')
-          test.write_text(text.replace(anchor, addition, 1))
+          marker = "structured self-loop node label must remain visible"
+          if marker not in text:
+              anchor = 'assert.equal(selfRelation.directed, true);\n'
+              addition = "assert.equal(selfRelation.directed, true);\nconst selfClaim = selfLoop.representations.find((item) => item.sourceRegionId === 'claim');\nassert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /Claim/u, 'structured self-loop node label must remain visible');\nassert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /role: proposal \\| decision/u, 'structured self-loop rows must remain visible');\n"
+              if anchor not in text:
+                  raise SystemExit('self relation test anchor missing')
+              test.write_text(text.replace(anchor, addition, 1))
           PY
 
       - name: Focused and full semantic-map gates
@@ -85,10 +45,14 @@ assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /role: pr
           node packages/semantic-map/tests/graph_semantics_test.mjs
           node packages/semantic-map/tests/run.mjs
 
-      - name: Commit structured label fix
+      - name: Commit structured label fix if changed
         shell: bash
         run: |
           set -euo pipefail
+          if git diff --quiet -- packages/semantic-map/pattern/view-types/spatial-layout.js packages/semantic-map/tests/graph_semantics_test.mjs; then
+            echo 'no fix diff'
+            exit 0
+          fi
           git config user.name roccho
           git config user.email 40359643+roccho-dev@users.noreply.github.com
           git add packages/semantic-map/pattern/view-types/spatial-layout.js packages/semantic-map/tests/graph_semantics_test.mjs
