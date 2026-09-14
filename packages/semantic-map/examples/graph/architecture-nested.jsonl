@@ -2,6 +2,7 @@
 {"type":"region","id":"mieru","parent":null,"label":"見えるんです | 産業医コメント連携","kind":"root","bounds":[0,0,1400,760],"summary":"three-column integration"}
 {"type":"region","id":"ui","parent":"mieru","label":"UI / Graph","kind":"group","bounds":[0,0,360,560],"summary":"UI side"}
 {"type":"region","id":"ui.request","parent":"ui","label":"松本さん側 | 29の正常を1 objectへ変形","kind":"process","bounds":[0,0,280,100],"summary":"request composition","order":0}
+{"type":"region","id":"ui.result","parent":"ui","label":"既存画面データ対応 | report plan経由で既存対応","kind":"process","bounds":[0,0,280,100],"summary":"existing UI result path","order":1}
 {"type":"region","id":"s3","parent":"mieru","label":"AWS | Amazon S3","kind":"group","bounds":[0,0,420,620],"summary":"exchange storage"}
 {"type":"region","id":"s3.input","parent":"s3","label":"input.json","kind":"data","bounds":[0,0,300,190],"summary":"request data","order":0}
 {"type":"region","id":"s3.input.case","parent":"s3.input","label":"案件データ","kind":"field","bounds":[0,0,160,40],"summary":"case data","order":0}
@@ -17,5 +18,6 @@
 {"type":"region","id":"dev.constraints","parent":"dev","label":"意味を持たない","kind":"process","bounds":[0,0,300,150],"summary":"non-semantic inputs","order":1}
 {"type":"region","id":"dev.constraints.page","parent":"dev.constraints","label":"page番号 / graph位置","kind":"attribute","bounds":[0,0,200,40],"summary":"ignored","order":0}
 {"type":"region","id":"dev.constraints.comment","parent":"dev.constraints","label":"comment idの個別位置","kind":"attribute","bounds":[0,0,200,40],"summary":"ignored","order":1}
+{"type":"region","id":"dev.contract","parent":"dev","label":"1 object / join不要 / 契約は統合","kind":"data","bounds":[0,0,280,90],"summary":"one-object contract","order":2}
 {"type":"relation","id":"a1","from":"ui.request","to":"s3.input","kind":"flow","label":"writes input.json"}
 {"type":"relation","id":"a2","from":"s3.input","to":"dev.process","kind":"flow","label":"triggers generation"}
