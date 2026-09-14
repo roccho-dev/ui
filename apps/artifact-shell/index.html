@@ -5,28 +5,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' blob:; style-src 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'self'">
   <title>UI</title>
-  <style>
-    :root{font-family:ui-sans-serif,system-ui,sans-serif;color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:Canvas;color:CanvasText}#launcher{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;align-content:center;gap:18px;padding:24px}#launcher a{color:inherit;font-size:clamp(15px,3vw,22px);text-underline-offset:5px}#runtime{min-height:100vh}#surface iframe{display:block;width:100%;min-height:100vh;border:0}#status{position:fixed;right:8px;bottom:8px;z-index:10;font:600 10px/1.2 ui-monospace,monospace;background:Canvas;padding:4px 6px}#request-form,#local-inputs,#progress,#result,#receipt{display:none}body[data-mode="launcher"] #runtime{display:none}body[data-mode="launcher"] #status{display:none}body[data-mode="invoke"] #launcher{display:none}body:not([data-mode]){visibility:hidden}
-  </style>
+  <style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:Canvas;color:CanvasText}main{width:min(960px,100%);margin:auto;padding:18px}#launcher{display:flex;flex-wrap:wrap;gap:14px}#launcher a{color:inherit;text-underline-offset:3px}#status{font:600 10px/1.2 ui-monospace,monospace;position:fixed;right:8px;bottom:8px;z-index:10;padding:4px 6px;background:Canvas}#local-inputs{padding:8px}#surface:empty{display:none}#surface iframe{display:block;width:100%;min-height:100vh;border:0}#debug{display:grid;gap:8px;margin-top:12px}#request,pre{width:100%;margin:0;padding:8px;font:11px/1.4 ui-monospace,monospace}#request{min-height:120px}body[data-mode="launcher"] #status,body[data-mode="launcher"] #local-inputs,body[data-mode="launcher"] #surface,body[data-mode="launcher"] #debug,body[data-mode="invoke"] #launcher,body[data-mode="invoke"] #debug{display:none}body[data-mode="invoke"] main{width:100%;max-width:none;padding:0}body:not([data-mode]) #launcher{display:none}</style>
 </head>
 <body>
-  <nav id="launcher" aria-label="UI adapters">
-    <a href="./adapters/shell/">shell</a>
-    <a href="./adapters/graph/">graph</a>
-    <a href="./adapters/map/">map</a>
-    <a href="./adapters/seq/">seq</a>
-    <a href="./adapters/presentation/">presentation</a>
-    <a href="./adapters/control-reference/">control·ref</a>
-    <a href="./adapters/graph-reference/">graph·ref</a>
-  </nav>
-  <main id="runtime">
+  <main>
+    <nav id="launcher" aria-label="UI examples">
+      <a href="adapters/graph/">graph</a>
+      <a href="adapters/map/">map</a>
+      <a href="adapters/seq/">seq</a>
+      <a href="adapters/presentation/">presentation</a>
+      <a href="adapters/control/">control</a>
+      <a href="adapters/graph-editor/">graph-editor</a>
+    </nav>
     <output id="status" data-state="idle">Booting</output>
-    <form id="request-form"><textarea id="request"></textarea><button id="run" type="submit">Run</button></form>
     <div id="local-inputs" hidden></div>
     <section id="surface" aria-label="Capability surface"></section>
-    <pre id="progress"></pre><pre id="result"></pre><pre id="receipt"></pre>
+    <div id="debug">
+      <form id="request-form"><textarea id="request" aria-label="Invocation" spellcheck="false"></textarea><button id="run" type="submit">Run</button></form>
+      <pre id="progress"></pre><pre id="result"></pre><pre id="receipt"></pre>
+    </div>
   </main>
-  <script type="module" src="./mode.mjs"></script>
   <script type="module" src="./src/entry.mjs"></script>
 </body>
 </html>

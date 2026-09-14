@@ -1,0 +1,50 @@
+{
+  "schema": "artifact-capability-fixture/2",
+  "id": "render-semantic-map.seq",
+  "kind": "pass",
+  "request": {
+    "schema": "artifact-invocation/2",
+    "id": "request.render.semantic-map.seq",
+    "intent": "render",
+    "inputs": [
+      {
+        "id": "map",
+        "mediaType": "application/vnd.roccho.semantic-map-envelope+json",
+        "schema": "semantic-map-envelope/3",
+        "source": {
+          "kind": "inline",
+          "value": {
+            "schema": "semantic-map-envelope/3",
+            "log": "{\"operations\":[{\"mapId\":\"urn:uuid:00000000-0000-4000-8000-000000000003\",\"records\":[{\"root\":\"sequence\",\"schema\":\"semantic-map-state/1\",\"title\":\"Decision review sequence\",\"type\":\"meta\"},{\"bounds\":[0,0,1000,560],\"id\":\"sequence\",\"kind\":\"root\",\"label\":\"Decision review sequence\",\"parent\":null,\"summary\":\"同じactor laneへ複数itemと重複intervalを配置するseq/1 fixture\",\"type\":\"region\"},{\"bounds\":[20,30,140,72],\"id\":\"human\",\"kind\":\"actor\",\"label\":\"Human\",\"parent\":\"sequence\",\"summary\":\"提案を依頼しレビューして承認する主体\",\"type\":\"region\"},{\"bounds\":[20,300,140,72],\"id\":\"agent\",\"kind\":\"actor\",\"label\":\"Agent\",\"parent\":\"sequence\",\"summary\":\"Proposalを生成し修正してappendする主体\",\"type\":\"region\"},{\"bounds\":[200,90,180,80],\"id\":\"request\",\"kind\":\"task\",\"label\":\"Request\",\"parent\":\"sequence\",\"summary\":\"変更依頼\",\"temporal\":{\"actor\":\"human\",\"calendar\":{\"end\":\"2026-08-10\",\"start\":\"2026-08-10\"},\"ordinal\":{\"end\":0,\"start\":0}},\"type\":\"region\"},{\"bounds\":[400,360,180,80],\"id\":\"proposal\",\"kind\":\"task\",\"label\":\"Proposal\",\"parent\":\"sequence\",\"summary\":\"未appendのDecision\",\"temporal\":{\"actor\":\"agent\",\"calendar\":{\"end\":\"2026-08-12\",\"start\":\"2026-08-11\"},\"ordinal\":{\"end\":2,\"start\":1}},\"type\":\"region\"},{\"bounds\":[400,90,180,80],\"id\":\"review\",\"kind\":\"activity\",\"label\":\"Review\",\"parent\":\"sequence\",\"summary\":\"Proposalをレビュー\",\"temporal\":{\"actor\":\"human\",\"calendar\":{\"end\":\"2026-08-12\",\"start\":\"2026-08-11\"},\"ordinal\":{\"end\":2,\"start\":1}},\"type\":\"region\"},{\"bounds\":[600,360,180,80],\"id\":\"revise\",\"kind\":\"activity\",\"label\":\"Revise\",\"parent\":\"sequence\",\"summary\":\"指摘を反映\",\"temporal\":{\"actor\":\"agent\",\"calendar\":{\"end\":\"2026-08-13\",\"start\":\"2026-08-12\"},\"ordinal\":{\"end\":3,\"start\":2}},\"type\":\"region\"},{\"bounds\":[600,90,180,80],\"id\":\"accept\",\"kind\":\"milestone\",\"label\":\"Accept\",\"parent\":\"sequence\",\"summary\":\"Proposalを承認\",\"temporal\":{\"actor\":\"human\",\"calendar\":{\"end\":\"2026-08-12\",\"start\":\"2026-08-12\"},\"ordinal\":{\"end\":2,\"start\":2}},\"type\":\"region\"},{\"bounds\":[800,360,180,80],\"id\":\"append\",\"kind\":\"event\",\"label\":\"Append\",\"parent\":\"sequence\",\"summary\":\"DecisionLogへappend\",\"temporal\":{\"actor\":\"agent\",\"calendar\":{\"end\":\"2026-08-14\",\"start\":\"2026-08-14\"},\"ordinal\":{\"end\":4,\"start\":4}},\"type\":\"region\"},{\"from\":\"request\",\"id\":\"request-proposal\",\"kind\":\"message\",\"label\":\"依頼\",\"to\":\"proposal\",\"type\":\"relation\"},{\"from\":\"request\",\"id\":\"request-review\",\"kind\":\"dependency\",\"label\":\"準備\",\"to\":\"review\",\"type\":\"relation\"},{\"from\":\"proposal\",\"id\":\"proposal-review\",\"kind\":\"handoff\",\"label\":\"レビュー\",\"to\":\"review\",\"type\":\"relation\"},{\"from\":\"review\",\"id\":\"review-revise\",\"kind\":\"message\",\"label\":\"修正\",\"to\":\"revise\",\"type\":\"relation\"},{\"from\":\"proposal\",\"id\":\"proposal-revise\",\"kind\":\"dependency\",\"label\":\"反映\",\"to\":\"revise\",\"type\":\"relation\"},{\"from\":\"revise\",\"id\":\"revise-accept\",\"kind\":\"handoff\",\"label\":\"再確認\",\"to\":\"accept\",\"type\":\"relation\"},{\"from\":\"accept\",\"id\":\"accept-append\",\"kind\":\"message\",\"label\":\"承認\",\"to\":\"append\",\"type\":\"relation\"}],\"type\":\"CreateMap\"}],\"parent\":null,\"schema\":\"semantic-map-decision/2\",\"stateHash\":\"sha256:9c44af10f469cebf231dd5b20f74df94189a5970b83f1ecc8158d48a6eed3013\"}\n",
+            "proposal": null,
+            "view": {
+              "pattern": "seq/1",
+              "seq": {
+                "axis": "ordinal",
+                "groupBy": "actor"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "constraints": {
+      "allowedRuntimes": [
+        "browser"
+      ],
+      "noUpload": true
+    },
+    "expects": [
+      "semantic-map-render-receipt/1"
+    ]
+  },
+  "expected": {
+    "status": "PASS",
+    "outputContracts": [
+      "semantic-map-render-receipt/1"
+    ]
+  },
+  "runtimes": [
+    "browser"
+  ]
+}

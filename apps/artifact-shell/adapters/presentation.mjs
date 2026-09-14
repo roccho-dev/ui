@@ -1,6 +1,1 @@
-export const createAdapter = () => Object.freeze({
-  href: "https://stg-mobile-agent.pages.dev/business-model/",
-  id: "presentation",
-  kind: "external",
-  label: "presentation",
-});
+export const createAdapter = () => Object.freeze({ comptime: "presentation", id: "presentation", label: "presentation", source: "examples/presentation/2-actors.jsonl" });

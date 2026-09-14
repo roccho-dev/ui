@@ -1,6 +1,1 @@
-export const createAdapter = () => Object.freeze({
-  fixture: "graph.pass.json",
-  id: "graph",
-  kind: "invocation",
-  label: "graph",
-});
+export const createAdapter = () => Object.freeze({ comptime: "semantic-map", id: "graph", label: "graph", source: "examples/graph/example.json" });

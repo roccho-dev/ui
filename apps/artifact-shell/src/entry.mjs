@@ -1,4 +1,9 @@
+import { setArtifactShellMode } from "../mode.mjs";
 import { createArtifactShell } from "./shell.mjs";
+
+setArtifactShellMode();
+globalThis.addEventListener("popstate", () => setArtifactShellMode());
+globalThis.addEventListener("hashchange", () => setArtifactShellMode());
 
 const elements = Object.freeze({
   form: document.querySelector("#request-form"),

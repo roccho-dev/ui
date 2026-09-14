@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/cloudflare-pages-connectivity.yml
       - apps/artifact-shell/**
+      - examples/**
+      - packages/comptime/**
   workflow_dispatch:
 
 permissions:
@@ -34,22 +36,18 @@ jobs:
           test -n "${CLOUDFLARE_API_TOKEN:-}"
           test "$CLOUDFLARE_PAGES_PROJECT" = "stg-artifact-runtime"
 
-      - name: Check adapter architecture
+      - name: Check architecture
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -R -nE '(^|[^[:alnum:]_])class[[:space:]]+[[:alnum:]_$]+' \
-            apps/artifact-shell/adapters \
-            apps/artifact-shell/publication \
-            apps/artifact-shell/src/adapter.mjs \
-            apps/artifact-shell/mode.mjs
-          ! grep -R -nE 'export[[:space:]]+default' \
-            apps/artifact-shell/adapters \
-            apps/artifact-shell/publication \
-            apps/artifact-shell/src/adapter.mjs \
-            apps/artifact-shell/mode.mjs
+          test ! -e apps/artifact-shell/adapters/shell.mjs
+          test ! -e apps/artifact-shell/adapters/control-reference.mjs
+          test ! -e apps/artifact-shell/adapters/graph-reference.mjs
+          ! grep -R -nE '(^|[^[:alnum:]_])class[[:space:]]+[[:alnum:]_$]+' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime
+          ! grep -R -nE 'export[[:space:]]+default' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime
+          for file in apps/artifact-shell/adapters/*.mjs apps/artifact-shell/publication/*.mjs apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime/*.mjs; do node --check "$file"; done
 
-      - name: Build Artifact Shell publication
+      - name: Build publication once
         shell: bash
         run: |
           set -euo pipefail
@@ -57,10 +55,11 @@ jobs:
           test -s dist/index.html
           test -s dist/catalog.json
           test -s dist/artifact-manifest.json
-          for adapter in shell graph map seq presentation control-reference graph-reference; do
+          for adapter in graph map seq presentation control graph-editor; do
             test -s "dist/adapters/$adapter/index.html"
             test -s "dist/adapters/$adapter/adapter.json"
           done
+          test ! -e dist/adapters/shell
 
       - name: Deploy preview and exact-byte readback
         id: deploy
@@ -74,20 +73,17 @@ jobs:
             --project-name "$CLOUDFLARE_PAGES_PROJECT" \
             --branch "$PREVIEW_BRANCH" \
             --commit-hash "$head_sha" \
-            --commit-message 'Artifact Shell adapter preview proof' 2>&1)"
+            --commit-message 'Artifact Shell example adapter proof' 2>&1)"
           printf '%s\n' "$output"
           deployment="$(printf '%s\n' "$output" | grep -Eo 'https://[A-Za-z0-9.-]+\.pages\.dev' | head -n1)"
           test -n "$deployment"
           echo "deployment=$deployment" >> "$GITHUB_OUTPUT"
-
           for path in index.html catalog.json artifact-manifest.json; do
-            curl --fail --silent --show-error --location \
-              "$deployment/$path" \
-              --output "$RUNNER_TEMP/remote-$path"
+            curl --fail --silent --show-error --location "$deployment/$path" --output "$RUNNER_TEMP/remote-$path"
             cmp "dist/$path" "$RUNNER_TEMP/remote-$path"
           done
 
-      - name: Prove seven adapter surfaces in real Chrome
+      - name: Prove shell and six example adapters in real Chrome
         shell: bash
         env:
           DEPLOYMENT: ${{ steps.deploy.outputs.deployment }}
@@ -95,25 +91,19 @@ jobs:
           set -euo pipefail
           chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
           test -n "$chrome"
-          adapters=(shell graph map seq presentation control-reference graph-reference)
+          root="$RUNNER_TEMP/root.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=5000 --dump-dom "$DEPLOYMENT/" > "$root"
+          adapters=(graph map seq presentation control graph-editor)
+          for adapter in "${adapters[@]}"; do grep -q "href=\"adapters/$adapter/\"" "$root"; done
+          ! grep -q 'adapters/shell/' "$root"
           for adapter in "${adapters[@]}"; do
             echo "adapter=$adapter"
-            target="$DEPLOYMENT/adapters/$adapter/"
             output="$RUNNER_TEMP/adapter-$adapter.html"
-            "$chrome" --headless=new --no-sandbox --disable-gpu \
-              --virtual-time-budget=20000 --dump-dom "$target" > "$output"
+            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=20000 --dump-dom "$DEPLOYMENT/adapters/$adapter/" > "$output"
             grep -q 'data-adapter-status="pass"' "$output"
             grep -q '>PASS</output>' "$output"
           done
-
-          presentation="$RUNNER_TEMP/presentation.html"
-          "$chrome" --headless=new --no-sandbox --disable-gpu \
-            --virtual-time-budget=20000 --dump-dom \
-            'https://stg-mobile-agent.pages.dev/business-model/' > "$presentation"
-          grep -q 'data-status="pass"' "$presentation"
-          grep -q 'id="surface"' "$presentation"
-
-          printf '%s\n' '{"schema":"ui.adapter-browser-proof/2","status":"PASS","adapters":["shell","graph","map","seq","presentation","control-reference","graph-reference"],"presentationTarget":"PASS"}'
+          printf '%s\n' '{"schema":"ui.adapter-browser-proof/3","status":"PASS","adapters":["graph","map","seq","presentation","control","graph-editor"]}'
 
       - name: Emit proof receipt
         shell: bash
@@ -127,12 +117,12 @@ jobs:
           catalog = json.loads(pathlib.Path(sys.argv[2]).read_text())
           manifest = pathlib.Path(sys.argv[3]).read_bytes()
           print(json.dumps({
-              "schema": "ui.artifact-shell-pages-proof/2",
+              "schema": "ui.artifact-shell-pages-proof/3",
               "status": "PASS",
               "deployment": deployment,
               "project": "stg-artifact-runtime",
-              "mode": "preview",
-              "adapters": ["shell", "graph", "map", "seq", "presentation", "control-reference", "graph-reference"],
+              "mode": "preview-examples-only",
+              "adapters": ["graph", "map", "seq", "presentation", "control", "graph-editor"],
               "capabilities": [f"{x['capability']['id']}@{x['capability']['version']}" for x in catalog["capabilities"]],
               "artifact_manifest_sha256": hashlib.sha256(manifest).hexdigest(),
           }, separators=(",", ":")))
