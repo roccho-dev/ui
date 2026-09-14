@@ -51,6 +51,9 @@ const installRelationReconnect = adapter => {
 };
 
 export const createSemanticAuthoring = container => {
+  if (container.tabIndex < 0) container.tabIndex = 0;
+  container.addEventListener('pointerdown', () => container.focus({ preventScroll: true }), { capture: true });
+
   const adapter = createMaxGraphAdapter(container);
   installRelationReconnect(adapter);
   const host = container.parentElement;
