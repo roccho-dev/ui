@@ -1,35 +1,30 @@
-import {
-  assertBusinessModelProjectionCoverage,
-  compileBusinessModelPresentationPlan,
-  createBusinessModelProjectionCoverage,
-  parseBusinessModelSemanticJsonl,
-  projectProfiledBusinessModelA2uiSequence,
-  projectProfiledBusinessModelMapState,
-  projectProfiledBusinessModelSeqState,
-  validateProfiledBusinessModelSequence,
-} from '../presentation/compiler/index.mjs';
+import { A2UI_MESSAGE_VERSION } from '../a2ui-browser/src/index.mjs';
+import { parseBusinessModelSemanticJsonl } from '../business-model/model.mjs';
+import { BUSINESS_MODEL_PRESENTATION_A2UI_SCHEMA } from '../business-model/runtime-data.mjs';
 import { derivePublicBusinessModelProjectionProfile } from '../presentation/compiler/public-profile.mjs';
-import { canonicalJson, sha256Hex } from '../url-module/src/index.mjs';
+import {
+  PROFILED_BUSINESS_MODEL_CATALOG_ID,
+  PROFILED_BUSINESS_MODEL_SURFACE_ID,
+} from '../presentation/contracts.mjs';
+import { canonicalJson } from '../url-module/src/index.mjs';
 
-export const compilePresentation = async semanticText => {
-  if (typeof semanticText !== 'string' || !semanticText.trim()) throw new Error('comptime.presentation: non-empty JSONL required');
+export const compilePresentationRuntimeData = semanticText => {
+  if (typeof semanticText !== 'string' || !semanticText.trim()) throw new Error('source-compiler.presentation: non-empty JSONL required');
   const model = parseBusinessModelSemanticJsonl(semanticText);
   const profile = derivePublicBusinessModelProjectionProfile(model);
-  const plan = compileBusinessModelPresentationPlan(model, profile);
-  const sequence = validateProfiledBusinessModelSequence(projectProfiledBusinessModelA2uiSequence(model, plan));
-  const seqState = projectProfiledBusinessModelSeqState(model, plan);
-  const mapState = projectProfiledBusinessModelMapState(model, plan);
-  const coverage = assertBusinessModelProjectionCoverage(createBusinessModelProjectionCoverage({ model, plan, sequence, seqState, mapState }));
-  return Object.freeze({
-    schema: 'business-model-presentation-minimal-payload/1',
-    id: model.id,
-    label: model.title,
-    sourceSha256: await sha256Hex(new TextEncoder().encode(semanticText)),
-    profileSha256: await sha256Hex(canonicalJson(profile)),
-    sequence,
-    seqState,
-    stageFocus: Object.fromEntries(model.stages.map(stage => [stage.id, stage.focusRef])),
-    stageLabels: Object.fromEntries(model.stages.map(stage => [stage.id, stage.name])),
-    coverage,
+  const presentation = Object.freeze({
+    type: 'presentation',
+    schema: BUSINESS_MODEL_PRESENTATION_A2UI_SCHEMA,
+    profileId: profile.id,
+    a2ui: Object.freeze({
+      version: A2UI_MESSAGE_VERSION,
+      createSurface: Object.freeze({
+        surfaceId: PROFILED_BUSINESS_MODEL_SURFACE_ID,
+        catalogId: PROFILED_BUSINESS_MODEL_CATALOG_ID,
+        sendDataModel: true,
+      }),
+    }),
   });
+  const prefix = semanticText.endsWith('\n') ? semanticText : `${semanticText}\n`;
+  return `${prefix}${canonicalJson(presentation)}\n`;
 };
