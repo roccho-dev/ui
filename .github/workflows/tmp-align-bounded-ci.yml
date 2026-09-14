@@ -60,13 +60,14 @@ jobs:
           )
           yagni_path.write_text(yagni)
           PY
+      - name: Remove temporary workflow before verification
+        run: git rm .github/workflows/tmp-align-bounded-ci.yml
       - name: Verify patched contracts
         run: |
           node tests/check-ci-workflows.mjs
           node tests/check-ssg-hot-refresh-yagni.mjs
-      - name: Commit and self-delete
+      - name: Commit aligned contracts
         run: |
-          git rm .github/workflows/tmp-align-bounded-ci.yml
           git add ci.intent.v1.jsonl tests/check-ci-workflows.mjs tests/check-ssg-hot-refresh-yagni.mjs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
