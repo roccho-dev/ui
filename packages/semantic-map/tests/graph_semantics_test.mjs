@@ -87,6 +87,13 @@ const architecture = project(load('architecture-nested'));
 for (const id of ['ui.request', 'ui.result', 's3.input', 's3.output', 'dev.process', 'dev.constraints', 'dev.contract']) {
   assert.ok(architecture.representations.some((item) => item.sourceRegionId === id), `overview must show nested ${id}`);
 }
+const architectureColumns = ['ui', 's3', 'dev'].map((id) => architecture.representations.find((item) => item.sourceRegionId === id));
+assert.ok(architectureColumns.every(Boolean), 'architecture groups must render');
+assert.ok(
+  architectureColumns[0].bounds.x < architectureColumns[1].bounds.x
+    && architectureColumns[1].bounds.x < architectureColumns[2].bounds.x,
+  'cyclic architecture must preserve ordered columns',
+);
 const writesOutput = architecture.relations.find((relation) => relation.id === 'a3');
 assert.equal(writesOutput?.directed, true);
 assert.equal(writesOutput?.from, 'dev.process');
