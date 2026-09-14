@@ -11,7 +11,6 @@ const paths = [
   "adapters/seq/",
   "adapters/presentation/",
   "adapters/control/",
-  "adapters/graph-editor/",
 ];
 
 for (const path of paths) {
