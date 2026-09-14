@@ -3,6 +3,8 @@ import { isGraphItemKind } from './graph/contract.js';
 
 const GRAPH_LEAF_WIDTH = 180;
 const GRAPH_STRUCTURED_LEAF_WIDTH = 320;
+const GRAPH_LONG_LABEL_MIN_CHARS = 24;
+const GRAPH_LONG_LABEL_HEIGHT = 110;
 const GRAPH_LEAF_HEIGHT = 92;
 const GRAPH_PADDING_X = 32;
 const GRAPH_PADDING_Y = 26;
@@ -164,10 +166,12 @@ export function createGraphLayout(domain) {
     const itemCount = allChildIds.filter((childId) => isGraphItemKind(domain.regions.get(childId).kind)).length;
     const childIds = allChildIds.filter((childId) => !isGraphItemKind(domain.regions.get(childId).kind));
     const headerHeight = GRAPH_HEADER + itemCount * GRAPH_ITEM_ROW_HEIGHT;
+    const region = domain.regions.get(id);
+    const longLabel = region.label.length >= GRAPH_LONG_LABEL_MIN_CHARS;
     if (childIds.length === 0) {
       const leaf = Object.freeze({
-        width: itemCount > 0 ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,
-        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y),
+        width: itemCount > 0 || longLabel ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,
+        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y, longLabel ? GRAPH_LONG_LABEL_HEIGHT : 0),
         offsets: new Map(),
       });
       measured.set(id, leaf);
