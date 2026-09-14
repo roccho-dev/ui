@@ -39,8 +39,8 @@ jobs:
 
           adapter_path = Path('packages/semantic-map/renderer-maxgraph/adapter.js')
           text = adapter_path.read_text(encoding='utf-8')
-          old = "  const editingPlugin = this.graph.getPlugin('Editing');\n  editingPlugin?.startEditing?.(cell);\n  return Boolean(editingPlugin);\n"
-          new = "  const editingPlugin = this.graph.getPlugin('Editing');\n  editingPlugin?.startEditing?.(cell);\n  return Boolean(editingPlugin?.editingCell === cell && editingPlugin?.textarea?.isConnected);\n"
+          old = "  this.graph.startEditingAtCell(cell);\n  return true;\n"
+          new = "  this.graph.startEditingAtCell(cell);\n  const editingPlugin = this.graph.getPlugin('Editing');\n  return Boolean(editingPlugin?.editingCell === cell && editingPlugin?.textarea?.isConnected);\n"
           if text.count(old) != 1:
               raise SystemExit('startEditingSelection truth anchor changed')
           adapter_path.write_text(text.replace(old, new), encoding='utf-8')
