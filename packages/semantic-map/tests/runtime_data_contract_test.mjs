@@ -38,9 +38,12 @@ assert.equal(records.some(record => record.type === 'region' && record.temporal)
 assert.equal(records.some(record => record.type === 'relation'), true);
 
 const presentation = compileBusinessModelPresentationPayload(runtimeData);
+assert.equal(presentation.schema, 'business-model-presentation-runtime-payload/1');
 assert.equal(presentation.id, runtimeData.model.id);
 assert.equal(presentation.sequence.sourceId, runtimeData.model.id);
-assert.equal(presentation.coverage.pass, true);
+assert.equal(Object.hasOwn(presentation, 'seqState'), false);
+assert.equal(Object.hasOwn(presentation, 'mapState'), false);
+assert.equal(Object.hasOwn(presentation, 'coverage'), false);
 assert.deepEqual(presentation.sequence.stages[0].messages[0], runtimeData.presentation.a2ui);
 assert.deepEqual(
   presentation.sequence.stages.map(stage => stage.id),
@@ -55,4 +58,5 @@ console.log(JSON.stringify({
   runtimes: adapters.map(adapter => adapter.id),
   semanticRecords: records.length,
   stages: presentation.sequence.stages.length,
+  compiledViewData: false,
 }));
