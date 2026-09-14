@@ -42,20 +42,21 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
   const availableWidth = Math.max(0, width - horizontalPadding);
   const lines = label.split(/\r?\n/u);
   const lineCount = lines.length;
-
-  if (representation.pattern === 'graph/1') {
-    const minimumHeadHeight = fontSize * 1.45;
-    if (height < minimumHeadHeight) return '';
-    const minimumDetailHeight = fontSize * Math.max(1.45, lineCount * 1.25);
-    if (lineCount > 1 && height < minimumDetailHeight) return lines[0];
-    return label;
-  }
-
   const minimumHeight = fontSize * (representation.shape === 'boundary' ? 1.7 : Math.max(1.45, lineCount * 1.25));
-  if (height < minimumHeight) return '';
-  if (estimatedLabelWidth(label, fontSize) <= availableWidth) return label;
 
+  if (lineCount > 1 && height < minimumHeight) {
+    return height >= fontSize * 1.45 ? lines[0] : '';
+  }
+  if (height < minimumHeight) return '';
+
+  const estimatedWidth = estimatedLabelWidth(label, fontSize);
+  if (estimatedWidth <= availableWidth) return label;
   if (lineCount > 1) return label;
+
+  const wrappedLines = availableWidth > 0 ? Math.ceil(estimatedWidth / availableWidth) : Number.POSITIVE_INFINITY;
+  const wrappedMinimumHeight = fontSize * Math.max(1.45, wrappedLines * 1.25);
+  if (height >= wrappedMinimumHeight) return label;
+
   const compact = compactLabel(label);
   return compact !== label && estimatedLabelWidth(compact, fontSize) <= availableWidth
     ? compact

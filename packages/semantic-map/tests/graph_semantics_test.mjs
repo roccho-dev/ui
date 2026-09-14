@@ -69,7 +69,9 @@ const selfClaim = selfLoop.representations.find((item) => item.sourceRegionId ==
 assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /Claim/u, 'structured self-loop node label must remain visible');
 assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /role: proposal \| decision/u, 'structured self-loop rows must remain visible');
 assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /required_dependencies/u, 'long structured rows must remain renderable via wrapping');
-assert.equal(displayedRegionLabel(selfClaim, 0.35, DEFAULT_THEME, false), 'Claim', 'low fitted graph scale must preserve the structured node head');
+assert.equal(displayedRegionLabel(selfClaim, 0.35, DEFAULT_THEME, false), 'Claim', 'low fitted scale must preserve a multiline node head');
+const wrappedSingleLine = { ...selfClaim, label: 'CandidateData', bounds: { ...selfClaim.bounds, width: 180, height: 92 } };
+assert.equal(displayedRegionLabel(wrappedSingleLine, 0.4, DEFAULT_THEME, false), 'CandidateData', 'fitted labels may wrap instead of disappearing');
 
 const architecture = project(load('architecture-nested'));
 for (const id of ['ui.request', 's3.input', 's3.output', 'dev.process', 'dev.constraints']) {
