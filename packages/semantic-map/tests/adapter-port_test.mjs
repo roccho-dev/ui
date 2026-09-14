@@ -3,8 +3,7 @@ import fs from 'node:fs';
 import * as domain from '../domain/index.js';
 import * as editorCore from '../editor-core/index.js';
 
-const ports = fs.readFileSync(new URL('../editor-core/ports.js', import.meta.url), 'utf8');
-const surface = fs.readFileSync(new URL('../renderer-maxgraph/surface-port.js', import.meta.url), 'utf8');
+const surfaceSource = fs.readFileSync(new URL('../renderer-maxgraph/surface-port.js', import.meta.url), 'utf8');
 const main = fs.readFileSync(new URL('../authoring/main.js', import.meta.url), 'utf8');
 
 const expectedEditorCoreExports = [
@@ -28,25 +27,39 @@ assert.equal(Object.hasOwn(editorCore, 'EditorCore'), false);
 assert.equal(Object.hasOwn(editorCore, 'normalizeOperation'), false);
 assert.equal(Object.hasOwn(editorCore, 'operationToGesture'), false);
 assert.equal(Object.hasOwn(editorCore, 'MAX_DECISION_OPERATIONS'), false);
-assert.doesNotMatch(ports, /pendingCores|claimPendingEditorCore|registerPendingEditorCore/u);
-assert.match(ports, /SurfacePort\.onGesture/u);
-assert.match(ports, /DocumentPort\.requestEdit/u);
-assert.match(ports, /AuthorityPort\.authorize/u);
-assert.doesNotMatch(surface, /new Proxy|claimPendingEditorCore|pendingCores/u);
-assert.match(surface, /#inner/u);
-assert.match(surface, /onGesture\(handler\)/u);
-assert.match(surface, /destroy\(\)/u);
-assert.match(surface, /CELL_CONNECTED/u);
-assert.match(surface, /#rollback/u);
+
+const surfacePort = { render() {}, onGesture() {}, snapshot() {}, destroy() {} };
+const documentPort = { requestEdit() {}, commit() {}, reload() {}, renderChrome() {} };
+const authorityPort = { authorize() {} };
+assert.equal(editorCore.assertSurfacePort(surfacePort), surfacePort);
+assert.equal(editorCore.assertDocumentPort(documentPort), documentPort);
+assert.equal(editorCore.assertAuthorityPort(authorityPort), authorityPort);
+assert.throws(
+  () => editorCore.assertSurfacePort({ render() {}, snapshot() {}, destroy() {} }),
+  /SurfacePort\.onGesture is required/u,
+);
+assert.throws(
+  () => editorCore.assertDocumentPort({ requestEdit() {}, reload() {}, renderChrome() {} }),
+  /DocumentPort\.commit is required/u,
+);
+assert.throws(() => editorCore.assertAuthorityPort({}), /AuthorityPort\.authorize is required/u);
+
+assert.doesNotMatch(surfaceSource, /new Proxy|claimPendingEditorCore|pendingCores/u);
+assert.match(surfaceSource, /#inner/u);
+assert.match(surfaceSource, /onGesture\(handler\)/u);
+assert.match(surfaceSource, /destroy\(\)/u);
+assert.match(surfaceSource, /CELL_CONNECTED/u);
+assert.match(surfaceSource, /#rollback/u);
 assert.match(main, /createSemanticMapEditorCore/u);
 assert.match(main, /ports:\s*Object\.freeze\(\{\s*surface:\s*adapter,\s*document:\s*documentPort,\s*authority:\s*authorityPort/u);
 assert.doesNotMatch(main, /adapter\.graph|adapter\.setOperationHandler/u);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-surface-port-contract-test/3',
+  schema: 'semantic-map-surface-port-contract-test/4',
   status: 'PASS',
   canonicalFactory: true,
   exactPublicExports: expectedEditorCoreExports,
+  executablePortContracts: true,
   explicitPorts: true,
   pendingGlobalAbsent: true,
   openProxyAbsent: true,
