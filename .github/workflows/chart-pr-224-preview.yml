@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 env:
-  SOURCE_SHA: 25f77a896abd4e6d50bb49bcb6319144cc81870a
+  SOURCE_SHA: 7376dcd52847303f41550ace0259aa4af1b95e85
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
   CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
-  PREVIEW_URL: https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev/adapters/chart/
+  PREVIEW_ROOT: https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev/adapters/chart/
 
 jobs:
   deploy:
@@ -32,6 +32,14 @@ jobs:
           out="$RUNNER_TEMP/artifact-shell-publication"
           npm run build:artifact-shell-publication -- --out="$out"
           echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
+      - name: Assert generated Chart publication tree
+        run: |
+          set -euo pipefail
+          for variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do
+            test -f "$ARTIFACT_SHELL_PUBLICATION/adapters/chart/$variant/index.html"
+            test -f "$ARTIFACT_SHELL_PUBLICATION/adapters/chart/$variant/feature.json"
+            test -f "$ARTIFACT_SHELL_PUBLICATION/adapters/chart/$variant/input.json"
+          done
       - name: Deploy Cloudflare Pages preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -46,7 +54,7 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
           python3 -m playwright install --with-deps chromium
-      - name: Prove deployed Chart rendering
+      - name: Prove all deployed Chart variants
         run: |
           python3 - <<'PY'
           import json
@@ -54,38 +62,68 @@ jobs:
           from pathlib import Path
           from playwright.sync_api import sync_playwright
 
-          url = os.environ['PREVIEW_URL']
-          out = Path(os.environ['RUNNER_TEMP']) / 'chart-pr-224.png'
-          labels = ['製品質問', '導入相談', '不具合', 'その他']
+          root = os.environ['PREVIEW_ROOT']
+          out = Path(os.environ['RUNNER_TEMP']) / 'chart-pr-224-render-proof'
+          out.mkdir(parents=True, exist_ok=True)
+          expected = {
+              'bar-horizontal': ['製品質問', '導入相談', '不具合', 'その他'],
+              'bar-vertical': ['4月', '5月', '6月', '7月'],
+              'line': ['第1週', '第2週', '第3週', '第4週'],
+              'pie': ['製品A', '製品B', '製品C', 'その他'],
+              'donut': ['製品A', '製品B', '製品C', 'その他'],
+              'scatter': ['試行A', '試行B', '試行C', '試行D'],
+              'heatmap': ['利用ヒートマップ', '東京', '大阪', '午前', '午後', '夜'],
+              'sunburst': ['事業構成', '製品', '販路', 'Core', 'Pro', 'Direct', 'Partner'],
+          }
+          receipts = []
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
-              page = browser.new_page(viewport={'width': 1440, 'height': 1000})
-              response = page.goto(url, wait_until='networkidle', timeout=60_000)
-              assert response is not None and response.ok, f'HTTP failure: {response.status if response else None}'
-              page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
-              svg = page.locator('svg').first
-              svg.wait_for(state='visible', timeout=60_000)
-              box = svg.bounding_box()
-              assert box and box['width'] > 0 and box['height'] > 0, box
-              body = page.locator('body').inner_text()
-              for label in labels:
-                  assert label in body, f'missing label: {label}'
-              page.screenshot(path=str(out), full_page=True)
-              print(json.dumps({
-                  'schema': 'ui.chart-deployed-render-proof/1',
-                  'status': 'PASS',
-                  'sourceSha': os.environ['SOURCE_SHA'],
-                  'url': url,
-                  'httpStatus': response.status,
-                  'featureStatus': 'pass',
-                  'svg': {'visible': True, 'width': box['width'], 'height': box['height']},
-                  'labels': labels,
-                  'screenshot': str(out),
-              }, ensure_ascii=False))
+              for variant, labels in expected.items():
+                  events = {'pageErrors': [], 'requestFailed': []}
+                  page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+                  page.on('pageerror', lambda exc, events=events: events['pageErrors'].append(str(exc)))
+                  page.on('requestfailed', lambda req, events=events: events['requestFailed'].append({'url': req.url, 'failure': req.failure}))
+                  url = f'{root}{variant}/'
+                  response = page.goto(url, wait_until='networkidle', timeout=60_000)
+                  assert response is not None and response.ok, f'{variant}: HTTP {response.status if response else None}'
+                  page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
+                  svg = page.locator('svg').first
+                  svg.wait_for(state='visible', timeout=60_000)
+                  box = svg.bounding_box()
+                  assert box and box['width'] > 0 and box['height'] > 0, f'{variant}: invalid SVG bounds {box}'
+                  body = page.locator('body').inner_text()
+                  for label in labels:
+                      assert label in body, f'{variant}: missing label {label}'
+                  assert not events['pageErrors'], f"{variant}: page errors {events['pageErrors']}"
+                  assert not events['requestFailed'], f"{variant}: request failures {events['requestFailed']}"
+                  screenshot = out / f'{variant}.png'
+                  page.screenshot(path=str(screenshot), full_page=True)
+                  receipt = {
+                      'variant': variant,
+                      'url': url,
+                      'httpStatus': response.status,
+                      'featureStatus': page.locator('html').get_attribute('data-status'),
+                      'svg': {'width': box['width'], 'height': box['height']},
+                      'labels': labels,
+                      'pageErrors': events['pageErrors'],
+                      'requestFailed': events['requestFailed'],
+                      'screenshot': screenshot.name,
+                  }
+                  receipts.append(receipt)
+                  print(json.dumps(receipt, ensure_ascii=False))
+                  page.close()
               browser.close()
+          final = {
+              'schema': 'ui.chart-deployed-render-proof/2',
+              'status': 'PASS',
+              'sourceSha': os.environ['SOURCE_SHA'],
+              'variants': receipts,
+          }
+          (out / 'receipt.json').write_text(json.dumps(final, ensure_ascii=False, indent=2), encoding='utf-8')
+          print(json.dumps(final, ensure_ascii=False))
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: chart-pr-224-render-proof
-          path: ${{ runner.temp }}/chart-pr-224.png
+          path: ${{ runner.temp }}/chart-pr-224-render-proof
           if-no-files-found: error
