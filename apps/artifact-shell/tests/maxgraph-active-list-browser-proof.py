@@ -34,6 +34,20 @@ def child_frame(locator):
     return frame
 
 
+def submit_request(page, request: dict[str, object]) -> None:
+    payload = json.dumps(request, ensure_ascii=False)
+    page.evaluate(
+        """payload => {
+          const request = document.querySelector('#request');
+          const form = document.querySelector('#request-form');
+          request.value = payload;
+          request.dispatchEvent(new Event('input', { bubbles: true }));
+          form.requestSubmit();
+        }""",
+        payload,
+    )
+
+
 def main() -> None:
     listen = port()
     server = subprocess.Popen(
@@ -65,9 +79,8 @@ def main() -> None:
             proven: list[str] = []
             for name, pattern in (("graph.pass.json", "graph/1"), ("map.pass.json", "map/1"), ("seq.pass.json", "seq/1")):
                 current = fixture(name)
-                page.locator("#request").fill(json.dumps(current["request"], ensure_ascii=False))
-                page.locator("#run").click()
-                page.locator("#status[data-state='pass']").wait_for(state="attached", timeout=30_000)
+                submit_request(page, current["request"])
+                page.wait_for_function("document.querySelector('#status')?.dataset.state === 'pass'", timeout=30_000)
                 frame_element = page.locator("#surface iframe[data-package='semantic-map']")
                 frame_element.wait_for(state="attached", timeout=30_000)
                 child = child_frame(frame_element)
