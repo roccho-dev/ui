@@ -10,8 +10,8 @@ permissions:
 
 env:
   TARGET_BRANCH: feat/chart-first-class-260915
-  EXPECTED_SOURCE_SHA: 159277d91216ffbca48189160ad61c4b4b733ab9
-  PROOF_TOOLS_SHA: 301d31ecef8f811c25dbec420343190200d64aed
+  EXPECTED_SOURCE_SHA: e4a17636593f4d8630c50157b0706cbe25dbdd32
+  PROOF_TOOLS_SHA: 63fb0d382ac9e2b1a1b58172ad51f8fb9e39e126
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
   CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
 
@@ -36,12 +36,11 @@ jobs:
           ref: ${{ env.PROOF_TOOLS_SHA }}
           path: _proof-tools
           persist-credentials: false
-      - name: Patch and prove vector-sector authoring
+      - name: Patch and prove Sunburst authoring closure
         run: |
           set -euo pipefail
-          python3 _proof-tools/.github/scripts/chart-vector-sector-authoring-patch.py
+          python3 _proof-tools/.github/scripts/chart-sunburst-authoring-patch.py
           git diff --check
-          node --input-type=module -e "import assert from 'node:assert/strict'; import {vertexStyle} from './packages/semantic-map/renderer-maxgraph/styles.js'; import {DEFAULT_THEME} from './packages/semantic-map/renderer-maxgraph/theme.js'; const s=vertexStyle({shape:'vector-sector',kind:'chart-slice',depth:1,readOnly:false,labelEditable:true,geometryEditable:false,temporalEdit:null,href:null,visual:{paletteKey:'chart:pie',sector:{startAngle:0,endAngle:90,innerRatio:0,outerRatio:1}}},1,DEFAULT_THEME); assert.equal(s.selectable,true); assert.equal(s.editable,true); assert.equal(s.connectable,true); assert.equal(s.deletable,true); assert.equal(s.movable,false); assert.equal(s.resizable,false); assert.ok(s.fontSize>0);"
           node packages/semantic-map/tests/authoring_boundary_test.mjs
           node packages/semantic-map/tests/chart_test.mjs
           node packages/semantic-map/tests/run.mjs
@@ -50,8 +49,13 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/semantic-map/renderer-maxgraph/styles.js packages/semantic-map/tests/authoring_boundary_test.mjs
-          git commit -m 'fix: inherit common editability for vector sectors'
+          git add \
+            packages/semantic-map/projection/projector.js \
+            packages/semantic-map/feature-runtime.mjs \
+            packages/semantic-map/renderer-maxgraph/authoring/index.js \
+            packages/semantic-map/tests/chart_test.mjs \
+            packages/semantic-map/tests/authoring_boundary_test.mjs
+          git commit -m 'fix: close Sunburst authoring and activation paths'
           git push origin HEAD:"$TARGET_BRANCH"
           echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Build and assert publication
@@ -83,6 +87,8 @@ jobs:
           python3 -m playwright install --with-deps chromium
       - name: Prove real authoring for every deployed Chart variant
         run: python3 _proof-tools/.github/scripts/chart-pr-224-authoring-proof.py
+      - name: Prove Sunburst drilldown and back by real clicks
+        run: python3 _proof-tools/.github/scripts/chart-sunburst-activation-proof.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
