@@ -1,0 +1,94 @@
+name: Temporary ui218 projection sync
+
+on:
+  push:
+    branches:
+      - tmp/ui218-sync-260915
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: prep/ui218-on-222-260915
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Record exact migration evolutions
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createHash } from 'node:crypto';
+          import fs from 'node:fs/promises';
+
+          const manifestPath = 'packages/semantic-map/migration-manifest.json';
+          const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+          const targets = [
+            'packages/semantic-map/domain/semantic-map.js',
+            'packages/semantic-map/pattern/view-types/graph/contract.js',
+            'packages/semantic-map/pattern/view-types/graph/projection.js',
+            'packages/semantic-map/pattern/view-types/spatial-layout.js',
+            'packages/semantic-map/projection/projector.js',
+            'packages/semantic-map/renderer-maxgraph/labels.js',
+            'packages/semantic-map/renderer-maxgraph/render-methods.js',
+          ];
+          const evolutions = manifest.evolutions ?? [];
+          for (const target of targets) {
+            const entry = manifest.entries.find(item => item.target === target);
+            assert.ok(entry, `migration entry missing: ${target}`);
+            let expected = entry.targetSha256;
+            for (const evolution of evolutions.filter(item => item.target === target)) {
+              assert.equal(evolution.fromSha256, expected, `${target}: existing chain`);
+              expected = evolution.toSha256;
+            }
+            const actual = createHash('sha256').update(await fs.readFile(target)).digest('hex');
+            if (actual === expected) continue;
+            evolutions.push({
+              id: 'graph-structured-260915',
+              target,
+              fromSha256: expected,
+              toSha256: actual,
+              sourceCommit: '0d42ea8f56890fdc99fc41076c6b4b969e68a900',
+              sourcePath: target,
+              reason: 'graph-structured-semantics-and-layout',
+            });
+          }
+          manifest.evolutions = evolutions;
+          await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+          node tests/check-semantic-map-migration.mjs
+
+      - name: Regenerate capability registry canonically
+        run: |
+          node apps/artifact-shell/scripts/build-registry.mjs
+          node apps/artifact-shell/scripts/build-registry.mjs --check
+
+      - name: Prove focused and full Semantic Map source gates
+        run: |
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+
+      - name: Commit only required projections
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git diff --name-only | sort)
+          expected=(
+            apps/artifact-shell/generated/capability-registry.mjs
+            packages/semantic-map/migration-manifest.json
+          )
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${changed[$i]}" = "${expected[$i]}"; done
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "${expected[@]}"
+          git commit -m 'chore(graph): sync migration and registry projections'
+          git push origin HEAD:prep/ui218-on-222-260915
