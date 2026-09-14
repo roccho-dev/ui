@@ -220,15 +220,7 @@ export function vertexStyle(representation, scale, theme) {
         sectorInnerRatio: visual?.sector?.innerRatio ?? 0,
         sectorOuterRatio: visual?.sector?.outerRatio ?? 1,
         rounded: false,
-        fontSize: 0,
-        fontStyle: 0,
         shadow: false,
-        movable: false,
-        resizable: false,
-        selectable: false,
-        editable: false,
-        connectable: false,
-        deletable: false,
       };
     case 'seq-step':
       return { ...common, rounded: true, arcSize: theme.vertex.sequenceArcSize, perimeter: 'rectanglePerimeter' };

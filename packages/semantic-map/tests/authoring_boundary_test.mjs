@@ -13,6 +13,7 @@ const documentAuthoring = read('packages/semantic-map/renderer-maxgraph/authorin
 const activeList = read('packages/semantic-map/renderer-maxgraph/authoring/active-list.js');
 const semanticGraph = read('packages/semantic-map/renderer-maxgraph/create-semantic-graph.js');
 const adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');
+const styles = read('packages/semantic-map/renderer-maxgraph/styles.js');
 
 assert.match(rendererIndex, /createSemanticAuthoring as createMaxGraphAdapter/);
 assert.match(authoringIndex, /createMaxGraphAdapter/);
@@ -25,6 +26,11 @@ assert.match(semanticGraph, /sourceLabel \?\? getEditingValue/);
 assert.match(adapter, /getPlugin\('CellEditorHandler'\)/);
 assert.match(adapter, /editingPlugin\?\.editingCell === cell/);
 assert.match(adapter, /editingPlugin\?\.textarea\?\.isConnected/);
+const vectorSectorStart = styles.indexOf("case 'vector-sector':");
+const vectorSectorEnd = styles.indexOf("case 'seq-step':", vectorSectorStart);
+assert.ok(vectorSectorStart >= 0 && vectorSectorEnd > vectorSectorStart);
+const vectorSectorStyle = styles.slice(vectorSectorStart, vectorSectorEnd);
+assert.doesNotMatch(vectorSectorStyle, /(?:fontSize: 0|selectable: false|editable: false|connectable: false|deletable: false)/);
 assert.match(documentAuthoring, /vendor\/maxgraph/);
 assert.match(documentAuthoring, /insertRectangle/);
 assert.match(documentAuthoring, /deleteSelection/);
