@@ -3,11 +3,11 @@ from __future__ import annotations
 import base64
 import gzip
 import json
-import socket
-import subprocess
-import tempfile
-import time
+import threading
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import tempfile
 
 from playwright.sync_api import sync_playwright
 
@@ -19,12 +19,19 @@ FEATURES = {
 }
 
 
-def port() -> int:
-    sock = socket.socket()
-    sock.bind(("127.0.0.1", 0))
-    value = sock.getsockname()[1]
-    sock.close()
-    return value
+class PublicationHandler(SimpleHTTPRequestHandler):
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".css": "text/css; charset=utf-8",
+        ".html": "text/html; charset=utf-8",
+        ".js": "text/javascript; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".jsonl": "application/x-ndjson; charset=utf-8",
+        ".mjs": "text/javascript; charset=utf-8",
+    }
+
+    def log_message(self, _format: str, *_args: object) -> None:
+        return
 
 
 def data_token(text: str) -> str:
@@ -36,21 +43,18 @@ def data_token(text: str) -> str:
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="ui-semantic-feature-") as temp:
         output = Path(temp) / "publication"
+        import subprocess
         subprocess.run(
             ["node", "apps/artifact-shell/scripts/build-publication.mjs", f"--out={output}"],
             cwd=ROOT,
             check=True,
         )
-        listen = port()
-        server = subprocess.Popen(
-            ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
-            cwd=output,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        handler = partial(PublicationHandler, directory=str(output))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        listen = server.server_address[1]
         try:
-            time.sleep(0.4)
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
                 context = browser.new_context(viewport={"width": 1280, "height": 900})
@@ -92,11 +96,9 @@ def main() -> None:
                 "iframes": 0,
             }, ensure_ascii=False))
         finally:
-            server.terminate()
-            try:
-                server.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                server.kill()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
 
 
 if __name__ == "__main__":
