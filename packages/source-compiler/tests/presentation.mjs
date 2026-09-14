@@ -11,4 +11,4 @@ for (const name of ['2-actors.jsonl', '3-actors.jsonl', '4-actors.jsonl']) {
   assert.equal(compiled.coverage?.pass, true);
   if (name === '2-actors.jsonl') assert.deepEqual(compiled, uiExample);
 }
-console.log('decisions-compiler presentation: PASS');
+console.log('source-compiler presentation: PASS');
