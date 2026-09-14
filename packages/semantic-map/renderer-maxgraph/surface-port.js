@@ -68,7 +68,7 @@ export class SurfacePortMaxGraphAdapter {
       }
       try {
         const result = this.#emit(Object.freeze({
-          type: 'reconnect-relation',
+          type: 'relation.reconnect',
           relationId,
           from,
           to,

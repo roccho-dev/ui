@@ -32,7 +32,7 @@ export function operationToGesture(operation) {
     }
     case 'ConnectRegions': {
       const { type: _type, ...fields } = operation;
-      return Object.freeze({ type: 'connect-regions', fields: structuredClone(fields) });
+      return Object.freeze({ type: 'relation.connect', ...structuredClone(fields) });
     }
     case 'MountRegionModule':
       return Object.freeze({ type: 'mount-region-module', regionId: operation.regionId, src: operation.src });
@@ -41,7 +41,7 @@ export function operationToGesture(operation) {
     case 'RemoveSelection':
       return Object.freeze({ type: 'remove-selection', regionIds: copyArray(operation.regionIds), relationIds: copyArray(operation.relationIds) });
     case 'ReconnectRelation':
-      return Object.freeze({ type: 'reconnect-relation', relationId: operation.relationId, from: operation.from, to: operation.to });
+      return Object.freeze({ type: 'relation.reconnect', relationId: operation.relationId, from: operation.from, to: operation.to });
     default:
       throw new Error(`editor-command: unsupported operation ${String(type)}`);
   }
@@ -68,15 +68,17 @@ export function gestureToOperation(gesture) {
       return { type: 'SetSetCompleteness', regionId: gesture.regionId, complete: gesture.complete };
     case 'add-region':
       return { type: 'AddRegion', ...structuredClone(gesture.fields) };
-    case 'connect-regions':
-      return { type: 'ConnectRegions', ...structuredClone(gesture.fields) };
+    case 'relation.connect': {
+      const { type: _type, ...fields } = gesture;
+      return { type: 'ConnectRegions', ...structuredClone(fields) };
+    }
     case 'mount-region-module':
       return { type: 'MountRegionModule', regionId: gesture.regionId, src: gesture.src };
     case 'unmount-region-module':
       return { type: 'UnmountRegionModule', regionId: gesture.regionId };
     case 'remove-selection':
       return { type: 'RemoveSelection', regionIds: copyArray(gesture.regionIds), relationIds: copyArray(gesture.relationIds) };
-    case 'reconnect-relation':
+    case 'relation.reconnect':
       return { type: 'ReconnectRelation', relationId: gesture.relationId, from: gesture.from, to: gesture.to };
     default:
       throw new Error(`editor-command: unsupported gesture ${String(gesture.type)}`);
