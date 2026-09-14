@@ -1,30 +1,36 @@
 name: Semantic Map gesture-review join
 
 on:
-  pull_request:
-    paths:
-      - packages/semantic-map/**
-      - examples/render.semantic-map.set-topology/**
-      - .github/workflows/semantic-map-gesture-review-join.yml
+  push:
   workflow_dispatch:
 
 jobs:
-  gesture-review-join:
+  feature-publication-proof:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Install pinned browser proof tooling
+      - name: Check simplified publication architecture
         run: |
-          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
-          python3 -m playwright install --with-deps chromium
-      - name: Resolve pinned Chromium
+          set -euo pipefail
+          test ! -e apps/artifact-shell/publication/copy-module-closure.mjs
+          test ! -e packages/comptime/control.mjs
+          ! grep -q 'compile:' apps/artifact-shell/adapters/control.mjs
+          ! grep -R -nE 'proof:[[:space:]]*Object\.freeze' packages/control/feature.mjs packages/graph-editor/feature.mjs packages/presentation/feature.mjs
+      - name: Prove publication source tests
+        run: node apps/artifact-shell/tests/publication.mjs
+      - name: Build publication
+        run: node apps/artifact-shell/scripts/build-publication.mjs --out=dist
+      - name: Prove publication in Chrome
         run: |
-          python3 - <<'PY' >> "$GITHUB_ENV"
-          from playwright.sync_api import sync_playwright
-          with sync_playwright() as playwright:
-              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
-          PY
-      - name: Prove actual gesture through review and fresh JSONL replay
-        run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
+          set -euo pipefail
+          node scripts/serve-static.mjs > "$RUNNER_TEMP/artifact-shell-static.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 50); do
+            if curl --fail --silent http://127.0.0.1:18083/dist/index.html >/dev/null; then break; fi
+            sleep .1
+          done
+          bash apps/artifact-shell/tests/prove-publication-browser.sh http://127.0.0.1:18083/dist
