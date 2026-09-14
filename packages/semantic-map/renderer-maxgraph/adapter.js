@@ -495,7 +495,7 @@ function startEditingSelection() {
   const cell = this.cellsByRegionId.get(visibleId);
   if (cell?.semantic?.type !== 'region' || !cell.semantic.labelEditable || cell.semantic.readOnly) return false;
   this.graph.startEditingAtCell(cell);
-  const editingPlugin = this.graph.getPlugin('Editing');
+  const editingPlugin = this.graph.getPlugin('CellEditorHandler');
   return Boolean(editingPlugin?.editingCell === cell && editingPlugin?.textarea?.isConnected);
 }
 

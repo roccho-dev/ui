@@ -22,6 +22,7 @@ assert.match(authoringIndex, /createDocumentAuthoring/);
 assert.match(activeList, /data-maxgraph-active-list|dataset\.maxgraphActiveList/);
 assert.match(activeList, /onActivate/);
 assert.match(semanticGraph, /sourceLabel \?\? getEditingValue/);
+assert.match(adapter, /getPlugin\('CellEditorHandler'\)/);
 assert.match(adapter, /editingPlugin\?\.editingCell === cell/);
 assert.match(adapter, /editingPlugin\?\.textarea\?\.isConnected/);
 assert.match(documentAuthoring, /vendor\/maxgraph/);
