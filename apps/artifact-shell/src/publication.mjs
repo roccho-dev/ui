@@ -47,7 +47,8 @@ const descriptor = async (root, target) => {
 };
 const copyFile = async (source, target) => { await fs.mkdir(path.dirname(target), { recursive: true }); await fs.writeFile(target, await fs.readFile(source)); };
 const selfContainedEsm = source => !/\bimport\s*(?:\(|["'{*])/u.test(source) && !/\bexport\s+[^;\n]*\sfrom\s*["']/u.test(source);
-const publicationEntrySource = kernelId => `import { setArtifactShellMode } from "./mode.mjs";
+const publicationEntrySource = kernelId => `import { registerArtifactWebMcp } from "./adapters/webmcp/index.mjs";
+import { setArtifactShellMode } from "./mode.mjs";
 import { artifactShellElements, createArtifactShell } from "./kernel/${kernelId}/apps/artifact-shell/src/shell-core.mjs";
 
 setArtifactShellMode();
@@ -79,7 +80,21 @@ export const bootPublishedArtifactShell = async ({ scope = globalThis } = {}) =>
     });
   }));
   const elements = artifactShellElements(scope.document);
-  return createArtifactShell({ elements, registry: { baseUrl: catalogUrl.href, manifests, runtimeBuild: catalog.kernel }, scope });
+  const shell = await createArtifactShell({ elements, registry: { baseUrl: catalogUrl.href, manifests, runtimeBuild: catalog.kernel }, scope });
+  const port = Object.freeze({
+    query: () => {
+      const value = String(elements.request.value ?? "").trim();
+      return value ? JSON.parse(value) : null;
+    },
+    render: shell.execute,
+    applyAction: shell.applyAction,
+  });
+  try {
+    scope.artifactShellWebMcp = await registerArtifactWebMcp({ document: scope.document, port });
+  } catch (error) {
+    scope.artifactShellWebMcp = Object.freeze({ available: false, error: String(error.message) });
+  }
+  return shell;
 };
 if (globalThis.location?.protocol === "http:" || globalThis.location?.protocol === "https:") {
   bootPublishedArtifactShell().catch(error => {
@@ -188,6 +203,7 @@ export const buildArtifactShellPublication = async ({ capabilitiesRoot, outputRo
   const catalog = Object.freeze({ capabilities: Object.freeze(entries), kernel, schema: ARTIFACT_CAPABILITY_CATALOG_SCHEMA });
   await writeJson(path.join(outputRoot, "catalog.json"), catalog);
   await copyFile(path.join(appRoot, "mode.mjs"), path.join(outputRoot, "mode.mjs"));
+  await copyFile(path.join(repoRoot, "adapters", "webmcp", "index.mjs"), path.join(outputRoot, "adapters", "webmcp", "index.mjs"));
   await fs.writeFile(path.join(outputRoot, "entry.mjs"), publicationEntrySource(kernelId));
   await fs.writeFile(path.join(outputRoot, "index.html"), publicationIndexHtml(await fs.readFile(path.join(appRoot, "index.html"), "utf8")));
   const adapters = await buildAdapters({ appRoot, outputRoot, repoRoot });
