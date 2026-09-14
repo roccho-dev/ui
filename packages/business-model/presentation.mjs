@@ -1,3 +1,4 @@
+import { A2UI_MESSAGE_VERSION } from '../a2ui-browser/src/index.mjs';
 import {
   assertBusinessModelProjectionCoverage,
   compileBusinessModelPresentationPlan,
@@ -21,13 +22,23 @@ export const compileBusinessModelPresentationPayload = input => {
   const runtimeData = typeof input === 'string' ? parseBusinessModelRuntimeJsonl(input) : input;
   const presentation = runtimeData?.presentation;
   invariant(presentation, 'presentation A2UI record is required');
-  invariant(presentation.a2ui.catalogId === PROFILED_BUSINESS_MODEL_CATALOG_ID, 'A2UI catalogId mismatch');
-  invariant(presentation.a2ui.surfaceId === PROFILED_BUSINESS_MODEL_SURFACE_ID, 'A2UI surfaceId mismatch');
+  const create = presentation.a2ui;
+  invariant(create.version === A2UI_MESSAGE_VERSION, 'A2UI version mismatch');
+  invariant(create.createSurface.catalogId === PROFILED_BUSINESS_MODEL_CATALOG_ID, 'A2UI catalogId mismatch');
+  invariant(create.createSurface.surfaceId === PROFILED_BUSINESS_MODEL_SURFACE_ID, 'A2UI surfaceId mismatch');
   const model = runtimeData.model;
   const profile = derivePublicBusinessModelProjectionProfile(model);
-  invariant(presentation.a2ui.profileId === profile.id, 'A2UI profileId mismatch');
+  invariant(presentation.profileId === profile.id, 'A2UI profileId mismatch');
   const plan = compileBusinessModelPresentationPlan(model, profile);
-  const sequence = validateProfiledBusinessModelSequence(projectProfiledBusinessModelA2uiSequence(model, plan));
+  const projected = projectProfiledBusinessModelA2uiSequence(model, plan);
+  const firstStage = projected.stages[0];
+  invariant(firstStage?.messages?.[0]?.createSurface, 'projected createSurface is missing');
+  const sequence = validateProfiledBusinessModelSequence(Object.freeze({
+    ...projected,
+    stages: Object.freeze(projected.stages.map((stage, index) => index === 0
+      ? Object.freeze({ ...stage, messages: Object.freeze([create, ...stage.messages.slice(1)]) })
+      : stage)),
+  }));
   const seqState = projectProfiledBusinessModelSeqState(model, plan);
   const mapState = projectProfiledBusinessModelMapState(model, plan);
   const coverage = assertBusinessModelProjectionCoverage(createBusinessModelProjectionCoverage({ model, plan, sequence, seqState, mapState }));
