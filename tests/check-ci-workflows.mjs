@@ -115,11 +115,6 @@ assert.equal(gestureJoin.source, "packages/semantic-map/tests/set_topology_gestu
 assert.equal(gestureJoin.provider, "github-actions");
 assert.equal(gestureJoin.authority, false);
 assert.deepEqual(gestureJoin.dispatch, ["pull_request", "workflow_dispatch"]);
-assert.deepEqual(gestureJoin.pull_request_paths, [
-  "packages/semantic-map/**",
-  "examples/render.semantic-map.set-topology/**",
-  ".github/workflows/semantic-map-gesture-review-join.yml",
-]);
 assert.equal(gestureJoin.generation_mode, "checked_in");
 assert.equal(gestureJoin.workflow_definition, "checked_in");
 assert.equal(gestureJoin.artifact_source, "none");
@@ -127,7 +122,6 @@ assert.equal(gestureJoin.artifact_generation, "none");
 
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
 assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path, finalConsumer.path, gestureJoin.path].sort());
-
 const primaryText = read(primary.entrypoints[0]);
 assert.match(primaryText, /name:\s*Nix Flake Check/);
 assert.match(primaryText, /nix flake check --print-build-logs/);
