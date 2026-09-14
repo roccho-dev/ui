@@ -1,6 +1,7 @@
-import { normalizeDocument, stringifyDocument } from "../graph-editor/src/model.mjs";
+import { normalizeDocument } from '../graph-editor/src/model.mjs';
 
-export const compileGraphEditor = example => {
-  const document = normalizeDocument(example);
-  return Object.freeze({ schema: "ui-graph-editor-example/1", document, text: stringifyDocument(document) });
-};
+export const compileGraphEditor = example => Object.freeze({
+  schema: 'ui-feature-input/1',
+  feature: 'graph-editor',
+  value: normalizeDocument(example),
+});

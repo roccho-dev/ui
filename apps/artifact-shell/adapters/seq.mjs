@@ -1,1 +1,9 @@
-export const createAdapter = () => Object.freeze({ comptime: "semantic-map", id: "seq", label: "seq", source: "examples/seq/example.json" });
+import { compileSemanticMap } from '../../../packages/comptime/semantic-map.mjs';
+
+export const createAdapter = () => Object.freeze({
+  compile: compileSemanticMap,
+  id: 'seq',
+  kind: 'invocation',
+  label: 'seq',
+  source: 'examples/seq/example.json',
+});

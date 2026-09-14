@@ -13,29 +13,29 @@ const visible = element => {
 
 export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
   const document = scope.document;
-  const mount = document.querySelector("#adapter");
-  const status = document.querySelector("#status");
-  if (!mount || !status) throw new Error("artifact-adapter: mount/status required");
-  const response = await scope.fetch(new URL("./adapter.json", scope.location.href), { cache: "no-store", credentials: "omit" });
+  const mount = document.querySelector('#adapter');
+  const status = document.querySelector('#status');
+  if (!mount || !status) throw new Error('artifact-adapter: mount/status required');
+  const response = await scope.fetch(new URL('./adapter.json', scope.location.href), { cache: 'no-store', credentials: 'omit' });
   if (!response.ok) throw new Error(`artifact-adapter: adapter.json returned ${response.status}`);
   const adapter = await response.json();
-  if (adapter.schema !== "ui-adapter/1" || !["invocation", "local-page"].includes(adapter.kind)) throw new Error("artifact-adapter: unsupported adapter");
+  if (adapter.schema !== 'ui-adapter/1' || !['invocation', 'feature'].includes(adapter.kind)) throw new Error('artifact-adapter: unsupported adapter');
   const target = new URL(adapter.href, scope.location.href);
-  if (target.origin !== scope.location.origin) throw new Error("artifact-adapter: same-origin target required");
+  if (target.origin !== scope.location.origin) throw new Error('artifact-adapter: same-origin target required');
   document.title = `${adapter.label} · UI`;
-  document.querySelector("#label").textContent = adapter.label;
-  const iframe = document.createElement("iframe");
+  document.querySelector('#label').textContent = adapter.label;
+  const iframe = document.createElement('iframe');
   iframe.src = target.href;
   iframe.title = adapter.label;
   iframe.dataset.adapterFrame = adapter.id;
   mount.replaceChildren(iframe);
   await new Promise((resolve, reject) => {
-    iframe.addEventListener("load", resolve, { once: true });
-    iframe.addEventListener("error", () => reject(new Error(`artifact-adapter: ${adapter.id} frame failed`)), { once: true });
+    iframe.addEventListener('load', resolve, { once: true });
+    iframe.addEventListener('error', () => reject(new Error(`artifact-adapter: ${adapter.id} frame failed`)), { once: true });
   });
 
-  if (adapter.kind === "invocation") {
-    await wait(scope, () => iframe.contentWindow?.artifactShellProof?.outcome?.result?.status === "PASS", `${adapter.id} invocation`);
+  if (adapter.kind === 'invocation') {
+    await wait(scope, () => iframe.contentWindow?.artifactShellProof?.outcome?.result?.status === 'PASS', `${adapter.id} invocation`);
   } else {
     const selectors = Array.isArray(adapter.proof?.selectors) ? adapter.proof.selectors : [];
     if (selectors.length === 0) throw new Error(`artifact-adapter: ${adapter.id} proof selectors required`);
@@ -48,17 +48,17 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
   }
 
   if (!visible(iframe)) throw new Error(`artifact-adapter: ${adapter.id} frame is not visible`);
-  document.body.dataset.adapterStatus = "pass";
-  status.textContent = "PASS";
-  scope.artifactAdapterProof = Object.freeze({ adapter, status: "PASS" });
+  document.body.dataset.adapterStatus = 'pass';
+  status.textContent = 'PASS';
+  scope.artifactAdapterProof = Object.freeze({ adapter, status: 'PASS' });
   return scope.artifactAdapterProof;
 };
 
-if (globalThis.location?.protocol === "http:" || globalThis.location?.protocol === "https:") {
+if (globalThis.location?.protocol === 'http:' || globalThis.location?.protocol === 'https:') {
   bootArtifactAdapter().catch(error => {
-    document.body.dataset.adapterStatus = "fail";
-    const status = document.querySelector("#status");
+    document.body.dataset.adapterStatus = 'fail';
+    const status = document.querySelector('#status');
     if (status) status.textContent = `FAIL · ${error.message}`;
-    globalThis.artifactAdapterProof = Object.freeze({ error: String(error.message), status: "FAIL" });
+    globalThis.artifactAdapterProof = Object.freeze({ error: String(error.message), status: 'FAIL' });
   });
 }

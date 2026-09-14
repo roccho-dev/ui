@@ -10,6 +10,8 @@ on:
       - packages/control/**
       - packages/graph-editor/**
       - packages/presentation/**
+      - packages/a2ui-browser/**
+      - packages/semantic-map/**
   workflow_dispatch:
 
 permissions:
@@ -46,9 +48,14 @@ jobs:
           test ! -e apps/artifact-shell/adapters/shell.mjs
           test ! -e apps/artifact-shell/adapters/control-reference.mjs
           test ! -e apps/artifact-shell/adapters/graph-reference.mjs
-          ! grep -R -nE '(^|[^[:alnum:]_])class[[:space:]]+[[:alnum:]_$]+' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime packages/control/src packages/graph-editor/src packages/presentation/compiler packages/presentation/ui/main.mjs
-          ! grep -R -nE 'export[[:space:]]+default' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime packages/control/src packages/graph-editor/src packages/presentation/compiler packages/presentation/ui/main.mjs
-          for file in apps/artifact-shell/adapters/*.mjs apps/artifact-shell/publication/*.mjs apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime/*.mjs packages/control/src/*.mjs packages/graph-editor/src/*.mjs packages/presentation/compiler/*.mjs packages/presentation/ui/main.mjs; do node --check "$file"; done
+          test ! -e apps/artifact-shell/publication/local-store.mjs
+          test ! -e packages/control/ui
+          test ! -e packages/graph-editor/ui
+          test ! -e packages/presentation/ui
+          ! grep -nE 'adapter\.id[[:space:]]*===|feature\.id[[:space:]]*===' apps/artifact-shell/publication/build-feature-page.mjs
+          ! grep -R -nE '(^|[^[:alnum:]_])class[[:space:]]+[[:alnum:]_$]+' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime packages/control packages/graph-editor/src packages/graph-editor/render.mjs packages/presentation/compiler packages/presentation/render.mjs
+          ! grep -R -nE 'export[[:space:]]+default' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime packages/control packages/graph-editor/src packages/graph-editor/render.mjs packages/presentation/compiler packages/presentation/render.mjs
+          for file in apps/artifact-shell/adapters/*.mjs apps/artifact-shell/publication/*.mjs apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime/*.mjs packages/control/*.mjs packages/control/src/*.mjs packages/graph-editor/*.mjs packages/graph-editor/src/*.mjs packages/presentation/*.mjs packages/presentation/compiler/*.mjs; do node --check "$file"; done
 
       - name: Build publication once
         shell: bash
@@ -58,16 +65,22 @@ jobs:
           test -s dist/index.html
           test -s dist/catalog.json
           test -s dist/artifact-manifest.json
+          test -s dist/adapter.css
           for adapter in graph map seq presentation control graph-editor; do
             test -s "dist/adapters/$adapter/index.html"
             test -s "dist/adapters/$adapter/adapter.json"
           done
           test ! -e dist/adapters/shell
-          for feature in presentation control graph-editor; do test -s "dist/features/$feature/index.html"; done
-          test -s dist/features/presentation/payload.json
-          test -s dist/features/control/control.jsonl
-          test -s dist/features/graph-editor/document.json
-          ! grep -R -nE 'stg-mobile-agent|raw\.githubusercontent\.com' dist/adapters/presentation dist/adapters/control dist/adapters/graph-editor dist/features/presentation dist/features/control dist/features/graph-editor
+          for feature in presentation control graph-editor; do
+            test -s "dist/features/$feature/index.html"
+            test -s "dist/features/$feature/feature.json"
+            test -s "dist/features/$feature/input.json"
+          done
+          test -s dist/modules/packages/presentation/render.mjs
+          test -s dist/modules/packages/control/render.mjs
+          test -s dist/modules/packages/graph-editor/render.mjs
+          test -s dist/modules/packages/semantic-map/vendor/maxgraph/view/BaseGraph.js
+          ! grep -R -nE 'stg-mobile-agent|raw\.githubusercontent\.com' dist/adapters/presentation dist/adapters/control dist/adapters/graph-editor dist/features/presentation dist/features/control dist/features/graph-editor dist/modules/packages/presentation dist/modules/packages/control dist/modules/packages/graph-editor
 
       - name: Deploy preview and exact-byte readback
         id: deploy
@@ -81,7 +94,7 @@ jobs:
             --project-name "$CLOUDFLARE_PAGES_PROJECT" \
             --branch "$PREVIEW_BRANCH" \
             --commit-hash "$head_sha" \
-            --commit-message 'Artifact Shell real feature proof' 2>&1)"
+            --commit-message 'Artifact Shell generic feature host proof' 2>&1)"
           printf '%s\n' "$output"
           deployment="$(printf '%s\n' "$output" | grep -Eo 'https://[A-Za-z0-9.-]+\.pages\.dev' | head -n1)"
           test -n "$deployment"
@@ -107,29 +120,31 @@ jobs:
           for adapter in "${adapters[@]}"; do
             echo "adapter=$adapter"
             output="$RUNNER_TEMP/adapter-$adapter.html"
-            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=25000 --dump-dom "$DEPLOYMENT/adapters/$adapter/" > "$output"
+            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$DEPLOYMENT/adapters/$adapter/" > "$output"
             grep -q 'data-adapter-status="pass"' "$output"
             grep -q '>PASS</output>' "$output"
           done
 
           presentation="$RUNNER_TEMP/feature-presentation.html"
-          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=25000 --dump-dom "$DEPLOYMENT/features/presentation/" > "$presentation"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$DEPLOYMENT/features/presentation/" > "$presentation"
           grep -q 'data-status="pass"' "$presentation"
           grep -q 'class="profiled-app"' "$presentation"
           grep -q 'class="seq-svg"' "$presentation"
 
           control="$RUNNER_TEMP/feature-control.html"
           "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "$DEPLOYMENT/features/control/" > "$control"
+          grep -q 'data-status="pass"' "$control"
           grep -q 'id="tree"' "$control"
           grep -q 'class="node"' "$control"
 
           graph_editor="$RUNNER_TEMP/feature-graph-editor.html"
-          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=25000 --dump-dom "$DEPLOYMENT/features/graph-editor/" > "$graph_editor"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$DEPLOYMENT/features/graph-editor/" > "$graph_editor"
+          grep -q 'data-status="pass"' "$graph_editor"
           grep -q 'class="roccho-graph-editor"' "$graph_editor"
           grep -q 'roccho-graph-editor__canvas' "$graph_editor"
           grep -q '<svg' "$graph_editor"
           grep -q 'roccho-graph-editor__projection' "$graph_editor"
-          printf '%s\n' '{"schema":"ui.adapter-browser-proof/4","status":"PASS","adapters":["graph","map","seq","presentation","control","graph-editor"],"realFeatures":["presentation","control","graph-editor"]}'
+          printf '%s\n' '{"schema":"ui.adapter-browser-proof/5","status":"PASS","adapters":["graph","map","seq","presentation","control","graph-editor"],"realFeatures":["presentation","control","graph-editor"],"host":"generic"}'
 
       - name: Emit proof receipt
         shell: bash
@@ -143,11 +158,12 @@ jobs:
           catalog = json.loads(pathlib.Path(sys.argv[2]).read_text())
           manifest = pathlib.Path(sys.argv[3]).read_bytes()
           print(json.dumps({
-              "schema": "ui.artifact-shell-pages-proof/4",
+              "schema": "ui.artifact-shell-pages-proof/5",
               "status": "PASS",
               "deployment": deployment,
               "project": "stg-artifact-runtime",
               "mode": "preview-examples-only",
+              "host": "generic",
               "adapters": ["graph", "map", "seq", "presentation", "control", "graph-editor"],
               "realFeatures": ["presentation", "control", "graph-editor"],
               "capabilities": [f"{x['capability']['id']}@{x['capability']['version']}" for x in catalog["capabilities"]],
