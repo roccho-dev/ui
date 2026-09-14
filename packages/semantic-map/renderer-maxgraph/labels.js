@@ -40,7 +40,17 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
     ? theme.vertex.boundarySpacingLeft * 2
     : fontSize;
   const availableWidth = Math.max(0, width - horizontalPadding);
-  const lineCount = label.split(/\r?\n/u).length;
+  const lines = label.split(/\r?\n/u);
+  const lineCount = lines.length;
+
+  if (representation.pattern === 'graph/1') {
+    const minimumHeadHeight = fontSize * 1.45;
+    if (height < minimumHeadHeight) return '';
+    const minimumDetailHeight = fontSize * Math.max(1.45, lineCount * 1.25);
+    if (lineCount > 1 && height < minimumDetailHeight) return lines[0];
+    return label;
+  }
+
   const minimumHeight = fontSize * (representation.shape === 'boundary' ? 1.7 : Math.max(1.45, lineCount * 1.25));
   if (height < minimumHeight) return '';
   if (estimatedLabelWidth(label, fontSize) <= availableWidth) return label;
