@@ -1,9 +1,7 @@
 name: tmp-publication-visual-proof
 
 on:
-  push:
-    branches:
-      - chore/ui-decisions-compiler-boundary-260914
+  pull_request:
 
 permissions:
   contents: read
