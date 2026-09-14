@@ -2,13 +2,10 @@ import { createSemanticMap, parseSemanticMapRecords } from './domain/index.js';
 import { normalizeOperation } from './domain/authoring-operation.js';
 import { SemanticDomainStore } from './domain/authoring-store.js';
 import { patternConfigKey, validatePatternDomain } from './pattern/index.js';
-import { SemanticProjector } from './projection/index.js';
-import { defaultViewForPattern } from './protocol/index.js';
-import { createSemanticAuthoring } from './renderer-maxgraph/authoring/index.js';
+import { mountSemanticMapSurface } from './surface-runtime.mjs';
 
 const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1' });
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-feature: ${message}`); };
-const frame = scope => new Promise(resolve => scope.requestAnimationFrame(() => resolve()));
 
 const snapshotDomain = domain => Object.freeze({
   meta: Object.freeze({
@@ -45,36 +42,15 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
 
   const records = parseSemanticMapRecords(input);
   const store = new SemanticDomainStore(createSemanticMap(records));
-  const view = defaultViewForPattern(pattern);
-  const surface = scope.document.createElement('div');
-  surface.className = 'semantic-map-feature';
-  surface.dataset.feature = feature.id;
-  const canvas = scope.document.createElement('div');
-  canvas.className = 'semantic-map-feature-canvas';
-  surface.append(canvas);
-  root.replaceChildren(surface);
-  await frame(scope);
-
-  const adapter = createSemanticAuthoring(canvas);
-  const projector = new SemanticProjector(store.domain, null, view);
-  let scene = null;
-  let renderQueued = false;
-
-  const project = () => {
-    projector.setDomain(store.domain);
-    return projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
-  };
-  const render = () => {
-    renderQueued = false;
-    scene = project();
-    adapter.render(scene);
-    return scene;
-  };
-  const queueRender = () => {
-    if (renderQueued) return;
-    renderQueued = true;
-    scope.requestAnimationFrame(render);
-  };
+  const surface = await mountSemanticMapSurface({
+    featureId: feature.id,
+    mode: 'authoring',
+    pattern,
+    root,
+    scope,
+    store,
+  });
+  const { adapter, canvas, view } = surface;
 
   adapter.setOperationHandler(operation => {
     const prepared = prepareRuntimeOperation(operation, store, scope);
@@ -86,23 +62,8 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
     ));
     return batch.results[0];
   });
-  adapter.setErrorHandler(queueRender);
-  store.onChange(queueRender);
+  adapter.setErrorHandler(surface.queueRender);
   adapter.setTool('select');
-
-  render();
-  const width = Math.max(1, canvas.clientWidth);
-  const height = Math.max(1, canvas.clientHeight);
-  const bounds = scene.bounds;
-  const scale = Math.max(0.01, Math.min(
-    1,
-    Math.max(1, width - 48) / Math.max(1, bounds.width),
-    Math.max(1, height - 48) / Math.max(1, bounds.height),
-  ));
-  const translateX = width / (2 * scale) - (bounds.x + bounds.width / 2);
-  const translateY = height / (2 * scale) - (bounds.y + bounds.height / 2);
-  adapter.setCamera(scale, translateX, translateY);
-  render();
 
   const editor = Object.freeze({
     adapter,
@@ -114,7 +75,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
     snapshot: () => Object.freeze({
       domain: snapshotDomain(store.domain),
       draft: store.draftSnapshot(),
-      scene: scene ? Object.freeze({ pattern: scene.pattern }) : null,
+      scene: surface.scene() ? Object.freeze({ pattern: surface.scene().pattern }) : null,
       selection: adapter.selectionSnapshot(),
     }),
   });
@@ -149,6 +110,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
   invariant(svg, 'rendered SVG is missing');
   const activeList = adapter.activeList?.snapshot?.() ?? null;
   invariant(activeList?.visible === true && activeList.items.length > 0, 'shared authoring active-list is not hydrated');
+  const scene = surface.scene();
   return Object.freeze({
     schema: 'semantic-map-feature-receipt/1',
     feature: feature.id,
