@@ -1,14 +1,15 @@
 import { SemanticDomainStore as DomainStateStore } from '../domain/domain-store.js';
-import { normalizeOperation } from './operation.js';
 import { createSemanticMap } from '../domain/semantic-map.js';
 import { gestureToOperation } from './commands.js';
+import { normalizeOperation } from './operation.js';
 import {
+  assertAuthorityPort,
+  assertDocumentPort,
   assertSurfacePort,
   normalizeSelection,
-  registerPendingEditorCore,
   sameSelection,
 } from './ports.js';
-import { createWorkspace, normalizeWorkspace } from './workspace-codec.js';
+import { createWorkspace, normalizeWorkspace, workspaceBytes } from './workspace-codec.js';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(`editor-core: ${message}`);
@@ -31,23 +32,49 @@ function cloneFrame(frame) {
   return frame == null ? null : structuredClone(frame);
 }
 
-export class EditorCore extends DomainStateStore {
-  constructor(initialDomain, options = {}) {
-    super(initialDomain);
+function synchronous(value, name) {
+  invariant(!value || typeof value.then !== 'function', `${name} must be synchronous`);
+  return value;
+}
+
+function fnv1a32(text) {
+  let hash = 0x811c9dc5;
+  for (const byte of new TextEncoder().encode(text)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+function publicError(code, reason) {
+  const error = new Error(`editor-core: ${code}: ${reason}`);
+  error.code = code;
+  return error;
+}
+
+function normalizeInputDomain(input) {
+  if (input?.meta && input?.regions && input?.relations) return input;
+  if (Array.isArray(input)) return createSemanticMap(structuredClone(input));
+  if (input?.records && Array.isArray(input.records)) return createSemanticMap(structuredClone(input.records));
+  throw new Error('editor-core: semantic input is invalid');
+}
+
+class EditorCoreState extends DomainStateStore {
+  constructor({ semantic, layout = null, revision = null, ports }) {
+    super(normalizeInputDomain(semantic));
+    invariant(ports && typeof ports === 'object', 'ports are required');
+    this.surface = assertSurfacePort(ports.surface);
+    this.documentPort = assertDocumentPort(ports.document);
+    this.authority = assertAuthorityPort(ports.authority);
     this.coreListeners = new Set();
-    this.surface = null;
-    this.mutationPort = null;
-    this.selection = normalizeSelection();
-    this.frame = null;
+    this.selection = normalizeSelection(layout?.selection ?? {});
+    this.frame = cloneFrame(layout?.frame ?? null);
+    this.revision = revision ?? null;
     this.idSequence = initialSequence(this.domain);
     this.destroyed = false;
-    this.unregisterPending = options.registerSurface === false
-      ? null
-      : registerPendingEditorCore(this);
-  }
-
-  static detached(initialDomain) {
-    return new EditorCore(initialDomain, { registerSurface: false });
+    this.removeSurfaceGesture = this.surface.onGesture((gesture) => this.acceptGesture(gesture));
+    invariant(typeof this.removeSurfaceGesture === 'function', 'SurfacePort.onGesture must return an unsubscribe function');
+    this.renderSurface();
   }
 
   notify(event) {
@@ -55,7 +82,17 @@ export class EditorCore extends DomainStateStore {
     if (this.coreListeners) this.publish('domain', { domainEvent: event });
   }
 
+  stateHash() {
+    return `fnv1a32:${fnv1a32(JSON.stringify({
+      revision: this.revision,
+      records: this.toRecords(),
+      selection: this.selection,
+      frame: this.frame,
+    }))}`;
+  }
+
   publish(kind, detail = {}) {
+    if (this.destroyed) return;
     const event = Object.freeze({ kind, core: this.snapshot(), ...detail });
     for (const listener of this.coreListeners) {
       try { listener(event); } catch (error) { console.error(error); }
@@ -63,33 +100,48 @@ export class EditorCore extends DomainStateStore {
   }
 
   subscribe(listener) {
+    invariant(!this.destroyed, 'core is destroyed');
     invariant(typeof listener === 'function', 'listener must be a function');
     this.coreListeners.add(listener);
     return () => this.coreListeners.delete(listener);
   }
 
-  bindSurface(surface) {
-    invariant(!this.destroyed, 'core is destroyed');
-    invariant(!this.surface, 'SurfacePort is already bound');
-    this.surface = assertSurfacePort(surface);
-    this.unregisterPending?.();
-    this.unregisterPending = null;
-    this.surface.mirrorSelection(this.selection);
-    this.publish('surface', { status: 'bound' });
-    return this;
+  authorize(intent) {
+    const stateHash = this.stateHash();
+    const decision = synchronous(
+      this.authority.authorize(Object.freeze({ intent: structuredClone(intent), stateHash })),
+      'AuthorityPort.authorize',
+    );
+    invariant(decision && typeof decision === 'object', 'AuthorityPort.authorize must return a decision');
+    if (decision.allowed !== true) {
+      throw publicError(
+        String(decision.code ?? 'E_AUTHORITY_DENIED'),
+        String(decision.reason ?? 'authority denied'),
+      );
+    }
+    return Object.freeze({
+      allowed: true,
+      code: String(decision.code ?? 'ALLOW'),
+      reason: String(decision.reason ?? 'allowed'),
+      stateHash,
+    });
   }
 
-  setMutationPort(port) {
-    invariant(typeof port === 'function', 'Authority/Mutation port must be a function');
-    this.mutationPort = port;
-    return this;
+  renderSurface(scene = undefined) {
+    if (this.destroyed) return null;
+    return this.surface.render(Object.freeze({
+      ...(scene === undefined ? {} : { scene }),
+      selection: this.selection,
+      activeFrame: cloneFrame(this.frame),
+      presentation: null,
+    }));
   }
 
   selectionSnapshot() {
     return this.selection;
   }
 
-  setSelection(input, { mirror = true, origin = 'core' } = {}) {
+  setSelection(input, { render = true, origin = 'core' } = {}) {
     invariant(!this.destroyed, 'core is destroyed');
     const requested = normalizeSelection(input);
     const validRegions = requested.regionIds.filter((id) => this.domain.regions.has(id));
@@ -97,15 +149,17 @@ export class EditorCore extends DomainStateStore {
     const next = normalizeSelection({ regionIds: validRegions, relationIds: validRelations });
     if (sameSelection(this.selection, next)) return this.selection;
     this.selection = next;
-    if (mirror && this.surface) this.surface.mirrorSelection(next);
+    if (render) this.renderSurface();
     this.publish('selection', { selection: next, origin });
     return next;
   }
 
   setFrame(frame) {
+    invariant(!this.destroyed, 'core is destroyed');
     const next = cloneFrame(frame);
     if (JSON.stringify(this.frame) === JSON.stringify(next)) return this.frame;
     this.frame = next;
+    this.renderSurface();
     this.publish('frame', { frame: cloneFrame(this.frame) });
     return this.frame;
   }
@@ -114,10 +168,9 @@ export class EditorCore extends DomainStateStore {
     return this.setSelection(this.selection);
   }
 
-  prepareOperation(input) {
+  prepareOperation(input, sequence = this.idSequence) {
     const candidate = structuredClone(input);
-    let nextSequence = this.idSequence;
-    let allocated = false;
+    let nextSequence = sequence;
     const used = new Set([...this.domain.regions.keys(), ...this.domain.relations.map((relation) => relation.id)]);
     const allocate = (prefix) => {
       let id;
@@ -125,43 +178,170 @@ export class EditorCore extends DomainStateStore {
         nextSequence += 1;
         id = `${prefix}.core-${nextSequence}`;
       } while (used.has(id));
-      allocated = true;
+      used.add(id);
       return id;
     };
     if (candidate.type === 'AddRegion' && !candidate.regionId) candidate.regionId = allocate('region');
     if (candidate.type === 'ConnectRegions' && !candidate.relationId) candidate.relationId = allocate('relation');
     return Object.freeze({
       operation: normalizeOperation(candidate),
-      nextSequence: allocated ? nextSequence : this.idSequence,
-      allocated,
+      nextSequence,
     });
+  }
+
+  editPlan(operation, authority) {
+    const requested = synchronous(this.documentPort.requestEdit(Object.freeze({
+      intent: structuredClone(operation),
+      operation: structuredClone(operation),
+      semantic: this.domain,
+      layout: Object.freeze({ selection: this.selection, frame: cloneFrame(this.frame) }),
+      revision: this.revision,
+      stateHash: authority.stateHash,
+    })), 'DocumentPort.requestEdit');
+
+    if (requested?.noop === true) {
+      return Object.freeze({
+        noop: true,
+        result: requested.result ?? null,
+        operations: Object.freeze([]),
+        validate: null,
+      });
+    }
+
+    const rawOperations = Array.isArray(requested)
+      ? requested
+      : requested?.operations ?? [operation];
+    invariant(Array.isArray(rawOperations) && rawOperations.length > 0, 'DocumentPort.requestEdit returned no operations');
+    invariant(requested?.validate == null || typeof requested.validate === 'function', 'DocumentPort validate must be a function');
+
+    let nextSequence = this.idSequence;
+    const operations = rawOperations.map((raw) => {
+      const prepared = this.prepareOperation(raw, nextSequence);
+      nextSequence = prepared.nextSequence;
+      return prepared.operation;
+    });
+    return Object.freeze({
+      noop: false,
+      operations: Object.freeze(operations),
+      nextSequence,
+      validate: requested?.validate ?? null,
+    });
+  }
+
+  commitDocument({ authority, operations, batch, beforeRevision }) {
+    const value = synchronous(this.documentPort.commit(Object.freeze({
+      expectedRevision: beforeRevision,
+      revision: beforeRevision,
+      semantic: this.domain,
+      layout: Object.freeze({ selection: this.selection, frame: cloneFrame(this.frame) }),
+      operations,
+      results: batch.results,
+      stateHash: authority.stateHash,
+    })), 'DocumentPort.commit');
+    if (value && Object.hasOwn(value, 'revision')) this.revision = value.revision;
+    return value ?? null;
   }
 
   dispatch(command) {
     invariant(!this.destroyed, 'core is destroyed');
-    invariant(this.mutationPort, 'Authority/Mutation port is not bound');
-    const prepared = this.prepareOperation(command);
-    const beforeDraft = this.draftSnapshot().applied;
-    const result = this.mutationPort(prepared.operation);
-    const afterDraft = this.draftSnapshot().applied;
-    if (prepared.allocated && afterDraft > beforeDraft) this.idSequence = prepared.nextSequence;
-    if (result?.createdRegionId) {
-      this.setSelection({ regionIds: [result.createdRegionId], relationIds: [] });
-    } else if (result?.createdRelationId) {
-      this.setSelection({ regionIds: [], relationIds: [result.createdRelationId] });
-    } else {
-      this.pruneSelection();
+    invariant(command && typeof command === 'object', 'command is required');
+
+    if (command.type === 'history.undo') return this.applyHistory('undo');
+    if (command.type === 'history.redo') return this.applyHistory('redo');
+    if (command.type === 'selection.set') return this.setSelection(command.selection);
+    if (command.type === 'frame.set') return this.setFrame(command.frame);
+
+    const initial = this.prepareOperation(command);
+    const authority = this.authorize(initial.operation);
+    const plan = this.editPlan(initial.operation, authority);
+    if (plan.noop) return plan.result;
+
+    const session = this.snapshotSession();
+    const beforeRevision = this.revision;
+    try {
+      const batch = super.performBatch(
+        plan.operations,
+        plan.validate === null
+          ? null
+          : (candidate, result) => plan.validate(Object.freeze({
+            semantic: candidate.domain,
+            batch: result,
+            revision: beforeRevision,
+          })),
+      );
+      this.idSequence = plan.nextSequence;
+      const last = batch.results.at(-1) ?? null;
+      if (last?.createdRegionId) {
+        this.setSelection({ regionIds: [last.createdRegionId], relationIds: [] }, { render: false });
+      } else if (last?.createdRelationId) {
+        this.setSelection({ regionIds: [], relationIds: [last.createdRelationId] }, { render: false });
+      } else {
+        this.pruneSelection();
+      }
+      this.commitDocument({
+        authority,
+        operations: plan.operations,
+        batch,
+        beforeRevision,
+      });
+      this.renderSurface();
+      this.documentPort.renderChrome(this.snapshot());
+      const result = batch.results.length === 1
+        ? batch.results[0]
+        : Object.freeze({ operations: plan.operations, results: batch.results });
+      this.publish('mutation', { operations: plan.operations, result, authority });
+      return result;
+    } catch (error) {
+      this.restoreSession(session);
+      this.renderSurface();
+      throw error;
     }
-    this.publish('mutation', { operation: prepared.operation, result });
-    return result;
+  }
+
+  applyHistory(direction) {
+    const intent = Object.freeze({ type: direction === 'undo' ? 'history.undo' : 'history.redo' });
+    const authority = this.authorize(intent);
+    const session = this.snapshotSession();
+    const beforeRevision = this.revision;
+    try {
+      const changed = direction === 'undo' ? super.undo() : super.redo();
+      if (!changed) return false;
+      const operation = Object.freeze({ type: intent.type });
+      const batch = Object.freeze({ results: Object.freeze([Object.freeze({ changed: true })]) });
+      this.commitDocument({
+        authority,
+        operations: Object.freeze([operation]),
+        batch,
+        beforeRevision,
+      });
+      this.pruneSelection();
+      this.renderSurface();
+      this.documentPort.renderChrome(this.snapshot());
+      this.publish('history', { direction, authority });
+      return true;
+    } catch (error) {
+      this.restoreSession(session);
+      this.renderSurface();
+      throw error;
+    }
   }
 
   acceptGesture(gesture) {
+    invariant(!this.destroyed, 'core is destroyed');
     invariant(gesture && typeof gesture === 'object', 'gesture is required');
-    if (gesture.type === 'selection-changed') {
-      return this.setSelection(gesture.selection, { mirror: false, origin: 'surface' });
+    switch (gesture.type) {
+      case 'selection.changed':
+      case 'selection-changed':
+        return this.setSelection(gesture.selection, { render: false, origin: 'surface' });
+      case 'camera.changed':
+        this.publish('presentation', { presentation: structuredClone(gesture.presentation ?? null) });
+        return null;
+      case 'activation.requested':
+        this.publish('activation', { activation: structuredClone(gesture.activation ?? null) });
+        return null;
+      default:
+        return this.dispatch(gestureToOperation(gesture));
     }
-    return this.dispatch(gestureToOperation(gesture));
   }
 
   execute(input) {
@@ -192,41 +372,48 @@ export class EditorCore extends DomainStateStore {
     };
   }
 
-  undo() {
-    const changed = super.undo();
-    if (changed) this.pruneSelection();
-    return changed;
-  }
-
-  redo() {
-    const changed = super.redo();
-    if (changed) this.pruneSelection();
-    return changed;
-  }
-
-  replaceDomain(domain, options) {
-    super.replaceDomain(domain, options);
-    this.idSequence = initialSequence(this.domain);
-    this.setSelection(normalizeSelection(), { origin: 'replace' });
-  }
-
   replaceInput(input) {
-    const workspace = input?.schema ? normalizeWorkspace(input) : null;
+    invariant(!this.destroyed, 'core is destroyed');
+    const reloaded = synchronous(this.documentPort.reload(Object.freeze({
+      input,
+      expectedRevision: this.revision,
+    })), 'DocumentPort.reload');
+    const value = reloaded && Object.hasOwn(reloaded, 'input') ? reloaded.input : input;
+    const workspace = value?.schema ? normalizeWorkspace(value) : null;
     const domain = workspace
       ? createSemanticMap(structuredClone(workspace.document.records))
-      : Array.isArray(input)
-        ? createSemanticMap(structuredClone(input))
-        : input;
-    this.replaceDomain(domain);
-    if (workspace) {
-      this.frame = cloneFrame(workspace.layout.frame);
-      this.setSelection(workspace.layout.selection, { origin: 'replace' });
-    }
+      : normalizeInputDomain(value);
+    super.replaceDomain(domain);
+    this.idSequence = initialSequence(this.domain);
+    this.selection = normalizeSelection(workspace?.layout.selection ?? {});
+    this.frame = cloneFrame(workspace?.layout.frame ?? null);
+    if (reloaded && Object.hasOwn(reloaded, 'revision')) this.revision = reloaded.revision;
+    this.renderSurface();
+    this.documentPort.renderChrome(this.snapshot());
+    this.publish('replace', { revision: this.revision });
     return this.snapshot();
   }
 
   workspace() {
     return createWorkspace(this.toRecords(), { selection: this.selection, frame: this.frame });
+  }
+
+  snapshotSession() {
+    return Object.freeze({
+      domain: super.snapshotSession(),
+      selection: this.selection,
+      frame: cloneFrame(this.frame),
+      idSequence: this.idSequence,
+      revision: this.revision,
+    });
+  }
+
+  restoreSession(snapshot) {
+    super.restoreSession(snapshot.domain);
+    this.selection = normalizeSelection(snapshot.selection);
+    this.frame = cloneFrame(snapshot.frame);
+    this.idSequence = snapshot.idSequence;
+    this.revision = snapshot.revision;
   }
 
   snapshot() {
@@ -241,18 +428,74 @@ export class EditorCore extends DomainStateStore {
         relations: this.domain.relations.length,
       }),
       idSequence: this.idSequence,
-      surface: this.surface?.snapshot() ?? null,
+      revision: this.revision,
+      stateHash: this.stateHash(),
+      surface: this.surface.snapshot(),
     });
+  }
+
+  runtimePort() {
+    const state = this;
+    const port = {
+      get domain() { return state.domain; },
+      onChange(listener) { return state.onChange(listener); },
+      draftSnapshot() { return state.draftSnapshot(); },
+      toRecords() { return state.toRecords(); },
+      toJSONL() { return state.toJSONL(); },
+      snapshotSession() { return state.snapshotSession(); },
+      restoreSession(snapshot) { return state.restoreSession(snapshot); },
+      replaceRecords(records) { return state.replaceInput(records); },
+      clearDraft() { return DomainStateStore.prototype.clearDraft.call(state); },
+    };
+    return Object.freeze(port);
   }
 
   destroy() {
     if (this.destroyed) return false;
     this.destroyed = true;
-    this.unregisterPending?.();
-    this.unregisterPending = null;
-    this.coreListeners.clear();
-    this.surface = null;
-    this.mutationPort = null;
+    this.removeSurfaceGesture?.();
+    this.removeSurfaceGesture = null;
+    try { this.surface.destroy(); } finally {
+      this.coreListeners.clear();
+    }
     return true;
   }
+}
+
+function publicCore(state) {
+  const api = {
+    dispatch: (command) => state.dispatch(command),
+    acceptGesture: (gesture) => state.acceptGesture(gesture),
+    replaceInput: (input) => state.replaceInput(input),
+    snapshot: () => state.snapshot(),
+    subscribe: (listener) => state.subscribe(listener),
+    destroy: () => state.destroy(),
+  };
+  Object.defineProperty(api, 'runtime', {
+    value: state.runtimePort(),
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+  Object.defineProperty(api, 'workspace', {
+    value: () => state.workspace(),
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+  return Object.freeze(api);
+}
+
+export function createSemanticMapEditorCore({
+  semantic,
+  layout = null,
+  revision = null,
+  ports,
+}) {
+  return publicCore(new EditorCoreState({ semantic, layout, revision, ports }));
+}
+
+export function editorDocumentBytes(core) {
+  invariant(core && typeof core.workspace === 'function', 'EditorCore is required');
+  return workspaceBytes(core.workspace());
 }

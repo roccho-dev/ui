@@ -1,4 +1,4 @@
-import { SemanticDomainStore, normalizeOperation } from '../domain/index.js';
+import { createSemanticMapEditorCore, normalizeOperation } from '../domain/index.js';
 import { SemanticProjector, projectorThresholds } from '../projection/index.js';
 import { PATTERN_SEQ, normalizeView } from '../protocol/index.js';
 import { patternCapabilities, patternConfigKey, validatePatternDomain } from '../pattern/index.js';
@@ -270,8 +270,6 @@ function installTouchNavigation({ container, adapter, minimumScale }) {
 }
 
 export async function createSemanticMapEditor(initialDomain, options = {}) {
-  const store = new SemanticDomainStore(initialDomain);
-  const prepareOperation = options.prepareOperation ?? normalizeOperation;
   const readOnly = options.readOnly === true;
   const moduleResolver = options.moduleResolver ?? null;
   const moduleContext = options.moduleContext ?? (() => ({}));
@@ -282,11 +280,60 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   let moduleError = null;
   let moduleRevision = 0;
   let lastMeaningRecovery = null;
-  let lastPresentationProjection = projectPresentation(store.domain, currentView);
+  let lastPresentationProjection = null;
+  const adapter = new MaxGraphAdapter(container);
+
+  const documentPort = Object.freeze({
+    requestEdit: ({ operation, semantic }) => {
+      const recovery = normalizeMeaningRecoveryResult(translateOperation(operation, Object.freeze({
+        domain: semantic,
+        presentationProjection: lastPresentationProjection,
+        presentationScale: adapter.camera().scale,
+        view: currentView,
+      })));
+      lastMeaningRecovery = recovery;
+      if (recovery.status === 'reject') {
+        queueRender();
+        throw new Error(`semantic-map: meaning recovery rejected: ${recovery.reason}`);
+      }
+      if (recovery.status !== 'candidate') {
+        queueRender();
+        return Object.freeze({ noop: true, result: recovery });
+      }
+      return Object.freeze({
+        operations: Object.freeze(recovery.operations.map((candidate) => structuredClone(candidate))),
+        validate: ({ semantic: candidate }) => {
+          const configKey = patternConfigKey(currentView.pattern);
+          return validatePatternDomain(
+            candidate,
+            currentView.pattern,
+            configKey === null ? null : currentView[configKey],
+          );
+        },
+      });
+    },
+    commit: ({ revision }) => Object.freeze({ revision }),
+    reload: ({ input, expectedRevision }) => Object.freeze({ input, revision: expectedRevision }),
+    renderChrome: () => updateControls(),
+  });
+  const authorityPort = Object.freeze({
+    authorize: () => Object.freeze({
+      allowed: !readOnly,
+      code: readOnly ? 'E_READ_ONLY' : 'ALLOW',
+      reason: readOnly ? 'embedded semantic map is read-only' : 'editor mutation allowed',
+    }),
+  });
+  const core = createSemanticMapEditorCore({
+    semantic: initialDomain,
+    layout: Object.freeze({ selection: Object.freeze({ regionIds: [], relationIds: [] }), frame: null }),
+    revision: options.revision ?? null,
+    ports: Object.freeze({ surface: adapter, document: documentPort, authority: authorityPort }),
+  });
+  const store = core.runtime;
+  lastPresentationProjection = projectPresentation(store.domain, currentView);
   const projector = new SemanticProjector(store.domain, modules, currentView, {
     presentationProjection: lastPresentationProjection,
   });
-  const adapter = new MaxGraphAdapter(container);
 
   function fitScale(maxScale = INITIAL_SCALE) {
     const root = lastScene?.bounds ?? store.domain.regions.get(store.domain.meta.root).bounds;
@@ -430,39 +477,6 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     });
   }
 
-  adapter.setOperationHandler((operation) => {
-    if (readOnly) throw new Error('semantic-map: embedded module is read-only');
-    const recovery = normalizeMeaningRecoveryResult(translateOperation(operation, Object.freeze({
-      domain: store.domain,
-      presentationProjection: lastPresentationProjection,
-      presentationScale: adapter.camera().scale,
-      view: currentView,
-    })));
-    lastMeaningRecovery = recovery;
-    if (recovery.status === 'reject') {
-      queueRender();
-      throw new Error(`semantic-map: meaning recovery rejected: ${recovery.reason}`);
-    }
-    if (recovery.status !== 'candidate') {
-      queueRender();
-      return recovery;
-    }
-    const prepared = recovery.operations.map((candidate) => prepareOperation(candidate));
-    const batch = store.performBatch(
-      prepared,
-      (candidate) => {
-        const configKey = patternConfigKey(currentView.pattern);
-        return validatePatternDomain(
-          candidate.domain,
-          currentView.pattern,
-          configKey === null ? null : currentView[configKey],
-        );
-      },
-    );
-    return batch.results.length === 1
-      ? batch.results[0]
-      : Object.freeze({ operations: Object.freeze(prepared), results: batch.results });
-  });
   adapter.setErrorHandler((error) => {
     showToast(error.message, true);
     queueRender();
@@ -477,27 +491,27 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   });
 
   function zoomAt(clientX, clientY, factor) {
-    const view = adapter.graph.getView();
+    const camera = adapter.camera();
     const rect = container.getBoundingClientRect();
     const px = clientX - rect.left;
     const py = clientY - rect.top;
-    const oldScale = view.scale;
+    const oldScale = camera.scale;
     const newScale = clamp(oldScale * factor, minimumScale(), MAX_SCALE);
     if (newScale === oldScale) return;
 
-    const worldX = px / oldScale - view.translate.x;
-    const worldY = py / oldScale - view.translate.y;
+    const worldX = px / oldScale - camera.translateX;
+    const worldY = py / oldScale - camera.translateY;
     const translateX = px / newScale - worldX;
     const translateY = py / newScale - worldY;
-    view.scaleAndTranslate(newScale, translateX, translateY);
+    adapter.setCamera(newScale, translateX, translateY);
   }
 
   function setScaleAtWorld(worldX, worldY, scale) {
-    const view = adapter.graph.getView();
+    const camera = adapter.camera();
     const rect = container.getBoundingClientRect();
-    const clientX = rect.left + (worldX + view.translate.x) * view.scale;
-    const clientY = rect.top + (worldY + view.translate.y) * view.scale;
-    zoomAt(clientX, clientY, scale / view.scale);
+    const clientX = rect.left + (worldX + camera.translateX) * camera.scale;
+    const clientY = rect.top + (worldY + camera.translateY) * camera.scale;
+    zoomAt(clientX, clientY, scale / camera.scale);
   }
 
 
@@ -655,11 +669,11 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   function undo() {
-    if (store.undo()) showToast('元に戻しました');
+    if (core.dispatch({ type: 'history.undo' })) showToast('元に戻しました');
   }
 
   function redo() {
-    if (store.redo()) showToast('やり直しました');
+    if (core.dispatch({ type: 'history.redo' })) showToast('やり直しました');
   }
 
   function deleteSelection() {
@@ -789,6 +803,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     ready: true,
     readOnly,
     get domain() { return store.domain; },
+    core,
     store,
     projector,
     adapter,
@@ -798,7 +813,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       touch: touchNavigation.snapshot(),
       viewport: adapter.viewport(),
       tool: currentTool,
-      selection: adapter.selectionSnapshot(),
+      selection: core.snapshot().selection,
       draft: store.draftSnapshot(),
       domain: {
         meta: {
@@ -858,7 +873,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
         detailIds: [...lastScene.detailIds],
       } : null,
     }),
-    operation: (operation) => adapter.submitOperation(operation),
+    operation: (operation) => core.dispatch(normalizeOperation(operation)),
     addNode,
     undo,
     redo,
@@ -879,6 +894,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     get view() { return currentView; },
     notify: showToast,
     showError: (message) => showToast(message, true),
+    destroy: () => core.destroy(),
   });
   globalThis.semanticMapApp = api;
   return api;

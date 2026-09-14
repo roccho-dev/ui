@@ -1,5 +1,3 @@
-const pendingCores = [];
-
 function invariant(condition, message) {
   if (!condition) throw new Error(`editor-core-port: ${message}`);
 }
@@ -12,6 +10,11 @@ function strings(values, name) {
   });
   invariant(new Set(result).size === result.length, `${name} contains duplicates`);
   return Object.freeze(result);
+}
+
+function method(port, name, owner) {
+  invariant(port && typeof port === 'object', `${owner} is required`);
+  invariant(typeof port[name] === 'function', `${owner}.${name} is required`);
 }
 
 export function normalizeSelection(input = {}) {
@@ -29,28 +32,21 @@ export function sameSelection(left, right) {
     && left.relationIds.every((value, index) => value === right.relationIds[index]);
 }
 
-export function registerPendingEditorCore(core) {
-  invariant(core && typeof core.bindSurface === 'function', 'core is invalid');
-  invariant(!pendingCores.includes(core), 'core is already pending');
-  pendingCores.push(core);
-  return () => {
-    const index = pendingCores.indexOf(core);
-    if (index >= 0) pendingCores.splice(index, 1);
-  };
-}
-
-export function claimPendingEditorCore() {
-  invariant(pendingCores.length === 1, `expected exactly one pending core, found ${pendingCores.length}`);
-  return pendingCores.shift();
-}
-
-export function pendingEditorCoreCount() {
-  return pendingCores.length;
-}
-
 export function assertSurfacePort(surface) {
-  invariant(surface && typeof surface === 'object', 'SurfacePort is required');
-  invariant(typeof surface.mirrorSelection === 'function', 'SurfacePort.mirrorSelection is required');
-  invariant(typeof surface.snapshot === 'function', 'SurfacePort.snapshot is required');
+  for (const name of ['render', 'onGesture', 'snapshot', 'destroy']) {
+    method(surface, name, 'SurfacePort');
+  }
   return surface;
+}
+
+export function assertDocumentPort(documentPort) {
+  for (const name of ['requestEdit', 'commit', 'reload', 'renderChrome']) {
+    method(documentPort, name, 'DocumentPort');
+  }
+  return documentPort;
+}
+
+export function assertAuthorityPort(authority) {
+  method(authority, 'authorize', 'AuthorityPort');
+  return authority;
 }
