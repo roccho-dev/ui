@@ -6,36 +6,78 @@ on:
       - fix/semantic-map-migration-factory-evolution-260914
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  audit:
+  evolve:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          persist-credentials: true
           fetch-depth: 0
-      - name: Enumerate stale migration targets
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Append verified historical evolutions and commit
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib,json
+          import hashlib,json,subprocess
           from pathlib import Path
-          data=json.loads(Path('packages/semantic-map/migration-manifest.json').read_text(encoding='utf-8'))
+          manifest_path=Path('packages/semantic-map/migration-manifest.json')
+          data=json.loads(manifest_path.read_text(encoding='utf-8'))
+          entries={x['target']:x for x in data['entries']}
+          evolutions=data.setdefault('evolutions',[])
           by_target={}
-          for e in data.get('evolutions',[]): by_target.setdefault(e['target'],[]).append(e)
-          mismatches=[]
-          for item in data['entries']:
-              expected=item['targetSha256']
-              for e in by_target.get(item['target'],[]):
-                  assert e['fromSha256']==expected,(item['target'],expected,e)
-                  expected=e['toSha256']
-              actual=hashlib.sha256(Path(item['target']).read_bytes()).hexdigest()
-              if actual!=expected:
-                  mismatches.append({'target':item['target'],'expected':expected,'actual':actual})
-          print(json.dumps({'schema':'semantic-map-migration-stale-audit/1','count':len(mismatches),'mismatches':mismatches},sort_keys=True))
-          assert mismatches, 'expected stale hashes for diagnostic run'
+          for e in evolutions: by_target.setdefault(e['target'],[]).append(e)
+          def expected(target):
+              value=entries[target]['targetSha256']
+              for e in by_target.get(target,[]):
+                  assert e['fromSha256']==value,(target,value,e)
+                  value=e['toSha256']
+              return value
+          def at(commit,target):
+              blob=subprocess.check_output(['git','show',f'{commit}:{target}'])
+              return hashlib.sha256(blob).hexdigest()
+          def current(target): return hashlib.sha256(Path(target).read_bytes()).hexdigest()
+          def add(id,target,from_sha,to_sha,commit,reason):
+              assert expected(target)==from_sha,(target,expected(target),from_sha)
+              assert all(e.get('id')!=id for e in evolutions),id
+              item={'id':id,'target':target,'fromSha256':from_sha,'toSha256':to_sha,'sourceCommit':commit,'sourcePath':target,'reason':reason}
+              evolutions.append(item); by_target.setdefault(target,[]).append(item)
+          main='packages/semantic-map/authoring/main.js'
+          adapter='packages/semantic-map/renderer-maxgraph/adapter.js'
+          index='packages/semantic-map/renderer-maxgraph/index.js'
+          shapes='packages/semantic-map/renderer-maxgraph/shapes.js'
+          b153='b153a4cd3f037c707d46a9c80bfdefe3f47e0080'
+          factory='1e4f0da19c0b8c06f8a433d8d82ec69a26bab960'
+          split='188abff1c8396652ab396b814adf422f923debd5'
+          shapes_b153=at(b153,shapes)
+          main_factory=at(factory,main)
+          adapter_factory=at(factory,adapter)
+          index_factory=at(factory,index)
+          adapter_split=at(split,adapter)
+          assert current(shapes)==shapes_b153
+          assert current(main)==main_factory
+          assert current(index)==index_factory
+          assert current(adapter)==adapter_split
+          add('maxgraph-shapes-reexport-only-260914',shapes,'ed36e9e17de6fb7d757d268abb281300651dc0f59b8caa04e87c8191d020c73d',shapes_b153,b153,'maxgraph-shapes-index-reexport-only')
+          add('maxgraph-authoring-factory-cutover-260914',main,'619c2c718ae079fa4756637a1f51f78e4d8fc687054c157591d7329482b6571b',main_factory,factory,'maxgraph-adapter-class-to-factory-cutover')
+          add('maxgraph-adapter-factory-cutover-260914',adapter,'46bef25259ff6c39dafe5a264dad23bba330d7c27e07bcbb5d52f97592c7cea3',adapter_factory,factory,'maxgraph-adapter-class-to-factory-cutover')
+          add('maxgraph-index-factory-export-260914',index,'93bfe5be8b9bd8d603083a9afc1e06ca0bf654f250cc3d5ae258f58a17967aa6',index_factory,factory,'maxgraph-adapter-factory-export')
+          add('maxgraph-adapter-responsibility-split-260914',adapter,adapter_factory,adapter_split,split,'maxgraph-adapter-responsibility-split')
+          manifest_path.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           PY
+          node tests/check-semantic-map-migration.mjs
+          changed="$(git status --short)"
+          printf '%s\n' "$changed"
+          test "$(printf '%s\n' "$changed" | wc -l)" -eq 1
+          printf '%s\n' "$changed" | grep -q 'packages/semantic-map/migration-manifest.json$'
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/semantic-map/migration-manifest.json
+          git commit -m 'test: record maxGraph refactor migration evolutions'
+          git push origin HEAD:fix/semantic-map-migration-factory-evolution-260914
