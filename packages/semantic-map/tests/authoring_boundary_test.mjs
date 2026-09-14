@@ -14,11 +14,14 @@ const activeList = read('packages/semantic-map/renderer-maxgraph/authoring/activ
 const semanticGraph = read('packages/semantic-map/renderer-maxgraph/create-semantic-graph.js');
 const adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');
 const styles = read('packages/semantic-map/renderer-maxgraph/styles.js');
+const featureRuntime = read('packages/semantic-map/feature-runtime.mjs');
 
 assert.match(rendererIndex, /createSemanticAuthoring as createMaxGraphAdapter/);
 assert.match(authoringIndex, /createMaxGraphAdapter/);
 assert.match(authoringIndex, /mountActiveList/);
 assert.match(authoringIndex, /activeList/);
+assert.match(authoringIndex, /semanticRegionId/);
+assert.match(authoringIndex, /sourceRegionId/);
 assert.match(authoringIndex, /createDocumentAuthoring/);
 assert.match(activeList, /data-maxgraph-active-list|dataset\.maxgraphActiveList/);
 assert.match(activeList, /onActivate/);
@@ -26,6 +29,9 @@ assert.match(semanticGraph, /sourceLabel \?\? getEditingValue/);
 assert.match(adapter, /getPlugin\('CellEditorHandler'\)/);
 assert.match(adapter, /editingPlugin\?\.editingCell === cell/);
 assert.match(adapter, /editingPlugin\?\.textarea\?\.isConnected/);
+assert.match(featureRuntime, /setActivationHandler/);
+assert.match(featureRuntime, /activation\?\.kind === 'set-view'/);
+assert.match(featureRuntime, /projector\.setView\(nextView\)/);
 const vectorSectorStart = styles.indexOf("case 'vector-sector':");
 const vectorSectorEnd = styles.indexOf("case 'seq-step':", vectorSectorStart);
 assert.ok(vectorSectorStart >= 0 && vectorSectorEnd > vectorSectorStart);

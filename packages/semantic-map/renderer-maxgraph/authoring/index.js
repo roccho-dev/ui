@@ -1,6 +1,8 @@
 import { createMaxGraphAdapter } from '../adapter.js';
 import { mountActiveList } from './active-list.js';
 
+const semanticRegionId = cell => cell?.semantic?.sourceRegionId ?? cell?.semantic?.regionId ?? null;
+
 const textInput = target => target instanceof HTMLInputElement
   || target instanceof HTMLTextAreaElement
   || target instanceof HTMLSelectElement
@@ -31,8 +33,8 @@ const installRelationReconnect = adapter => {
     const other = edge.getTerminal(!isSource);
     const source = isSource ? terminal : other;
     const target = isSource ? other : terminal;
-    const from = source?.semantic?.regionId;
-    const to = target?.semantic?.regionId;
+    const from = semanticRegionId(source);
+    const to = semanticRegionId(target);
     const connected = nativeConnectCell(edge, terminal, isSource, constraint);
     if (!from || !to) {
       adapter.render(adapter.lastScene);

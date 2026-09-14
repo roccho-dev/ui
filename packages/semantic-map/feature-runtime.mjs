@@ -45,7 +45,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
 
   const records = parseSemanticMapRecords(input);
   const store = new SemanticDomainStore(createSemanticMap(records));
-  const view = feature?.view ?? defaultViewForPattern(pattern);
+  let view = feature?.view ?? defaultViewForPattern(pattern);
   invariant(view?.pattern === pattern, `feature view pattern must be ${pattern}`);
   const surface = scope.document.createElement('div');
   surface.className = 'semantic-map-feature';
@@ -86,6 +86,28 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
       configKey === null ? null : view[configKey],
     ));
     return batch.results[0];
+  });
+  adapter.setActivationHandler(activation => {
+    invariant(activation?.kind === 'set-view', `unsupported activation ${String(activation?.kind)}`);
+    const nextView = activation.view;
+    invariant(nextView?.pattern === pattern, `activation view pattern must be ${pattern}`);
+    const configKey = patternConfigKey(nextView.pattern);
+    validatePatternDomain(
+      store.domain,
+      nextView.pattern,
+      configKey === null ? null : nextView[configKey],
+    );
+    const previousView = view;
+    projector.setView(nextView);
+    try {
+      const nextScene = render();
+      view = nextView;
+      return Object.freeze({ kind: 'set-view', pattern: nextScene.pattern });
+    } catch (error) {
+      projector.setView(previousView);
+      render();
+      throw error;
+    }
   });
   adapter.setErrorHandler(queueRender);
   store.onChange(queueRender);

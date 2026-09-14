@@ -280,6 +280,13 @@ assert.equal(sunburstLayout.marks.find(item => item.sourceId === 'api'), undefin
 const sunburstScene = new SemanticProjector(sunburst.domain, null, sunburstView).project({ scale: 1, viewport });
 const sunburstSectors = sunburstScene.representations.filter(item => item.visual?.chartType === SUNBURST_CHART && item.mode === 'slice');
 assert.equal(sunburstSectors.length, 14);
+const sunburstCenter = sunburstScene.representations.find(
+  item => item.visual?.chartType === SUNBURST_CHART && item.mode === 'point',
+);
+assert.equal(sunburstCenter.sourceRegionId, sunburst.domain.meta.root);
+assert.equal(sunburstCenter.isRoot, false, 'MUTATION:sunburst-center-not-root-boundary');
+assert.equal(sunburstCenter.readOnly, false);
+assert.equal(sunburstCenter.labelEditable, true, 'MUTATION:sunburst-center-authorable');
 assert.ok(sunburstSectors.every(item => item.shape === 'vector-sector' && !item.readOnly && sunburst.domain.regions.has(item.sourceRegionId)));
 const productSector = sunburstSectors.find(item => item.visual.sourceRegionId === 'product');
 assert.equal(productSector.activation.kind, 'set-view');

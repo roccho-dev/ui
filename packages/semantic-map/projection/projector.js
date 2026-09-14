@@ -299,14 +299,13 @@ export class SemanticProjector {
         }) : null,
         bounds,
         depth,
-        isRoot: node.namespace === '' && sourceRegionId === this.domain.meta.root,
+        isRoot: node.namespace === '' && sourceRegionId === this.domain.meta.root && mode === 'boundary',
         isPortal: Boolean(node.mountSources?.get(region.id) ?? region.mount),
         readOnly: node.namespace !== '' || Boolean(extra.readOnly) || Boolean(region.image) || geographic,
         geometryEditable: Boolean(extra.geometryEditable) && !geographic && !region.image,
         labelEditable: node.namespace === ''
           && !geographic
           && !region.image
-          && sourceRegionId !== this.domain.meta.root
           && (mode !== 'boundary' || Boolean(extra.geometryEditable)),
         hasChildren: Boolean(extra.hasChildren),
         detailsVisible: Boolean(extra.detailsVisible),
