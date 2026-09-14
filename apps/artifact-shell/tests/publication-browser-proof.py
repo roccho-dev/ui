@@ -76,20 +76,31 @@ def main() -> None:
                     launch["executable_path"] = executable
                 browser = playwright.chromium.launch(**launch)
                 context = browser.new_context(viewport={"width": 1365, "height": 960})
-                page = context.new_page()
-                page.on("pageerror", lambda error: errors.append(str(error)))
-                page.on("request", lambda request: requests.append(request.url))
                 base = f"http://127.0.0.1:{listen}"
 
+                def tracked_page():
+                    page = context.new_page()
+                    page.on("pageerror", lambda error: errors.append(str(error)))
+                    page.on("request", lambda request: requests.append(request.url))
+                    return page
+
+                page = tracked_page()
                 page.goto(f"{base}/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("body[data-mode='launcher']").wait_for(timeout=30_000)
                 labels = page.locator("#launcher a").all_text_contents()
                 assert labels == ["graph", "map", "seq", "presentation", "control", "graph-editor"]
+                page.close()
 
                 patterns: dict[str, str] = {}
                 for feature, pattern in (("graph", "graph/1"), ("map", "map/1"), ("seq", "seq/1")):
+                    page = tracked_page()
                     page.goto(f"{base}/adapters/{feature}/index.html", wait_until="domcontentloaded", timeout=30_000)
-                    page.locator("body[data-adapter-status='pass']").wait_for(timeout=30_000)
+                    wait_js(page, "document.body.dataset.adapterStatus === 'pass' || document.body.dataset.adapterStatus === 'fail'")
+                    state = page.locator("body").get_attribute("data-adapter-status")
+                    if state != "pass":
+                        status = page.locator("#status").inner_text()
+                        proof = page.evaluate("() => globalThis.artifactAdapterProof ?? null")
+                        raise AssertionError(f"{feature} adapter failed: {status}; proof={proof}")
                     outer = page.locator(f"iframe[data-adapter-frame='{feature}']")
                     outer.wait_for(state="visible", timeout=30_000)
                     shell = child_frame(outer)
@@ -98,35 +109,42 @@ def main() -> None:
                     semantic.wait_for(state="attached", timeout=30_000)
                     rendered = child_frame(semantic)
                     wait_js(rendered, "globalThis.semanticMapSite?.ready === true")
-                    state = rendered.evaluate(
+                    rendered_state = rendered.evaluate(
                         """() => ({
                           pattern: semanticMapRuntime.view.pattern,
                           svg: Boolean(document.querySelector('#graph-container svg')),
                           editorReady: Boolean(semanticMapSite.editor?.ready),
                         })"""
                     )
-                    assert state == {"pattern": pattern, "svg": True, "editorReady": True}
+                    assert rendered_state == {"pattern": pattern, "svg": True, "editorReady": True}
                     patterns[feature] = pattern
+                    page.close()
 
+                page = tracked_page()
                 page.goto(f"{base}/adapters/presentation/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("html[data-status='pass']").wait_for(timeout=30_000)
                 page.locator("#surface").wait_for(state="visible", timeout=30_000)
                 page.locator("#seq-shell").wait_for(state="visible", timeout=30_000)
                 assert page.locator("#seq-mount svg").count() == 1
                 assert page.locator("#surface").inner_text().strip()
+                page.close()
 
+                page = tracked_page()
                 page.goto(f"{base}/adapters/control/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("html[data-status='pass']").wait_for(timeout=30_000)
                 page.locator("#tree .node").first.wait_for(state="visible", timeout=30_000)
                 assert page.locator("#tree .node").count() > 0
                 assert page.locator("#status").inner_text() == "loaded"
+                page.close()
 
+                page = tracked_page()
                 page.goto(f"{base}/adapters/graph-editor/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("html[data-status='pass']").wait_for(timeout=30_000)
                 page.locator(".roccho-graph-editor").wait_for(state="visible", timeout=30_000)
                 page.locator(".roccho-graph-editor__canvas svg").wait_for(state="visible", timeout=30_000)
                 assert page.locator(".roccho-graph-editor__projection li").count() > 0
                 assert page.locator(".roccho-graph-editor__status").inner_text() == "Loaded"
+                page.close()
 
                 assert errors == [], f"page errors: {errors}"
                 unexpected = [url for url in requests if url.startswith(("http://", "https://")) and not url.startswith(base)]
