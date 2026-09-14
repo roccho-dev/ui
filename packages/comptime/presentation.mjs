@@ -20,7 +20,7 @@ export const compilePresentation = async semanticText => {
   const seqState = projectProfiledBusinessModelSeqState(model, plan);
   const mapState = projectProfiledBusinessModelMapState(model, plan);
   const coverage = assertBusinessModelProjectionCoverage(createBusinessModelProjectionCoverage({ model, plan, sequence, seqState, mapState }));
-  const value = Object.freeze({
+  return Object.freeze({
     schema: 'business-model-presentation-minimal-payload/1',
     id: model.id,
     label: model.title,
@@ -32,5 +32,4 @@ export const compilePresentation = async semanticText => {
     stageLabels: Object.fromEntries(model.stages.map(stage => [stage.id, stage.name])),
     coverage,
   });
-  return Object.freeze({ schema: 'ui-feature-input/1', feature: 'presentation', value });
 };

@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { canonicalJson } from '../../../packages/url-module/src/index.mjs';
-import { copyModuleClosure } from './copy-module-closure.mjs';
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`feature-materializer: ${message}`); };
 const posix = value => value.split(path.sep).join('/');
@@ -17,9 +16,7 @@ const hrefFrom = (from, target) => {
   return relative.startsWith('.') ? relative : `./${relative}`;
 };
 
-export const materializeFeature = async ({ adapter, compiled, outputRoot, repoRoot, root }) => {
-  invariant(compiled?.schema === 'ui-feature-input/1', `${adapter.id} must compile to ui-feature-input/1`);
-  invariant(compiled.feature === adapter.id, `${adapter.id} compiled feature mismatch`);
+export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot, root }) => {
   invariant(typeof adapter.featureModule === 'string' && adapter.featureModule, `${adapter.id} featureModule required`);
 
   const descriptorPath = inside(repoRoot, path.join(repoRoot, adapter.featureModule));
@@ -28,16 +25,16 @@ export const materializeFeature = async ({ adapter, compiled, outputRoot, repoRo
   invariant(feature?.id === adapter.id, `${adapter.id} feature descriptor mismatch`);
   invariant(typeof feature.entry === 'string' && feature.entry, `${adapter.id} entry required`);
   invariant(Array.isArray(feature.styles), `${adapter.id} styles required`);
-  invariant(feature.proof && Array.isArray(feature.proof.selectors) && feature.proof.selectors.length > 0, `${adapter.id} proof selectors required`);
 
-  await copyModuleClosure({ entry: feature.entry, outputRoot, repoRoot });
   const modulesRoot = path.join(outputRoot, 'modules');
+  const entry = inside(modulesRoot, path.join(modulesRoot, feature.entry));
+  await fs.access(entry);
+  const styles = [];
   for (const relative of feature.styles) {
     invariant(typeof relative === 'string' && relative, `${adapter.id} style path required`);
-    const source = inside(repoRoot, path.join(repoRoot, relative));
-    const target = path.join(modulesRoot, relative);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.copyFile(source, target);
+    const target = inside(modulesRoot, path.join(modulesRoot, relative));
+    await fs.access(target);
+    styles.push(target);
   }
 
   await fs.mkdir(root, { recursive: true });
@@ -50,10 +47,9 @@ export const materializeFeature = async ({ adapter, compiled, outputRoot, repoRo
     schema: 'ui-feature-publication/1',
     id: feature.id,
     label: feature.label ?? adapter.label,
-    entry: hrefFrom(root, path.join(modulesRoot, feature.entry)),
-    styles: Object.freeze(feature.styles.map(relative => hrefFrom(root, path.join(modulesRoot, relative)))),
+    entry: hrefFrom(root, entry),
+    styles: Object.freeze(styles.map(target => hrefFrom(root, target))),
   });
   await fs.writeFile(path.join(root, 'feature.json'), `${canonicalJson(publication)}\n`);
-  await fs.writeFile(path.join(root, 'input.json'), `${canonicalJson(compiled.value)}\n`);
-  return Object.freeze({ proof: feature.proof });
+  await fs.writeFile(path.join(root, 'input.json'), `${canonicalJson(input)}\n`);
 };

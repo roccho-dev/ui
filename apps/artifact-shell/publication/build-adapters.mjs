@@ -15,21 +15,23 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
 
   await fs.copyFile(path.join(appRoot, 'src', 'adapter.mjs'), path.join(outputRoot, 'adapter.mjs'));
   await fs.copyFile(path.join(appRoot, 'publication', 'adapter-host.css'), path.join(outputRoot, 'adapter.css'));
+  await fs.cp(path.join(repoRoot, 'packages'), path.join(outputRoot, 'modules', 'packages'), { recursive: true });
   const adapterHost = await fs.readFile(path.join(appRoot, 'publication', 'adapter-host.html'));
 
   for (const adapter of adapters) {
-    if (typeof adapter.compile !== 'function') throw new Error(`artifact-adapters: ${adapter.id} compile required`);
     const sourcePath = path.join(repoRoot, adapter.source);
     const source = adapter.source.endsWith('.jsonl') ? await fs.readFile(sourcePath, 'utf8') : JSON.parse(await fs.readFile(sourcePath, 'utf8'));
-    const compiled = await adapter.compile(source);
     const root = path.join(outputRoot, 'adapters', adapter.id);
     await fs.mkdir(root, { recursive: true });
 
     if (adapter.kind === 'feature') {
-      await materializeFeature({ adapter, compiled, outputRoot, repoRoot, root });
+      const input = typeof adapter.compile === 'function' ? await adapter.compile(source) : source;
+      await materializeFeature({ adapter, input, outputRoot, repoRoot, root });
       continue;
     }
     if (adapter.kind !== 'invocation') throw new Error(`artifact-adapters: ${adapter.id} unsupported kind ${adapter.kind}`);
+    if (typeof adapter.compile !== 'function') throw new Error(`artifact-adapters: ${adapter.id} compile required`);
+    const compiled = await adapter.compile(source);
     if (compiled?.schema !== 'artifact-invocation/2') throw new Error(`artifact-adapters: ${adapter.id} compiler did not return artifact-invocation/2`);
     const encoded = new URL(await createUrlModuleUrl({ base: 'https://artifact-shell.invalid/index.html', fragment: 'invoke', value: compiled }));
     const published = Object.freeze({ href: `../../index.html${encoded.hash}`, id: adapter.id, kind: 'invocation', label: adapter.label, schema: 'ui-adapter/1' });
