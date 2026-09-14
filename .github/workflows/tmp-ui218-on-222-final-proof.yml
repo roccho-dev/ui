@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ui-deploy
     env:
-      CANDIDATE_SHA: 72e044d6f46c982762e129b1c4c8e7f962617106
+      CANDIDATE_SHA: 510dd9c9d50a7af458d7180ae3fd8ad2881f5c62
       PROJECT_NAME: ui-graph-218
       DEPLOY_BRANCH: ui218-on-222-final
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 72e044d6f46c982762e129b1c4c8e7f962617106
+          ref: 510dd9c9d50a7af458d7180ae3fd8ad2881f5c62
           persist-credentials: false
 
       - name: Bind exact candidate
