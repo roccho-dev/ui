@@ -1,4 +1,4 @@
-name: tmp-presentation-example
+name: tmp-decisions-boundary
 on:
   push:
     branches:
@@ -6,15 +6,16 @@ on:
 permissions:
   contents: write
 jobs:
-  generate:
+  migrate:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: node scripts/tmp-print-presentation-example.mjs
+      - run: node scripts/tmp-decisions-boundary.mjs
+      - run: npm run check:decisions-compiler
       - run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add examples/presentation/example.json
-          git diff --cached --quiet || git commit -m 'test: materialize presentation UI example'
+          git add -A
+          git diff --cached --quiet || git commit -m 'refactor: isolate Decisions compiler from UI examples'
           git push
