@@ -31,10 +31,7 @@ const observeRequestElement = element => {
   });
   return Object.freeze({
     port,
-    snapshot: () => Object.freeze({
-      request: copyJson(reflectedRequest),
-      schema: "artifact-shell-snapshot/1",
-    }),
+    query: () => copyJson(reflectedRequest),
   });
 };
 
@@ -45,5 +42,5 @@ export const createArtifactShell = async options => {
     elements: Object.freeze({ ...options.elements, request: observed.port }),
     registry: SOURCE_REGISTRY,
   });
-  return Object.freeze({ ...shell, snapshot: observed.snapshot });
+  return Object.freeze({ ...shell, query: observed.query });
 };
