@@ -22,7 +22,7 @@ check_feature() {
   for pattern in "$@"; do grep -q "$pattern" "$output"; done
 }
 
-check_feature presentation 30000 'class="profiled-app"' 'class="seq-svg"'
+check_feature presentation 30000 'class="profiled-app"' 'data-feature="seq"' '<svg'
 check_feature control 15000 'id="tree"' 'class="node"'
 check_feature graph-editor 30000 'class="roccho-graph-editor"' 'roccho-graph-editor__canvas' '<svg' 'roccho-graph-editor__projection'
 
