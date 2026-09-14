@@ -26,6 +26,17 @@ const snapshotDomain = domain => Object.freeze({
   relations: Object.freeze(domain.relations.map(relation => Object.freeze({ ...relation }))),
 });
 
+const prepareRuntimeOperation = (operation, store, scope) => {
+  if (operation?.type !== 'ConnectRegions' || Object.hasOwn(operation, 'relationId')) {
+    return normalizeOperation(operation);
+  }
+  invariant(typeof scope.crypto?.randomUUID === 'function', 'crypto.randomUUID is required for relation creation');
+  let relationId;
+  do relationId = `relation-${scope.crypto.randomUUID()}`;
+  while (store.relations.has(relationId));
+  return normalizeOperation({ ...operation, relationId });
+};
+
 export const mountFeature = async ({ feature, input, root, scope = globalThis }) => {
   invariant(root?.replaceChildren, 'root is required');
   invariant(typeof input === 'string', 'raw JSONL text is required');
@@ -66,7 +77,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
   };
 
   adapter.setOperationHandler(operation => {
-    const prepared = normalizeOperation(operation);
+    const prepared = prepareRuntimeOperation(operation, store, scope);
     const configKey = patternConfigKey(view.pattern);
     const batch = store.performBatch([prepared], candidate => validatePatternDomain(
       candidate.domain,
