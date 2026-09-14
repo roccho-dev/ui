@@ -94,7 +94,7 @@ def main() -> None:
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.on("request", lambda request: requests.append(request.url))
                     url = f"{base}/adapters/{runtime}/index.html{fragment}"
-                    page.goto(url, wait_until="networkidle", timeout=30_000)
+                    page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                     proof = wait_for_proof(page, runtime)
                     mounted = proof["mounted"]
                     assert mounted["sourceId"] == "construction-evidence-service", mounted
