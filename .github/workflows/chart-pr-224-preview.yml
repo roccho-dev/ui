@@ -12,7 +12,7 @@ env:
   SOURCE_SHA: 7376dcd52847303f41550ace0259aa4af1b95e85
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
   CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
-  PREVIEW_ROOT: https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev/adapters/chart/
+  PREVIEW_ROOT: https://73d57fd2.stg-artifact-runtime.pages.dev/adapters/chart/
 
 jobs:
   deploy:
@@ -54,7 +54,7 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
           python3 -m playwright install --with-deps chromium
-      - name: Prove all deployed Chart variants
+      - name: Diagnose all deployed Chart variants
         run: |
           python3 - <<'PY'
           import json
@@ -79,50 +79,53 @@ jobs:
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               for variant, labels in expected.items():
-                  events = {'pageErrors': [], 'requestFailed': []}
+                  events = {'console': [], 'pageErrors': [], 'requestFailed': []}
                   page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+                  page.on('console', lambda msg, events=events: events['console'].append({'type': msg.type, 'text': msg.text}))
                   page.on('pageerror', lambda exc, events=events: events['pageErrors'].append(str(exc)))
                   page.on('requestfailed', lambda req, events=events: events['requestFailed'].append({'url': req.url, 'failure': req.failure}))
                   url = f'{root}{variant}/'
-                  response = page.goto(url, wait_until='networkidle', timeout=60_000)
-                  assert response is not None and response.ok, f'{variant}: HTTP {response.status if response else None}'
-                  page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
-                  svg = page.locator('svg').first
-                  svg.wait_for(state='visible', timeout=60_000)
-                  box = svg.bounding_box()
-                  assert box and box['width'] > 0 and box['height'] > 0, f'{variant}: invalid SVG bounds {box}'
+                  response = page.goto(url, wait_until='domcontentloaded', timeout=60_000)
+                  page.wait_for_timeout(5_000)
                   body = page.locator('body').inner_text()
-                  for label in labels:
-                      assert label in body, f'{variant}: missing label {label}'
-                  assert not events['pageErrors'], f"{variant}: page errors {events['pageErrors']}"
-                  assert not events['requestFailed'], f"{variant}: request failures {events['requestFailed']}"
+                  status = page.locator('html').get_attribute('data-status')
+                  fatal = page.locator('#fatal').inner_text() if page.locator('#fatal').count() else ''
+                  svg_count = page.locator('svg').count()
+                  svg_box = page.locator('svg').first.bounding_box() if svg_count else None
+                  labels_found = {label: label in body for label in labels}
                   screenshot = out / f'{variant}.png'
                   page.screenshot(path=str(screenshot), full_page=True)
                   receipt = {
                       'variant': variant,
                       'url': url,
-                      'httpStatus': response.status,
-                      'featureStatus': page.locator('html').get_attribute('data-status'),
-                      'svg': {'width': box['width'], 'height': box['height']},
-                      'labels': labels,
-                      'pageErrors': events['pageErrors'],
-                      'requestFailed': events['requestFailed'],
+                      'httpStatus': response.status if response else None,
+                      'featureStatus': status,
+                      'fatal': fatal,
+                      'svgCount': svg_count,
+                      'svgBox': svg_box,
+                      'labelsFound': labels_found,
+                      'events': events,
                       'screenshot': screenshot.name,
                   }
+                  receipt['status'] = 'PASS' if response and response.ok and status == 'pass' and svg_box and all(labels_found.values()) and not events['pageErrors'] and not events['requestFailed'] else 'FAIL'
                   receipts.append(receipt)
                   print(json.dumps(receipt, ensure_ascii=False))
                   page.close()
               browser.close()
           final = {
               'schema': 'ui.chart-deployed-render-proof/2',
-              'status': 'PASS',
+              'status': 'PASS' if all(item['status'] == 'PASS' for item in receipts) else 'FAIL',
               'sourceSha': os.environ['SOURCE_SHA'],
+              'root': root,
               'variants': receipts,
           }
           (out / 'receipt.json').write_text(json.dumps(final, ensure_ascii=False, indent=2), encoding='utf-8')
           print(json.dumps(final, ensure_ascii=False))
+          if final['status'] != 'PASS':
+              raise SystemExit('one or more deployed Chart variants failed; inspect receipt')
           PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: chart-pr-224-render-proof
           path: ${{ runner.temp }}/chart-pr-224-render-proof
