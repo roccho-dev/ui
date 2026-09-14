@@ -1,0 +1,2655 @@
+{
+  "schema": "business-model-presentation-minimal-payload/1",
+  "id": "construction-evidence-service",
+  "label": "追加工事を、請求できる証拠へ変える",
+  "sourceSha256": "12a01797377aa50f2498a618d1d9d0cc49cc8edbab15728f7fe8d6dcf26b14f3",
+  "profileSha256": "0e50eb058f07fb47505700a6bf9e9896668edb89c1182ed0048738a9e653b66e",
+  "sequence": {
+    "schema": "business-model-profiled-a2ui-sequence/1",
+    "catalogId": "urn:roccho:a2ui:catalog:business-model-profiled:1",
+    "surfaceId": "business-model-profiled",
+    "sourceId": "construction-evidence-service",
+    "profileId": "business-model/1",
+    "start": "t0",
+    "stages": [
+      {
+        "id": "t0",
+        "index": 0,
+        "messages": [
+          {
+            "version": "v0.9",
+            "createSurface": {
+              "surfaceId": "business-model-profiled",
+              "catalogId": "urn:roccho:a2ui:catalog:business-model-profiled:1",
+              "sendDataModel": true
+            }
+          },
+          {
+            "version": "v0.9",
+            "updateDataModel": {
+              "surfaceId": "business-model-profiled",
+              "path": "/",
+              "value": {
+                "schema": "business-model-semantic-state/2",
+                "source": {
+                  "schema": "business-model-semantic-jsonl/2",
+                  "id": "construction-evidence-service"
+                },
+                "profile": {
+                  "schema": "business-model-projection-profile/1",
+                  "id": "business-model/1",
+                  "label": "多主体事業モデル"
+                },
+                "currentIndex": 0,
+                "stage": {
+                  "id": "t0",
+                  "order": 0,
+                  "short": "t0",
+                  "caption": "能力",
+                  "name": "t0｜能力の核",
+                  "goal": "提供者の能力を定義",
+                  "change": "AI・自分",
+                  "evidence": "案件を処理する能力の核だけがある。",
+                  "gate": "能力の核",
+                  "focusRef": "act-t0-provider",
+                  "recordIndex": 1
+                },
+                "stages": [
+                  {
+                    "id": "t0",
+                    "short": "t0",
+                    "caption": "能力",
+                    "name": "t0｜能力の核",
+                    "goal": "提供者の能力を定義",
+                    "change": "AI・自分",
+                    "evidence": "案件を処理する能力の核だけがある。",
+                    "gate": "能力の核",
+                    "focusRef": "act-t0-provider"
+                  },
+                  {
+                    "id": "t1",
+                    "short": "t1",
+                    "caption": "入力",
+                    "name": "t1｜実案件",
+                    "goal": "顧客から入力を受領",
+                    "change": "顧客・案件記録・入力",
+                    "evidence": "建設会社から実案件の記録を受け取れる。",
+                    "gate": "入力成立",
+                    "focusRef": "act-t1-customer"
+                  },
+                  {
+                    "id": "t2",
+                    "short": "t2",
+                    "caption": "商品",
+                    "name": "t2｜商品提供",
+                    "goal": "入力を商品へ変換",
+                    "change": "証拠・協議準備",
+                    "evidence": "案件記録から証拠・協議準備を作り渡せる。",
+                    "gate": "提供成立",
+                    "focusRef": "act-t2-provider"
+                  },
+                  {
+                    "id": "t3",
+                    "short": "t3",
+                    "caption": "取引",
+                    "name": "t3｜有償取引",
+                    "goal": "成果と料金が成立",
+                    "change": "顧客成果・料金",
+                    "evidence": "顧客が商品を使い、料金を支払う。",
+                    "gate": "取引成立",
+                    "focusRef": "act-t3-customer"
+                  },
+                  {
+                    "id": "tN",
+                    "short": "tN",
+                    "caption": "反復",
+                    "name": "tN｜モデル確立",
+                    "goal": "同じ交換が反復",
+                    "change": "再購入・共通手順・粗利",
+                    "evidence": "別案件でも再購入され、正の粗利を残す。",
+                    "gate": "モデル確立",
+                    "focusRef": "act-tn-provider"
+                  }
+                ],
+                "actors": {
+                  "provider": {
+                    "id": "provider",
+                    "role": "provider",
+                    "label": "弊社",
+                    "detail": "案件記録を証拠・協議準備へ変える",
+                    "born": "t0",
+                    "recordIndex": 6
+                  },
+                  "customer": {
+                    "id": "customer",
+                    "role": "customer",
+                    "label": "顧客｜建設会社",
+                    "detail": "追加・変更工事を扱う受注側",
+                    "born": "t1",
+                    "recordIndex": 7
+                  }
+                },
+                "nodes": {
+                  "ai": {
+                    "id": "ai",
+                    "owner": "provider",
+                    "kind": "capability",
+                    "label": "AI",
+                    "born": "t0",
+                    "recordIndex": 8,
+                    "role": "能力層",
+                    "detail": "整理・照合を高速化",
+                    "depth": 0
+                  },
+                  "self": {
+                    "id": "self",
+                    "owner": "provider",
+                    "kind": "person",
+                    "label": "自分",
+                    "born": "t0",
+                    "recordIndex": 9,
+                    "parent": "ai",
+                    "role": "判断主体",
+                    "detail": "経験・判断・実装",
+                    "depth": 1
+                  },
+                  "case-records": {
+                    "id": "case-records",
+                    "owner": "customer",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 10,
+                    "role": "保有する入力",
+                    "items": [
+                      "契約・見積",
+                      "変更指示",
+                      "図面・写真",
+                      "日報・請求"
+                    ],
+                    "depth": 0
+                  },
+                  "customer-outcome": {
+                    "id": "customer-outcome",
+                    "owner": "customer",
+                    "kind": "outcome",
+                    "label": "取り漏れを減らす",
+                    "born": "t3",
+                    "recordIndex": 11,
+                    "role": "顧客成果",
+                    "items": [
+                      "協議",
+                      "契約",
+                      "請求",
+                      "回収"
+                    ],
+                    "depth": 0
+                  },
+                  "repeat-purchase": {
+                    "id": "repeat-purchase",
+                    "owner": "customer",
+                    "kind": "repeat",
+                    "label": "次案件で再購入",
+                    "born": "tN",
+                    "recordIndex": 12,
+                    "role": "継続",
+                    "detail": "成果から次の案件へ戻る",
+                    "depth": 0
+                  },
+                  "repeatable-economics": {
+                    "id": "repeatable-economics",
+                    "owner": "provider",
+                    "kind": "proof",
+                    "label": "反復可能な提供",
+                    "born": "tN",
+                    "recordIndex": 13,
+                    "role": "成立条件",
+                    "items": [
+                      "共通手順",
+                      "正の粗利"
+                    ],
+                    "depth": 0
+                  }
+                },
+                "exchanges": {
+                  "input": {
+                    "id": "input",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 14,
+                    "detail": "契約・指示・写真・日報"
+                  },
+                  "offer": {
+                    "id": "offer",
+                    "from": "provider",
+                    "to": "customer",
+                    "kind": "offer",
+                    "label": "証拠・協議準備",
+                    "born": "t2",
+                    "recordIndex": 15,
+                    "detail": "変更差分・原文証拠・協議案・請求候補"
+                  },
+                  "payment": {
+                    "id": "payment",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "payment",
+                    "label": "案件固定料金",
+                    "born": "t3",
+                    "recordIndex": 16
+                  }
+                },
+                "activities": {
+                  "act-t0-provider": {
+                    "id": "act-t0-provider",
+                    "stage": "t0",
+                    "actor": "provider",
+                    "label": "能力を構成",
+                    "summary": "AIで自分の判断と実装を拡張する",
+                    "primary": true,
+                    "recordIndex": 17
+                  },
+                  "act-t1-customer": {
+                    "id": "act-t1-customer",
+                    "stage": "t1",
+                    "actor": "customer",
+                    "label": "案件記録を提供",
+                    "summary": "実案件の記録を渡す",
+                    "primary": true,
+                    "recordIndex": 18
+                  },
+                  "act-t1-provider": {
+                    "id": "act-t1-provider",
+                    "stage": "t1",
+                    "actor": "provider",
+                    "label": "記録を受領",
+                    "summary": "入力を受け取る",
+                    "primary": false,
+                    "recordIndex": 19
+                  },
+                  "act-t2-provider": {
+                    "id": "act-t2-provider",
+                    "stage": "t2",
+                    "actor": "provider",
+                    "label": "商品を生成",
+                    "summary": "証拠・協議準備を作る",
+                    "primary": true,
+                    "recordIndex": 20
+                  },
+                  "act-t2-customer": {
+                    "id": "act-t2-customer",
+                    "stage": "t2",
+                    "actor": "customer",
+                    "label": "商品を確認",
+                    "summary": "原文へ戻れることを確認する",
+                    "primary": false,
+                    "recordIndex": 21
+                  },
+                  "act-t3-customer": {
+                    "id": "act-t3-customer",
+                    "stage": "t3",
+                    "actor": "customer",
+                    "label": "協議・請求に利用",
+                    "summary": "成果へ進み料金を支払う",
+                    "primary": true,
+                    "recordIndex": 22
+                  },
+                  "act-t3-provider": {
+                    "id": "act-t3-provider",
+                    "stage": "t3",
+                    "actor": "provider",
+                    "label": "取引を完了",
+                    "summary": "納品と料金受領を閉じる",
+                    "primary": false,
+                    "recordIndex": 23
+                  },
+                  "act-tn-customer": {
+                    "id": "act-tn-customer",
+                    "stage": "tN",
+                    "actor": "customer",
+                    "label": "別案件で再購入",
+                    "summary": "同じ価値を別案件で購入する",
+                    "primary": false,
+                    "recordIndex": 24
+                  },
+                  "act-tn-provider": {
+                    "id": "act-tn-provider",
+                    "stage": "tN",
+                    "actor": "provider",
+                    "label": "同じ方法で提供",
+                    "summary": "共通手順で正の粗利を残す",
+                    "primary": true,
+                    "recordIndex": 25
+                  }
+                }
+              }
+            }
+          },
+          {
+            "version": "v0.9",
+            "updateComponents": {
+              "surfaceId": "business-model-profiled",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "ProfiledBusinessModelRoot",
+                  "children": [
+                    "header",
+                    "timeline",
+                    "scene",
+                    "status",
+                    "legend"
+                  ]
+                },
+                {
+                  "id": "header",
+                  "component": "ProfiledBusinessModelHeader",
+                  "kicker": "建設会社向け｜BUSINESS MODEL",
+                  "title": "追加工事を、請求できる証拠へ変える"
+                },
+                {
+                  "id": "timeline",
+                  "component": "ProfiledBusinessModelTimeline",
+                  "action": "business-model-profiled.select-stage"
+                },
+                {
+                  "id": "scene",
+                  "component": "ProfiledBusinessModelScene",
+                  "children": [
+                    "actor-provider"
+                  ],
+                  "layout": [
+                    "actor"
+                  ]
+                },
+                {
+                  "id": "actor-provider",
+                  "component": "ProfiledActor",
+                  "actorRef": "provider",
+                  "state": "new",
+                  "nodeStates": [
+                    {
+                      "ref": "ai",
+                      "state": "new"
+                    },
+                    {
+                      "ref": "self",
+                      "state": "new"
+                    }
+                  ]
+                },
+                {
+                  "id": "status",
+                  "component": "ProfiledBusinessModelStatus",
+                  "activityRefs": [
+                    "act-t0-provider"
+                  ]
+                },
+                {
+                  "id": "legend",
+                  "component": "ProfiledBusinessModelLegend"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "t1",
+        "index": 1,
+        "messages": [
+          {
+            "version": "v0.9",
+            "updateDataModel": {
+              "surfaceId": "business-model-profiled",
+              "path": "/",
+              "value": {
+                "schema": "business-model-semantic-state/2",
+                "source": {
+                  "schema": "business-model-semantic-jsonl/2",
+                  "id": "construction-evidence-service"
+                },
+                "profile": {
+                  "schema": "business-model-projection-profile/1",
+                  "id": "business-model/1",
+                  "label": "多主体事業モデル"
+                },
+                "currentIndex": 1,
+                "stage": {
+                  "id": "t1",
+                  "order": 1,
+                  "short": "t1",
+                  "caption": "入力",
+                  "name": "t1｜実案件",
+                  "goal": "顧客から入力を受領",
+                  "change": "顧客・案件記録・入力",
+                  "evidence": "建設会社から実案件の記録を受け取れる。",
+                  "gate": "入力成立",
+                  "focusRef": "act-t1-customer",
+                  "recordIndex": 2
+                },
+                "stages": [
+                  {
+                    "id": "t0",
+                    "short": "t0",
+                    "caption": "能力",
+                    "name": "t0｜能力の核",
+                    "goal": "提供者の能力を定義",
+                    "change": "AI・自分",
+                    "evidence": "案件を処理する能力の核だけがある。",
+                    "gate": "能力の核",
+                    "focusRef": "act-t0-provider"
+                  },
+                  {
+                    "id": "t1",
+                    "short": "t1",
+                    "caption": "入力",
+                    "name": "t1｜実案件",
+                    "goal": "顧客から入力を受領",
+                    "change": "顧客・案件記録・入力",
+                    "evidence": "建設会社から実案件の記録を受け取れる。",
+                    "gate": "入力成立",
+                    "focusRef": "act-t1-customer"
+                  },
+                  {
+                    "id": "t2",
+                    "short": "t2",
+                    "caption": "商品",
+                    "name": "t2｜商品提供",
+                    "goal": "入力を商品へ変換",
+                    "change": "証拠・協議準備",
+                    "evidence": "案件記録から証拠・協議準備を作り渡せる。",
+                    "gate": "提供成立",
+                    "focusRef": "act-t2-provider"
+                  },
+                  {
+                    "id": "t3",
+                    "short": "t3",
+                    "caption": "取引",
+                    "name": "t3｜有償取引",
+                    "goal": "成果と料金が成立",
+                    "change": "顧客成果・料金",
+                    "evidence": "顧客が商品を使い、料金を支払う。",
+                    "gate": "取引成立",
+                    "focusRef": "act-t3-customer"
+                  },
+                  {
+                    "id": "tN",
+                    "short": "tN",
+                    "caption": "反復",
+                    "name": "tN｜モデル確立",
+                    "goal": "同じ交換が反復",
+                    "change": "再購入・共通手順・粗利",
+                    "evidence": "別案件でも再購入され、正の粗利を残す。",
+                    "gate": "モデル確立",
+                    "focusRef": "act-tn-provider"
+                  }
+                ],
+                "actors": {
+                  "provider": {
+                    "id": "provider",
+                    "role": "provider",
+                    "label": "弊社",
+                    "detail": "案件記録を証拠・協議準備へ変える",
+                    "born": "t0",
+                    "recordIndex": 6
+                  },
+                  "customer": {
+                    "id": "customer",
+                    "role": "customer",
+                    "label": "顧客｜建設会社",
+                    "detail": "追加・変更工事を扱う受注側",
+                    "born": "t1",
+                    "recordIndex": 7
+                  }
+                },
+                "nodes": {
+                  "ai": {
+                    "id": "ai",
+                    "owner": "provider",
+                    "kind": "capability",
+                    "label": "AI",
+                    "born": "t0",
+                    "recordIndex": 8,
+                    "role": "能力層",
+                    "detail": "整理・照合を高速化",
+                    "depth": 0
+                  },
+                  "self": {
+                    "id": "self",
+                    "owner": "provider",
+                    "kind": "person",
+                    "label": "自分",
+                    "born": "t0",
+                    "recordIndex": 9,
+                    "parent": "ai",
+                    "role": "判断主体",
+                    "detail": "経験・判断・実装",
+                    "depth": 1
+                  },
+                  "case-records": {
+                    "id": "case-records",
+                    "owner": "customer",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 10,
+                    "role": "保有する入力",
+                    "items": [
+                      "契約・見積",
+                      "変更指示",
+                      "図面・写真",
+                      "日報・請求"
+                    ],
+                    "depth": 0
+                  },
+                  "customer-outcome": {
+                    "id": "customer-outcome",
+                    "owner": "customer",
+                    "kind": "outcome",
+                    "label": "取り漏れを減らす",
+                    "born": "t3",
+                    "recordIndex": 11,
+                    "role": "顧客成果",
+                    "items": [
+                      "協議",
+                      "契約",
+                      "請求",
+                      "回収"
+                    ],
+                    "depth": 0
+                  },
+                  "repeat-purchase": {
+                    "id": "repeat-purchase",
+                    "owner": "customer",
+                    "kind": "repeat",
+                    "label": "次案件で再購入",
+                    "born": "tN",
+                    "recordIndex": 12,
+                    "role": "継続",
+                    "detail": "成果から次の案件へ戻る",
+                    "depth": 0
+                  },
+                  "repeatable-economics": {
+                    "id": "repeatable-economics",
+                    "owner": "provider",
+                    "kind": "proof",
+                    "label": "反復可能な提供",
+                    "born": "tN",
+                    "recordIndex": 13,
+                    "role": "成立条件",
+                    "items": [
+                      "共通手順",
+                      "正の粗利"
+                    ],
+                    "depth": 0
+                  }
+                },
+                "exchanges": {
+                  "input": {
+                    "id": "input",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 14,
+                    "detail": "契約・指示・写真・日報"
+                  },
+                  "offer": {
+                    "id": "offer",
+                    "from": "provider",
+                    "to": "customer",
+                    "kind": "offer",
+                    "label": "証拠・協議準備",
+                    "born": "t2",
+                    "recordIndex": 15,
+                    "detail": "変更差分・原文証拠・協議案・請求候補"
+                  },
+                  "payment": {
+                    "id": "payment",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "payment",
+                    "label": "案件固定料金",
+                    "born": "t3",
+                    "recordIndex": 16
+                  }
+                },
+                "activities": {
+                  "act-t0-provider": {
+                    "id": "act-t0-provider",
+                    "stage": "t0",
+                    "actor": "provider",
+                    "label": "能力を構成",
+                    "summary": "AIで自分の判断と実装を拡張する",
+                    "primary": true,
+                    "recordIndex": 17
+                  },
+                  "act-t1-customer": {
+                    "id": "act-t1-customer",
+                    "stage": "t1",
+                    "actor": "customer",
+                    "label": "案件記録を提供",
+                    "summary": "実案件の記録を渡す",
+                    "primary": true,
+                    "recordIndex": 18
+                  },
+                  "act-t1-provider": {
+                    "id": "act-t1-provider",
+                    "stage": "t1",
+                    "actor": "provider",
+                    "label": "記録を受領",
+                    "summary": "入力を受け取る",
+                    "primary": false,
+                    "recordIndex": 19
+                  },
+                  "act-t2-provider": {
+                    "id": "act-t2-provider",
+                    "stage": "t2",
+                    "actor": "provider",
+                    "label": "商品を生成",
+                    "summary": "証拠・協議準備を作る",
+                    "primary": true,
+                    "recordIndex": 20
+                  },
+                  "act-t2-customer": {
+                    "id": "act-t2-customer",
+                    "stage": "t2",
+                    "actor": "customer",
+                    "label": "商品を確認",
+                    "summary": "原文へ戻れることを確認する",
+                    "primary": false,
+                    "recordIndex": 21
+                  },
+                  "act-t3-customer": {
+                    "id": "act-t3-customer",
+                    "stage": "t3",
+                    "actor": "customer",
+                    "label": "協議・請求に利用",
+                    "summary": "成果へ進み料金を支払う",
+                    "primary": true,
+                    "recordIndex": 22
+                  },
+                  "act-t3-provider": {
+                    "id": "act-t3-provider",
+                    "stage": "t3",
+                    "actor": "provider",
+                    "label": "取引を完了",
+                    "summary": "納品と料金受領を閉じる",
+                    "primary": false,
+                    "recordIndex": 23
+                  },
+                  "act-tn-customer": {
+                    "id": "act-tn-customer",
+                    "stage": "tN",
+                    "actor": "customer",
+                    "label": "別案件で再購入",
+                    "summary": "同じ価値を別案件で購入する",
+                    "primary": false,
+                    "recordIndex": 24
+                  },
+                  "act-tn-provider": {
+                    "id": "act-tn-provider",
+                    "stage": "tN",
+                    "actor": "provider",
+                    "label": "同じ方法で提供",
+                    "summary": "共通手順で正の粗利を残す",
+                    "primary": true,
+                    "recordIndex": 25
+                  }
+                }
+              }
+            }
+          },
+          {
+            "version": "v0.9",
+            "updateComponents": {
+              "surfaceId": "business-model-profiled",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "ProfiledBusinessModelRoot",
+                  "children": [
+                    "header",
+                    "timeline",
+                    "scene",
+                    "status",
+                    "legend"
+                  ]
+                },
+                {
+                  "id": "header",
+                  "component": "ProfiledBusinessModelHeader",
+                  "kicker": "建設会社向け｜BUSINESS MODEL",
+                  "title": "追加工事を、請求できる証拠へ変える"
+                },
+                {
+                  "id": "timeline",
+                  "component": "ProfiledBusinessModelTimeline",
+                  "action": "business-model-profiled.select-stage"
+                },
+                {
+                  "id": "scene",
+                  "component": "ProfiledBusinessModelScene",
+                  "children": [
+                    "actor-customer",
+                    "exchange-group-customer-provider",
+                    "actor-provider"
+                  ],
+                  "layout": [
+                    "actor",
+                    "exchange",
+                    "actor"
+                  ]
+                },
+                {
+                  "id": "actor-customer",
+                  "component": "ProfiledActor",
+                  "actorRef": "customer",
+                  "state": "new",
+                  "nodeStates": [
+                    {
+                      "ref": "case-records",
+                      "state": "new"
+                    }
+                  ]
+                },
+                {
+                  "id": "exchange-group-customer-provider",
+                  "component": "ProfiledExchangeGroup",
+                  "leftActorRef": "customer",
+                  "rightActorRef": "provider",
+                  "exchangeStates": [
+                    {
+                      "ref": "input",
+                      "state": "new"
+                    }
+                  ]
+                },
+                {
+                  "id": "actor-provider",
+                  "component": "ProfiledActor",
+                  "actorRef": "provider",
+                  "state": "done",
+                  "nodeStates": [
+                    {
+                      "ref": "ai",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "self",
+                      "state": "done"
+                    }
+                  ]
+                },
+                {
+                  "id": "status",
+                  "component": "ProfiledBusinessModelStatus",
+                  "activityRefs": [
+                    "act-t1-customer",
+                    "act-t1-provider"
+                  ]
+                },
+                {
+                  "id": "legend",
+                  "component": "ProfiledBusinessModelLegend"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "t2",
+        "index": 2,
+        "messages": [
+          {
+            "version": "v0.9",
+            "updateDataModel": {
+              "surfaceId": "business-model-profiled",
+              "path": "/",
+              "value": {
+                "schema": "business-model-semantic-state/2",
+                "source": {
+                  "schema": "business-model-semantic-jsonl/2",
+                  "id": "construction-evidence-service"
+                },
+                "profile": {
+                  "schema": "business-model-projection-profile/1",
+                  "id": "business-model/1",
+                  "label": "多主体事業モデル"
+                },
+                "currentIndex": 2,
+                "stage": {
+                  "id": "t2",
+                  "order": 2,
+                  "short": "t2",
+                  "caption": "商品",
+                  "name": "t2｜商品提供",
+                  "goal": "入力を商品へ変換",
+                  "change": "証拠・協議準備",
+                  "evidence": "案件記録から証拠・協議準備を作り渡せる。",
+                  "gate": "提供成立",
+                  "focusRef": "act-t2-provider",
+                  "recordIndex": 3
+                },
+                "stages": [
+                  {
+                    "id": "t0",
+                    "short": "t0",
+                    "caption": "能力",
+                    "name": "t0｜能力の核",
+                    "goal": "提供者の能力を定義",
+                    "change": "AI・自分",
+                    "evidence": "案件を処理する能力の核だけがある。",
+                    "gate": "能力の核",
+                    "focusRef": "act-t0-provider"
+                  },
+                  {
+                    "id": "t1",
+                    "short": "t1",
+                    "caption": "入力",
+                    "name": "t1｜実案件",
+                    "goal": "顧客から入力を受領",
+                    "change": "顧客・案件記録・入力",
+                    "evidence": "建設会社から実案件の記録を受け取れる。",
+                    "gate": "入力成立",
+                    "focusRef": "act-t1-customer"
+                  },
+                  {
+                    "id": "t2",
+                    "short": "t2",
+                    "caption": "商品",
+                    "name": "t2｜商品提供",
+                    "goal": "入力を商品へ変換",
+                    "change": "証拠・協議準備",
+                    "evidence": "案件記録から証拠・協議準備を作り渡せる。",
+                    "gate": "提供成立",
+                    "focusRef": "act-t2-provider"
+                  },
+                  {
+                    "id": "t3",
+                    "short": "t3",
+                    "caption": "取引",
+                    "name": "t3｜有償取引",
+                    "goal": "成果と料金が成立",
+                    "change": "顧客成果・料金",
+                    "evidence": "顧客が商品を使い、料金を支払う。",
+                    "gate": "取引成立",
+                    "focusRef": "act-t3-customer"
+                  },
+                  {
+                    "id": "tN",
+                    "short": "tN",
+                    "caption": "反復",
+                    "name": "tN｜モデル確立",
+                    "goal": "同じ交換が反復",
+                    "change": "再購入・共通手順・粗利",
+                    "evidence": "別案件でも再購入され、正の粗利を残す。",
+                    "gate": "モデル確立",
+                    "focusRef": "act-tn-provider"
+                  }
+                ],
+                "actors": {
+                  "provider": {
+                    "id": "provider",
+                    "role": "provider",
+                    "label": "弊社",
+                    "detail": "案件記録を証拠・協議準備へ変える",
+                    "born": "t0",
+                    "recordIndex": 6
+                  },
+                  "customer": {
+                    "id": "customer",
+                    "role": "customer",
+                    "label": "顧客｜建設会社",
+                    "detail": "追加・変更工事を扱う受注側",
+                    "born": "t1",
+                    "recordIndex": 7
+                  }
+                },
+                "nodes": {
+                  "ai": {
+                    "id": "ai",
+                    "owner": "provider",
+                    "kind": "capability",
+                    "label": "AI",
+                    "born": "t0",
+                    "recordIndex": 8,
+                    "role": "能力層",
+                    "detail": "整理・照合を高速化",
+                    "depth": 0
+                  },
+                  "self": {
+                    "id": "self",
+                    "owner": "provider",
+                    "kind": "person",
+                    "label": "自分",
+                    "born": "t0",
+                    "recordIndex": 9,
+                    "parent": "ai",
+                    "role": "判断主体",
+                    "detail": "経験・判断・実装",
+                    "depth": 1
+                  },
+                  "case-records": {
+                    "id": "case-records",
+                    "owner": "customer",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 10,
+                    "role": "保有する入力",
+                    "items": [
+                      "契約・見積",
+                      "変更指示",
+                      "図面・写真",
+                      "日報・請求"
+                    ],
+                    "depth": 0
+                  },
+                  "customer-outcome": {
+                    "id": "customer-outcome",
+                    "owner": "customer",
+                    "kind": "outcome",
+                    "label": "取り漏れを減らす",
+                    "born": "t3",
+                    "recordIndex": 11,
+                    "role": "顧客成果",
+                    "items": [
+                      "協議",
+                      "契約",
+                      "請求",
+                      "回収"
+                    ],
+                    "depth": 0
+                  },
+                  "repeat-purchase": {
+                    "id": "repeat-purchase",
+                    "owner": "customer",
+                    "kind": "repeat",
+                    "label": "次案件で再購入",
+                    "born": "tN",
+                    "recordIndex": 12,
+                    "role": "継続",
+                    "detail": "成果から次の案件へ戻る",
+                    "depth": 0
+                  },
+                  "repeatable-economics": {
+                    "id": "repeatable-economics",
+                    "owner": "provider",
+                    "kind": "proof",
+                    "label": "反復可能な提供",
+                    "born": "tN",
+                    "recordIndex": 13,
+                    "role": "成立条件",
+                    "items": [
+                      "共通手順",
+                      "正の粗利"
+                    ],
+                    "depth": 0
+                  }
+                },
+                "exchanges": {
+                  "input": {
+                    "id": "input",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 14,
+                    "detail": "契約・指示・写真・日報"
+                  },
+                  "offer": {
+                    "id": "offer",
+                    "from": "provider",
+                    "to": "customer",
+                    "kind": "offer",
+                    "label": "証拠・協議準備",
+                    "born": "t2",
+                    "recordIndex": 15,
+                    "detail": "変更差分・原文証拠・協議案・請求候補"
+                  },
+                  "payment": {
+                    "id": "payment",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "payment",
+                    "label": "案件固定料金",
+                    "born": "t3",
+                    "recordIndex": 16
+                  }
+                },
+                "activities": {
+                  "act-t0-provider": {
+                    "id": "act-t0-provider",
+                    "stage": "t0",
+                    "actor": "provider",
+                    "label": "能力を構成",
+                    "summary": "AIで自分の判断と実装を拡張する",
+                    "primary": true,
+                    "recordIndex": 17
+                  },
+                  "act-t1-customer": {
+                    "id": "act-t1-customer",
+                    "stage": "t1",
+                    "actor": "customer",
+                    "label": "案件記録を提供",
+                    "summary": "実案件の記録を渡す",
+                    "primary": true,
+                    "recordIndex": 18
+                  },
+                  "act-t1-provider": {
+                    "id": "act-t1-provider",
+                    "stage": "t1",
+                    "actor": "provider",
+                    "label": "記録を受領",
+                    "summary": "入力を受け取る",
+                    "primary": false,
+                    "recordIndex": 19
+                  },
+                  "act-t2-provider": {
+                    "id": "act-t2-provider",
+                    "stage": "t2",
+                    "actor": "provider",
+                    "label": "商品を生成",
+                    "summary": "証拠・協議準備を作る",
+                    "primary": true,
+                    "recordIndex": 20
+                  },
+                  "act-t2-customer": {
+                    "id": "act-t2-customer",
+                    "stage": "t2",
+                    "actor": "customer",
+                    "label": "商品を確認",
+                    "summary": "原文へ戻れることを確認する",
+                    "primary": false,
+                    "recordIndex": 21
+                  },
+                  "act-t3-customer": {
+                    "id": "act-t3-customer",
+                    "stage": "t3",
+                    "actor": "customer",
+                    "label": "協議・請求に利用",
+                    "summary": "成果へ進み料金を支払う",
+                    "primary": true,
+                    "recordIndex": 22
+                  },
+                  "act-t3-provider": {
+                    "id": "act-t3-provider",
+                    "stage": "t3",
+                    "actor": "provider",
+                    "label": "取引を完了",
+                    "summary": "納品と料金受領を閉じる",
+                    "primary": false,
+                    "recordIndex": 23
+                  },
+                  "act-tn-customer": {
+                    "id": "act-tn-customer",
+                    "stage": "tN",
+                    "actor": "customer",
+                    "label": "別案件で再購入",
+                    "summary": "同じ価値を別案件で購入する",
+                    "primary": false,
+                    "recordIndex": 24
+                  },
+                  "act-tn-provider": {
+                    "id": "act-tn-provider",
+                    "stage": "tN",
+                    "actor": "provider",
+                    "label": "同じ方法で提供",
+                    "summary": "共通手順で正の粗利を残す",
+                    "primary": true,
+                    "recordIndex": 25
+                  }
+                }
+              }
+            }
+          },
+          {
+            "version": "v0.9",
+            "updateComponents": {
+              "surfaceId": "business-model-profiled",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "ProfiledBusinessModelRoot",
+                  "children": [
+                    "header",
+                    "timeline",
+                    "scene",
+                    "status",
+                    "legend"
+                  ]
+                },
+                {
+                  "id": "header",
+                  "component": "ProfiledBusinessModelHeader",
+                  "kicker": "建設会社向け｜BUSINESS MODEL",
+                  "title": "追加工事を、請求できる証拠へ変える"
+                },
+                {
+                  "id": "timeline",
+                  "component": "ProfiledBusinessModelTimeline",
+                  "action": "business-model-profiled.select-stage"
+                },
+                {
+                  "id": "scene",
+                  "component": "ProfiledBusinessModelScene",
+                  "children": [
+                    "actor-customer",
+                    "exchange-group-customer-provider",
+                    "actor-provider"
+                  ],
+                  "layout": [
+                    "actor",
+                    "exchange",
+                    "actor"
+                  ]
+                },
+                {
+                  "id": "actor-customer",
+                  "component": "ProfiledActor",
+                  "actorRef": "customer",
+                  "state": "done",
+                  "nodeStates": [
+                    {
+                      "ref": "case-records",
+                      "state": "done"
+                    }
+                  ]
+                },
+                {
+                  "id": "exchange-group-customer-provider",
+                  "component": "ProfiledExchangeGroup",
+                  "leftActorRef": "customer",
+                  "rightActorRef": "provider",
+                  "exchangeStates": [
+                    {
+                      "ref": "input",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "offer",
+                      "state": "new"
+                    }
+                  ]
+                },
+                {
+                  "id": "actor-provider",
+                  "component": "ProfiledActor",
+                  "actorRef": "provider",
+                  "state": "done",
+                  "nodeStates": [
+                    {
+                      "ref": "ai",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "self",
+                      "state": "done"
+                    }
+                  ]
+                },
+                {
+                  "id": "status",
+                  "component": "ProfiledBusinessModelStatus",
+                  "activityRefs": [
+                    "act-t2-provider",
+                    "act-t2-customer"
+                  ]
+                },
+                {
+                  "id": "legend",
+                  "component": "ProfiledBusinessModelLegend"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "t3",
+        "index": 3,
+        "messages": [
+          {
+            "version": "v0.9",
+            "updateDataModel": {
+              "surfaceId": "business-model-profiled",
+              "path": "/",
+              "value": {
+                "schema": "business-model-semantic-state/2",
+                "source": {
+                  "schema": "business-model-semantic-jsonl/2",
+                  "id": "construction-evidence-service"
+                },
+                "profile": {
+                  "schema": "business-model-projection-profile/1",
+                  "id": "business-model/1",
+                  "label": "多主体事業モデル"
+                },
+                "currentIndex": 3,
+                "stage": {
+                  "id": "t3",
+                  "order": 3,
+                  "short": "t3",
+                  "caption": "取引",
+                  "name": "t3｜有償取引",
+                  "goal": "成果と料金が成立",
+                  "change": "顧客成果・料金",
+                  "evidence": "顧客が商品を使い、料金を支払う。",
+                  "gate": "取引成立",
+                  "focusRef": "act-t3-customer",
+                  "recordIndex": 4
+                },
+                "stages": [
+                  {
+                    "id": "t0",
+                    "short": "t0",
+                    "caption": "能力",
+                    "name": "t0｜能力の核",
+                    "goal": "提供者の能力を定義",
+                    "change": "AI・自分",
+                    "evidence": "案件を処理する能力の核だけがある。",
+                    "gate": "能力の核",
+                    "focusRef": "act-t0-provider"
+                  },
+                  {
+                    "id": "t1",
+                    "short": "t1",
+                    "caption": "入力",
+                    "name": "t1｜実案件",
+                    "goal": "顧客から入力を受領",
+                    "change": "顧客・案件記録・入力",
+                    "evidence": "建設会社から実案件の記録を受け取れる。",
+                    "gate": "入力成立",
+                    "focusRef": "act-t1-customer"
+                  },
+                  {
+                    "id": "t2",
+                    "short": "t2",
+                    "caption": "商品",
+                    "name": "t2｜商品提供",
+                    "goal": "入力を商品へ変換",
+                    "change": "証拠・協議準備",
+                    "evidence": "案件記録から証拠・協議準備を作り渡せる。",
+                    "gate": "提供成立",
+                    "focusRef": "act-t2-provider"
+                  },
+                  {
+                    "id": "t3",
+                    "short": "t3",
+                    "caption": "取引",
+                    "name": "t3｜有償取引",
+                    "goal": "成果と料金が成立",
+                    "change": "顧客成果・料金",
+                    "evidence": "顧客が商品を使い、料金を支払う。",
+                    "gate": "取引成立",
+                    "focusRef": "act-t3-customer"
+                  },
+                  {
+                    "id": "tN",
+                    "short": "tN",
+                    "caption": "反復",
+                    "name": "tN｜モデル確立",
+                    "goal": "同じ交換が反復",
+                    "change": "再購入・共通手順・粗利",
+                    "evidence": "別案件でも再購入され、正の粗利を残す。",
+                    "gate": "モデル確立",
+                    "focusRef": "act-tn-provider"
+                  }
+                ],
+                "actors": {
+                  "provider": {
+                    "id": "provider",
+                    "role": "provider",
+                    "label": "弊社",
+                    "detail": "案件記録を証拠・協議準備へ変える",
+                    "born": "t0",
+                    "recordIndex": 6
+                  },
+                  "customer": {
+                    "id": "customer",
+                    "role": "customer",
+                    "label": "顧客｜建設会社",
+                    "detail": "追加・変更工事を扱う受注側",
+                    "born": "t1",
+                    "recordIndex": 7
+                  }
+                },
+                "nodes": {
+                  "ai": {
+                    "id": "ai",
+                    "owner": "provider",
+                    "kind": "capability",
+                    "label": "AI",
+                    "born": "t0",
+                    "recordIndex": 8,
+                    "role": "能力層",
+                    "detail": "整理・照合を高速化",
+                    "depth": 0
+                  },
+                  "self": {
+                    "id": "self",
+                    "owner": "provider",
+                    "kind": "person",
+                    "label": "自分",
+                    "born": "t0",
+                    "recordIndex": 9,
+                    "parent": "ai",
+                    "role": "判断主体",
+                    "detail": "経験・判断・実装",
+                    "depth": 1
+                  },
+                  "case-records": {
+                    "id": "case-records",
+                    "owner": "customer",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 10,
+                    "role": "保有する入力",
+                    "items": [
+                      "契約・見積",
+                      "変更指示",
+                      "図面・写真",
+                      "日報・請求"
+                    ],
+                    "depth": 0
+                  },
+                  "customer-outcome": {
+                    "id": "customer-outcome",
+                    "owner": "customer",
+                    "kind": "outcome",
+                    "label": "取り漏れを減らす",
+                    "born": "t3",
+                    "recordIndex": 11,
+                    "role": "顧客成果",
+                    "items": [
+                      "協議",
+                      "契約",
+                      "請求",
+                      "回収"
+                    ],
+                    "depth": 0
+                  },
+                  "repeat-purchase": {
+                    "id": "repeat-purchase",
+                    "owner": "customer",
+                    "kind": "repeat",
+                    "label": "次案件で再購入",
+                    "born": "tN",
+                    "recordIndex": 12,
+                    "role": "継続",
+                    "detail": "成果から次の案件へ戻る",
+                    "depth": 0
+                  },
+                  "repeatable-economics": {
+                    "id": "repeatable-economics",
+                    "owner": "provider",
+                    "kind": "proof",
+                    "label": "反復可能な提供",
+                    "born": "tN",
+                    "recordIndex": 13,
+                    "role": "成立条件",
+                    "items": [
+                      "共通手順",
+                      "正の粗利"
+                    ],
+                    "depth": 0
+                  }
+                },
+                "exchanges": {
+                  "input": {
+                    "id": "input",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 14,
+                    "detail": "契約・指示・写真・日報"
+                  },
+                  "offer": {
+                    "id": "offer",
+                    "from": "provider",
+                    "to": "customer",
+                    "kind": "offer",
+                    "label": "証拠・協議準備",
+                    "born": "t2",
+                    "recordIndex": 15,
+                    "detail": "変更差分・原文証拠・協議案・請求候補"
+                  },
+                  "payment": {
+                    "id": "payment",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "payment",
+                    "label": "案件固定料金",
+                    "born": "t3",
+                    "recordIndex": 16
+                  }
+                },
+                "activities": {
+                  "act-t0-provider": {
+                    "id": "act-t0-provider",
+                    "stage": "t0",
+                    "actor": "provider",
+                    "label": "能力を構成",
+                    "summary": "AIで自分の判断と実装を拡張する",
+                    "primary": true,
+                    "recordIndex": 17
+                  },
+                  "act-t1-customer": {
+                    "id": "act-t1-customer",
+                    "stage": "t1",
+                    "actor": "customer",
+                    "label": "案件記録を提供",
+                    "summary": "実案件の記録を渡す",
+                    "primary": true,
+                    "recordIndex": 18
+                  },
+                  "act-t1-provider": {
+                    "id": "act-t1-provider",
+                    "stage": "t1",
+                    "actor": "provider",
+                    "label": "記録を受領",
+                    "summary": "入力を受け取る",
+                    "primary": false,
+                    "recordIndex": 19
+                  },
+                  "act-t2-provider": {
+                    "id": "act-t2-provider",
+                    "stage": "t2",
+                    "actor": "provider",
+                    "label": "商品を生成",
+                    "summary": "証拠・協議準備を作る",
+                    "primary": true,
+                    "recordIndex": 20
+                  },
+                  "act-t2-customer": {
+                    "id": "act-t2-customer",
+                    "stage": "t2",
+                    "actor": "customer",
+                    "label": "商品を確認",
+                    "summary": "原文へ戻れることを確認する",
+                    "primary": false,
+                    "recordIndex": 21
+                  },
+                  "act-t3-customer": {
+                    "id": "act-t3-customer",
+                    "stage": "t3",
+                    "actor": "customer",
+                    "label": "協議・請求に利用",
+                    "summary": "成果へ進み料金を支払う",
+                    "primary": true,
+                    "recordIndex": 22
+                  },
+                  "act-t3-provider": {
+                    "id": "act-t3-provider",
+                    "stage": "t3",
+                    "actor": "provider",
+                    "label": "取引を完了",
+                    "summary": "納品と料金受領を閉じる",
+                    "primary": false,
+                    "recordIndex": 23
+                  },
+                  "act-tn-customer": {
+                    "id": "act-tn-customer",
+                    "stage": "tN",
+                    "actor": "customer",
+                    "label": "別案件で再購入",
+                    "summary": "同じ価値を別案件で購入する",
+                    "primary": false,
+                    "recordIndex": 24
+                  },
+                  "act-tn-provider": {
+                    "id": "act-tn-provider",
+                    "stage": "tN",
+                    "actor": "provider",
+                    "label": "同じ方法で提供",
+                    "summary": "共通手順で正の粗利を残す",
+                    "primary": true,
+                    "recordIndex": 25
+                  }
+                }
+              }
+            }
+          },
+          {
+            "version": "v0.9",
+            "updateComponents": {
+              "surfaceId": "business-model-profiled",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "ProfiledBusinessModelRoot",
+                  "children": [
+                    "header",
+                    "timeline",
+                    "scene",
+                    "status",
+                    "legend"
+                  ]
+                },
+                {
+                  "id": "header",
+                  "component": "ProfiledBusinessModelHeader",
+                  "kicker": "建設会社向け｜BUSINESS MODEL",
+                  "title": "追加工事を、請求できる証拠へ変える"
+                },
+                {
+                  "id": "timeline",
+                  "component": "ProfiledBusinessModelTimeline",
+                  "action": "business-model-profiled.select-stage"
+                },
+                {
+                  "id": "scene",
+                  "component": "ProfiledBusinessModelScene",
+                  "children": [
+                    "actor-customer",
+                    "exchange-group-customer-provider",
+                    "actor-provider"
+                  ],
+                  "layout": [
+                    "actor",
+                    "exchange",
+                    "actor"
+                  ]
+                },
+                {
+                  "id": "actor-customer",
+                  "component": "ProfiledActor",
+                  "actorRef": "customer",
+                  "state": "done",
+                  "nodeStates": [
+                    {
+                      "ref": "case-records",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "customer-outcome",
+                      "state": "new"
+                    }
+                  ]
+                },
+                {
+                  "id": "exchange-group-customer-provider",
+                  "component": "ProfiledExchangeGroup",
+                  "leftActorRef": "customer",
+                  "rightActorRef": "provider",
+                  "exchangeStates": [
+                    {
+                      "ref": "input",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "offer",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "payment",
+                      "state": "new"
+                    }
+                  ]
+                },
+                {
+                  "id": "actor-provider",
+                  "component": "ProfiledActor",
+                  "actorRef": "provider",
+                  "state": "done",
+                  "nodeStates": [
+                    {
+                      "ref": "ai",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "self",
+                      "state": "done"
+                    }
+                  ]
+                },
+                {
+                  "id": "status",
+                  "component": "ProfiledBusinessModelStatus",
+                  "activityRefs": [
+                    "act-t3-customer",
+                    "act-t3-provider"
+                  ]
+                },
+                {
+                  "id": "legend",
+                  "component": "ProfiledBusinessModelLegend"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "tN",
+        "index": 4,
+        "messages": [
+          {
+            "version": "v0.9",
+            "updateDataModel": {
+              "surfaceId": "business-model-profiled",
+              "path": "/",
+              "value": {
+                "schema": "business-model-semantic-state/2",
+                "source": {
+                  "schema": "business-model-semantic-jsonl/2",
+                  "id": "construction-evidence-service"
+                },
+                "profile": {
+                  "schema": "business-model-projection-profile/1",
+                  "id": "business-model/1",
+                  "label": "多主体事業モデル"
+                },
+                "currentIndex": 4,
+                "stage": {
+                  "id": "tN",
+                  "order": 4,
+                  "short": "tN",
+                  "caption": "反復",
+                  "name": "tN｜モデル確立",
+                  "goal": "同じ交換が反復",
+                  "change": "再購入・共通手順・粗利",
+                  "evidence": "別案件でも再購入され、正の粗利を残す。",
+                  "gate": "モデル確立",
+                  "focusRef": "act-tn-provider",
+                  "recordIndex": 5
+                },
+                "stages": [
+                  {
+                    "id": "t0",
+                    "short": "t0",
+                    "caption": "能力",
+                    "name": "t0｜能力の核",
+                    "goal": "提供者の能力を定義",
+                    "change": "AI・自分",
+                    "evidence": "案件を処理する能力の核だけがある。",
+                    "gate": "能力の核",
+                    "focusRef": "act-t0-provider"
+                  },
+                  {
+                    "id": "t1",
+                    "short": "t1",
+                    "caption": "入力",
+                    "name": "t1｜実案件",
+                    "goal": "顧客から入力を受領",
+                    "change": "顧客・案件記録・入力",
+                    "evidence": "建設会社から実案件の記録を受け取れる。",
+                    "gate": "入力成立",
+                    "focusRef": "act-t1-customer"
+                  },
+                  {
+                    "id": "t2",
+                    "short": "t2",
+                    "caption": "商品",
+                    "name": "t2｜商品提供",
+                    "goal": "入力を商品へ変換",
+                    "change": "証拠・協議準備",
+                    "evidence": "案件記録から証拠・協議準備を作り渡せる。",
+                    "gate": "提供成立",
+                    "focusRef": "act-t2-provider"
+                  },
+                  {
+                    "id": "t3",
+                    "short": "t3",
+                    "caption": "取引",
+                    "name": "t3｜有償取引",
+                    "goal": "成果と料金が成立",
+                    "change": "顧客成果・料金",
+                    "evidence": "顧客が商品を使い、料金を支払う。",
+                    "gate": "取引成立",
+                    "focusRef": "act-t3-customer"
+                  },
+                  {
+                    "id": "tN",
+                    "short": "tN",
+                    "caption": "反復",
+                    "name": "tN｜モデル確立",
+                    "goal": "同じ交換が反復",
+                    "change": "再購入・共通手順・粗利",
+                    "evidence": "別案件でも再購入され、正の粗利を残す。",
+                    "gate": "モデル確立",
+                    "focusRef": "act-tn-provider"
+                  }
+                ],
+                "actors": {
+                  "provider": {
+                    "id": "provider",
+                    "role": "provider",
+                    "label": "弊社",
+                    "detail": "案件記録を証拠・協議準備へ変える",
+                    "born": "t0",
+                    "recordIndex": 6
+                  },
+                  "customer": {
+                    "id": "customer",
+                    "role": "customer",
+                    "label": "顧客｜建設会社",
+                    "detail": "追加・変更工事を扱う受注側",
+                    "born": "t1",
+                    "recordIndex": 7
+                  }
+                },
+                "nodes": {
+                  "ai": {
+                    "id": "ai",
+                    "owner": "provider",
+                    "kind": "capability",
+                    "label": "AI",
+                    "born": "t0",
+                    "recordIndex": 8,
+                    "role": "能力層",
+                    "detail": "整理・照合を高速化",
+                    "depth": 0
+                  },
+                  "self": {
+                    "id": "self",
+                    "owner": "provider",
+                    "kind": "person",
+                    "label": "自分",
+                    "born": "t0",
+                    "recordIndex": 9,
+                    "parent": "ai",
+                    "role": "判断主体",
+                    "detail": "経験・判断・実装",
+                    "depth": 1
+                  },
+                  "case-records": {
+                    "id": "case-records",
+                    "owner": "customer",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 10,
+                    "role": "保有する入力",
+                    "items": [
+                      "契約・見積",
+                      "変更指示",
+                      "図面・写真",
+                      "日報・請求"
+                    ],
+                    "depth": 0
+                  },
+                  "customer-outcome": {
+                    "id": "customer-outcome",
+                    "owner": "customer",
+                    "kind": "outcome",
+                    "label": "取り漏れを減らす",
+                    "born": "t3",
+                    "recordIndex": 11,
+                    "role": "顧客成果",
+                    "items": [
+                      "協議",
+                      "契約",
+                      "請求",
+                      "回収"
+                    ],
+                    "depth": 0
+                  },
+                  "repeat-purchase": {
+                    "id": "repeat-purchase",
+                    "owner": "customer",
+                    "kind": "repeat",
+                    "label": "次案件で再購入",
+                    "born": "tN",
+                    "recordIndex": 12,
+                    "role": "継続",
+                    "detail": "成果から次の案件へ戻る",
+                    "depth": 0
+                  },
+                  "repeatable-economics": {
+                    "id": "repeatable-economics",
+                    "owner": "provider",
+                    "kind": "proof",
+                    "label": "反復可能な提供",
+                    "born": "tN",
+                    "recordIndex": 13,
+                    "role": "成立条件",
+                    "items": [
+                      "共通手順",
+                      "正の粗利"
+                    ],
+                    "depth": 0
+                  }
+                },
+                "exchanges": {
+                  "input": {
+                    "id": "input",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "input",
+                    "label": "案件記録",
+                    "born": "t1",
+                    "recordIndex": 14,
+                    "detail": "契約・指示・写真・日報"
+                  },
+                  "offer": {
+                    "id": "offer",
+                    "from": "provider",
+                    "to": "customer",
+                    "kind": "offer",
+                    "label": "証拠・協議準備",
+                    "born": "t2",
+                    "recordIndex": 15,
+                    "detail": "変更差分・原文証拠・協議案・請求候補"
+                  },
+                  "payment": {
+                    "id": "payment",
+                    "from": "customer",
+                    "to": "provider",
+                    "kind": "payment",
+                    "label": "案件固定料金",
+                    "born": "t3",
+                    "recordIndex": 16
+                  }
+                },
+                "activities": {
+                  "act-t0-provider": {
+                    "id": "act-t0-provider",
+                    "stage": "t0",
+                    "actor": "provider",
+                    "label": "能力を構成",
+                    "summary": "AIで自分の判断と実装を拡張する",
+                    "primary": true,
+                    "recordIndex": 17
+                  },
+                  "act-t1-customer": {
+                    "id": "act-t1-customer",
+                    "stage": "t1",
+                    "actor": "customer",
+                    "label": "案件記録を提供",
+                    "summary": "実案件の記録を渡す",
+                    "primary": true,
+                    "recordIndex": 18
+                  },
+                  "act-t1-provider": {
+                    "id": "act-t1-provider",
+                    "stage": "t1",
+                    "actor": "provider",
+                    "label": "記録を受領",
+                    "summary": "入力を受け取る",
+                    "primary": false,
+                    "recordIndex": 19
+                  },
+                  "act-t2-provider": {
+                    "id": "act-t2-provider",
+                    "stage": "t2",
+                    "actor": "provider",
+                    "label": "商品を生成",
+                    "summary": "証拠・協議準備を作る",
+                    "primary": true,
+                    "recordIndex": 20
+                  },
+                  "act-t2-customer": {
+                    "id": "act-t2-customer",
+                    "stage": "t2",
+                    "actor": "customer",
+                    "label": "商品を確認",
+                    "summary": "原文へ戻れることを確認する",
+                    "primary": false,
+                    "recordIndex": 21
+                  },
+                  "act-t3-customer": {
+                    "id": "act-t3-customer",
+                    "stage": "t3",
+                    "actor": "customer",
+                    "label": "協議・請求に利用",
+                    "summary": "成果へ進み料金を支払う",
+                    "primary": true,
+                    "recordIndex": 22
+                  },
+                  "act-t3-provider": {
+                    "id": "act-t3-provider",
+                    "stage": "t3",
+                    "actor": "provider",
+                    "label": "取引を完了",
+                    "summary": "納品と料金受領を閉じる",
+                    "primary": false,
+                    "recordIndex": 23
+                  },
+                  "act-tn-customer": {
+                    "id": "act-tn-customer",
+                    "stage": "tN",
+                    "actor": "customer",
+                    "label": "別案件で再購入",
+                    "summary": "同じ価値を別案件で購入する",
+                    "primary": false,
+                    "recordIndex": 24
+                  },
+                  "act-tn-provider": {
+                    "id": "act-tn-provider",
+                    "stage": "tN",
+                    "actor": "provider",
+                    "label": "同じ方法で提供",
+                    "summary": "共通手順で正の粗利を残す",
+                    "primary": true,
+                    "recordIndex": 25
+                  }
+                }
+              }
+            }
+          },
+          {
+            "version": "v0.9",
+            "updateComponents": {
+              "surfaceId": "business-model-profiled",
+              "components": [
+                {
+                  "id": "root",
+                  "component": "ProfiledBusinessModelRoot",
+                  "children": [
+                    "header",
+                    "timeline",
+                    "scene",
+                    "status",
+                    "legend"
+                  ]
+                },
+                {
+                  "id": "header",
+                  "component": "ProfiledBusinessModelHeader",
+                  "kicker": "建設会社向け｜BUSINESS MODEL",
+                  "title": "追加工事を、請求できる証拠へ変える"
+                },
+                {
+                  "id": "timeline",
+                  "component": "ProfiledBusinessModelTimeline",
+                  "action": "business-model-profiled.select-stage"
+                },
+                {
+                  "id": "scene",
+                  "component": "ProfiledBusinessModelScene",
+                  "children": [
+                    "actor-customer",
+                    "exchange-group-customer-provider",
+                    "actor-provider"
+                  ],
+                  "layout": [
+                    "actor",
+                    "exchange",
+                    "actor"
+                  ]
+                },
+                {
+                  "id": "actor-customer",
+                  "component": "ProfiledActor",
+                  "actorRef": "customer",
+                  "state": "done",
+                  "nodeStates": [
+                    {
+                      "ref": "case-records",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "customer-outcome",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "repeat-purchase",
+                      "state": "new"
+                    }
+                  ]
+                },
+                {
+                  "id": "exchange-group-customer-provider",
+                  "component": "ProfiledExchangeGroup",
+                  "leftActorRef": "customer",
+                  "rightActorRef": "provider",
+                  "exchangeStates": [
+                    {
+                      "ref": "input",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "offer",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "payment",
+                      "state": "done"
+                    }
+                  ]
+                },
+                {
+                  "id": "actor-provider",
+                  "component": "ProfiledActor",
+                  "actorRef": "provider",
+                  "state": "done",
+                  "nodeStates": [
+                    {
+                      "ref": "ai",
+                      "state": "done"
+                    },
+                    {
+                      "ref": "repeatable-economics",
+                      "state": "new"
+                    },
+                    {
+                      "ref": "self",
+                      "state": "done"
+                    }
+                  ]
+                },
+                {
+                  "id": "status",
+                  "component": "ProfiledBusinessModelStatus",
+                  "activityRefs": [
+                    "act-tn-customer",
+                    "act-tn-provider"
+                  ]
+                },
+                {
+                  "id": "legend",
+                  "component": "ProfiledBusinessModelLegend"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "seqState": [
+    {
+      "type": "meta",
+      "schema": "semantic-map-state/1",
+      "root": "business-model-seq",
+      "title": "追加工事を、請求できる証拠へ変える｜多主体事業モデル｜主体別Seq"
+    },
+    {
+      "type": "region",
+      "id": "business-model-seq",
+      "parent": null,
+      "label": "全体",
+      "kind": "root",
+      "bounds": [
+        0,
+        0,
+        1170,
+        490
+      ],
+      "summary": "business-model-semantic-jsonl/2 + business-model-projection-profile/1から投影"
+    },
+    {
+      "type": "region",
+      "id": "actor-customer",
+      "parent": "business-model-seq",
+      "label": "顧客｜建設会社",
+      "kind": "actor",
+      "bounds": [
+        20,
+        86,
+        190,
+        118
+      ],
+      "summary": "追加・変更工事を扱う受注側"
+    },
+    {
+      "type": "region",
+      "id": "actor-provider",
+      "parent": "business-model-seq",
+      "label": "弊社",
+      "kind": "actor",
+      "bounds": [
+        20,
+        238,
+        190,
+        118
+      ],
+      "summary": "案件記録を証拠・協議準備へ変える"
+    },
+    {
+      "type": "region",
+      "id": "act-t0-provider",
+      "parent": "business-model-seq",
+      "label": "能力を構成",
+      "kind": "task",
+      "bounds": [
+        230,
+        261,
+        146,
+        72
+      ],
+      "summary": "AIで自分の判断と実装を拡張する",
+      "temporal": {
+        "actor": "actor-provider",
+        "ordinal": {
+          "start": 0,
+          "end": 0
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-t1-customer",
+      "parent": "business-model-seq",
+      "label": "案件記録を提供",
+      "kind": "task",
+      "bounds": [
+        402,
+        109,
+        146,
+        72
+      ],
+      "summary": "実案件の記録を渡す",
+      "temporal": {
+        "actor": "actor-customer",
+        "ordinal": {
+          "start": 1,
+          "end": 1
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-t1-provider",
+      "parent": "business-model-seq",
+      "label": "記録を受領",
+      "kind": "task",
+      "bounds": [
+        402,
+        261,
+        146,
+        72
+      ],
+      "summary": "入力を受け取る",
+      "temporal": {
+        "actor": "actor-provider",
+        "ordinal": {
+          "start": 1,
+          "end": 1
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-t2-customer",
+      "parent": "business-model-seq",
+      "label": "商品を確認",
+      "kind": "task",
+      "bounds": [
+        574,
+        109,
+        146,
+        72
+      ],
+      "summary": "原文へ戻れることを確認する",
+      "temporal": {
+        "actor": "actor-customer",
+        "ordinal": {
+          "start": 2,
+          "end": 2
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-t2-provider",
+      "parent": "business-model-seq",
+      "label": "商品を生成",
+      "kind": "task",
+      "bounds": [
+        574,
+        261,
+        146,
+        72
+      ],
+      "summary": "証拠・協議準備を作る",
+      "temporal": {
+        "actor": "actor-provider",
+        "ordinal": {
+          "start": 2,
+          "end": 2
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-t3-customer",
+      "parent": "business-model-seq",
+      "label": "協議・請求に利用",
+      "kind": "task",
+      "bounds": [
+        746,
+        109,
+        146,
+        72
+      ],
+      "summary": "成果へ進み料金を支払う",
+      "temporal": {
+        "actor": "actor-customer",
+        "ordinal": {
+          "start": 3,
+          "end": 3
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-t3-provider",
+      "parent": "business-model-seq",
+      "label": "取引を完了",
+      "kind": "task",
+      "bounds": [
+        746,
+        261,
+        146,
+        72
+      ],
+      "summary": "納品と料金受領を閉じる",
+      "temporal": {
+        "actor": "actor-provider",
+        "ordinal": {
+          "start": 3,
+          "end": 3
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-tn-customer",
+      "parent": "business-model-seq",
+      "label": "別案件で再購入",
+      "kind": "task",
+      "bounds": [
+        918,
+        109,
+        146,
+        72
+      ],
+      "summary": "同じ価値を別案件で購入する",
+      "temporal": {
+        "actor": "actor-customer",
+        "ordinal": {
+          "start": 4,
+          "end": 4
+        }
+      }
+    },
+    {
+      "type": "region",
+      "id": "act-tn-provider",
+      "parent": "business-model-seq",
+      "label": "同じ方法で提供",
+      "kind": "task",
+      "bounds": [
+        918,
+        261,
+        146,
+        72
+      ],
+      "summary": "共通手順で正の粗利を残す",
+      "temporal": {
+        "actor": "actor-provider",
+        "ordinal": {
+          "start": 4,
+          "end": 4
+        }
+      }
+    },
+    {
+      "type": "relation",
+      "id": "tr-01",
+      "from": "act-t0-provider",
+      "to": "act-t1-customer",
+      "kind": "next",
+      "label": "顧客獲得"
+    },
+    {
+      "type": "relation",
+      "id": "tr-12",
+      "from": "act-t1-customer",
+      "to": "act-t2-provider",
+      "kind": "next",
+      "label": "入力から商品"
+    },
+    {
+      "type": "relation",
+      "id": "tr-23",
+      "from": "act-t2-provider",
+      "to": "act-t3-customer",
+      "kind": "next",
+      "label": "商品から成果"
+    },
+    {
+      "type": "relation",
+      "id": "tr-3n",
+      "from": "act-t3-customer",
+      "to": "act-tn-provider",
+      "kind": "next",
+      "label": "取引から反復"
+    },
+    {
+      "type": "relation",
+      "id": "exchange-input",
+      "from": "actor-customer",
+      "to": "actor-provider",
+      "kind": "input",
+      "label": "案件記録"
+    },
+    {
+      "type": "relation",
+      "id": "exchange-offer",
+      "from": "actor-provider",
+      "to": "actor-customer",
+      "kind": "offer",
+      "label": "証拠・協議準備"
+    },
+    {
+      "type": "relation",
+      "id": "exchange-payment",
+      "from": "actor-customer",
+      "to": "actor-provider",
+      "kind": "payment",
+      "label": "案件固定料金"
+    }
+  ],
+  "stageFocus": {
+    "t0": "act-t0-provider",
+    "t1": "act-t1-customer",
+    "t2": "act-t2-provider",
+    "t3": "act-t3-customer",
+    "tN": "act-tn-provider"
+  },
+  "stageLabels": {
+    "t0": "t0｜能力の核",
+    "t1": "t1｜実案件",
+    "t2": "t2｜商品提供",
+    "t3": "t3｜有償取引",
+    "tN": "tN｜モデル確立"
+  },
+  "coverage": {
+    "schema": "business-model-projection-coverage/1",
+    "status": "PASS",
+    "pass": true,
+    "sourceId": "construction-evidence-service",
+    "profileId": "business-model/1",
+    "semanticIds": {
+      "stages": [
+        "t0",
+        "t1",
+        "t2",
+        "t3",
+        "tN"
+      ],
+      "actors": [
+        "customer",
+        "provider"
+      ],
+      "nodes": [
+        "ai",
+        "case-records",
+        "customer-outcome",
+        "repeat-purchase",
+        "repeatable-economics",
+        "self"
+      ],
+      "exchanges": [
+        "input",
+        "offer",
+        "payment"
+      ],
+      "activities": [
+        "act-t0-provider",
+        "act-t1-customer",
+        "act-t1-provider",
+        "act-t2-customer",
+        "act-t2-provider",
+        "act-t3-customer",
+        "act-t3-provider",
+        "act-tn-customer",
+        "act-tn-provider"
+      ],
+      "transitions": [
+        "tr-01",
+        "tr-12",
+        "tr-23",
+        "tr-3n"
+      ]
+    },
+    "projections": {
+      "a2ui": {
+        "name": "a2ui",
+        "pass": true,
+        "projected": {
+          "stages": [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "tN"
+          ],
+          "actors": [
+            "customer",
+            "provider"
+          ],
+          "nodes": [
+            "ai",
+            "case-records",
+            "customer-outcome",
+            "repeat-purchase",
+            "repeatable-economics",
+            "self"
+          ],
+          "exchanges": [
+            "input",
+            "offer",
+            "payment"
+          ],
+          "activities": [
+            "act-t0-provider",
+            "act-t1-customer",
+            "act-t1-provider",
+            "act-t2-customer",
+            "act-t2-provider",
+            "act-t3-customer",
+            "act-t3-provider",
+            "act-tn-customer",
+            "act-tn-provider"
+          ],
+          "transitions": []
+        },
+        "excluded": {
+          "stages": [],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [],
+          "transitions": [
+            "tr-01",
+            "tr-12",
+            "tr-23",
+            "tr-3n"
+          ]
+        },
+        "excludedTypes": [
+          "transitions"
+        ],
+        "missing": {
+          "stages": [],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [],
+          "transitions": []
+        },
+        "unknown": {
+          "stages": [],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [],
+          "transitions": []
+        }
+      },
+      "seq": {
+        "name": "seq",
+        "pass": true,
+        "projected": {
+          "stages": [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "tN"
+          ],
+          "actors": [
+            "customer",
+            "provider"
+          ],
+          "nodes": [],
+          "exchanges": [
+            "input",
+            "offer",
+            "payment"
+          ],
+          "activities": [
+            "act-t0-provider",
+            "act-t1-customer",
+            "act-t1-provider",
+            "act-t2-customer",
+            "act-t2-provider",
+            "act-t3-customer",
+            "act-t3-provider",
+            "act-tn-customer",
+            "act-tn-provider"
+          ],
+          "transitions": [
+            "tr-01",
+            "tr-12",
+            "tr-23",
+            "tr-3n"
+          ]
+        },
+        "excluded": {
+          "stages": [],
+          "actors": [],
+          "nodes": [
+            "ai",
+            "case-records",
+            "customer-outcome",
+            "repeat-purchase",
+            "repeatable-economics",
+            "self"
+          ],
+          "exchanges": [],
+          "activities": [],
+          "transitions": []
+        },
+        "excludedTypes": [
+          "nodes"
+        ],
+        "missing": {
+          "stages": [],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [],
+          "transitions": []
+        },
+        "unknown": {
+          "stages": [],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [],
+          "transitions": []
+        }
+      },
+      "map": {
+        "name": "map",
+        "pass": true,
+        "projected": {
+          "stages": [],
+          "actors": [
+            "customer",
+            "provider"
+          ],
+          "nodes": [
+            "ai",
+            "case-records",
+            "customer-outcome",
+            "repeat-purchase",
+            "repeatable-economics",
+            "self"
+          ],
+          "exchanges": [
+            "input",
+            "offer",
+            "payment"
+          ],
+          "activities": [],
+          "transitions": []
+        },
+        "excluded": {
+          "stages": [
+            "t0",
+            "t1",
+            "t2",
+            "t3",
+            "tN"
+          ],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [
+            "act-t0-provider",
+            "act-t1-customer",
+            "act-t1-provider",
+            "act-t2-customer",
+            "act-t2-provider",
+            "act-t3-customer",
+            "act-t3-provider",
+            "act-tn-customer",
+            "act-tn-provider"
+          ],
+          "transitions": [
+            "tr-01",
+            "tr-12",
+            "tr-23",
+            "tr-3n"
+          ]
+        },
+        "excludedTypes": [
+          "activities",
+          "stages",
+          "transitions"
+        ],
+        "missing": {
+          "stages": [],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [],
+          "transitions": []
+        },
+        "unknown": {
+          "stages": [],
+          "actors": [],
+          "nodes": [],
+          "exchanges": [],
+          "activities": [],
+          "transitions": []
+        }
+      }
+    },
+    "globalUncovered": {
+      "stages": [],
+      "actors": [],
+      "nodes": [],
+      "exchanges": [],
+      "activities": [],
+      "transitions": []
+    }
+  }
+}

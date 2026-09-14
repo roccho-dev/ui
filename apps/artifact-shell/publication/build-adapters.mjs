@@ -36,15 +36,12 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     await fs.mkdir(root, { recursive: true });
 
     if (adapter.kind === 'feature') {
-      const input = typeof adapter.compile === 'function' ? await adapter.compile(source) : source;
-      await materializeFeature({ adapter, input, outputRoot, repoRoot, root });
+      await materializeFeature({ adapter, input: source, outputRoot, repoRoot, root });
       continue;
     }
     if (adapter.kind !== 'invocation') throw new Error(`artifact-adapters: ${adapter.id} unsupported kind ${adapter.kind}`);
-    if (typeof adapter.compile !== 'function') throw new Error(`artifact-adapters: ${adapter.id} compile required`);
-    const compiled = await adapter.compile(source);
-    if (compiled?.schema !== 'artifact-invocation/2') throw new Error(`artifact-adapters: ${adapter.id} compiler did not return artifact-invocation/2`);
-    const encoded = new URL(await createUrlModuleUrl({ base: 'https://artifact-shell.invalid/index.html', fragment: 'invoke', value: compiled }));
+    if (source?.schema !== 'artifact-invocation/2') throw new Error(`artifact-adapters: ${adapter.id} example must be artifact-invocation/2`);
+    const encoded = new URL(await createUrlModuleUrl({ base: 'https://artifact-shell.invalid/index.html', fragment: 'invoke', value: source }));
     const published = Object.freeze({ href: `../../index.html${encoded.hash}`, id: adapter.id, kind: 'invocation', label: adapter.label, schema: 'ui-adapter/1' });
     await fs.writeFile(path.join(root, 'adapter.json'), `${canonicalJson(published)}\n`);
     await fs.writeFile(path.join(root, 'index.html'), adapterHost);
