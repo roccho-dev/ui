@@ -1,0 +1,9 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"system","title":"Nested architecture"}
+{"type":"region","id":"system","parent":null,"label":"System","kind":"root","bounds":[0,0,1100,650],"summary":"graph/1 subgraph proof"}
+{"type":"region","id":"backend","parent":"system","label":"Backend","kind":"group","bounds":[0,0,420,300],"summary":"backend subgraph"}
+{"type":"region","id":"api","parent":"backend","label":"API","kind":"process","bounds":[0,0,180,90],"summary":"api process"}
+{"type":"region","id":"worker","parent":"backend","label":"Worker","kind":"process","bounds":[0,0,180,90],"summary":"worker process"}
+{"type":"region","id":"storage","parent":"system","label":"Storage","kind":"group","bounds":[0,0,360,260],"summary":"storage subgraph"}
+{"type":"region","id":"db","parent":"storage","label":"DB","kind":"data","bounds":[0,0,180,90],"summary":"database"}
+{"type":"relation","id":"g1","from":"api","to":"worker","kind":"dependency","label":"enqueue"}
+{"type":"relation","id":"g2","from":"worker","to":"db","kind":"dependency","label":"persist"}

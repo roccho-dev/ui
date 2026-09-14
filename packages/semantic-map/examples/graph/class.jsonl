@@ -1,0 +1,9 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"class-model","title":"Class model"}
+{"type":"region","id":"class-model","parent":null,"label":"Class model","kind":"root","bounds":[0,0,1000,600],"summary":"graph/1 class proof"}
+{"type":"region","id":"user","parent":"class-model","label":"User","kind":"class","bounds":[0,0,220,140],"summary":"user class"}
+{"type":"region","id":"user.id","parent":"user","label":"id: UUID","kind":"attribute","bounds":[0,0,120,40],"summary":"user identifier","order":0}
+{"type":"region","id":"user.email","parent":"user","label":"email: string","kind":"attribute","bounds":[0,0,120,40],"summary":"user email","order":1}
+{"type":"region","id":"order","parent":"class-model","label":"Order","kind":"class","bounds":[0,0,220,140],"summary":"order class"}
+{"type":"region","id":"order.id","parent":"order","label":"id: UUID","kind":"attribute","bounds":[0,0,120,40],"summary":"order identifier","order":0}
+{"type":"region","id":"order.total","parent":"order","label":"total: Money","kind":"attribute","bounds":[0,0,120,40],"summary":"order total","order":1}
+{"type":"relation","id":"c1","from":"user","to":"order","kind":"association","label":"1 owns 0..*"}
