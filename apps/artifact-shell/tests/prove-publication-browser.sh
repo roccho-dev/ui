@@ -29,8 +29,11 @@ check_feature graph-editor 30000 'class="roccho-graph-editor"' 'roccho-graph-edi
 for adapter in graph map seq; do
   output="${RUNNER_TEMP:-/tmp}/artifact-adapter-$adapter.html"
   "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$base/adapters/$adapter/index.html" > "$output"
-  grep -q 'data-adapter-status="pass"' "$output"
-  grep -q '>PASS</output>' "$output"
+  if ! grep -q 'data-adapter-status="pass"' "$output" || ! grep -q '>PASS</output>' "$output"; then
+    echo "adapter=$adapter failed"
+    grep -E 'INCONCLUSIVE|BLOCKED|data-adapter-status=|<output' "$output" || true
+    exit 1
+  fi
 done
 
-printf '%s\n' '{"schema":"ui.adapter-browser-proof/6","status":"PASS","directFeatures":["presentation","control","graph-editor"],"invocationAdapters":["graph","map","seq"],"host":"generic"}'
+printf '%s\n' '{"schema":"ui.adapter-browser-proof/7","status":"PASS","directFeatures":["presentation","control","graph-editor"],"invocationAdapters":["graph","map","seq"],"host":"generic"}'
