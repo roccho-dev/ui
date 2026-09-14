@@ -109,6 +109,17 @@ def main() -> None:
                     else:
                         assert mounted["schema"] == "ui-presentation-runtime/1", mounted
                         assert page.locator(".profiled-app").count() > 0
+                        assert page.locator(".seq-mount .semantic-map-feature[data-feature='seq']").count() == 1
+                        assert page.locator(".seq-mount svg").count() > 0
+                        assert page.locator(".seq-svg").count() == 0
+                        state = page.evaluate("() => uiFeatureProof.mounted.read()")
+                        assert state["currentStageIndex"] == 0, state
+                        assert state["seq"]["pattern"] == "seq/1", state
+                        assert state["seq"]["focusMarker"] == "act-t0-provider", state
+                        page.locator(".profiled-timeline button").nth(1).click()
+                        page.wait_for_function("() => uiFeatureProof.mounted.read().currentStageIndex === 1")
+                        state = page.evaluate("() => uiFeatureProof.mounted.read()")
+                        assert state["seq"]["focusMarker"] == "act-t1-customer", state
                     assert page.url.endswith(fragment), page.url
                     observed[runtime] = {
                         "sourceId": mounted["sourceId"],
@@ -124,11 +135,12 @@ def main() -> None:
                 assert unexpected == [], unexpected
                 browser.close()
             print(json.dumps({
-                "schema": "unified-runtime-data-browser-proof/1",
+                "schema": "unified-runtime-data-browser-proof/2",
                 "status": "PASS",
                 "source": str(SOURCE.relative_to(ROOT)),
                 "sourceBytes": len(source_bytes),
                 "sameFragment": True,
+                "presentationSeqOwner": "semantic-map/surface-runtime",
                 "runtimes": observed,
                 "externalRequests": 0,
             }, ensure_ascii=False))
