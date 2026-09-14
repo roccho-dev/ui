@@ -1,6 +1,11 @@
 import { createMaxGraphAdapter } from '../adapter.js';
 import { mountActiveList } from './active-list.js';
 
+const textInput = target => target instanceof HTMLInputElement
+  || target instanceof HTMLTextAreaElement
+  || target instanceof HTMLSelectElement
+  || target?.isContentEditable;
+
 export const createSemanticAuthoring = container => {
   const adapter = createMaxGraphAdapter(container);
   const host = container.parentElement;
@@ -12,6 +17,17 @@ export const createSemanticAuthoring = container => {
     },
   }) : null;
 
+  const nudgeSelection = (dx, dy) => {
+    const cells = adapter.graph.getSelectionCells().filter(cell => cell.isVertex()
+      && cell.semantic?.type === 'region'
+      && !cell.semantic.readOnly
+      && cell.semantic.mode !== 'boundary'
+      && (cell.semantic.geometryEditable || cell.semantic.temporalEdit));
+    if (cells.length === 0) return false;
+    adapter.graph.moveCells(cells, dx, dy, false);
+    return true;
+  };
+
   const rawRender = adapter.render.bind(adapter);
   adapter.render = scene => {
     const result = rawRender(scene);
@@ -20,7 +36,24 @@ export const createSemanticAuthoring = container => {
     return result;
   };
   adapter.onSelectionChange(selection => activeList?.setSelection(selection));
-  Object.defineProperty(adapter, 'activeList', { value: activeList, enumerable: true });
+  Object.defineProperties(adapter, {
+    activeList: { value: activeList, enumerable: true },
+    nudgeSelection: { value: nudgeSelection, enumerable: true },
+  });
+
+  container.ownerDocument.addEventListener('keydown', event => {
+    if (textInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
+    const delta = event.shiftKey ? 10 : 1;
+    const vector = {
+      ArrowLeft: [-delta, 0],
+      ArrowRight: [delta, 0],
+      ArrowUp: [0, -delta],
+      ArrowDown: [0, delta],
+    }[event.key];
+    if (!vector || !nudgeSelection(...vector)) return;
+    event.preventDefault();
+  });
+
   return adapter;
 };
 
