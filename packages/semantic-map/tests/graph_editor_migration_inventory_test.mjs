@@ -19,6 +19,7 @@ const migrated = {
   delete: /deleteSelection/.test(adapter) && /deleteSelection/.test(semanticMain),
   labelEdit: /startEditingSelection/.test(adapter) && /startEditingSelection/.test(semanticMain),
   connect: /ConnectRegions/.test(adapter),
+  reconnect: /ReconnectRelation/.test(authoring) && /setCellsDisconnectable\(true\)/.test(authoring),
   move: /MoveRegions/.test(adapter),
   resize: /ResizeRegions/.test(adapter),
   temporalMoveResize: /PlaceTemporalRegions/.test(adapter),
@@ -39,7 +40,7 @@ const intentionallyRetired = {
 for (const [capability, documented] of Object.entries(intentionallyRetired)) assert.equal(documented, true, `retirement inventory missing: ${capability}`);
 
 console.log(JSON.stringify({
-  schema: 'graph-editor-migration-inventory/1',
+  schema: 'graph-editor-migration-inventory/2',
   status: 'PASS',
   migrated: Object.keys(migrated),
   intentionallyRetired: Object.keys(intentionallyRetired),
