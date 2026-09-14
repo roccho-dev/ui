@@ -1,0 +1,257 @@
+name: Temporary graph218 fix deploy check
+
+on:
+  push:
+    branches:
+      - feat/graph1-structured-graph-260914
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-deploy-check:
+    if: ${{ !contains(github.event.head_commit.message, '[graph218-loop]') }}
+    runs-on: ubuntu-latest
+    environment: ui-deploy
+    env:
+      PROJECT_NAME: ui-graph-218
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply graph fixes and proofs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'missing replacement anchor in {path}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace(
+              'packages/semantic-map/domain/semantic-map.js',
+              "    invariant(record.from !== record.to, `${record.id} must not be a self relation`);\n",
+              '',
+          )
+
+          replace(
+              'packages/semantic-map/projection/projector.js',
+              "      if (!from || !to || from === to) return;\n",
+              "      if (!from || !to) return;\n      if (from === to && relation.from !== relation.to) return;\n",
+          )
+
+          projection = 'packages/semantic-map/pattern/view-types/graph/projection.js'
+          replace(
+              projection,
+              "import { isGraphItemKind } from './contract.js';\n",
+              "import { isGraphItemKind } from './contract.js';\n\nconst OVERVIEW_EXPANDED_KINDS = new Set(['group', 'package', 'subgraph']);\n",
+          )
+          replace(
+              projection,
+              "    const showDetails = detailsVisible(node, region, projectedBounds, hasChildren, force);\n",
+              "    const showDetails = detailsVisible(\n      node, region, projectedBounds, hasChildren, force || OVERVIEW_EXPANDED_KINDS.has(region.kind),\n    );\n",
+          )
+
+          Path('packages/semantic-map/examples/graph/self-loop.jsonl').write_text('''{"type":"meta","schema":"semantic-map-state/1","root":"meaning","title":"Self relation"}\n{"type":"region","id":"meaning","parent":null,"label":"Meaning","kind":"root","bounds":[0,0,800,500],"summary":"graph/1 self relation proof"}\n{"type":"region","id":"claim","parent":"meaning","label":"Claim","kind":"class","bounds":[0,0,240,150],"summary":"immutable claim"}\n{"type":"region","id":"claim.role","parent":"claim","label":"role: proposal | decision","kind":"attribute","bounds":[0,0,160,40],"summary":"claim role","order":0}\n{"type":"region","id":"claim.relations","parent":"claim","label":"relations[]","kind":"attribute","bounds":[0,0,160,40],"summary":"semantic relations","order":1}\n{"type":"relation","id":"self-depends","from":"claim","to":"claim","kind":"dependency","label":"depends_on"}\n''')
+
+          Path('packages/semantic-map/examples/graph/architecture-nested.jsonl').write_text('''{"type":"meta","schema":"semantic-map-state/1","root":"mieru","title":"見えるんです | 産業医コメント連携"}\n{"type":"region","id":"mieru","parent":null,"label":"見えるんです | 産業医コメント連携","kind":"root","bounds":[0,0,1400,760],"summary":"three-column integration"}\n{"type":"region","id":"ui","parent":"mieru","label":"UI / Graph","kind":"group","bounds":[0,0,360,560],"summary":"UI side"}\n{"type":"region","id":"ui.request","parent":"ui","label":"松本さん側 | 29の正常を1 objectへ変形","kind":"process","bounds":[0,0,280,100],"summary":"request composition","order":0}\n{"type":"region","id":"s3","parent":"mieru","label":"AWS | Amazon S3","kind":"group","bounds":[0,0,420,620],"summary":"exchange storage"}\n{"type":"region","id":"s3.input","parent":"s3","label":"input.json","kind":"data","bounds":[0,0,300,190],"summary":"request data","order":0}\n{"type":"region","id":"s3.input.case","parent":"s3.input","label":"案件データ","kind":"field","bounds":[0,0,160,40],"summary":"case data","order":0}\n{"type":"region","id":"s3.input.schema","parent":"s3.input","label":"schemaVersion: 0.1-draft","kind":"field","bounds":[0,0,200,40],"summary":"schema","order":1}\n{"type":"region","id":"s3.input.items","parent":"s3.input","label":"items[] | id + コメント用input","kind":"field","bounds":[0,0,220,40],"summary":"items","order":2}\n{"type":"region","id":"s3.output","parent":"s3","label":"output.json","kind":"data","bounds":[0,0,300,150],"summary":"result data","order":1}\n{"type":"region","id":"s3.output.items","parent":"s3.output","label":"items[] | id / statusCode / comment","kind":"field","bounds":[0,0,240,40],"summary":"result items","order":0}\n{"type":"region","id":"dev","parent":"mieru","label":"mieru-dev","kind":"group","bounds":[0,0,390,600],"summary":"generation service"}\n{"type":"region","id":"dev.process","parent":"dev","label":"処理","kind":"process","bounds":[0,0,300,180],"summary":"generation process","order":0}\n{"type":"region","id":"dev.process.context","parent":"dev.process","label":"案件データを共通context化","kind":"attribute","bounds":[0,0,220,40],"summary":"context","order":0}\n{"type":"region","id":"dev.process.items","parent":"dev.process","label":"items[]を1件ずつ生成","kind":"attribute","bounds":[0,0,200,40],"summary":"generate","order":1}\n{"type":"region","id":"dev.process.return","parent":"dev.process","label":"同じidで結果を返す","kind":"attribute","bounds":[0,0,200,40],"summary":"return","order":2}\n{"type":"region","id":"dev.constraints","parent":"dev","label":"意味を持たない","kind":"process","bounds":[0,0,300,150],"summary":"non-semantic inputs","order":1}\n{"type":"region","id":"dev.constraints.page","parent":"dev.constraints","label":"page番号 / graph位置","kind":"attribute","bounds":[0,0,200,40],"summary":"ignored","order":0}\n{"type":"region","id":"dev.constraints.comment","parent":"dev.constraints","label":"comment idの個別位置","kind":"attribute","bounds":[0,0,200,40],"summary":"ignored","order":1}\n{"type":"relation","id":"a1","from":"ui.request","to":"s3.input","kind":"flow","label":"writes input.json"}\n{"type":"relation","id":"a2","from":"s3.input","to":"dev.process","kind":"flow","label":"triggers generation"}\n''')
+
+          test = Path('packages/semantic-map/tests/graph_semantics_test.mjs')
+          text = test.read_text()
+          old = """const subgraphDomain = load('subgraph');\nconst subgraphOverview = project(subgraphDomain);\nconst backend = subgraphOverview.representations.find((item) => item.sourceRegionId === 'backend');\nassert.equal(backend?.shape, 'boundary');\nassert.equal(backend?.hasChildren, true);\nconst subgraphDetail = project(subgraphDomain, 4);\nassert.ok(subgraphDetail.representations.some((item) => item.sourceRegionId === 'worker'), 'nested regions must render when detail LOD is visible');\nassert.ok(subgraphDetail.relations.some((relation) => relation.id === 'g2' && relation.directed));\n\n"""
+          new = """const subgraphDomain = load('subgraph');\nconst subgraphOverview = project(subgraphDomain);\nconst backend = subgraphOverview.representations.find((item) => item.sourceRegionId === 'backend');\nassert.equal(backend?.shape, 'boundary');\nassert.equal(backend?.hasChildren, true);\nassert.ok(subgraphOverview.representations.some((item) => item.sourceRegionId === 'worker'), 'group contents must render in the initial graph overview');\nassert.ok(subgraphOverview.relations.some((relation) => relation.id === 'g2' && relation.directed));\n\nconst selfLoop = project(load('self-loop'));\nconst selfRelation = selfLoop.relations.find((relation) => relation.id === 'self-depends');\nassert.ok(selfRelation, 'semantic self relation must survive projection');\nassert.equal(selfRelation.from, selfRelation.to, 'self relation must remain a loop');\nassert.equal(selfRelation.directed, true);\n\nconst architecture = project(load('architecture-nested'));\nfor (const id of ['ui.request', 's3.input', 's3.output', 'dev.process', 'dev.constraints']) {\n  assert.ok(architecture.representations.some((item) => item.sourceRegionId === id), `overview must show nested ${id}`);\n}\n\n"""
+          if old not in text:
+              raise SystemExit('subgraph test anchor missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              "examples: ['flow', 'state', 'class', 'erd', 'subgraph'],",
+              "examples: ['flow', 'state', 'class', 'erd', 'subgraph', 'self-loop', 'architecture-nested'],",
+              1,
+          )
+          test.write_text(text)
+          PY
+
+      - name: Focused and semantic-map gates
+        run: |
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+
+      - name: Commit proven fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name roccho
+          git config user.email 40359643+roccho-dev@users.noreply.github.com
+          git add packages/semantic-map/domain/semantic-map.js \
+                  packages/semantic-map/projection/projector.js \
+                  packages/semantic-map/pattern/view-types/graph/projection.js \
+                  packages/semantic-map/examples/graph/self-loop.jsonl \
+                  packages/semantic-map/examples/graph/architecture-nested.jsonl \
+                  packages/semantic-map/tests/graph_semantics_test.mjs
+          git commit -m '[graph218-loop] fix: render self loops and nested graph overview'
+          git push origin HEAD:feat/graph1-structured-graph-260914
+
+      - name: Build publication
+        run: node apps/artifact-shell/scripts/build-publication.mjs --out=generated/ui-graph-218
+
+      - name: Deploy publication
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy generated/ui-graph-218 \
+            --project-name="${PROJECT_NAME}" \
+            --branch="${GITHUB_REF_NAME}"
+          base="https://${PROJECT_NAME}.pages.dev"
+          for attempt in $(seq 1 30); do
+            if curl -fsS "$base/index.html" >/dev/null; then
+              echo "PAGES_BASE_URL=$base" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Build proof URLs
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/adr344.jsonl" <<'EOF'
+          {"type":"meta","schema":"semantic-map-state/1","root":"adr344","title":"ADR #344 | Progressive refinement + Decision Model"}
+          {"type":"region","id":"adr344","parent":null,"label":"ADR #344 | proof-carrying phase transitions","kind":"root","bounds":[0,0,1800,1200],"summary":"meaning contract"}
+          {"type":"region","id":"world","parent":"adr344","label":"WorldEvidence","kind":"class","bounds":[0,0,240,130],"summary":"non-authority evidence"}
+          {"type":"region","id":"fact","parent":"adr344","label":"Fact","kind":"class","bounds":[0,0,260,190],"summary":"immutable record"}
+          {"type":"region","id":"fact.kind","parent":"fact","label":"kind / domain / subject / predicate / value","kind":"attribute","bounds":[0,0,240,40],"summary":"fact fields","order":0}
+          {"type":"region","id":"fact.source","parent":"fact","label":"source_reference / observed_at / digest","kind":"attribute","bounds":[0,0,240,40],"summary":"provenance","order":1}
+          {"type":"region","id":"condition","parent":"adr344","label":"Condition","kind":"class","bounds":[0,0,260,170],"summary":"immutable record"}
+          {"type":"region","id":"condition.fields","parent":"condition","label":"operator / value_type / effective_range","kind":"attribute","bounds":[0,0,240,40],"summary":"condition fields","order":0}
+          {"type":"region","id":"claim","parent":"adr344","label":"Claim","kind":"class","bounds":[0,0,280,210],"summary":"immutable record; Decision = Claim(role=decision)"}
+          {"type":"region","id":"claim.role","parent":"claim","label":"role: proposal | decision","kind":"attribute","bounds":[0,0,220,40],"summary":"role","order":0}
+          {"type":"region","id":"claim.fields","parent":"claim","label":"rationale / required_dependencies / relations[]","kind":"attribute","bounds":[0,0,250,40],"summary":"claim fields","order":1}
+          {"type":"region","id":"projection","parent":"adr344","label":"ProjectionResult","kind":"class","bounds":[0,0,280,190],"summary":"rebuildable non-authority"}
+          {"type":"region","id":"projection.fields","parent":"projection","label":"result / missing[] / unknown[] / conflict[]","kind":"attribute","bounds":[0,0,250,40],"summary":"projection result","order":0}
+          {"type":"region","id":"candidate","parent":"adr344","label":"CandidateData","kind":"state","bounds":[0,0,240,140],"summary":"immutable phase value"}
+          {"type":"region","id":"ready","parent":"adr344","label":"ReadyData","kind":"state","bounds":[0,0,240,140],"summary":"readiness proven"}
+          {"type":"region","id":"admitted","parent":"adr344","label":"AdmittedData","kind":"state","bounds":[0,0,240,140],"summary":"authority admitted"}
+          {"type":"region","id":"effect","parent":"adr344","label":"EffectResult","kind":"state","bounds":[0,0,240,140],"summary":"bounded external effect"}
+          {"type":"region","id":"observed","parent":"adr344","label":"ObservedData","kind":"state","bounds":[0,0,240,140],"summary":"observation appended"}
+          {"type":"region","id":"finding","parent":"adr344","label":"FindingData","kind":"state","bounds":[0,0,240,140],"summary":"candidate feedback"}
+          {"type":"region","id":"missing","parent":"adr344","label":"Missing","kind":"data","bounds":[0,0,180,90],"summary":"explicit result"}
+          {"type":"region","id":"admission-failure","parent":"adr344","label":"AdmissionFailure","kind":"data","bounds":[0,0,200,90],"summary":"explicit result"}
+          {"type":"region","id":"unknown","parent":"adr344","label":"ExplicitUnknown","kind":"data","bounds":[0,0,200,90],"summary":"explicit result"}
+          {"type":"relation","id":"r1","from":"world","to":"fact","kind":"dependency","label":"source_reference"}
+          {"type":"relation","id":"r2","from":"claim","to":"fact","kind":"dependency","label":"depends_on"}
+          {"type":"relation","id":"r3","from":"claim","to":"condition","kind":"dependency","label":"depends_on"}
+          {"type":"relation","id":"r4","from":"claim","to":"claim","kind":"dependency","label":"depends_on"}
+          {"type":"relation","id":"r5","from":"fact","to":"claim","kind":"dependency","label":"result_of [decision]"}
+          {"type":"relation","id":"r6","from":"fact","to":"fact","kind":"dependency","label":"supersedes / contradicts"}
+          {"type":"relation","id":"r7","from":"condition","to":"condition","kind":"dependency","label":"supersedes / contradicts"}
+          {"type":"relation","id":"r8","from":"fact","to":"projection","kind":"dependency","label":"project() input"}
+          {"type":"relation","id":"r9","from":"condition","to":"projection","kind":"dependency","label":"project() input"}
+          {"type":"relation","id":"r10","from":"claim","to":"projection","kind":"dependency","label":"project() input / rule"}
+          {"type":"relation","id":"r11","from":"projection","to":"candidate","kind":"flow","label":"candidate / gap"}
+          {"type":"relation","id":"r12","from":"candidate","to":"ready","kind":"transition","label":"refine() / Right"}
+          {"type":"relation","id":"r13","from":"candidate","to":"missing","kind":"transition","label":"refine() / Left"}
+          {"type":"relation","id":"r14","from":"ready","to":"admitted","kind":"transition","label":"admit() / Right"}
+          {"type":"relation","id":"r15","from":"ready","to":"admission-failure","kind":"transition","label":"admit() / Left"}
+          {"type":"relation","id":"r16","from":"admitted","to":"effect","kind":"transition","label":"execute()"}
+          {"type":"relation","id":"r17","from":"effect","to":"observed","kind":"transition","label":"observe() / observed"}
+          {"type":"relation","id":"r18","from":"effect","to":"unknown","kind":"transition","label":"observe() / unobserved"}
+          {"type":"relation","id":"r19","from":"observed","to":"fact","kind":"flow","label":"append observation Fact"}
+          {"type":"relation","id":"r20","from":"fact","to":"finding","kind":"flow","label":"observation / counterevidence"}
+          {"type":"relation","id":"r21","from":"projection","to":"finding","kind":"flow","label":"missing / unknown / conflict"}
+          {"type":"relation","id":"r22","from":"finding","to":"claim","kind":"flow","label":"propose() [role=proposal]"}
+          {"type":"relation","id":"r23","from":"claim","to":"claim","kind":"transition","label":"authority decision"}
+          {"type":"relation","id":"r24","from":"claim","to":"projection","kind":"flow","label":"reproject() [accept]"}
+          EOF
+          node --input-type=module <<'NODE' > "$RUNNER_TEMP/proof-urls.json"
+          import fs from 'node:fs/promises';
+          import { createUrlModuleUrl } from './packages/url-module/src/index.mjs';
+          const base = `${process.env.PAGES_BASE_URL}/adapters/graph/`;
+          const sources = {
+            self: 'packages/semantic-map/examples/graph/self-loop.jsonl',
+            mimic: 'packages/semantic-map/examples/graph/architecture-nested.jsonl',
+            adr344: process.env.RUNNER_TEMP + '/adr344.jsonl',
+          };
+          const urls = {};
+          for (const [name, source] of Object.entries(sources)) {
+            urls[name] = await createUrlModuleUrl({ base, fragment: 'data', value: await fs.readFile(source, 'utf8') });
+          }
+          console.log(JSON.stringify(urls));
+          NODE
+
+      - name: Install browser tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir 'playwright==1.57.0'
+          python3 -m playwright install --with-deps chromium
+
+      - name: Check deployed graph URLs
+        shell: bash
+        run: |
+          export PROOF_URLS_JSON="$RUNNER_TEMP/proof-urls.json"
+          export SCREENSHOT_DIR="$RUNNER_TEMP/graph218-screens"
+          mkdir -p "$SCREENSHOT_DIR"
+          python3 - <<'PY'
+          import json, os
+          from playwright.sync_api import sync_playwright
+
+          urls = json.load(open(os.environ['PROOF_URLS_JSON'], encoding='utf-8'))
+          expected = {
+              'self': ['Claim', 'role: proposal | decision'],
+              'adr344': ['Fact', 'Condition', 'Claim', 'ProjectionResult', 'CandidateData', 'ReadyData', 'AdmittedData', 'EffectResult', 'ObservedData', 'FindingData', 'Missing', 'AdmissionFailure', 'ExplicitUnknown'],
+              'mimic': ['見えるんです', 'UI / Graph', 'AWS | Amazon S3', 'input.json', 'output.json', 'mieru-dev', '処理', '意味を持たない'],
+          }
+          results = {}
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              for name, url in urls.items():
+                  page_errors, console_errors = [], []
+                  page = browser.new_page(viewport={'width': 1600, 'height': 1000})
+                  page.on('pageerror', lambda error, bag=page_errors: bag.append(str(error)))
+                  page.on('console', lambda message, bag=console_errors: bag.append(message.text) if message.type == 'error' else None)
+                  response = page.goto(url, wait_until='networkidle', timeout=60000)
+                  page.wait_for_selector('[data-status="pass"]', timeout=60000)
+                  page.wait_for_selector('svg', state='visible', timeout=60000)
+                  body = page.locator('body').inner_text()
+                  assert 'BLOCKED' not in body, f'{name}: BLOCKED: {body[:500]}'
+                  for token in expected[name]:
+                      assert token in body, f'{name}: missing {token!r}'
+                  assert response and response.status == 200, f'{name}: HTTP failure'
+                  assert not page_errors, f'{name}: page errors {page_errors}'
+                  assert not console_errors, f'{name}: console errors {console_errors}'
+                  svg = page.locator('svg').first.bounding_box()
+                  assert svg and svg['width'] > 0 and svg['height'] > 0, f'{name}: empty SVG'
+                  if name == 'self':
+                      assert page.locator('svg path').count() > 0, 'self: no SVG path for loop edge'
+                  if name == 'mimic':
+                      def box(token):
+                          loc = page.get_by_text(token, exact=False).first
+                          loc.wait_for(state='visible', timeout=30000)
+                          value = loc.bounding_box()
+                          assert value, f'mimic: no box for {token}'
+                          return value
+                      ui = box('UI / Graph')
+                      s3 = box('AWS | Amazon S3')
+                      dev = box('mieru-dev')
+                      assert ui['x'] < s3['x'] < dev['x'], (ui, s3, dev)
+                      for token in ['input.json', 'output.json', '処理', '意味を持たない']:
+                          box(token)
+                  page.screenshot(path=f"{os.environ['SCREENSHOT_DIR']}/{name}.png", full_page=True)
+                  results[name] = {'http': response.status, 'svg': [round(svg['width']), round(svg['height'])], 'status': 'PASS'}
+                  page.close()
+              browser.close()
+          print(json.dumps({'schema':'ui.graph218-loop-proof/1','status':'PASS','url':os.environ['PAGES_BASE_URL'],'results':results}, ensure_ascii=False))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graph218-loop-proof
+          path: |
+            ${{ runner.temp }}/proof-urls.json
+            ${{ runner.temp }}/graph218-screens/*.png
+          if-no-files-found: error
