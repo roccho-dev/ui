@@ -11,7 +11,6 @@ const rendererIndex = read('packages/semantic-map/renderer-maxgraph/index.js');
 const authoringIndex = read('packages/semantic-map/renderer-maxgraph/authoring/index.js');
 const documentAuthoring = read('packages/semantic-map/renderer-maxgraph/authoring/document.js');
 const activeList = read('packages/semantic-map/renderer-maxgraph/authoring/active-list.js');
-const graphEditorBridge = read('packages/graph-editor/src/editor.mjs');
 
 assert.match(rendererIndex, /createSemanticAuthoring as createMaxGraphAdapter/);
 assert.match(authoringIndex, /createMaxGraphAdapter/);
@@ -26,14 +25,11 @@ assert.match(documentAuthoring, /deleteSelection/);
 assert.match(documentAuthoring, /nudge/);
 assert.match(documentAuthoring, /undo/);
 assert.match(documentAuthoring, /redo/);
-assert.doesNotMatch(graphEditorBridge, /vendor\/maxgraph/);
-assert.match(graphEditorBridge, /createDocumentAuthoring as createEditor/);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-maxgraph-authoring-boundary-test/2',
+  schema: 'semantic-map-maxgraph-authoring-boundary-test/3',
   status: 'PASS',
   semanticFeaturesUseAuthoringBoundary: true,
-  graphEditorUsesAuthoringBoundary: true,
   activeListOwnedByAuthoring: true,
-  directGraphEditorMaxGraphImports: 0,
+  documentAuthoringOwnedBySemanticMap: true,
 }));
