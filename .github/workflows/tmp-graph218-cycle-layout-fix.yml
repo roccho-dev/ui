@@ -1,0 +1,105 @@
+name: Temporary graph218 cycle layout fix
+
+on:
+  push:
+    branches:
+      - feat/graph1-structured-graph-260914
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[graph218-cycle-layout]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Expand cyclic SCCs across ordered graph ranks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          layout = Path('packages/semantic-map/pattern/view-types/spatial-layout.js')
+          text = layout.read_text()
+          old = '''  const components = stronglyConnectedComponents(ordered, sortedAdjacency);
+  const componentByNode = new Map();
+  components.forEach((component, index) => component.forEach((node) => componentByNode.set(node, index)));
+  const componentKey = (index) => components[index][0];
+  const successors = new Map(components.map((_, index) => [index, new Set()]));
+  const predecessors = new Map(components.map((_, index) => [index, new Set()]));
+'''
+          new = '''  const components = stronglyConnectedComponents(ordered, sortedAdjacency);
+  const orderIndex = new Map(ordered.map((id, index) => [id, index]));
+  const orderedComponents = components.map((component) => Object.freeze(
+    [...component].sort((left, right) => orderIndex.get(left) - orderIndex.get(right)),
+  ));
+  const componentByNode = new Map();
+  orderedComponents.forEach((component, index) => component.forEach((node) => componentByNode.set(node, index)));
+  const componentKey = (index) => orderedComponents[index][0];
+  const successors = new Map(orderedComponents.map((_, index) => [index, new Set()]));
+  const predecessors = new Map(orderedComponents.map((_, index) => [index, new Set()]));
+'''
+          if old not in text:
+              raise SystemExit('component anchor missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              "  const indegree = new Map(components.map((_, index) => [index, predecessors.get(index).size]));\n  const ready = components.map((_, index) => index)\n",
+              "  const indegree = new Map(orderedComponents.map((_, index) => [index, predecessors.get(index).size]));\n  const ready = orderedComponents.map((_, index) => index)\n",
+              1,
+          )
+          text = text.replace(
+              "  const ranks = new Map(components.map((_, index) => [index, 0]));\n",
+              "  const ranks = new Map(orderedComponents.map((_, index) => [index, 0]));\n",
+              1,
+          )
+          text = text.replace(
+              "      ranks.set(target, Math.max(ranks.get(target), ranks.get(current) + 1));\n",
+              "      ranks.set(target, Math.max(ranks.get(target), ranks.get(current) + orderedComponents[current].length));\n",
+              1,
+          )
+          text = text.replace(
+              "  for (const componentIndex of topological) {\n    for (const node of components[componentIndex]) rankByNode.set(node, ranks.get(componentIndex));\n  }\n",
+              "  for (const componentIndex of topological) {\n    const baseRank = ranks.get(componentIndex);\n    orderedComponents[componentIndex].forEach((node, offset) => rankByNode.set(node, baseRank + offset));\n  }\n",
+              1,
+          )
+          layout.write_text(text)
+
+          fixture = Path('packages/semantic-map/examples/graph/architecture-nested.jsonl')
+          text = fixture.read_text()
+          text = text.replace('"id":"ui","parent":"mieru","label":"UI / Graph","kind":"group","bounds":[0,0,360,560],"summary":"UI side"', '"id":"ui","parent":"mieru","label":"UI / Graph","kind":"group","bounds":[0,0,360,560],"summary":"UI side","order":0', 1)
+          text = text.replace('"id":"s3","parent":"mieru","label":"AWS | Amazon S3","kind":"group","bounds":[0,0,420,620],"summary":"exchange storage"', '"id":"s3","parent":"mieru","label":"AWS | Amazon S3","kind":"group","bounds":[0,0,420,620],"summary":"exchange storage","order":1', 1)
+          text = text.replace('"id":"dev","parent":"mieru","label":"mieru-dev","kind":"group","bounds":[0,0,390,600],"summary":"generation service"', '"id":"dev","parent":"mieru","label":"mieru-dev","kind":"group","bounds":[0,0,390,600],"summary":"generation service","order":2', 1)
+          fixture.write_text(text)
+
+          test = Path('packages/semantic-map/tests/graph_semantics_test.mjs')
+          text = test.read_text()
+          anchor = "const writesOutput = architecture.relations.find((relation) => relation.id === 'a3');\n"
+          addition = "const architectureColumns = ['ui', 's3', 'dev'].map((id) => architecture.representations.find((item) => item.sourceRegionId === id));\nassert.ok(architectureColumns.every(Boolean), 'architecture groups must render');\nassert.ok(architectureColumns[0].bounds.x < architectureColumns[1].bounds.x && architectureColumns[1].bounds.x < architectureColumns[2].bounds.x, 'cyclic architecture must preserve ordered columns');\n"
+          if addition not in text:
+              if anchor not in text:
+                  raise SystemExit('architecture relation anchor missing')
+              text = text.replace(anchor, addition + anchor, 1)
+          test.write_text(text)
+          PY
+
+      - name: Graph gates
+        run: |
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+
+      - name: Commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name roccho
+          git config user.email 40359643+roccho-dev@users.noreply.github.com
+          git add \
+            packages/semantic-map/pattern/view-types/spatial-layout.js \
+            packages/semantic-map/examples/graph/architecture-nested.jsonl \
+            packages/semantic-map/tests/graph_semantics_test.mjs
+          git commit -m '[graph218-cycle-layout] fix: preserve ordered columns in cyclic graphs'
+          git push origin HEAD:feat/graph1-structured-graph-260914
