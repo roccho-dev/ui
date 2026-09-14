@@ -3,7 +3,6 @@ import path from 'node:path';
 import { canonicalJson, createUrlModuleUrl } from '../../../packages/url-module/src/index.mjs';
 import { createAdapter as createControlAdapter } from '../adapters/control.mjs';
 import { createAdapter as createGraphAdapter } from '../adapters/graph.mjs';
-import { createAdapter as createGraphEditorAdapter } from '../adapters/graph-editor.mjs';
 import { createAdapter as createMapAdapter } from '../adapters/map.mjs';
 import { createAdapter as createPresentationAdapter } from '../adapters/presentation.mjs';
 import { createAdapter as createSeqAdapter } from '../adapters/seq.mjs';
@@ -13,7 +12,6 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/a2ui-browser/src',
   'packages/control',
   'packages/core-port/src',
-  'packages/graph-editor',
   'packages/presentation',
   'packages/semantic-map/domain',
   'packages/semantic-map/feature-runtime.mjs',
@@ -29,7 +27,7 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
 ]);
 
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
-  const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createPresentationAdapter(), createControlAdapter(), createGraphEditorAdapter()];
+  const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createPresentationAdapter(), createControlAdapter()];
   if (new Set(adapters.map(adapter => adapter.id)).size !== adapters.length) throw new Error('artifact-adapters: duplicate id');
 
   await fs.copyFile(path.join(appRoot, 'src', 'adapter.mjs'), path.join(outputRoot, 'adapter.mjs'));
