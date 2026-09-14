@@ -100,7 +100,20 @@ def main() -> None:
                     if state != "pass":
                         status = page.locator("#status").inner_text()
                         proof = page.evaluate("() => globalThis.artifactAdapterProof ?? null")
-                        raise AssertionError(f"{feature} adapter failed: {status}; proof={proof}")
+                        outer = page.locator(f"iframe[data-adapter-frame='{feature}']")
+                        shell_debug = None
+                        if outer.count():
+                            shell = child_frame(outer)
+                            shell_debug = shell.evaluate("""() => ({
+                              href: location.href,
+                              proof: globalThis.artifactShellProof ?? null,
+                              status: document.querySelector('#status')?.textContent ?? null,
+                              surfaceFrames: [...document.querySelectorAll('#surface iframe')].map(frame => ({ src: frame.src, package: frame.dataset.package ?? null })),
+                            })""")
+                        raise AssertionError(
+                            f"{feature} adapter failed: {status}; proof={proof}; shell={shell_debug}; "
+                            f"pageErrors={errors[-8:]}; requests={requests[-20:]}"
+                        )
                     outer = page.locator(f"iframe[data-adapter-frame='{feature}']")
                     outer.wait_for(state="visible", timeout=30_000)
                     shell = child_frame(outer)
