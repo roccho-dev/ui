@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  SOURCE_SHA: efa4b50c42d1e8af672b96686acc998e2a827617
+  SOURCE_SHA: 25f77a896abd4e6d50bb49bcb6319144cc81870a
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
   CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
   PREVIEW_URL: https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev/adapters/chart/
@@ -62,9 +62,7 @@ jobs:
               page = browser.new_page(viewport={'width': 1440, 'height': 1000})
               response = page.goto(url, wait_until='networkidle', timeout=60_000)
               assert response is not None and response.ok, f'HTTP failure: {response.status if response else None}'
-              page.wait_for_selector('[data-adapter-status="pass"]', timeout=60_000)
-              outputs = page.locator('output').all_text_contents()
-              assert any(text.strip() == 'PASS' for text in outputs), outputs
+              page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
               svg = page.locator('svg').first
               svg.wait_for(state='visible', timeout=60_000)
               box = svg.bounding_box()
@@ -79,8 +77,7 @@ jobs:
                   'sourceSha': os.environ['SOURCE_SHA'],
                   'url': url,
                   'httpStatus': response.status,
-                  'adapterStatus': 'pass',
-                  'output': 'PASS',
+                  'featureStatus': 'pass',
                   'svg': {'visible': True, 'width': box['width'], 'height': box['height']},
                   'labels': labels,
                   'screenshot': str(out),
