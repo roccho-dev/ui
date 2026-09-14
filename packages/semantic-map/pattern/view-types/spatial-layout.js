@@ -159,7 +159,8 @@ function graphRanks(domain, parentId, childIds) {
   return rankByNode;
 }
 
-export function createGraphLayout(domain) {
+export function createGraphLayout(domain, { direction = 'LR' } = {}) {
+  if (direction !== 'LR' && direction !== 'TB') throw new Error(`graph-layout: unsupported direction ${direction}`);
   const measured = new Map();
 
   function measure(id) {
@@ -186,29 +187,56 @@ export function createGraphLayout(domain) {
     const children = new Map(childIds.map((childId) => [childId, measure(childId)]));
     const rankByNode = graphRanks(domain, id, childIds);
     const ranks = [...new Set(rankByNode.values())].sort((a, b) => a - b);
-    const columns = ranks.map((rank) => {
+    const bands = ranks.map((rank) => {
       const ids = childIds.filter((childId) => rankByNode.get(childId) === rank);
-      const width = Math.max(...ids.map((childId) => children.get(childId).width));
-      const height = ids.reduce((sum, childId) => sum + children.get(childId).height, 0)
-        + GRAPH_ROW_GAP * Math.max(0, ids.length - 1);
+      if (direction === 'LR') {
+        const width = Math.max(...ids.map((childId) => children.get(childId).width));
+        const height = ids.reduce((sum, childId) => sum + children.get(childId).height, 0)
+          + GRAPH_ROW_GAP * Math.max(0, ids.length - 1);
+        return { rank, ids, width, height };
+      }
+      const width = ids.reduce((sum, childId) => sum + children.get(childId).width, 0)
+        + GRAPH_COLUMN_GAP * Math.max(0, ids.length - 1);
+      const height = Math.max(...ids.map((childId) => children.get(childId).height));
       return { rank, ids, width, height };
     });
-    const contentWidth = columns.reduce((sum, column) => sum + column.width, 0)
-      + GRAPH_COLUMN_GAP * Math.max(0, columns.length - 1);
-    const contentHeight = Math.max(...columns.map((column) => column.height));
+
+    const offsets = new Map();
+    let contentWidth;
+    let contentHeight;
+
+    if (direction === 'LR') {
+      contentWidth = bands.reduce((sum, band) => sum + band.width, 0)
+        + GRAPH_COLUMN_GAP * Math.max(0, bands.length - 1);
+      contentHeight = Math.max(...bands.map((band) => band.height));
+      let x = GRAPH_PADDING_X;
+      for (const band of bands) {
+        let y = headerHeight + GRAPH_PADDING_Y + (contentHeight - band.height) / 2;
+        for (const childId of band.ids) {
+          const child = children.get(childId);
+          offsets.set(childId, Object.freeze({ x: x + (band.width - child.width) / 2, y }));
+          y += child.height + GRAPH_ROW_GAP;
+        }
+        x += band.width + GRAPH_COLUMN_GAP;
+      }
+    } else {
+      contentWidth = Math.max(...bands.map((band) => band.width));
+      contentHeight = bands.reduce((sum, band) => sum + band.height, 0)
+        + GRAPH_ROW_GAP * Math.max(0, bands.length - 1);
+      let y = headerHeight + GRAPH_PADDING_Y;
+      for (const band of bands) {
+        let x = GRAPH_PADDING_X + (contentWidth - band.width) / 2;
+        for (const childId of band.ids) {
+          const child = children.get(childId);
+          offsets.set(childId, Object.freeze({ x, y: y + (band.height - child.height) / 2 }));
+          x += child.width + GRAPH_COLUMN_GAP;
+        }
+        y += band.height + GRAPH_ROW_GAP;
+      }
+    }
+
     const width = Math.max(GRAPH_LEAF_WIDTH, GRAPH_PADDING_X * 2 + contentWidth);
     const height = Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y * 2 + contentHeight);
-    const offsets = new Map();
-    let x = GRAPH_PADDING_X;
-    for (const column of columns) {
-      let y = headerHeight + GRAPH_PADDING_Y + (contentHeight - column.height) / 2;
-      for (const childId of column.ids) {
-        const child = children.get(childId);
-        offsets.set(childId, Object.freeze({ x: x + (column.width - child.width) / 2, y }));
-        y += child.height + GRAPH_ROW_GAP;
-      }
-      x += column.width + GRAPH_COLUMN_GAP;
-    }
     const result = Object.freeze({ width, height, offsets });
     measured.set(id, result);
     return result;
@@ -240,5 +268,6 @@ export function createGraphLayout(domain) {
     rootBounds: bounds.get(rootId),
     forceExpanded: new Set(),
     geometryEditable: false,
+    direction,
   });
 }
