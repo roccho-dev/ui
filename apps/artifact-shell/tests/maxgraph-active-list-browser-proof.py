@@ -34,6 +34,17 @@ def child_frame(locator):
     return frame
 
 
+def poll(read, accept, message: str, timeout: float = 30.0):
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() < deadline:
+        last = read()
+        if accept(last):
+            return last
+        time.sleep(0.05)
+    raise AssertionError(f"{message}: {last!r}")
+
+
 def submit_request(page, request: dict[str, object]) -> None:
     payload = json.dumps(request, ensure_ascii=False)
     page.evaluate(
@@ -80,11 +91,22 @@ def main() -> None:
             for name, pattern in (("graph.pass.json", "graph/1"), ("map.pass.json", "map/1"), ("seq.pass.json", "seq/1")):
                 current = fixture(name)
                 submit_request(page, current["request"])
-                page.wait_for_function("document.querySelector('#status')?.dataset.state === 'pass'", timeout=30_000)
+                poll(
+                    lambda: status.get_attribute("data-state"),
+                    lambda state: state in {"pass", "fail"},
+                    f"artifact shell did not settle for {pattern}",
+                )
+                assert status.get_attribute("data-state") == "pass", status.text_content()
                 frame_element = page.locator("#surface iframe[data-package='semantic-map']")
                 frame_element.wait_for(state="attached", timeout=30_000)
                 child = child_frame(frame_element)
-                child.wait_for_function("globalThis.semanticMapSite?.ready === true")
+                poll(
+                    lambda: child.evaluate("() => globalThis.semanticMapSite ? { ready: semanticMapSite.ready, error: semanticMapSite.error ?? null } : null"),
+                    lambda value: isinstance(value, dict) and value.get("ready") in {True, False},
+                    f"semantic site did not settle for {pattern}",
+                )
+                site = child.evaluate("() => ({ ready: semanticMapSite.ready, error: semanticMapSite.error ?? null })")
+                assert site["ready"] is True, site["error"]
                 child.locator("[data-maxgraph-active-list]").wait_for(state="visible", timeout=30_000)
                 region_button = child.locator("[data-maxgraph-active-list] button[data-active-key^='region:']").first
                 region_button.wait_for(state="visible", timeout=30_000)
@@ -92,9 +114,10 @@ def main() -> None:
                 assert active_key and active_key.startswith("region:")
                 region_id = active_key.split(":", 1)[1]
                 region_button.click()
-                child.wait_for_function(
-                    "([id]) => semanticMapSite.editor.adapter.selectionSnapshot().regionIds.includes(id)",
-                    arg=[region_id],
+                poll(
+                    lambda: child.evaluate("() => semanticMapSite.editor.adapter.selectionSnapshot().regionIds"),
+                    lambda ids: region_id in ids,
+                    f"active-list selection did not reach maxGraph for {pattern}",
                 )
                 snapshot = child.evaluate("() => semanticMapSite.editor.adapter.activeList.snapshot()")
                 assert snapshot["visible"] is True
