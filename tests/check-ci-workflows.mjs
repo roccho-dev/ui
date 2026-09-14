@@ -47,7 +47,7 @@ assert.deepEqual(adapterArtifact.proof_inputs, {
 });
 assert.deepEqual(adapterArtifact.proof_execution, {
   mode: "relevant_paths_or_workflow_dispatch",
-  unconditional_static_guard: "npm run check",
+  unconditional_static_guard: "npm run check:base + npm run check:artifact-runtime-core + npm run check:semantic-map-runtime + npm run check:decision-packet-runtime",
   fail_closed: true,
   scheduled: false,
   relevant_paths: [
@@ -137,11 +137,18 @@ assert.match(artifactText, /nix build --print-build-logs \.#readme-artifact/);
 assert.match(artifactText, /actions\/upload-artifact@v4/);
 assert.doesNotMatch(artifactText, /npm test|node scripts\/build-generic-a2ui-preview/);
 
+const packageJson = JSON.parse(read("package.json"));
+assert.equal(packageJson.scripts.check, "npm run check:base && npm run check:artifact-runtime");
+assert.equal(packageJson.scripts["check:artifact-runtime"], "npm run check:artifact-runtime-core && npm run check:semantic-map-runtime && npm run check:decision-packet-runtime");
 const adapterText = read(adapterArtifact.path);
 assert.match(adapterText, /name:\s*A2UI adapter artifacts/);
 assert.match(adapterText, /github\.event\.pull_request\.head\.sha \|\| github\.sha/);
 assert.match(adapterText, /persist-credentials:\s*false/);
-assert.match(adapterText, /- name: Run complete UI checks\n\s+run: npm run check/);
+assert.match(adapterText, /- name: Run bounded base UI checks\n\s+run: npm run check:base/);
+assert.match(adapterText, /- name: Run artifact runtime core checks\n\s+run: npm run check:artifact-runtime-core/);
+assert.match(adapterText, /- name: Run semantic map runtime checks\n\s+run: npm run check:semantic-map-runtime/);
+assert.match(adapterText, /- name: Run decision packet runtime checks\n\s+run: npm run check:decision-packet-runtime/);
+assert.doesNotMatch(adapterText, /run: npm run check\s*$/m);
 assert.match(adapterText, /playwright==1\.57\.0/);
 assert.match(adapterText, /playwright install --with-deps chromium/);
 assert.match(adapterText, /- name: Select heavy SSG server proof scope/);
