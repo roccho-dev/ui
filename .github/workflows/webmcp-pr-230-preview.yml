@@ -84,7 +84,9 @@ jobs:
                 const tools = await document.modelContext.getTools();
                 const tool = tools.find(candidate => candidate.name === name);
                 if (!tool) throw new Error(`missing WebMCP tool: ${name}`);
-                return document.modelContext.executeTool(tool, arguments);
+                const raw = await document.modelContext.executeTool(tool, JSON.stringify(arguments));
+                if (typeof raw !== 'string') return raw;
+                try { return JSON.parse(raw); } catch { return raw; }
               }""", {'name': name, 'arguments': arguments})
 
           with sync_playwright() as p:
