@@ -18,16 +18,22 @@ const exactKeys = (value, keys, name) => {
 };
 
 const parsePresentation = (record, line) => {
-  exactKeys(record, ['type', 'schema', 'a2ui'], `line ${line}`);
+  exactKeys(record, ['type', 'schema', 'profileId', 'a2ui'], `line ${line}`);
   invariant(record.type === 'presentation', `line ${line}.type must be presentation`);
   invariant(record.schema === BUSINESS_MODEL_PRESENTATION_A2UI_SCHEMA, `line ${line}.schema must be ${BUSINESS_MODEL_PRESENTATION_A2UI_SCHEMA}`);
-  exactKeys(record.a2ui, ['catalogId', 'surfaceId', 'profileId'], `line ${line}.a2ui`);
+  exactKeys(record.a2ui, ['version', 'createSurface'], `line ${line}.a2ui`);
+  exactKeys(record.a2ui.createSurface, ['surfaceId', 'catalogId', 'sendDataModel'], `line ${line}.a2ui.createSurface`);
+  invariant(record.a2ui.createSurface.sendDataModel === true, `line ${line}.a2ui.createSurface.sendDataModel must be true`);
   return Object.freeze({
     schema: record.schema,
+    profileId: text(record.profileId, `line ${line}.profileId`),
     a2ui: Object.freeze({
-      catalogId: text(record.a2ui.catalogId, `line ${line}.a2ui.catalogId`),
-      surfaceId: text(record.a2ui.surfaceId, `line ${line}.a2ui.surfaceId`),
-      profileId: text(record.a2ui.profileId, `line ${line}.a2ui.profileId`),
+      version: text(record.a2ui.version, `line ${line}.a2ui.version`),
+      createSurface: Object.freeze({
+        surfaceId: text(record.a2ui.createSurface.surfaceId, `line ${line}.a2ui.createSurface.surfaceId`),
+        catalogId: text(record.a2ui.createSurface.catalogId, `line ${line}.a2ui.createSurface.catalogId`),
+        sendDataModel: true,
+      }),
     }),
   });
 };
