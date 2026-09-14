@@ -28,4 +28,4 @@
 {"type":"transition","id":"tr-12","from":"act-t1-customer","to":"act-t2-provider","kind":"next","label":"入力から商品"}
 {"type":"transition","id":"tr-23","from":"act-t2-provider","to":"act-t3-customer","kind":"next","label":"商品から成果"}
 {"type":"transition","id":"tr-3n","from":"act-t3-customer","to":"act-tn-provider","kind":"next","label":"取引から反復"}
-{"type":"presentation","schema":"business-model-presentation-a2ui/1","a2ui":{"catalogId":"urn:roccho:a2ui:catalog:business-model-profiled:1","surfaceId":"business-model-profiled","profileId":"business-model/1"}}
+{"type":"presentation","schema":"business-model-presentation-a2ui/1","profileId":"business-model/1","a2ui":{"version":"v0.9","createSurface":{"surfaceId":"business-model-profiled","catalogId":"urn:roccho:a2ui:catalog:business-model-profiled:1","sendDataModel":true}}}
