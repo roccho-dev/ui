@@ -1,3 +1,16 @@
+const wait = async (scope, predicate, label, timeoutMs = 15_000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise(resolve => scope.setTimeout(resolve, 50));
+  }
+  throw new Error(`artifact-adapter: ${label} timed out`);
+};
+const visible = element => {
+  const box = element.getBoundingClientRect();
+  return box.width > 0 && box.height > 0;
+};
+
 export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
   const document = scope.document;
   const mount = document.querySelector("#adapter");
@@ -6,11 +19,13 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
   const response = await scope.fetch(new URL("./adapter.json", scope.location.href), { cache: "no-store", credentials: "omit" });
   if (!response.ok) throw new Error(`artifact-adapter: adapter.json returned ${response.status}`);
   const adapter = await response.json();
-  if (adapter.schema !== "ui-adapter/1" || adapter.kind !== "invocation") throw new Error("artifact-adapter: invocation adapter required");
+  if (adapter.schema !== "ui-adapter/1" || !["invocation", "local-page"].includes(adapter.kind)) throw new Error("artifact-adapter: unsupported adapter");
+  const target = new URL(adapter.href, scope.location.href);
+  if (target.origin !== scope.location.origin) throw new Error("artifact-adapter: same-origin target required");
   document.title = `${adapter.label} · UI`;
   document.querySelector("#label").textContent = adapter.label;
   const iframe = document.createElement("iframe");
-  iframe.src = adapter.href;
+  iframe.src = target.href;
   iframe.title = adapter.label;
   iframe.dataset.adapterFrame = adapter.id;
   mount.replaceChildren(iframe);
@@ -18,11 +33,21 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
     iframe.addEventListener("load", resolve, { once: true });
     iframe.addEventListener("error", () => reject(new Error(`artifact-adapter: ${adapter.id} frame failed`)), { once: true });
   });
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline && iframe.contentWindow?.artifactShellProof?.outcome?.result?.status !== "PASS") await new Promise(resolve => scope.setTimeout(resolve, 50));
-  if (iframe.contentWindow?.artifactShellProof?.outcome?.result?.status !== "PASS") throw new Error(`artifact-adapter: ${adapter.id} invocation did not pass`);
-  const box = iframe.getBoundingClientRect();
-  if (box.width <= 0 || box.height <= 0) throw new Error(`artifact-adapter: ${adapter.id} frame is not visible`);
+
+  if (adapter.kind === "invocation") {
+    await wait(scope, () => iframe.contentWindow?.artifactShellProof?.outcome?.result?.status === "PASS", `${adapter.id} invocation`);
+  } else {
+    const selectors = Array.isArray(adapter.proof?.selectors) ? adapter.proof.selectors : [];
+    if (selectors.length === 0) throw new Error(`artifact-adapter: ${adapter.id} proof selectors required`);
+    await wait(scope, () => {
+      const child = iframe.contentDocument;
+      if (!child) return false;
+      if (adapter.proof.rootStatus && child.documentElement.dataset.status !== adapter.proof.rootStatus) return false;
+      return selectors.every(selector => child.querySelector(selector));
+    }, `${adapter.id} feature UI`, 20_000);
+  }
+
+  if (!visible(iframe)) throw new Error(`artifact-adapter: ${adapter.id} frame is not visible`);
   document.body.dataset.adapterStatus = "pass";
   status.textContent = "PASS";
   scope.artifactAdapterProof = Object.freeze({ adapter, status: "PASS" });

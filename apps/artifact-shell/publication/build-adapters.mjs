@@ -8,6 +8,7 @@ import { createAdapter as createGraphEditorAdapter } from "../adapters/graph-edi
 import { createAdapter as createMapAdapter } from "../adapters/map.mjs";
 import { createAdapter as createPresentationAdapter } from "../adapters/presentation.mjs";
 import { createAdapter as createSeqAdapter } from "../adapters/seq.mjs";
+import { buildFeaturePage } from "./build-feature-page.mjs";
 
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
   const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createPresentationAdapter(), createControlAdapter(), createGraphEditorAdapter()];
@@ -21,10 +22,16 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     if (!compiler) throw new Error(`artifact-adapters: compiler missing: ${adapter.comptime}`);
     const sourcePath = path.join(repoRoot, adapter.source);
     const source = adapter.source.endsWith(".jsonl") ? await fs.readFile(sourcePath, "utf8") : JSON.parse(await fs.readFile(sourcePath, "utf8"));
-    const request = await compiler(source);
-    if (request?.schema !== "artifact-invocation/2") throw new Error(`artifact-adapters: ${adapter.id} compiler did not return artifact-invocation/2`);
-    const encoded = new URL(await createUrlModuleUrl({ base: "https://artifact-shell.invalid/index.html", fragment: "invoke", value: request }));
-    const published = Object.freeze({ ...adapter, href: `../../index.html${encoded.hash}`, kind: "invocation", schema: "ui-adapter/1" });
+    const compiled = await compiler(source);
+    let published;
+    if (adapter.page === true) {
+      const feature = await buildFeaturePage({ adapter, compiled, outputRoot, repoRoot });
+      published = Object.freeze({ href: feature.href, id: adapter.id, kind: "local-page", label: adapter.label, proof: feature.proof, schema: "ui-adapter/1" });
+    } else {
+      if (compiled?.schema !== "artifact-invocation/2") throw new Error(`artifact-adapters: ${adapter.id} compiler did not return artifact-invocation/2`);
+      const encoded = new URL(await createUrlModuleUrl({ base: "https://artifact-shell.invalid/index.html", fragment: "invoke", value: compiled }));
+      published = Object.freeze({ href: `../../index.html${encoded.hash}`, id: adapter.id, kind: "invocation", label: adapter.label, schema: "ui-adapter/1" });
+    }
     const root = path.join(outputRoot, "adapters", adapter.id);
     await fs.mkdir(root, { recursive: true });
     await fs.writeFile(path.join(root, "adapter.json"), `${canonicalJson(published)}\n`);

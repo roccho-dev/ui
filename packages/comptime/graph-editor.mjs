@@ -1,6 +1,6 @@
-import { compileSemanticMap } from "./semantic-map.mjs";
+import { normalizeDocument, stringifyDocument } from "../graph-editor/src/model.mjs";
 
 export const compileGraphEditor = example => {
-  const request = compileSemanticMap(example);
-  return Object.freeze({ ...request, id: "request.example.graph-editor" });
+  const document = normalizeDocument(example);
+  return Object.freeze({ schema: "ui-graph-editor-example/1", document, text: stringifyDocument(document) });
 };

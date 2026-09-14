@@ -1,1 +1,1 @@
-export const createAdapter = () => Object.freeze({ comptime: "control", id: "control", label: "control", source: "examples/control/example.jsonl" });
+export const createAdapter = () => Object.freeze({ comptime: "control", id: "control", label: "control", page: true, source: "examples/control/example.jsonl" });

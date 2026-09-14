@@ -3,3 +3,5 @@
 {"id":"map","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"map"}
 {"id":"seq","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"seq"}
 {"id":"presentation","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"presentation"}
+{"id":"control","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"control"}
+{"id":"graph-editor","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"graph-editor"}

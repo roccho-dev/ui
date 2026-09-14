@@ -7,6 +7,9 @@ on:
       - apps/artifact-shell/**
       - examples/**
       - packages/comptime/**
+      - packages/control/**
+      - packages/graph-editor/**
+      - packages/presentation/**
   workflow_dispatch:
 
 permissions:
@@ -43,9 +46,9 @@ jobs:
           test ! -e apps/artifact-shell/adapters/shell.mjs
           test ! -e apps/artifact-shell/adapters/control-reference.mjs
           test ! -e apps/artifact-shell/adapters/graph-reference.mjs
-          ! grep -R -nE '(^|[^[:alnum:]_])class[[:space:]]+[[:alnum:]_$]+' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime
-          ! grep -R -nE 'export[[:space:]]+default' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime
-          for file in apps/artifact-shell/adapters/*.mjs apps/artifact-shell/publication/*.mjs apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime/*.mjs; do node --check "$file"; done
+          ! grep -R -nE '(^|[^[:alnum:]_])class[[:space:]]+[[:alnum:]_$]+' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime packages/control/src packages/graph-editor/src packages/presentation/compiler packages/presentation/ui/main.mjs
+          ! grep -R -nE 'export[[:space:]]+default' apps/artifact-shell/adapters apps/artifact-shell/publication apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime packages/control/src packages/graph-editor/src packages/presentation/compiler packages/presentation/ui/main.mjs
+          for file in apps/artifact-shell/adapters/*.mjs apps/artifact-shell/publication/*.mjs apps/artifact-shell/src/adapter.mjs apps/artifact-shell/mode.mjs packages/comptime/*.mjs packages/control/src/*.mjs packages/graph-editor/src/*.mjs packages/presentation/compiler/*.mjs packages/presentation/ui/main.mjs; do node --check "$file"; done
 
       - name: Build publication once
         shell: bash
@@ -60,6 +63,11 @@ jobs:
             test -s "dist/adapters/$adapter/adapter.json"
           done
           test ! -e dist/adapters/shell
+          for feature in presentation control graph-editor; do test -s "dist/features/$feature/index.html"; done
+          test -s dist/features/presentation/payload.json
+          test -s dist/features/control/control.jsonl
+          test -s dist/features/graph-editor/document.json
+          ! grep -R -nE 'stg-mobile-agent|raw\.githubusercontent\.com' dist/adapters/presentation dist/adapters/control dist/adapters/graph-editor dist/features/presentation dist/features/control dist/features/graph-editor
 
       - name: Deploy preview and exact-byte readback
         id: deploy
@@ -73,7 +81,7 @@ jobs:
             --project-name "$CLOUDFLARE_PAGES_PROJECT" \
             --branch "$PREVIEW_BRANCH" \
             --commit-hash "$head_sha" \
-            --commit-message 'Artifact Shell example adapter proof' 2>&1)"
+            --commit-message 'Artifact Shell real feature proof' 2>&1)"
           printf '%s\n' "$output"
           deployment="$(printf '%s\n' "$output" | grep -Eo 'https://[A-Za-z0-9.-]+\.pages\.dev' | head -n1)"
           test -n "$deployment"
@@ -83,7 +91,7 @@ jobs:
             cmp "dist/$path" "$RUNNER_TEMP/remote-$path"
           done
 
-      - name: Prove shell and six example adapters in real Chrome
+      - name: Prove shell and six adapters in real Chrome
         shell: bash
         env:
           DEPLOYMENT: ${{ steps.deploy.outputs.deployment }}
@@ -99,11 +107,29 @@ jobs:
           for adapter in "${adapters[@]}"; do
             echo "adapter=$adapter"
             output="$RUNNER_TEMP/adapter-$adapter.html"
-            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=20000 --dump-dom "$DEPLOYMENT/adapters/$adapter/" > "$output"
+            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=25000 --dump-dom "$DEPLOYMENT/adapters/$adapter/" > "$output"
             grep -q 'data-adapter-status="pass"' "$output"
             grep -q '>PASS</output>' "$output"
           done
-          printf '%s\n' '{"schema":"ui.adapter-browser-proof/3","status":"PASS","adapters":["graph","map","seq","presentation","control","graph-editor"]}'
+
+          presentation="$RUNNER_TEMP/feature-presentation.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=25000 --dump-dom "$DEPLOYMENT/features/presentation/" > "$presentation"
+          grep -q 'data-status="pass"' "$presentation"
+          grep -q 'class="profiled-app"' "$presentation"
+          grep -q 'class="seq-svg"' "$presentation"
+
+          control="$RUNNER_TEMP/feature-control.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "$DEPLOYMENT/features/control/" > "$control"
+          grep -q 'id="tree"' "$control"
+          grep -q 'class="node"' "$control"
+
+          graph_editor="$RUNNER_TEMP/feature-graph-editor.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=25000 --dump-dom "$DEPLOYMENT/features/graph-editor/" > "$graph_editor"
+          grep -q 'class="roccho-graph-editor"' "$graph_editor"
+          grep -q 'roccho-graph-editor__canvas' "$graph_editor"
+          grep -q '<svg' "$graph_editor"
+          grep -q 'roccho-graph-editor__projection' "$graph_editor"
+          printf '%s\n' '{"schema":"ui.adapter-browser-proof/4","status":"PASS","adapters":["graph","map","seq","presentation","control","graph-editor"],"realFeatures":["presentation","control","graph-editor"]}'
 
       - name: Emit proof receipt
         shell: bash
@@ -117,12 +143,13 @@ jobs:
           catalog = json.loads(pathlib.Path(sys.argv[2]).read_text())
           manifest = pathlib.Path(sys.argv[3]).read_bytes()
           print(json.dumps({
-              "schema": "ui.artifact-shell-pages-proof/3",
+              "schema": "ui.artifact-shell-pages-proof/4",
               "status": "PASS",
               "deployment": deployment,
               "project": "stg-artifact-runtime",
               "mode": "preview-examples-only",
               "adapters": ["graph", "map", "seq", "presentation", "control", "graph-editor"],
+              "realFeatures": ["presentation", "control", "graph-editor"],
               "capabilities": [f"{x['capability']['id']}@{x['capability']['version']}" for x in catalog["capabilities"]],
               "artifact_manifest_sha256": hashlib.sha256(manifest).hexdigest(),
           }, separators=(",", ":")))
