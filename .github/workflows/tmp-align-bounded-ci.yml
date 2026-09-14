@@ -1,0 +1,74 @@
+name: Temporary align bounded CI contracts
+
+on:
+  push:
+    paths:
+      - .github/workflows/tmp-align-bounded-ci.yml
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Align CI intent and guards
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          bounded = "npm run check:base + npm run check:artifact-runtime-core + npm run check:semantic-map-runtime + npm run check:decision-packet-runtime"
+
+          intent_path = Path("ci.intent.v1.jsonl")
+          rows = [json.loads(line) for line in intent_path.read_text().splitlines() if line.strip()]
+          for row in rows:
+              if row.get("kind") == "ci.intent.v1" and row.get("role") == "adapter_artifact_exporter":
+                  suffix = row["entrypoint"].split("change-scoped Wrangler/Caddy proof", 1)[1]
+                  row["entrypoint"] = bounded + " + change-scoped Wrangler/Caddy proof" + suffix
+                  row["proof_execution"]["unconditional_static_guard"] = bounded
+          intent_path.write_text("\n".join(json.dumps(row, separators=(",", ":"), ensure_ascii=False) for row in rows) + "\n")
+
+          ci_path = Path("tests/check-ci-workflows.mjs")
+          ci = ci_path.read_text()
+          ci = ci.replace(
+              '  unconditional_static_guard: "npm run check",',
+              '  unconditional_static_guard: "npm run check:base + npm run check:artifact-runtime-core + npm run check:semantic-map-runtime + npm run check:decision-packet-runtime",'
+          )
+          ci = ci.replace(
+              'const adapterText = read(adapterArtifact.path);',
+              'const packageJson = JSON.parse(read("package.json"));\nassert.equal(packageJson.scripts.check, "npm run check:base && npm run check:artifact-runtime");\nassert.equal(packageJson.scripts["check:artifact-runtime"], "npm run check:artifact-runtime-core && npm run check:semantic-map-runtime && npm run check:decision-packet-runtime");\nconst adapterText = read(adapterArtifact.path);'
+          )
+          ci = ci.replace(
+              'assert.match(adapterText, /- name: Run complete UI checks\\n\\s+run: npm run check/);',
+              'assert.match(adapterText, /- name: Run bounded base UI checks\\n\\s+run: npm run check:base/);\nassert.match(adapterText, /- name: Run artifact runtime core checks\\n\\s+run: npm run check:artifact-runtime-core/);\nassert.match(adapterText, /- name: Run semantic map runtime checks\\n\\s+run: npm run check:semantic-map-runtime/);\nassert.match(adapterText, /- name: Run decision packet runtime checks\\n\\s+run: npm run check:decision-packet-runtime/);\nassert.doesNotMatch(adapterText, /run: npm run check\\s*$/m);'
+          )
+          ci_path.write_text(ci)
+
+          yagni_path = Path("tests/check-ssg-hot-refresh-yagni.mjs")
+          yagni = yagni_path.read_text()
+          yagni = yagni.replace(
+              'assert.match(workflow, /- name: Run complete UI checks\\n\\s+run: npm run check/);',
+              'assert.equal(packageJson.scripts.check, "npm run check:base && npm run check:artifact-runtime");\nassert.equal(packageJson.scripts["check:artifact-runtime"], "npm run check:artifact-runtime-core && npm run check:semantic-map-runtime && npm run check:decision-packet-runtime");\nassert.match(workflow, /- name: Run bounded base UI checks\\n\\s+run: npm run check:base/);\nassert.match(workflow, /- name: Run artifact runtime core checks\\n\\s+run: npm run check:artifact-runtime-core/);\nassert.match(workflow, /- name: Run semantic map runtime checks\\n\\s+run: npm run check:semantic-map-runtime/);\nassert.match(workflow, /- name: Run decision packet runtime checks\\n\\s+run: npm run check:decision-packet-runtime/);\nassert.doesNotMatch(workflow, /run: npm run check\\s*$/m);'
+          )
+          yagni_path.write_text(yagni)
+          PY
+      - name: Verify patched contracts
+        run: |
+          node tests/check-ci-workflows.mjs
+          node tests/check-ssg-hot-refresh-yagni.mjs
+      - name: Commit and self-delete
+        run: |
+          git rm .github/workflows/tmp-align-bounded-ci.yml
+          git add ci.intent.v1.jsonl tests/check-ci-workflows.mjs tests/check-ssg-hot-refresh-yagni.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: align bounded CI contracts"
+          git push origin HEAD:${GITHUB_REF_NAME}
