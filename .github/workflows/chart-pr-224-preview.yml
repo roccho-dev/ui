@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  SOURCE_SHA: 3379bd779e633a0587af57ac4329b0bce5eb01bd
+  SOURCE_SHA: 159277d91216ffbca48189160ad61c4b4b733ab9
   PROOF_HARNESS_SHA: 413a52929d05839e631cfbe1cc9dccc459f77d2c
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
   CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
