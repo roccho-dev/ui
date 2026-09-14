@@ -1,0 +1,29 @@
+name: Temporary regenerate artifact registry
+
+on:
+  push:
+    paths:
+      - .github/workflows/tmp-regenerate-registry.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Generate registry
+        run: node apps/artifact-shell/scripts/build-registry.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-capability-registry
+          path: apps/artifact-shell/generated/capability-registry.mjs
+          if-no-files-found: error
