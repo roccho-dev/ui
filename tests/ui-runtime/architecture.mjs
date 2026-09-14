@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import * as domain from '../../packages/semantic-map/domain/index.js';
+import * as editorCore from '../../packages/semantic-map/editor-core/index.js';
 
 function option(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -12,17 +13,31 @@ const transport = option('--transport', 'iframe');
 assert.equal(phase, 'p2');
 assert.equal(transport, 'iframe');
 
-const coreIndex = fs.readFileSync(new URL('../../packages/semantic-map/editor-core/index.js', import.meta.url), 'utf8');
-const core = fs.readFileSync(new URL('../../packages/semantic-map/editor-core/core.js', import.meta.url), 'utf8');
 const ports = fs.readFileSync(new URL('../../packages/semantic-map/editor-core/ports.js', import.meta.url), 'utf8');
 const surface = fs.readFileSync(new URL('../../packages/semantic-map/renderer-maxgraph/surface-port.js', import.meta.url), 'utf8');
 const main = fs.readFileSync(new URL('../../packages/semantic-map/authoring/main.js', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../../packages/semantic-map/authoring/entry.js', import.meta.url), 'utf8');
 
+const expectedEditorCoreExports = [
+  'WORKSPACE_SCHEMA',
+  'assertAuthorityPort',
+  'assertDocumentPort',
+  'assertSurfacePort',
+  'createSemanticMapEditorCore',
+  'createWorkspace',
+  'editorDocumentBytes',
+  'normalizeSelection',
+  'normalizeWorkspace',
+  'sameSelection',
+  'workspaceBytes',
+].sort();
+
 assert.equal(typeof domain.createSemanticMapEditorCore, 'function');
 assert.equal(domain.SemanticDomainStore, undefined);
-assert.match(coreIndex, /createSemanticMapEditorCore/u);
-assert.doesNotMatch(coreIndex, /export\s*\{[^}]*EditorCore|normalizeOperation|operationToGesture/u);
+assert.deepEqual(Object.keys(editorCore).sort(), expectedEditorCoreExports);
+assert.equal(Object.hasOwn(editorCore, 'EditorCore'), false);
+assert.equal(Object.hasOwn(editorCore, 'normalizeOperation'), false);
+assert.equal(Object.hasOwn(editorCore, 'operationToGesture'), false);
 assert.match(ports, /SurfacePort\.onGesture/u);
 assert.match(ports, /DocumentPort\.commit/u);
 assert.match(ports, /AuthorityPort\.authorize/u);
@@ -36,12 +51,13 @@ assert.doesNotMatch(main, /adapter\.graph|adapter\.setOperationHandler|store\.pe
 assert.match(entry, /createSemanticMapEditor/u);
 
 console.log(JSON.stringify({
-  schema: 'ui-runtime-architecture/2',
+  schema: 'ui-runtime-architecture/3',
   status: 'PASS',
   phase,
   transport,
   formalPath: ['artifact-shell', 'semantic-map-runtime', 'iframe', 'EditorCore', 'MaxGraphAdapter'],
   publicOwner: 'packages/semantic-map/editor-core/index.js',
+  exactPublicExports: expectedEditorCoreExports,
   explicitPorts: ['SurfacePort', 'DocumentPort', 'AuthorityPort'],
   duplicateOwners: 0,
   directGraphAccess: 0,
