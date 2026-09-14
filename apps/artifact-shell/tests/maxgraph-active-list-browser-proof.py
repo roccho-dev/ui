@@ -59,6 +59,40 @@ def submit_request(page, request: dict[str, object]) -> None:
     )
 
 
+def active_state(child):
+    return child.evaluate("""() => {
+      const site = globalThis.semanticMapSite;
+      const active = site?.editor?.adapter?.activeList?.snapshot?.() ?? null;
+      const scene = site?.editor?.snapshot?.().scene ?? null;
+      const element = document.querySelector('[data-maxgraph-active-list]');
+      const style = element ? getComputedStyle(element) : null;
+      const rect = element?.getBoundingClientRect?.() ?? null;
+      return {
+        active,
+        scene: scene ? {
+          pattern: scene.pattern,
+          representationCount: scene.representations?.length ?? -1,
+          representations: (scene.representations ?? []).slice(0, 12).map(item => ({
+            regionId: item.regionId,
+            isRoot: item.isRoot,
+            isGuide: item.isGuide,
+            moduleNamespace: item.moduleNamespace,
+            label: item.label,
+          })),
+          relationCount: scene.relations?.length ?? -1,
+        } : null,
+        dom: element ? {
+          hidden: element.hidden,
+          display: style?.display ?? null,
+          visibility: style?.visibility ?? null,
+          width: rect?.width ?? 0,
+          height: rect?.height ?? 0,
+          buttons: element.querySelectorAll('button[data-active-key]').length,
+        } : null,
+      };
+    }""")
+
+
 def main() -> None:
     listen = port()
     server = subprocess.Popen(
@@ -107,7 +141,16 @@ def main() -> None:
                 )
                 site = child.evaluate("() => ({ ready: semanticMapSite.ready, error: semanticMapSite.error ?? null })")
                 assert site["ready"] is True, site["error"]
-                child.locator("[data-maxgraph-active-list]").wait_for(state="visible", timeout=30_000)
+                state = poll(
+                    lambda: active_state(child),
+                    lambda value: value.get("active") is not None and value.get("scene") is not None,
+                    f"active-list state unavailable for {pattern}",
+                )
+                assert state["active"]["items"], f"active-list has no items for {pattern}: {state}"
+                assert state["active"]["visible"] is True, f"active-list model hidden for {pattern}: {state}"
+                assert state["dom"]["hidden"] is False, f"active-list DOM hidden for {pattern}: {state}"
+                assert state["dom"]["display"] != "none", f"active-list display none for {pattern}: {state}"
+                assert state["dom"]["width"] > 0 and state["dom"]["height"] > 0, f"active-list has no layout box for {pattern}: {state}"
                 region_button = child.locator("[data-maxgraph-active-list] button[data-active-key^='region:']").first
                 region_button.wait_for(state="visible", timeout=30_000)
                 active_key = region_button.get_attribute("data-active-key")
@@ -120,8 +163,6 @@ def main() -> None:
                     f"active-list selection did not reach maxGraph for {pattern}",
                 )
                 snapshot = child.evaluate("() => semanticMapSite.editor.adapter.activeList.snapshot()")
-                assert snapshot["visible"] is True
-                assert len(snapshot["items"]) > 0
                 assert f"region:{region_id}" in snapshot["selected"]
                 assert child.evaluate("() => semanticMapSite.editor.snapshot().scene.pattern") == pattern
                 proven.append(pattern)
