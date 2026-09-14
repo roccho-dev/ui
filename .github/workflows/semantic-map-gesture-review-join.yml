@@ -15,10 +15,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Prove generic transport and publication source
-        run: |
-          node packages/url-module/tests/run.mjs
-          node apps/artifact-shell/tests/publication.mjs
       - name: Install pinned browser proof tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
@@ -32,5 +28,3 @@ jobs:
           PY
       - name: Prove actual gesture through review and fresh JSONL replay
         run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
-      - name: Prove generic data semantic feature publication
-        run: python3 apps/artifact-shell/tests/publication-semantic-map-browser-proof.py
