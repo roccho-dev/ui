@@ -31,7 +31,7 @@ const children = await Promise.all([
   child({
     id: 'scatter',
     title: '投入量と成果',
-    source: '../examples/chart-scatter.jsonl',
+    source: '../../../examples/chart/scatter.jsonl',
     chart: { type: 'scatter/1' },
     expectedMarks: 4,
     expectedRegions: 5,
@@ -40,7 +40,7 @@ const children = await Promise.all([
   child({
     id: 'heatmap',
     title: '拠点別時間帯アクセス',
-    source: '../examples/chart-heatmap.jsonl',
+    source: '../../../examples/chart/heatmap.jsonl',
     chart: { type: 'heatmap/1' },
     expectedMarks: 12,
     expectedRegions: 16,

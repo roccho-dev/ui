@@ -9,19 +9,19 @@ import {
   validateSceneGraph,
 } from '../projection/index.js';
 
-function load(name) {
-  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8')));
+function load(source) {
+  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(source, import.meta.url), 'utf8')));
 }
 function project(domain, view) {
   const projector = new SemanticProjector(domain, null, view);
   return projector.project({ scale: 1, viewport: { x: -100, y: -100, width: 2500, height: 1800 } });
 }
 
-const mapDomain = load('example.jsonl');
-const graphDomain = load('graph.jsonl');
-const seqDomain = load('sequence.jsonl');
-const ganttDomain = load('gantt.jsonl');
-const chartDomain = load('chart.jsonl');
+const mapDomain = load('../examples/example.jsonl');
+const graphDomain = load('../examples/graph.jsonl');
+const seqDomain = load('../examples/sequence.jsonl');
+const ganttDomain = load('../examples/gantt.jsonl');
+const chartDomain = load('../../../examples/chart/bar-horizontal.jsonl');
 const mapScene = project(mapDomain, { pattern: 'map/1' });
 const graphScene = project(graphDomain, { pattern: 'graph/1' });
 const ordinalScene = project(seqDomain, { pattern: 'seq/1', seq: { groupBy: 'actor', axis: 'ordinal' } });

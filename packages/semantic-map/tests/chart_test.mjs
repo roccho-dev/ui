@@ -36,7 +36,7 @@ function fixture(path) {
   return Object.freeze({ records, domain: createSemanticMap(records) });
 }
 
-const flat = fixture('../examples/chart.jsonl');
+const flat = fixture('../../../examples/chart/bar-horizontal.jsonl');
 const records = flat.records;
 const domain = flat.domain;
 const itemCount = domain.children.get(domain.meta.root).length;
@@ -181,7 +181,7 @@ const url = await createSmapUrl(envelope, 'https://example.test/app');
 const opened = await readSmapHash(url);
 assert.deepEqual(opened.envelope.view, allView);
 
-const scatter = fixture('../examples/chart-scatter.jsonl');
+const scatter = fixture('../../../examples/chart/scatter.jsonl');
 const scatterChart = { type: SCATTER_CHART };
 assert.equal(validatePatternDomain(scatter.domain, CHART_PATTERN, scatterChart), CHART_PATTERN);
 const scatterLayout = createPatternLayout(scatter.domain, CHART_PATTERN, scatterChart);
@@ -206,7 +206,7 @@ assert.ok(scatterScene.representations
   .filter(item => item.visual?.chartType === SCATTER_CHART)
   .every(item => item.shape === 'graph-terminal'));
 
-const heatmap = fixture('../examples/chart-heatmap.jsonl');
+const heatmap = fixture('../../../examples/chart/heatmap.jsonl');
 const heatmapChart = { type: HEATMAP_CHART };
 const heatmapView = { pattern: CHART_PATTERN, chart: heatmapChart };
 assert.equal(validatePatternDomain(heatmap.domain, CHART_PATTERN, heatmapChart), CHART_PATTERN);
@@ -245,7 +245,7 @@ const heatmapUrl = await createSmapUrl(heatmapEnvelope, 'https://example.test/ap
 const openedHeatmap = await readSmapHash(heatmapUrl);
 assert.deepEqual(openedHeatmap.envelope.view, heatmapView);
 
-const sunburst = fixture('../examples/chart-sunburst.jsonl');
+const sunburst = fixture('../../../examples/chart/sunburst.jsonl');
 const sunburstChart = { type: SUNBURST_CHART };
 const sunburstView = { pattern: CHART_PATTERN, chart: sunburstChart };
 assert.equal(validatePatternDomain(sunburst.domain, CHART_PATTERN, sunburstChart), CHART_PATTERN);
