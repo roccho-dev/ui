@@ -6,7 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  adapter-artifacts:
+  complete-ui-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run complete UI checks
+        run: npm run check
+
+  semantic-browser-proof:
+    needs: complete-ui-checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +46,6 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
-      - name: Run complete UI checks
-        run: npm run check
       - name: Prove migrated semantic-map in Chromium
         run: |
           python3 packages/semantic-map/tests/browser_example.py
@@ -41,6 +53,29 @@ jobs:
           python3 packages/decision-packet/tests/browser-example.py
           python3 apps/artifact-shell/tests/browser-proof.py
           python3 apps/artifact-shell/tests/decision-packet-browser-proof.py
+
+  ssg-hot-refresh-proof:
+    needs: complete-ui-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install pinned browser proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Expose pinned Chromium only as proof input
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
       - name: Select heavy SSG server proof scope
         id: ssg_proof_scope
         env:
@@ -124,6 +159,29 @@ jobs:
           SSG_HOT_REFRESH_ARTIFACT_OUT: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
           CADDY_EXECUTABLE: ${{ runner.temp }}/caddy/caddy
           CADDY_EXPECTED_VERSION: v2.11.3
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.ssg_proof_scope.outputs.run == 'true' }}
+        with:
+          name: ssg-hot-refresh-viewport-artifact
+          path: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
+          if-no-files-found: error
+
+  adapter-artifacts:
+    needs: complete-ui-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install Japanese screenshot fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-cache -f
       - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
@@ -148,12 +206,6 @@ jobs:
         env:
           GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
           GEOMAP_RUNTIME_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
-      - uses: actions/upload-artifact@v4
-        if: ${{ always() && steps.ssg_proof_scope.outputs.run == 'true' }}
-        with:
-          name: ssg-hot-refresh-viewport-artifact
-          path: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
-          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
