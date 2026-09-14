@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           root = Path('packages/semantic-map/tests')
           replacements = {
@@ -39,7 +40,11 @@ jobs:
               '../examples/chart-composition/active.jsonl': '../../../examples/chart/line.jsonl',
               '../examples/chart-composition/share.jsonl': '../../../examples/chart/pie.jsonl',
           }
+          old_helper = "function load(name) {\n  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8')));\n}"
+          new_helper = "function load(source) {\n  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(source, import.meta.url), 'utf8')));\n}"
+          load_call = re.compile(r"load\('([^'/]+\.jsonl)'\)")
           changed = []
+
           for path in sorted(root.rglob('*')):
               if not path.is_file() or path.suffix not in {'.js', '.mjs', '.py', '.sh'}:
                   continue
@@ -47,31 +52,22 @@ jobs:
               updated = text
               for old, new in replacements.items():
                   updated = updated.replace(old, new)
+
+              if old_helper in updated and "load('chart.jsonl')" in updated:
+                  updated = updated.replace(old_helper, new_helper)
+                  def rewrite_load(match):
+                      name = match.group(1)
+                      if name == 'chart.jsonl':
+                          return "load('../../../examples/chart/bar-horizontal.jsonl')"
+                      return f"load('../examples/{name}')"
+                  updated = load_call.sub(rewrite_load, updated)
+
               if path.name == 'chart_url_composition_fixture.mjs':
                   updated = updated.replace("definition.source.replace('../examples/', 'examples/')", "definition.source.replace('../../../examples/', 'examples/')")
+
               if updated != text:
                   path.write_text(updated, encoding='utf-8')
                   changed.append(str(path))
-
-          pattern = root / 'pattern_test.mjs'
-          text = pattern.read_text(encoding='utf-8')
-          old_helper = "function load(name) {\n  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8')));\n}"
-          new_helper = "function load(source) {\n  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(source, import.meta.url), 'utf8')));\n}"
-          if old_helper not in text:
-              raise SystemExit('pattern_test load helper shape changed')
-          text = text.replace(old_helper, new_helper)
-          for old, new in {
-              "load('example.jsonl')": "load('../examples/example.jsonl')",
-              "load('graph.jsonl')": "load('../examples/graph.jsonl')",
-              "load('sequence.jsonl')": "load('../examples/sequence.jsonl')",
-              "load('gantt.jsonl')": "load('../examples/gantt.jsonl')",
-              "load('chart.jsonl')": "load('../../../examples/chart/bar-horizontal.jsonl')",
-          }.items():
-              if old not in text:
-                  raise SystemExit(f'pattern_test missing {old}')
-              text = text.replace(old, new)
-          pattern.write_text(text, encoding='utf-8')
-          changed.append(str(pattern))
 
           if not changed:
               raise SystemExit('no legacy Chart fixture references were rewritten')
