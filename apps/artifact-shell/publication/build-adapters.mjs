@@ -15,7 +15,16 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/core-port/src',
   'packages/graph-editor',
   'packages/presentation',
+  'packages/semantic-map/domain',
+  'packages/semantic-map/feature-runtime.mjs',
+  'packages/semantic-map/feature.css',
+  'packages/semantic-map/pattern',
+  'packages/semantic-map/projection',
+  'packages/semantic-map/protocol',
+  'packages/semantic-map/renderer-maxgraph',
+  'packages/semantic-map/resource-composition',
   'packages/semantic-map/vendor',
+  'packages/url-module/src',
 ]);
 
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
