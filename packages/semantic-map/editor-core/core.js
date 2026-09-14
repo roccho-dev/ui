@@ -72,14 +72,43 @@ class EditorCoreState extends DomainStateStore {
     this.revision = revision ?? null;
     this.idSequence = initialSequence(this.domain);
     this.destroyed = false;
+    this.transactionDepth = 0;
+    this.pendingDomainEvents = [];
     this.removeSurfaceGesture = this.surface.onGesture((gesture) => this.acceptGesture(gesture));
     invariant(typeof this.removeSurfaceGesture === 'function', 'SurfacePort.onGesture must return an unsubscribe function');
     this.renderSurface();
   }
 
   notify(event) {
+    if (this.transactionDepth > 0) {
+      this.pendingDomainEvents.push(event);
+      return;
+    }
     super.notify(event);
     if (this.coreListeners) this.publish('domain', { domainEvent: event });
+  }
+
+  beginTransaction() {
+    invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
+    this.transactionDepth = 1;
+    this.pendingDomainEvents = [];
+  }
+
+  rollbackTransaction(session) {
+    this.restoreSession(session);
+    this.pendingDomainEvents = [];
+    this.transactionDepth = 0;
+  }
+
+  finishTransaction(kind, detail = {}) {
+    invariant(this.transactionDepth === 1, 'mutation transaction is not active');
+    const domainEvents = this.pendingDomainEvents;
+    this.pendingDomainEvents = [];
+    this.transactionDepth = 0;
+    for (const event of domainEvents) super.notify(event);
+    this.renderSurface();
+    this.documentPort.renderChrome(this.snapshot());
+    this.publish(kind, detail);
   }
 
   stateHash() {
@@ -92,7 +121,7 @@ class EditorCoreState extends DomainStateStore {
   }
 
   publish(kind, detail = {}) {
-    if (this.destroyed) return;
+    if (this.destroyed || this.transactionDepth > 0) return;
     const event = Object.freeze({ kind, core: this.snapshot(), ...detail });
     for (const listener of this.coreListeners) {
       try { listener(event); } catch (error) { console.error(error); }
@@ -149,7 +178,7 @@ class EditorCoreState extends DomainStateStore {
     const next = normalizeSelection({ regionIds: validRegions, relationIds: validRelations });
     if (sameSelection(this.selection, next)) return this.selection;
     this.selection = next;
-    if (render) this.renderSurface();
+    if (render && this.transactionDepth === 0) this.renderSurface();
     this.publish('selection', { selection: next, origin });
     return next;
   }
@@ -159,7 +188,7 @@ class EditorCoreState extends DomainStateStore {
     const next = cloneFrame(frame);
     if (JSON.stringify(this.frame) === JSON.stringify(next)) return this.frame;
     this.frame = next;
-    this.renderSurface();
+    if (this.transactionDepth === 0) this.renderSurface();
     this.publish('frame', { frame: cloneFrame(this.frame) });
     return this.frame;
   }
@@ -258,14 +287,17 @@ class EditorCoreState extends DomainStateStore {
 
     const session = this.snapshotSession();
     const beforeRevision = this.revision;
+    let batch;
+    let result;
+    this.beginTransaction();
     try {
-      const batch = super.performBatch(
+      batch = super.performBatch(
         plan.operations,
         plan.validate === null
           ? null
-          : (candidate, result) => plan.validate(Object.freeze({
+          : (candidate, validationBatch) => plan.validate(Object.freeze({
             semantic: candidate.domain,
-            batch: result,
+            batch: validationBatch,
             revision: beforeRevision,
           })),
       );
@@ -284,18 +316,15 @@ class EditorCoreState extends DomainStateStore {
         batch,
         beforeRevision,
       });
-      this.renderSurface();
-      this.documentPort.renderChrome(this.snapshot());
-      const result = batch.results.length === 1
+      result = batch.results.length === 1
         ? batch.results[0]
         : Object.freeze({ operations: plan.operations, results: batch.results });
-      this.publish('mutation', { operations: plan.operations, result, authority });
-      return result;
     } catch (error) {
-      this.restoreSession(session);
-      this.renderSurface();
+      this.rollbackTransaction(session);
       throw error;
     }
+    this.finishTransaction('mutation', { operations: plan.operations, result, authority });
+    return result;
   }
 
   applyHistory(direction) {
@@ -303,9 +332,14 @@ class EditorCoreState extends DomainStateStore {
     const authority = this.authorize(intent);
     const session = this.snapshotSession();
     const beforeRevision = this.revision;
+    let changed;
+    this.beginTransaction();
     try {
-      const changed = direction === 'undo' ? super.undo() : super.redo();
-      if (!changed) return false;
+      changed = direction === 'undo' ? super.undo() : super.redo();
+      if (!changed) {
+        this.rollbackTransaction(session);
+        return false;
+      }
       const operation = Object.freeze({ type: intent.type });
       const batch = Object.freeze({ results: Object.freeze([Object.freeze({ changed: true })]) });
       this.commitDocument({
@@ -315,15 +349,12 @@ class EditorCoreState extends DomainStateStore {
         beforeRevision,
       });
       this.pruneSelection();
-      this.renderSurface();
-      this.documentPort.renderChrome(this.snapshot());
-      this.publish('history', { direction, authority });
-      return true;
     } catch (error) {
-      this.restoreSession(session);
-      this.renderSurface();
+      this.rollbackTransaction(session);
       throw error;
     }
+    this.finishTransaction('history', { direction, authority });
+    return true;
   }
 
   acceptGesture(gesture) {
@@ -383,14 +414,19 @@ class EditorCoreState extends DomainStateStore {
     const domain = workspace
       ? createSemanticMap(structuredClone(workspace.document.records))
       : normalizeInputDomain(value);
-    super.replaceDomain(domain);
-    this.idSequence = initialSequence(this.domain);
-    this.selection = normalizeSelection(workspace?.layout.selection ?? {});
-    this.frame = cloneFrame(workspace?.layout.frame ?? null);
-    if (reloaded && Object.hasOwn(reloaded, 'revision')) this.revision = reloaded.revision;
-    this.renderSurface();
-    this.documentPort.renderChrome(this.snapshot());
-    this.publish('replace', { revision: this.revision });
+    const session = this.snapshotSession();
+    this.beginTransaction();
+    try {
+      super.replaceDomain(domain);
+      this.idSequence = initialSequence(this.domain);
+      this.selection = normalizeSelection(workspace?.layout.selection ?? {});
+      this.frame = cloneFrame(workspace?.layout.frame ?? null);
+      if (reloaded && Object.hasOwn(reloaded, 'revision')) this.revision = reloaded.revision;
+    } catch (error) {
+      this.rollbackTransaction(session);
+      throw error;
+    }
+    this.finishTransaction('replace', { revision: this.revision });
     return this.snapshot();
   }
 
@@ -453,6 +489,8 @@ class EditorCoreState extends DomainStateStore {
   destroy() {
     if (this.destroyed) return false;
     this.destroyed = true;
+    this.pendingDomainEvents = [];
+    this.transactionDepth = 0;
     this.removeSurfaceGesture?.();
     this.removeSurfaceGesture = null;
     try { this.surface.destroy(); } finally {

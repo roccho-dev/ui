@@ -50,17 +50,22 @@ function surfacePort() {
 
 function documentPort() {
   const commits = [];
+  const chrome = [];
+  let failCommit = false;
   return {
     port: {
       requestEdit: ({ operation }) => Object.freeze({ operations: Object.freeze([operation]) }),
       commit: (value) => {
         commits.push(value);
+        if (failCommit) throw new Error('test document commit failed');
         return Object.freeze({ revision: value.expectedRevision });
       },
       reload: ({ input, expectedRevision }) => Object.freeze({ input, revision: expectedRevision }),
-      renderChrome: () => null,
+      renderChrome: (value) => { chrome.push(structuredClone(value)); },
     },
     commits,
+    chrome,
+    setFailCommit(value) { failCommit = value === true; },
   };
 }
 
@@ -160,6 +165,47 @@ core.acceptGesture({
 });
 assert.deepEqual(second.core.snapshot().selection, beforeSecondSelection, 'editors must not share a gesture owner');
 
+const failed = createHarness();
+let coreEvents = 0;
+let domainEvents = 0;
+failed.core.subscribe(() => { coreEvents += 1; });
+failed.core.runtime.onChange(() => { domainEvents += 1; });
+const beforeFailedWorkspace = structuredClone(failed.core.workspace());
+const beforeFailedSnapshot = structuredClone(failed.core.snapshot());
+const rendersBeforeFailure = failed.surface.renders.length;
+const chromeBeforeFailure = failed.document.chrome.length;
+failed.document.setFailCommit(true);
+assert.throws(() => failed.core.dispatch({
+  type: 'AddRegion',
+  parentId: 'map',
+  label: 'Must rollback',
+  kind: 'concept',
+  summary: '',
+  bounds: [40, 610, 150, 72],
+}), /test document commit failed/u);
+assert.deepEqual(failed.core.workspace(), beforeFailedWorkspace);
+assert.deepEqual(failed.core.snapshot(), beforeFailedSnapshot);
+assert.equal(failed.surface.renders.length, rendersBeforeFailure);
+assert.equal(failed.document.chrome.length, chromeBeforeFailure);
+assert.equal(coreEvents, 0);
+assert.equal(domainEvents, 0);
+assert.equal(failed.core.runtime.domain.regions.has('region.core-1'), false);
+
+failed.document.setFailCommit(false);
+const afterFailure = failed.core.dispatch({
+  type: 'AddRegion',
+  parentId: 'map',
+  label: 'Committed after rollback',
+  kind: 'concept',
+  summary: '',
+  bounds: [40, 610, 150, 72],
+});
+assert.equal(afterFailure.createdRegionId, 'region.core-1', 'failed commit must not consume an ID');
+assert.equal(failed.surface.renders.length, rendersBeforeFailure + 1);
+assert.equal(failed.document.chrome.length, chromeBeforeFailure + 1);
+assert.equal(coreEvents, 1, 'successful commit publishes one core event');
+assert.equal(domainEvents, 1, 'successful commit publishes one domain event');
+
 assert.equal(core.destroy(), true);
 assert.equal(core.destroy(), false);
 assert.equal(first.surface.destroyed(), true);
@@ -178,11 +224,13 @@ assert.equal(remounted.core.dispatch({
 assert.equal(remounted.core.runtime.domain.regions.get('request').label, 'Remounted');
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-editor-core-test/2',
+  schema: 'semantic-map-editor-core-test/3',
   status: 'PASS',
   publicFactory: true,
   rawMutationBypassAbsent: true,
   authorityDenyAtomic: true,
+  commitFailureAtomic: true,
+  commitBeforePublish: true,
   deterministicIds: true,
   independentEditors: true,
   idempotentDestroy: true,
