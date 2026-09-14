@@ -29,40 +29,32 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
+          root = Path('packages/semantic-map/tests')
           replacements = {
-              Path('packages/semantic-map/tests/chart_test.mjs'): {
-                  '../examples/chart.jsonl': '../../../examples/chart/bar-horizontal.jsonl',
-                  '../examples/chart-scatter.jsonl': '../../../examples/chart/scatter.jsonl',
-                  '../examples/chart-heatmap.jsonl': '../../../examples/chart/heatmap.jsonl',
-                  '../examples/chart-sunburst.jsonl': '../../../examples/chart/sunburst.jsonl',
-              },
-              Path('packages/semantic-map/tests/chart_url_composition_fixture.mjs'): {
-                  '../examples/chart-composition/sales.jsonl': '../../../examples/chart/bar-vertical.jsonl',
-                  '../examples/chart-composition/active.jsonl': '../../../examples/chart/line.jsonl',
-                  '../examples/chart-composition/share.jsonl': '../../../examples/chart/pie.jsonl',
-              },
-              Path('packages/semantic-map/tests/chart_scalability_fixture.mjs'): {
-                  '../examples/chart-scatter.jsonl': '../../../examples/chart/scatter.jsonl',
-                  '../examples/chart-heatmap.jsonl': '../../../examples/chart/heatmap.jsonl',
-              },
-              Path('packages/semantic-map/tests/public_codec_test.mjs'): {
-                  '../examples/chart.jsonl': '../../../examples/chart/bar-horizontal.jsonl',
-              },
-              Path('packages/semantic-map/tests/sunburst_drilldown_fixture.mjs'): {
-                  '../examples/chart-sunburst.jsonl': '../../../examples/chart/sunburst.jsonl',
-              },
-              Path('packages/semantic-map/tests/view_contract_test.mjs'): {
-                  '../examples/chart.jsonl': '../../../examples/chart/bar-horizontal.jsonl',
-              },
+              '../examples/chart.jsonl': '../../../examples/chart/bar-horizontal.jsonl',
+              '../examples/chart-scatter.jsonl': '../../../examples/chart/scatter.jsonl',
+              '../examples/chart-heatmap.jsonl': '../../../examples/chart/heatmap.jsonl',
+              '../examples/chart-sunburst.jsonl': '../../../examples/chart/sunburst.jsonl',
+              '../examples/chart-composition/sales.jsonl': '../../../examples/chart/bar-vertical.jsonl',
+              '../examples/chart-composition/active.jsonl': '../../../examples/chart/line.jsonl',
+              '../examples/chart-composition/share.jsonl': '../../../examples/chart/pie.jsonl',
           }
-          for path, changes in replacements.items():
+          changed = []
+          for path in sorted(root.rglob('*')):
+              if not path.is_file() or path.suffix not in {'.js', '.mjs', '.py', '.sh'}:
+                  continue
               text = path.read_text(encoding='utf-8')
-              for old, new in changes.items():
-                  count = text.count(old)
-                  if count == 0:
-                      raise SystemExit(f'missing expected reference {old} in {path}')
-                  text = text.replace(old, new)
-              path.write_text(text, encoding='utf-8')
+              updated = text
+              for old, new in replacements.items():
+                  updated = updated.replace(old, new)
+              if path.name == 'chart_url_composition_fixture.mjs':
+                  updated = updated.replace("definition.source.replace('../examples/', 'examples/')", "definition.source.replace('../../../examples/', 'examples/')")
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8')
+                  changed.append(str(path))
+          if not changed:
+              raise SystemExit('no legacy Chart fixture references were rewritten')
+          print('\n'.join(changed))
           PY
 
           git rm --ignore-unmatch \
@@ -80,6 +72,7 @@ jobs:
             exit 1
           fi
 
+          test "$(find examples/chart -maxdepth 1 -type f -name '*.jsonl' | wc -l)" -eq 9
           node packages/semantic-map/tests/chart_test.mjs
           node packages/semantic-map/tests/chart_url_composition_fixture.mjs https://semantic.test/app >/tmp/chart-url-composition.json
           node packages/semantic-map/tests/run.mjs
