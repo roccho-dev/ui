@@ -62,19 +62,18 @@ def main() -> None:
                     text = source.read_text(encoding="utf-8")
                     url = f"http://127.0.0.1:{listen}/adapters/{feature_id}/#data={data_token(text)}"
                     page.goto(url, wait_until="networkidle", timeout=30_000)
-                    page.wait_for_function("globalThis.uiFeatureProof?.status === 'PASS'", timeout=30_000)
+                    page.locator("html[data-status='pass']").wait_for(state="attached", timeout=30_000)
                     proof = page.evaluate("() => globalThis.uiFeatureProof")
                     assert proof["feature"]["id"] == feature_id
                     assert proof["mounted"]["pattern"] == pattern
                     assert proof["mounted"]["records"] > 1
                     assert proof["mounted"]["svg"] is True
                     assert page.locator("iframe").count() == 0
-                    assert page.evaluate(
-                        """() => [...document.querySelectorAll('#feature svg')].some(svg => {
-                          const box = svg.getBoundingClientRect();
-                          return box.width > 0 && box.height > 0 && svg.childNodes.length > 0;
-                        })"""
-                    )
+                    svg = page.locator("#feature svg").first
+                    assert svg.count() == 1
+                    box = svg.bounding_box()
+                    assert box and box["width"] > 0 and box["height"] > 0
+                    assert svg.locator(":scope > *").count() > 0
                     assert "#data=" in page.url and "#smap" not in page.url and "smap-ref" not in page.url
                     assert errors == [], f"{feature_id} page errors: {errors}"
                     receipts.append({"feature": feature_id, "pattern": pattern, "records": proof["mounted"]["records"]})
