@@ -6,6 +6,7 @@ on:
       - packages/semantic-map/**
       - examples/render.semantic-map.set-topology/**
       - .github/workflows/semantic-map-gesture-review-join.yml
+  push:
   workflow_dispatch:
 
 jobs:
@@ -15,6 +16,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Prove semantic-map source tests
+        run: |
+          node packages/semantic-map/tests/run.mjs
+          node packages/semantic-map/tests/example_reproducibility.mjs
+          python3 packages/semantic-map/tests/meaning_recovery_negative_controls.py
       - name: Install pinned browser proof tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
@@ -26,5 +32,7 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
-      - name: Prove actual gesture through review and fresh JSONL replay
-        run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
+      - name: Prove semantic-map Chromium behavior
+        run: |
+          python3 packages/semantic-map/tests/browser_example.py
+          PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
