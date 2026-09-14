@@ -1,11 +1,7 @@
 import { A2UI_MESSAGE_VERSION } from '../a2ui-browser/src/index.mjs';
 import {
-  assertBusinessModelProjectionCoverage,
   compileBusinessModelPresentationPlan,
-  createBusinessModelProjectionCoverage,
   projectProfiledBusinessModelA2uiSequence,
-  projectProfiledBusinessModelMapState,
-  projectProfiledBusinessModelSeqState,
   validateProfiledBusinessModelSequence,
 } from '../presentation/compiler/index.mjs';
 import { derivePublicBusinessModelProjectionProfile } from '../presentation/compiler/public-profile.mjs';
@@ -39,17 +35,12 @@ export const compileBusinessModelPresentationPayload = input => {
       ? Object.freeze({ ...stage, messages: Object.freeze([create, ...stage.messages.slice(1)]) })
       : stage)),
   }));
-  const seqState = projectProfiledBusinessModelSeqState(model, plan);
-  const mapState = projectProfiledBusinessModelMapState(model, plan);
-  const coverage = assertBusinessModelProjectionCoverage(createBusinessModelProjectionCoverage({ model, plan, sequence, seqState, mapState }));
   return Object.freeze({
-    schema: 'business-model-presentation-minimal-payload/1',
+    schema: 'business-model-presentation-runtime-payload/1',
     id: model.id,
     label: model.title,
     sequence,
-    seqState,
     stageFocus: Object.freeze(Object.fromEntries(model.stages.map(stage => [stage.id, stage.focusRef]))),
     stageLabels: Object.freeze(Object.fromEntries(model.stages.map(stage => [stage.id, stage.name]))),
-    coverage,
   });
 };
