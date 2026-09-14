@@ -2,6 +2,7 @@ import { SEMANTIC_2D_SPACE, TOPOLOGY_SPACE } from '../../domain/index.js';
 import { isGraphItemKind } from './graph/contract.js';
 
 const GRAPH_LEAF_WIDTH = 180;
+const GRAPH_STRUCTURED_LEAF_WIDTH = 320;
 const GRAPH_LEAF_HEIGHT = 92;
 const GRAPH_PADDING_X = 32;
 const GRAPH_PADDING_Y = 26;
@@ -165,7 +166,7 @@ export function createGraphLayout(domain) {
     const headerHeight = GRAPH_HEADER + itemCount * GRAPH_ITEM_ROW_HEIGHT;
     if (childIds.length === 0) {
       const leaf = Object.freeze({
-        width: GRAPH_LEAF_WIDTH,
+        width: itemCount > 0 ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,
         height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y),
         offsets: new Map(),
       });

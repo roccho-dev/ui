@@ -65,6 +65,9 @@ const selfRelation = selfLoop.relations.find((relation) => relation.id === 'self
 assert.ok(selfRelation, 'semantic self relation must survive projection');
 assert.equal(selfRelation.from, selfRelation.to, 'self relation must remain a loop');
 assert.equal(selfRelation.directed, true);
+const selfClaim = selfLoop.representations.find((item) => item.sourceRegionId === 'claim');
+assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /Claim/u, 'structured self-loop node label must remain visible');
+assert.match(displayedRegionLabel(selfClaim, 1, DEFAULT_THEME, false), /role: proposal \| decision/u, 'structured self-loop rows must remain visible');
 
 const architecture = project(load('architecture-nested'));
 for (const id of ['ui.request', 's3.input', 's3.output', 'dev.process', 'dev.constraints']) {
