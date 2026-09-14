@@ -1,0 +1,13 @@
+name: tmp-presentation-example
+on:
+  push:
+    branches:
+      - chore/ui-decisions-compiler-boundary-260914
+permissions:
+  contents: read
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: node scripts/tmp-print-presentation-example.mjs
