@@ -1,10 +1,9 @@
 name: Chart PR 224 preview
 
 on:
-  push:
+  pull_request:
     branches:
       - deploy/chart-pr-224-260915
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +11,7 @@ permissions:
 env:
   SOURCE_SHA: efa4b50c42d1e8af672b96686acc998e2a827617
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
-  CLOUDFLARE_PAGES_BRANCH: pr-224
+  CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
 
 jobs:
   deploy:
