@@ -1467,6 +1467,33 @@
       "sourceCommit": "188abff1c8396652ab396b814adf422f923debd5",
       "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
       "reason": "maxgraph-adapter-responsibility-split"
+    },
+    {
+      "id": "history-20c22072454d-domain-index-js",
+      "target": "packages/semantic-map/domain/index.js",
+      "fromSha256": "b11b812996161aac7a847872bef77c992039e26c4b9e3fa955c8ca7d4c9ca8f2",
+      "toSha256": "0f7bf70df99aee65390b518ff94bb071791cb3bf98a951c78ca0a1ac8be8ceb5",
+      "sourceCommit": "20c22072454d9acc6324823300bceba9d64761d6",
+      "sourcePath": "packages/semantic-map/domain/index.js",
+      "reason": "fix: preserve edge reconnect in shared authoring"
+    },
+    {
+      "id": "history-20c22072454d-domain-reducer-js",
+      "target": "packages/semantic-map/domain/reducer.js",
+      "fromSha256": "7d2ca3f8ebfbd36ef6ed9a2fe103c0a2db01345ec7fc1903785e13e1e5a3e4c3",
+      "toSha256": "4084a078fdd0c9d9a5b4d47ccb87036f9ba676b7fb8d330955a842e43c352748",
+      "sourceCommit": "20c22072454d9acc6324823300bceba9d64761d6",
+      "sourcePath": "packages/semantic-map/domain/reducer.js",
+      "reason": "fix: preserve edge reconnect in shared authoring"
+    },
+    {
+      "id": "history-79ee25cf656c-renderer-maxgraph-index-js",
+      "target": "packages/semantic-map/renderer-maxgraph/index.js",
+      "fromSha256": "ddeb236d9684bd55a328009c02b2763353e980820265d58ce0c7f94431f47437",
+      "toSha256": "c6f19aeaf519e7d6dbdc45a0338712603a95dd28e388797b72b2f0ef4aaa6854",
+      "sourceCommit": "79ee25cf656c3176c088f5039c102e30822dda25",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/index.js",
+      "reason": "refactor: centralize maxGraph authoring boundary"
     }
   ]
 }

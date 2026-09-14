@@ -5,6 +5,10 @@ on:
     paths:
       - packages/semantic-map/**
       - examples/render.semantic-map.set-topology/**
+      - apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
+      - apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py
+      - apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
+      - apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
       - .github/workflows/semantic-map-gesture-review-join.yml
   workflow_dispatch:
 
@@ -15,6 +19,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Prove semantic source gates
+        run: node packages/semantic-map/tests/run.mjs
       - name: Install pinned browser proof tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
@@ -28,3 +34,11 @@ jobs:
           PY
       - name: Prove actual gesture through review and fresh JSONL replay
         run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
+      - name: Prove shared active list in graph map and seq
+        run: python3 apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
+      - name: Prove pointer edge connect reconnect and undo redo
+        run: python3 apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py
+      - name: Prove visible edge handle hit target and human-style drag
+        run: python3 apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
+      - name: Prove keyboard authoring shortcuts
+        run: python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py

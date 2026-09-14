@@ -1,5 +1,5 @@
-import { SemanticDomainStore } from './domain-store.js';
-import { normalizeOperations } from './operation.js';
+import { SemanticDomainStore } from './authoring-store.js';
+import { normalizeOperations } from './authoring-operation.js';
 import { createSemanticMap } from './semantic-map.js';
 
 function invariant(condition, message) {

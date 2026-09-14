@@ -45,6 +45,7 @@ const operations = [
   { type: 'MountRegionModule', regionId: 'mountable', src: '/child#smap=next' },
   { type: 'UnmountRegionModule', regionId: 'mounted' },
   { type: 'RemoveSelection', regionIds: [], relationIds: ['r1'] },
+  { type: 'ReconnectRelation', relationId: 'r1', from: 'task-a', to: 'set-a' },
 ];
 
 const log = await createDecisionLog(records, 'urn:test:semantic-review-model');
@@ -78,7 +79,6 @@ const moved = await createSemanticReviewModel({ preview: await previewFor([opera
 assert.deepEqual(moved.delta.regions[0].changedFields, ['bounds[0]', 'bounds[1]']);
 assert.equal(moved.delta.regions[0].id, 'task-a');
 assert.equal(moved.delta.regions[0].status, 'changed');
-
 assert.equal(Object.isFrozen(moved.delta.regions[0].after.bounds), true);
 assert.throws(() => { moved.delta.regions[0].after.bounds[0] = 999; }, TypeError);
 
@@ -90,6 +90,10 @@ const removed = await createSemanticReviewModel({ preview: await previewFor([ope
 assert.deepEqual(removed.delta.relations.map((item) => [item.id, item.status]), [['r1', 'removed']]);
 assert.equal(removed.delta.relations[0].before.label, 'before');
 assert.equal(removed.delta.relations[0].after, null);
+
+const reconnected = await createSemanticReviewModel({ preview: await previewFor([operations[13]]) });
+assert.deepEqual(reconnected.delta.relations.map((item) => [item.id, item.status]), [['r1', 'changed']]);
+assert.deepEqual(reconnected.delta.relations[0].changedFields, ['to']);
 
 const noOpPreview = await previewFor([
   { type: 'RenameRegion', regionId: 'task-a', label: 'Temporary' },
@@ -124,10 +128,7 @@ const currentInput = {
     currentProof: { verified: true, baseHead: log.head, baseStateHash: log.stateHash },
   },
 };
-await assert.rejects(
-  createSemanticReviewModel(currentInput),
-  /current proof requires an upstream verifier/u,
-);
+await assert.rejects(createSemanticReviewModel(currentInput), /current proof requires an upstream verifier/u);
 const current = await createSemanticReviewModel({
   ...currentInput,
   currentProofVerifier: async (proof, expected) => (
