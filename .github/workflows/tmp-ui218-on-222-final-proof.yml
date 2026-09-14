@@ -1,0 +1,170 @@
+name: Temporary ui218 on 222 final proof
+
+on:
+  push:
+    branches:
+      - proof/ui218-on-222-final-260915
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-check:
+    runs-on: ubuntu-latest
+    environment: ui-deploy
+    env:
+      CANDIDATE_SHA: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+      PROJECT_NAME: ui-graph-218
+      DEPLOY_BRANCH: ui218-on-222-final
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          persist-credentials: false
+
+      - name: Bind exact candidate
+        run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+
+      - name: Graph and inherited Semantic Map gates
+        run: |
+          node tests/check-semantic-map-migration.mjs
+          node apps/artifact-shell/scripts/build-registry.mjs --check
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+
+      - name: Build publication outside source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          publication="$RUNNER_TEMP/ui218-on-222-publication"
+          test ! -e "$publication"
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$publication"
+          echo "PUBLICATION_ROOT=$publication" >> "$GITHUB_ENV"
+
+      - name: Deploy exact candidate to preview branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@4 pages deploy "$PUBLICATION_ROOT" \
+            --project-name="$PROJECT_NAME" \
+            --branch="$DEPLOY_BRANCH"
+          base="https://${DEPLOY_BRANCH}.${PROJECT_NAME}.pages.dev"
+          for attempt in $(seq 1 30); do
+            if curl -fsS "$base/index.html" >/dev/null; then
+              echo "PAGES_BASE_URL=$base" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Build exact proof URLs
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' > "$RUNNER_TEMP/proof-urls.json"
+          import fs from 'node:fs/promises';
+          import { createUrlModuleUrl } from './packages/url-module/src/index.mjs';
+          const base = `${process.env.PAGES_BASE_URL}/adapters/graph/`;
+          const sources = {
+            self: 'packages/semantic-map/examples/graph/self-loop.jsonl',
+            mimic: 'packages/semantic-map/examples/graph/architecture-nested.jsonl',
+            adr344: 'packages/semantic-map/examples/graph/adr344.jsonl',
+          };
+          const urls = {};
+          for (const [name, source] of Object.entries(sources)) {
+            urls[name] = await createUrlModuleUrl({ base, fragment: 'data', value: await fs.readFile(source, 'utf8') });
+          }
+          for (const mode of ['auto', 'lr', 'tb']) {
+            const url = new URL(urls.adr344);
+            url.searchParams.set('layout', mode);
+            urls[`adr344_${mode}`] = url.href;
+          }
+          console.log(JSON.stringify(urls));
+          NODE
+
+      - name: Install pinned Chromium
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir 'playwright==1.57.0'
+          python3 -m playwright install --with-deps chromium
+
+      - name: Prove deployed structured graph visuals
+        run: |
+          node packages/semantic-map/tests/graph_browser_proof.mjs \
+            "$RUNNER_TEMP/proof-urls.json" \
+            "$RUNNER_TEMP/graph218-screens"
+
+      - name: Prove Auto LR TB controls and mobile Auto
+        shell: bash
+        run: |
+          python3 - "$RUNNER_TEMP/proof-urls.json" "$RUNNER_TEMP/graph218-screens" <<'PY'
+          import json
+          import os
+          import sys
+          from playwright.sync_api import sync_playwright
+
+          urls_path, screenshot_dir = sys.argv[1], sys.argv[2]
+          with open(urls_path, encoding='utf-8') as handle:
+              urls = json.load(handle)
+
+          cases = [
+              ('adr344_auto', {'width': 412, 'height': 915}, 'auto', 'TB', 'y'),
+              ('adr344_lr', {'width': 1600, 'height': 1000}, 'lr', 'LR', 'x'),
+              ('adr344_tb', {'width': 1600, 'height': 1000}, 'tb', 'TB', 'y'),
+          ]
+
+          def visible_box(page, token):
+              locator = page.get_by_text(token, exact=False).first
+              locator.wait_for(state='visible', timeout=30000)
+              box = locator.bounding_box()
+              assert box and box['width'] > 0 and box['height'] > 0, f'{token}: no visible box'
+              return box
+
+          results = {}
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch()
+              for key, viewport, mode, direction, axis in cases:
+                  page_errors = []
+                  console_errors = []
+                  page = browser.new_page(viewport=viewport)
+                  page.on('pageerror', lambda error, bag=page_errors: bag.append(str(error)))
+                  page.on('console', lambda message, bag=console_errors: bag.append(message.text) if message.type == 'error' else None)
+                  response = page.goto(urls[key], wait_until='networkidle', timeout=60000)
+                  page.wait_for_selector('[data-status="pass"]', timeout=60000)
+                  selector = f'.semantic-map-feature[data-layout="{mode}"][data-layout-direction="{direction}"]'
+                  page.wait_for_selector(selector, state='visible', timeout=60000)
+                  assert response and response.status == 200
+                  assert not page_errors, f'{key} page errors {page_errors!r}'
+                  assert not console_errors, f'{key} console errors {console_errors!r}'
+                  for option in ['auto', 'lr', 'tb']:
+                      button = page.locator(f'.semantic-map-layout-button[data-layout="{option}"]')
+                      button.wait_for(state='visible', timeout=30000)
+                      assert button.get_attribute('aria-pressed') == ('true' if option == mode else 'false')
+                  meaning = visible_box(page, 'Meaning authority')
+                  phases = visible_box(page, 'Progressive phase values')
+                  results_box = visible_box(page, 'Explicit non-green results')
+                  if axis == 'x':
+                      assert meaning['x'] < phases['x'] < results_box['x'], f'{key} lost LR order'
+                  else:
+                      assert meaning['y'] < phases['y'] < results_box['y'], f'{key} lost TB order'
+                  if key == 'adr344_auto':
+                      for token in ['Fact', 'Condition', 'Claim', 'CandidateData', 'Missing']:
+                          visible_box(page, token)
+                  page.screenshot(path=os.path.join(screenshot_dir, key + '.png'), full_page=True)
+                  results[key] = {'status': 'PASS', 'layout': mode, 'direction': direction, 'viewport': viewport}
+                  page.close()
+              browser.close()
+          print(json.dumps({'schema': 'graph-layout-mode-browser-proof/1', 'status': 'PASS', 'candidate': os.environ['CANDIDATE_SHA'], 'results': results}, ensure_ascii=False))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui218-on-222-final-proof
+          path: |
+            ${{ runner.temp }}/proof-urls.json
+            ${{ runner.temp }}/graph218-screens/*.png
+          if-no-files-found: error
