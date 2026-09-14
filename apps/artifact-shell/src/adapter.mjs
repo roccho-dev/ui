@@ -1,7 +1,12 @@
-const wait = async (scope, predicate, label, timeoutMs = 15_000) => {
+const waitForOutcome = async (scope, iframe, label, timeoutMs = 15_000) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (predicate()) return;
+    const child = iframe.contentWindow;
+    const proof = child?.artifactShellProof;
+    if (proof?.outcome) return proof.outcome;
+    if (proof?.error) throw new Error(`artifact-adapter: ${label} failed · ${proof.error}`);
+    const status = iframe.contentDocument?.querySelector?.('#status');
+    if (status?.dataset?.state === 'inconclusive') throw new Error(`artifact-adapter: ${label} failed · ${status.textContent}`);
     await new Promise(resolve => scope.setTimeout(resolve, 50));
   }
   throw new Error(`artifact-adapter: ${label} timed out`);
@@ -33,7 +38,8 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
     iframe.addEventListener('load', resolve, { once: true });
     iframe.addEventListener('error', () => reject(new Error(`artifact-adapter: ${adapter.id} frame failed`)), { once: true });
   });
-  await wait(scope, () => iframe.contentWindow?.artifactShellProof?.outcome?.result?.status === 'PASS', `${adapter.id} invocation`);
+  const outcome = await waitForOutcome(scope, iframe, `${adapter.id} invocation`);
+  if (outcome?.result?.status !== 'PASS') throw new Error(`artifact-adapter: ${adapter.id} result ${outcome?.result?.status ?? 'missing'}`);
   if (!visible(iframe)) throw new Error(`artifact-adapter: ${adapter.id} frame is not visible`);
   document.body.dataset.adapterStatus = 'pass';
   status.textContent = 'PASS';
