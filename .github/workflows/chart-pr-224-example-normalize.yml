@@ -52,7 +52,7 @@ jobs:
               path.write_text(text, encoding='utf-8')
           PY
 
-          git rm \
+          git rm --ignore-unmatch \
             examples/chart/example.jsonl \
             packages/semantic-map/examples/chart.jsonl \
             packages/semantic-map/examples/chart-scatter.jsonl \
