@@ -46,7 +46,12 @@ if text.count(old) != 1:
     raise SystemExit('authoring boundary styles import anchor changed')
 text = text.replace(old, new)
 anchor = "assert.match(adapter, /editingPlugin\\?\\.textarea\\?\\.isConnected/);\n"
-addition = anchor + "assert.doesNotMatch(styles, /case 'vector-sector':[\\s\\S]*?editable: false/);\n"
+addition = anchor + """const vectorSectorStart = styles.indexOf(\"case 'vector-sector':\");
+const vectorSectorEnd = styles.indexOf(\"case 'seq-step':\", vectorSectorStart);
+assert.ok(vectorSectorStart >= 0 && vectorSectorEnd > vectorSectorStart);
+const vectorSectorStyle = styles.slice(vectorSectorStart, vectorSectorEnd);
+assert.doesNotMatch(vectorSectorStyle, /(?:fontSize: 0|selectable: false|editable: false|connectable: false|deletable: false)/);
+"""
 if text.count(anchor) != 1:
     raise SystemExit('authoring boundary styles assertion anchor changed')
 boundary.write_text(text.replace(anchor, addition), encoding='utf-8')
