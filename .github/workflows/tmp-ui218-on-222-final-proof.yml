@@ -35,6 +35,8 @@ jobs:
           node packages/semantic-map/tests/graph_semantics_test.mjs
           node packages/semantic-map/tests/run.mjs
           python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
+          node packages/semantic-map/tests/example_reproducibility.mjs
+          node packages/decision-packet/tests/example-reproducibility.mjs
 
       - name: Build publication outside source tree
         shell: bash
