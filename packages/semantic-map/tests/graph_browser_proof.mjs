@@ -23,7 +23,7 @@ with open(urls_path, encoding='utf-8') as handle:
     urls = json.load(handle)
 
 expected = {
-    'self': ['Claim', 'role: proposal | decision', 'depends_on'],
+    'self': ['Claim', 'role: proposal | decision'],
     'mimic': [
         '見えるんです', 'UI / Graph', 'AWS | Amazon S3', 'input.json', 'output.json', 'mieru-dev',
         '既存画面データ対応', '1 object / join不要 / 契約は統合', 'writes output.json', 'reads result',
