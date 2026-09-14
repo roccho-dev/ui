@@ -7,13 +7,7 @@ import SelectionCellsHandler from '../vendor/maxgraph/view/plugin/SelectionCells
 import SelectionHandler from '../vendor/maxgraph/view/plugin/SelectionHandler.js';
 import InternalEvent from '../vendor/maxgraph/view/event/InternalEvent.js';
 import ImageBox from '../vendor/maxgraph/view/image/ImageBox.js';
-import EllipseShape from '../vendor/maxgraph/view/shape/node/EllipseShape.js';
-import ImageShape from '../vendor/maxgraph/view/shape/node/ImageShape.js';
 import { ShapeRegistry } from '../vendor/maxgraph/view/shape/ShapeRegistry.js';
-import { EllipsePerimeter } from '../vendor/maxgraph/view/style/perimeter/EllipsePerimeter.js';
-import { RectanglePerimeter } from '../vendor/maxgraph/view/style/perimeter/RectanglePerimeter.js';
-import { RhombusPerimeter } from '../vendor/maxgraph/view/style/perimeter/RhombusPerimeter.js';
-import { PerimeterRegistry } from '../vendor/maxgraph/view/style/perimeter/PerimeterRegistry.js';
 import { EdgeHandlerConfig, HandleConfig, VertexHandlerConfig } from '../vendor/maxgraph/view/handler/config.js';
 import { DiamondShape, ParallelogramShape, SectorShape } from './shapes.js';
 import { DEFAULT_THEME, connectIcon, paletteFor, styleScaleFor } from './theme.js';
@@ -116,34 +110,24 @@ function displayedRelationLabel(relation, scale, theme, representationsById, sel
     : '';
 }
 
-class SemanticGraph extends BaseGraph {
-  registerDefaults() {
-    PerimeterRegistry.add('rectanglePerimeter', RectanglePerimeter);
-    PerimeterRegistry.add('ellipsePerimeter', EllipsePerimeter);
-    PerimeterRegistry.add('rhombusPerimeter', RhombusPerimeter);
-    ShapeRegistry.add('ellipse', EllipseShape);
-    ShapeRegistry.add('image', ImageShape);
-    ShapeRegistry.add('semanticDiamond', DiamondShape);
-    ShapeRegistry.add('semanticParallelogram', ParallelogramShape);
-    ShapeRegistry.add('semanticSector', SectorShape);
-  }
-
-  isToggleEvent(event) {
-    return Boolean(event.shiftKey || event.ctrlKey || event.metaKey);
-  }
-
-  isCellSelectable(cell) {
-    return this.isCellsSelectable() && (this.getCurrentCellStyle(cell).selectable ?? true);
-  }
-
-  getCellAt(x, y, parent = null, vertices = true, edges = true, ignoreFn = null) {
-    return super.getCellAt(x, y, parent, vertices, edges, (state, px, py) => (
+const createSemanticGraph = options => {
+  const graph = new BaseGraph(options);
+  ShapeRegistry.add('semanticDiamond', DiamondShape);
+  ShapeRegistry.add('semanticParallelogram', ParallelogramShape);
+  ShapeRegistry.add('semanticSector', SectorShape);
+  const getCellAt = graph.getCellAt.bind(graph);
+  graph.isToggleEvent = event => Boolean(event.shiftKey || event.ctrlKey || event.metaKey);
+  graph.isCellSelectable = cell => graph.isCellsSelectable() && (graph.getCurrentCellStyle(cell).selectable ?? true);
+  graph.getCellAt = (x, y, parent = null, vertices = true, edges = true, ignoreFn = null) => getCellAt(
+    x, y, parent, vertices, edges,
+    (state, px, py) => (
       state.cell?.semantic?.mode === 'boundary'
       || (state.cell?.semantic?.readOnly === true && !state.cell?.semantic?.activation)
       || Boolean(ignoreFn?.(state, px, py))
-    ));
-  }
-}
+    ),
+  );
+  return graph;
+};
 
 function vertexStyle(representation, scale, theme) {
   const visual = representation.visual ?? null;
@@ -549,959 +533,1006 @@ function appendReviewOverlay(root, overlay, camera) {
   root.append(group);
 }
 
-export class MaxGraphAdapter {
-  constructor(container, options = {}) {
-    InternalEvent.disableContextMenu(container);
-    this.container = container;
-    this.theme = options.theme ?? DEFAULT_THEME;
-    this.surfaceBackgroundMount = document.createElement('div');
-    this.surfaceBackgroundMount.className = 'resource-surface resource-surface-background';
-    this.surfaceBackgroundMount.setAttribute('data-resource-host', 'surface-background');
-    Object.assign(this.surfaceBackgroundMount.style, {
-      position: 'absolute',
-      inset: '0',
-      overflow: 'hidden',
-      pointerEvents: 'none',
-      zIndex: '0',
-    });
-    container.prepend(this.surfaceBackgroundMount);
-    this.graph = new SemanticGraph({
-      container,
-      plugins: [
-        CellEditorHandler,
-        ConnectionHandler,
-        PanningHandler,
-        RubberBandHandler,
-        SelectionCellsHandler,
-        SelectionHandler,
-      ],
-    });
-    this.overlaySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    this.overlaySvg.classList.add('semantic-projection-overlay');
-    this.overlaySvg.setAttribute('aria-hidden', 'true');
-    this.overlaySvg.setAttribute('data-semantic-overlay', 'terrain-sets');
-    Object.assign(this.overlaySvg.style, {
-      position: 'absolute',
-      inset: '0',
-      width: '100%',
-      height: '100%',
-      overflow: 'hidden',
-      pointerEvents: 'none',
-      zIndex: '1',
-    });
-    this.overlayRoot = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    this.overlayRoot.setAttribute('data-layer', 'projection');
-    this.overlaySvg.append(this.overlayRoot);
-    container.append(this.overlaySvg);
-    this.surfaceContentMount = document.createElement('div');
-    this.surfaceContentMount.className = 'resource-surface resource-surface-content';
-    this.surfaceContentMount.setAttribute('data-resource-host', 'surface-content');
-    Object.assign(this.surfaceContentMount.style, {
-      position: 'absolute',
-      inset: '0',
-      overflow: 'hidden',
-      zIndex: '2',
-    });
-    container.append(this.surfaceContentMount);
-    this.surfaceCompositionKey = null;
-    this.graph.setPanning(true);
-    this.graph.centerZoom = false;
-    this.graph.setCellsSelectable(true);
-    this.graph.setCellsMovable(true);
-    this.graph.setCellsResizable(true);
-    this.graph.setCellsEditable(true);
-    this.graph.setEnterStopsCellEditing(true);
-    this.graph.setCellsCloneable(false);
-    this.graph.setAllowDanglingEdges(false);
-    this.graph.setAllowLoops(false);
-    this.graph.setMultigraph(false);
-    this.graph.setCellsDisconnectable(false);
-    this.graph.setDropEnabled(false);
-    this.graph.setSplitEnabled(false);
-    this.graph.setGridEnabled(false);
+function initializeMaxGraphAdapter(container, options = {}) {
+  InternalEvent.disableContextMenu(container);
+  this.container = container;
+  this.theme = options.theme ?? DEFAULT_THEME;
+  this.surfaceBackgroundMount = document.createElement('div');
+  this.surfaceBackgroundMount.className = 'resource-surface resource-surface-background';
+  this.surfaceBackgroundMount.setAttribute('data-resource-host', 'surface-background');
+  Object.assign(this.surfaceBackgroundMount.style, {
+    position: 'absolute',
+    inset: '0',
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    zIndex: '0',
+  });
+  container.prepend(this.surfaceBackgroundMount);
+  this.graph = createSemanticGraph({
+    container,
+    plugins: [
+      CellEditorHandler,
+      ConnectionHandler,
+      PanningHandler,
+      RubberBandHandler,
+      SelectionCellsHandler,
+      SelectionHandler,
+    ],
+  });
+  this.overlaySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  this.overlaySvg.classList.add('semantic-projection-overlay');
+  this.overlaySvg.setAttribute('aria-hidden', 'true');
+  this.overlaySvg.setAttribute('data-semantic-overlay', 'terrain-sets');
+  Object.assign(this.overlaySvg.style, {
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    zIndex: '1',
+  });
+  this.overlayRoot = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  this.overlayRoot.setAttribute('data-layer', 'projection');
+  this.overlaySvg.append(this.overlayRoot);
+  container.append(this.overlaySvg);
+  this.surfaceContentMount = document.createElement('div');
+  this.surfaceContentMount.className = 'resource-surface resource-surface-content';
+  this.surfaceContentMount.setAttribute('data-resource-host', 'surface-content');
+  Object.assign(this.surfaceContentMount.style, {
+    position: 'absolute',
+    inset: '0',
+    overflow: 'hidden',
+    zIndex: '2',
+  });
+  container.append(this.surfaceContentMount);
+  this.surfaceCompositionKey = null;
+  this.graph.setPanning(true);
+  this.graph.centerZoom = false;
+  this.graph.setCellsSelectable(true);
+  this.graph.setCellsMovable(true);
+  this.graph.setCellsResizable(true);
+  this.graph.setCellsEditable(true);
+  this.graph.setEnterStopsCellEditing(true);
+  this.graph.setCellsCloneable(false);
+  this.graph.setAllowDanglingEdges(false);
+  this.graph.setAllowLoops(false);
+  this.graph.setMultigraph(false);
+  this.graph.setCellsDisconnectable(false);
+  this.graph.setDropEnabled(false);
+  this.graph.setSplitEnabled(false);
+  this.graph.setGridEnabled(false);
 
-    const panning = this.graph.getPlugin('PanningHandler');
-    panning.useLeftButtonForPanning = false;
-    panning.ignoreCell = false;
+  const panning = this.graph.getPlugin('PanningHandler');
+  panning.useLeftButtonForPanning = false;
+  panning.ignoreCell = false;
 
-    VertexHandlerConfig.selectionColor = this.theme.selection.stroke;
-    VertexHandlerConfig.selectionDashed = this.theme.selection.dashed;
-    VertexHandlerConfig.selectionStrokeWidth = this.theme.selection.strokeWidth;
-    EdgeHandlerConfig.selectionColor = this.theme.selection.stroke;
-    HandleConfig.fillColor = this.theme.handle.fill;
-    HandleConfig.strokeColor = this.theme.handle.stroke;
-    const coarsePointer = globalThis.matchMedia?.('(pointer: coarse)').matches
-      || navigator.maxTouchPoints > 0;
-    HandleConfig.size = coarsePointer ? this.theme.handle.coarseSize : this.theme.handle.fineSize;
+  VertexHandlerConfig.selectionColor = this.theme.selection.stroke;
+  VertexHandlerConfig.selectionDashed = this.theme.selection.dashed;
+  VertexHandlerConfig.selectionStrokeWidth = this.theme.selection.strokeWidth;
+  EdgeHandlerConfig.selectionColor = this.theme.selection.stroke;
+  HandleConfig.fillColor = this.theme.handle.fill;
+  HandleConfig.strokeColor = this.theme.handle.stroke;
+  const coarsePointer = globalThis.matchMedia?.('(pointer: coarse)').matches
+    || navigator.maxTouchPoints > 0;
+  HandleConfig.size = coarsePointer ? this.theme.handle.coarseSize : this.theme.handle.fineSize;
 
-    const connection = this.graph.getPlugin('ConnectionHandler');
-    connection.setEnabled(true);
-    connection.connectImage = new ImageBox(connectIcon(this.theme), this.theme.connect.size, this.theme.connect.size);
-    connection.getIconPosition = (icon, state) => ({
-      x: state.x + state.width - icon.bounds.width / 2,
-      y: state.y + state.height / 2 - icon.bounds.height / 2,
-    });
-    connection.select = true;
-    connection.createTarget = false;
+  const connection = this.graph.getPlugin('ConnectionHandler');
+  connection.setEnabled(true);
+  connection.connectImage = new ImageBox(connectIcon(this.theme), this.theme.connect.size, this.theme.connect.size);
+  connection.getIconPosition = (icon, state) => ({
+    x: state.x + state.width - icon.bounds.width / 2,
+    y: state.y + state.height / 2 - icon.bounds.height / 2,
+  });
+  connection.select = true;
+  connection.createTarget = false;
 
-    this.cellsByRegionId = new Map();
-    this.edgesByProjectionKey = new Map();
-    this.edgeByRelationId = new Map();
-    this.lastScene = null;
-    this.projecting = false;
-    this.tool = 'select';
-    this.operationHandler = null;
-    this.errorHandler = null;
-    this.activationHandler = null;
-    this.activationPending = false;
-    this.selectionListeners = new Set();
-    this.selectionRegionIds = new Set();
-    this.selectionRelationIds = new Set();
-    this.pendingRelationSelection = null;
-    this.focusMarkerRegionId = null;
-    this.reviewOverlay = null;
-    this.cameraPreview = null;
+  this.cellsByRegionId = new Map();
+  this.edgesByProjectionKey = new Map();
+  this.edgeByRelationId = new Map();
+  this.lastScene = null;
+  this.projecting = false;
+  this.tool = 'select';
+  this.operationHandler = null;
+  this.errorHandler = null;
+  this.activationHandler = null;
+  this.activationPending = false;
+  this.selectionListeners = new Set();
+  this.selectionRegionIds = new Set();
+  this.selectionRelationIds = new Set();
+  this.pendingRelationSelection = null;
+  this.focusMarkerRegionId = null;
+  this.reviewOverlay = null;
+  this.cameraPreview = null;
 
-    this.graph.getView().addListener(InternalEvent.SCALE, () => this.renderOverlays());
-    this.graph.getView().addListener(InternalEvent.TRANSLATE, () => this.renderOverlays());
-    this.graph.getView().addListener(InternalEvent.SCALE_AND_TRANSLATE, () => this.renderOverlays());
+  this.graph.getView().addListener(InternalEvent.SCALE, () => this.renderOverlays());
+  this.graph.getView().addListener(InternalEvent.TRANSLATE, () => this.renderOverlays());
+  this.graph.getView().addListener(InternalEvent.SCALE_AND_TRANSLATE, () => this.renderOverlays());
 
-    this.installEditEvents();
-    this.setTool('select');
-  }
+  this.installEditEvents();
+  this.setTool('select');
+}
 
-  installEditEvents() {
-    this.graph.addListener(InternalEvent.CLICK, (_sender, event) => {
-      if (this.projecting || this.activationPending) return;
-      const cell = event.getProperty('cell');
-      const activation = cell?.semantic?.activation ?? null;
-      if (!activation || !this.activationHandler) return;
-      event.consume();
-      this.activationPending = true;
-      Promise.resolve(this.activationHandler(activation, cell.semantic))
-        .catch((error) => this.errorHandler?.(error))
-        .finally(() => { this.activationPending = false; });
-    });
+function installEditEvents() {
+  this.graph.addListener(InternalEvent.CLICK, (_sender, event) => {
+    if (this.projecting || this.activationPending) return;
+    const cell = event.getProperty('cell');
+    const activation = cell?.semantic?.activation ?? null;
+    if (!activation || !this.activationHandler) return;
+    event.consume();
+    this.activationPending = true;
+    Promise.resolve(this.activationHandler(activation, cell.semantic))
+      .catch((error) => this.errorHandler?.(error))
+      .finally(() => { this.activationPending = false; });
+  });
 
-    this.graph.addListener(InternalEvent.CELLS_MOVED, (_sender, event) => {
-      if (this.projecting) return;
-      const cells = (event.getProperty('cells') ?? []).filter(
-        (cell) => cell.isVertex()
-          && cell.semantic?.type === 'region'
-          && cell.semantic.mode !== 'boundary'
-          && !cell.semantic.readOnly
-          && (cell.semantic.geometryEditable || cell.semantic.temporalEdit),
-      );
-      if (!cells.length) return;
-      const temporal = cells.filter((cell) => cell.semantic.temporalEdit);
-      if (temporal.length) {
-        if (temporal.length !== cells.length) {
-          this.errorHandler?.(new Error('seq/1 temporal items cannot move with geometric regions'));
-          this.render(this.lastScene);
-          return;
-        }
-        const axis = temporal[0].semantic.temporalEdit.axis;
-        if (temporal.some((cell) => cell.semantic.temporalEdit.axis !== axis)) {
-          this.errorHandler?.(new Error('seq/1 temporal items must share one active axis'));
-          this.render(this.lastScene);
-          return;
-        }
-        const dx = event.getProperty('dx');
-        const dy = event.getProperty('dy');
-        const items = temporal.map((cell) => {
-          const edit = cell.semantic.temporalEdit;
-          const delta = Math.round(dx / edit.unitWidth);
-          const start = temporalScalar(edit.start, axis) + delta;
-          const end = temporalScalar(edit.end, axis) + delta;
-          const centerY = cell.semantic.bounds.y + cell.semantic.bounds.height / 2 + dy;
-          return {
-            regionId: cell.semantic.regionId,
-            actor: nearestLaneActor(edit, centerY),
-            start: temporalValue(start, axis),
-            end: temporalValue(end, axis),
-          };
-        });
-        this.submitOperation({ type: 'PlaceTemporalRegions', axis, items });
-        return;
-      }
-      this.submitOperation({
-        type: 'MoveRegions',
-        regionIds: cells.map((cell) => cell.semantic.regionId),
-        dx: event.getProperty('dx'),
-        dy: event.getProperty('dy'),
-      });
-    });
-
-    this.graph.addListener(InternalEvent.CELLS_RESIZED, (_sender, event) => {
-      if (this.projecting) return;
-      const cells = event.getProperty('cells') ?? [];
-      const resizedBounds = event.getProperty('bounds') ?? [];
-      const temporalItems = [];
-      const geometricItems = [];
-      let temporalAxis = null;
-      cells.forEach((cell, index) => {
-        if (!cell.isVertex() || cell.semantic?.type !== 'region' || cell.semantic.mode === 'boundary' || cell.semantic.readOnly) return;
-        const next = resizedBounds[index];
-        const edit = cell.semantic.temporalEdit;
-        if (edit) {
-          temporalAxis ??= edit.axis;
-          if (temporalAxis !== edit.axis) throw new Error('seq/1 temporal resize axes differ');
-          const startScalar = edit.origin + Math.round((next.x - edit.axisStartX - 6) / edit.unitWidth);
-          const endScalar = edit.origin + Math.round((next.x + next.width - edit.axisStartX + 6) / edit.unitWidth) - 1;
-          const start = Math.max(edit.axis === 'ordinal' ? 0 : Number.NEGATIVE_INFINITY, startScalar);
-          const endValue = Math.max(start, endScalar);
-          temporalItems.push({
-            regionId: cell.semantic.regionId,
-            actor: edit.actor,
-            start: temporalValue(start, edit.axis),
-            end: temporalValue(endValue, edit.axis),
-          });
-        } else if (cell.semantic.geometryEditable) {
-          geometricItems.push({
-            regionId: cell.semantic.regionId,
-            bounds: [next.x, next.y, next.width, next.height],
-          });
-        }
-      });
-      if (temporalItems.length && geometricItems.length) {
-        this.errorHandler?.(new Error('seq/1 temporal items cannot resize with geometric regions'));
+  this.graph.addListener(InternalEvent.CELLS_MOVED, (_sender, event) => {
+    if (this.projecting) return;
+    const cells = (event.getProperty('cells') ?? []).filter(
+      (cell) => cell.isVertex()
+        && cell.semantic?.type === 'region'
+        && cell.semantic.mode !== 'boundary'
+        && !cell.semantic.readOnly
+        && (cell.semantic.geometryEditable || cell.semantic.temporalEdit),
+    );
+    if (!cells.length) return;
+    const temporal = cells.filter((cell) => cell.semantic.temporalEdit);
+    if (temporal.length) {
+      if (temporal.length !== cells.length) {
+        this.errorHandler?.(new Error('seq/1 temporal items cannot move with geometric regions'));
         this.render(this.lastScene);
         return;
       }
-      if (temporalItems.length) this.submitOperation({ type: 'PlaceTemporalRegions', axis: temporalAxis, items: temporalItems });
-      else if (geometricItems.length) this.submitOperation({ type: 'ResizeRegions', items: geometricItems });
-    });
-
-    this.graph.addListener(InternalEvent.LABEL_CHANGED, (_sender, event) => {
-      if (this.projecting) return;
-      const cell = event.getProperty('cell');
-      if (cell?.semantic?.type !== 'region' || !cell.semantic.labelEditable || cell.semantic.readOnly) return;
-      this.submitOperation({
-        type: 'RenameRegion',
-        regionId: cell.semantic.regionId,
-        label: event.getProperty('value'),
-      });
-    });
-
-    const connection = this.graph.getPlugin('ConnectionHandler');
-    connection.addListener(InternalEvent.CONNECT, (_sender, event) => {
-      if (this.projecting) return;
-      const edge = event.getProperty('cell');
-      const source = edge?.getTerminal(true);
-      const target = edge?.getTerminal(false);
-      const from = source?.semantic?.regionId;
-      const to = target?.semantic?.regionId;
-      if (!from || !to || source?.semantic?.readOnly || target?.semantic?.readOnly) return;
-      const result = this.submitOperation({
-        type: 'ConnectRegions',
-        from,
-        to,
-        kind: defaultRelationKind(this.lastScene?.pattern),
-        label: '',
-      });
-      if (result?.createdRelationId) {
-        this.pendingRelationSelection = result.createdRelationId;
-        this.selectionRegionIds.clear();
-        this.selectionRelationIds = new Set([result.createdRelationId]);
+      const axis = temporal[0].semantic.temporalEdit.axis;
+      if (temporal.some((cell) => cell.semantic.temporalEdit.axis !== axis)) {
+        this.errorHandler?.(new Error('seq/1 temporal items must share one active axis'));
+        this.render(this.lastScene);
+        return;
       }
-    });
-
-    this.graph.getSelectionModel().addListener(InternalEvent.CHANGE, () => {
-      if (this.projecting) return;
-      const selected = this.graph.getSelectionCells();
-      const regions = new Set();
-      const relations = new Set();
-      for (const cell of selected) {
-        if (cell.semantic?.type === 'region' && !cell.semantic.readOnly) regions.add(cell.semantic.regionId);
-        if (cell.semantic?.type === 'relation' && !cell.semantic.readOnly && cell.semantic.relationIds.length === 1) {
-          relations.add(cell.semantic.relationIds[0]);
-        }
-      }
-      if (selected.some((cell) => cell.isEdge() && !cell.semantic) && this.pendingRelationSelection) {
-        relations.add(this.pendingRelationSelection);
-      }
-      this.selectionRegionIds = regions;
-      this.selectionRelationIds = relations;
-      this.emitSelection();
-    });
-  }
-
-  setOperationHandler(handler) {
-    this.operationHandler = handler;
-  }
-
-  setErrorHandler(handler) {
-    this.errorHandler = handler;
-  }
-
-  setActivationHandler(handler) {
-    this.activationHandler = handler;
-  }
-
-  submitOperation(operation) {
-    if (!this.operationHandler) return null;
-    try {
-      return this.operationHandler(Object.freeze({ ...operation }));
-    } catch (error) {
-      this.errorHandler?.(error);
-      return null;
-    }
-  }
-
-  onSelectionChange(listener) {
-    this.selectionListeners.add(listener);
-    return () => this.selectionListeners.delete(listener);
-  }
-
-  emitSelection() {
-    this.refreshRenderedLabels();
-    const snapshot = this.selectionSnapshot();
-    for (const listener of this.selectionListeners) listener(snapshot);
-  }
-
-  selectionSnapshot() {
-    return Object.freeze({
-      regionIds: Object.freeze([...this.selectionRegionIds]),
-      relationIds: Object.freeze([...this.selectionRelationIds]),
-    });
-  }
-
-  setSelection({ regionIds = [], relationIds = [] }) {
-    const readOnlyRegions = new Set(
-      this.lastScene?.representations.filter((item) => item.readOnly).map((item) => item.regionId) ?? [],
-    );
-    const readOnlyRelations = new Set(
-      this.lastScene?.relations.filter((item) => item.readOnly).flatMap((item) => item.relationIds) ?? [],
-    );
-    this.selectionRegionIds = new Set(regionIds.filter((id) => !readOnlyRegions.has(id)));
-    this.selectionRelationIds = new Set(relationIds.filter((id) => !readOnlyRelations.has(id)));
-    this.restoreSelection(this.lastScene);
-    this.emitSelection();
-  }
-
-  selectRegion(regionId) {
-    this.setSelection({ regionIds: [regionId] });
-  }
-
-  setFocusMarker(regionId = null) {
-    if (regionId !== null && typeof regionId !== 'string') throw new Error('focus marker regionId must be a string or null');
-    this.focusMarkerRegionId = regionId;
-    this.renderOverlays();
-  }
-
-  focusMarkerSnapshot() {
-    return this.focusMarkerRegionId;
-  }
-
-  clearSelection() {
-    this.selectionRegionIds.clear();
-    this.selectionRelationIds.clear();
-    this.projecting = true;
-    try {
-      this.graph.clearSelection();
-    } finally {
-      this.projecting = false;
-    }
-    this.emitSelection();
-  }
-
-  restoreSelection(scene) {
-    if (!scene) return;
-    const cells = [];
-    for (const regionId of this.selectionRegionIds) {
-      const visibleId = scene.selectionProxies[regionId];
-      if (visibleId) cells.push(this.cellsByRegionId.get(visibleId));
-    }
-    for (const relationId of this.selectionRelationIds) {
-      cells.push(this.edgeByRelationId.get(relationId));
-    }
-    this.projecting = true;
-    try {
-      this.graph.setSelectionCells(uniqueCells(cells));
-    } finally {
-      this.projecting = false;
-    }
-    this.pendingRelationSelection = null;
-  }
-
-  renderOverlays(scene = this.lastScene) {
-    const svg = this.overlaySvg;
-    const root = this.overlayRoot;
-    if (!svg || !root) return;
-    root.replaceChildren();
-    const width = Math.max(1, this.container.clientWidth);
-    const height = Math.max(1, this.container.clientHeight);
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    if (!scene) return;
-    const camera = this.camera();
-    const screenPoint = ([x, y]) => [
-      (x + camera.translateX) * camera.scale,
-      (y + camera.translateY) * camera.scale,
-    ];
-
-    const terrainGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    terrainGroup.setAttribute('data-layer', 'terrain');
-    for (const cell of scene.terrain ?? []) {
-      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      polygon.setAttribute('points', cell.points.map((point) => screenPoint(point).join(',')).join(' '));
-      const [fill, stroke] = paletteFor(this.theme, `terrain:${cell.regionId}`);
-      polygon.setAttribute('fill', fill);
-      polygon.setAttribute('fill-opacity', String(this.theme.terrain.fillOpacity));
-      polygon.setAttribute('stroke', stroke);
-      polygon.setAttribute('stroke-opacity', String(this.theme.terrain.strokeOpacity));
-      polygon.setAttribute('stroke-width', String(this.theme.terrain.strokeWidth));
-      polygon.setAttribute('data-region-id', cell.regionId);
-      terrainGroup.append(polygon);
-    }
-    root.append(terrainGroup);
-
-    const setGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    setGroup.setAttribute('data-layer', 'sets');
-    for (const set of scene.setOverlay?.sets ?? []) {
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      const x = (set.bounds.x + camera.translateX) * camera.scale;
-      const y = (set.bounds.y + camera.translateY) * camera.scale;
-      const w = set.bounds.width * camera.scale;
-      const h = set.bounds.height * camera.scale;
-      const [, stroke] = paletteFor(this.theme, `set:${set.regionId}`);
-      rect.setAttribute('x', String(x));
-      rect.setAttribute('y', String(y));
-      rect.setAttribute('width', String(w));
-      rect.setAttribute('height', String(h));
-      rect.setAttribute('rx', String(Math.min(
-        this.theme.set.cornerMax,
-        Math.max(this.theme.set.cornerMin, Math.min(w, h) * this.theme.set.cornerFactor),
-      )));
-      rect.setAttribute('fill', this.theme.set.fill);
-      rect.setAttribute('stroke', stroke);
-      rect.setAttribute('stroke-width', String(set.complete
-        ? this.theme.set.completeStrokeWidth
-        : this.theme.set.incompleteStrokeWidth));
-      rect.setAttribute('stroke-dasharray', set.complete
-        ? this.theme.set.completeDash
-        : this.theme.set.incompleteDash);
-      rect.setAttribute('stroke-opacity', String(this.theme.set.strokeOpacity));
-      rect.setAttribute('data-set-id', set.regionId);
-      rect.setAttribute('data-complete', String(set.complete));
-      setGroup.append(rect);
-    }
-    root.append(setGroup);
-
-    const requestedFocus = this.focusMarkerRegionId;
-    if (requestedFocus) {
-      const visibleFocus = scene.selectionProxies?.[requestedFocus] ?? requestedFocus;
-      const representation = scene.representations.find((item) => item.regionId === visibleFocus);
-      if (representation) {
-        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        group.setAttribute('data-layer', 'current-focus');
-        group.setAttribute('data-focus-ref', requestedFocus);
-        const x = (representation.bounds.x + camera.translateX) * camera.scale;
-        const y = (representation.bounds.y + camera.translateY) * camera.scale;
-        const w = representation.bounds.width * camera.scale;
-        const h = representation.bounds.height * camera.scale;
-        const region = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        region.setAttribute('x', String(x));
-        region.setAttribute('y', String(y));
-        region.setAttribute('width', String(w));
-        region.setAttribute('height', String(h));
-        region.setAttribute('rx', String(Math.min(10, Math.max(2, Math.min(w, h) * 0.08))));
-        region.setAttribute('fill', this.theme.focusMarker.regionFill);
-        region.setAttribute('fill-opacity', String(this.theme.focusMarker.regionFillOpacity));
-        region.setAttribute('stroke', this.theme.focusMarker.regionStroke);
-        region.setAttribute('stroke-width', String(this.theme.focusMarker.regionStrokeWidth));
-        region.setAttribute('vector-effect', 'non-scaling-stroke');
-        region.setAttribute('data-semantic-focus-region', requestedFocus);
-        group.append(region);
-
-        const size = this.theme.focusMarker.size;
-        const markerX = Math.max(2, Math.min(width - size - 2, x + w - size / 2));
-        const markerY = Math.max(2, Math.min(height - size - 2, y - size / 2));
-        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        marker.setAttribute('x', String(markerX));
-        marker.setAttribute('y', String(markerY));
-        marker.setAttribute('width', String(size));
-        marker.setAttribute('height', String(size));
-        marker.setAttribute('rx', String(this.theme.focusMarker.radius));
-        marker.setAttribute('fill', this.theme.focusMarker.fill);
-        marker.setAttribute('stroke', this.theme.focusMarker.outline);
-        marker.setAttribute('stroke-width', String(this.theme.focusMarker.outlineWidth));
-        marker.setAttribute('vector-effect', 'non-scaling-stroke');
-        marker.setAttribute('data-semantic-focus-marker', requestedFocus);
-        group.append(marker);
-        root.append(group);
-      }
-    }
-    appendReviewOverlay(root, this.reviewOverlay, camera);
-  }
-
-  setReviewOverlay(overlay) {
-    if (overlay === null) return this.clearReviewOverlay();
-    if (overlay?.schema !== REVIEW_OVERLAY_SCHEMA) throw new Error('review overlay schema is invalid');
-    if (overlay.authority !== false || overlay.status !== 'proposal') {
-      throw new Error('review overlay must remain a non-authority Proposal');
-    }
-    if (!Array.isArray(overlay.regions) || !Array.isArray(overlay.relations)) {
-      throw new Error('review overlay regions and relations are required');
-    }
-    for (const item of [...overlay.regions, ...overlay.relations]) {
-      if (!REVIEW_STATUSES.has(item.status)) throw new Error(`review overlay status is invalid: ${item.status}`);
-    }
-    this.reviewOverlay = overlay;
-    this.renderOverlays();
-    return this.reviewOverlaySnapshot();
-  }
-
-  clearReviewOverlay() {
-    this.reviewOverlay = null;
-    this.renderOverlays();
-    return this.reviewOverlaySnapshot();
-  }
-
-  reviewOverlaySnapshot() {
-    if (!this.reviewOverlay) return Object.freeze({ active: false, overlay: null });
-    return Object.freeze({
-      active: true,
-      overlay: structuredClone(this.reviewOverlay),
-    });
-  }
-
-  labelContext(scene) {
-    const representationsById = new Map(scene.representations.map((item) => [item.regionId, item]));
-    const selectedRegionIds = new Set();
-    for (const regionId of this.selectionRegionIds) {
-      selectedRegionIds.add(scene.selectionProxies[regionId] ?? regionId);
-    }
-    return Object.freeze({
-      representationsById,
-      selectedRegionIds,
-      selectedRelationIds: new Set(this.selectionRelationIds),
-    });
-  }
-
-  regionDisplayLabel(representation, scene, context) {
-    return displayedRegionLabel(
-      representation,
-      scene.scale,
-      this.theme,
-      context.selectedRegionIds.has(representation.regionId),
-    );
-  }
-
-  relationDisplayLabel(relation, scene, context) {
-    const selected = relation.relationIds.some((id) => context.selectedRelationIds.has(id));
-    return displayedRelationLabel(
-      relation,
-      scene.scale,
-      this.theme,
-      context.representationsById,
-      selected,
-    );
-  }
-
-  refreshRenderedLabels() {
-    const scene = this.lastScene;
-    if (!scene) return;
-    const context = this.labelContext(scene);
-    const model = this.graph.getDataModel();
-    const previousProjecting = this.projecting;
-    this.projecting = true;
-    try {
-      this.graph.batchUpdate(() => {
-        for (const cell of this.cellsByRegionId.values()) {
-          const representation = cell.semantic;
-          if (representation?.type !== 'region') continue;
-          const label = this.regionDisplayLabel(representation, scene, context);
-          if (cell.value !== label) model.setValue(cell, label);
-        }
-        for (const edge of this.edgesByProjectionKey.values()) {
-          const relation = edge.semantic;
-          if (relation?.type !== 'relation') continue;
-          const label = this.relationDisplayLabel(relation, scene, context);
-          if (edge.value !== label) model.setValue(edge, label);
-        }
+      const dx = event.getProperty('dx');
+      const dy = event.getProperty('dy');
+      const items = temporal.map((cell) => {
+        const edit = cell.semantic.temporalEdit;
+        const delta = Math.round(dx / edit.unitWidth);
+        const start = temporalScalar(edit.start, axis) + delta;
+        const end = temporalScalar(edit.end, axis) + delta;
+        const centerY = cell.semantic.bounds.y + cell.semantic.bounds.height / 2 + dy;
+        return {
+          regionId: cell.semantic.regionId,
+          actor: nearestLaneActor(edit, centerY),
+          start: temporalValue(start, axis),
+          end: temporalValue(end, axis),
+        };
       });
-    } finally {
-      this.projecting = previousProjecting;
+      this.submitOperation({ type: 'PlaceTemporalRegions', axis, items });
+      return;
     }
-  }
+    this.submitOperation({
+      type: 'MoveRegions',
+      regionIds: cells.map((cell) => cell.semantic.regionId),
+      dx: event.getProperty('dx'),
+      dy: event.getProperty('dy'),
+    });
+  });
 
-  render(scene) {
-    const nextCompositionKey = JSON.stringify(scene.resourceComposition ?? null);
-    if (this.surfaceCompositionKey !== nextCompositionKey) {
-      renderResourceTarget({
-        document,
-        mount: this.surfaceBackgroundMount,
-        composition: scene.resourceComposition,
-        targetRef: 'surface:root',
-        slot: 'background',
-      });
-      renderResourceTarget({
-        document,
-        mount: this.surfaceContentMount,
-        composition: scene.resourceComposition,
-        targetRef: 'surface:root',
-        slot: 'content',
-      });
-      this.surfaceCompositionKey = nextCompositionKey;
-    }
-    const graph = this.graph;
-    const parent = graph.getDefaultParent();
-    const desiredRegionIds = new Set(scene.representations.map((item) => item.regionId));
-    const desiredEdgeKeys = new Set(scene.relations.map(relationProjectionKey));
-    const cellsByRegionId = new Map(this.cellsByRegionId);
-    const edgesByProjectionKey = new Map(this.edgesByProjectionKey);
-    const model = graph.getDataModel();
-    const styleScale = styleScaleFor(scene.scale);
-    const labelContext = this.labelContext(scene);
-
-    this.projecting = true;
-    try {
-      graph.batchUpdate(() => {
-        const staleEdges = [];
-        for (const [key, edge] of edgesByProjectionKey) {
-          if (!desiredEdgeKeys.has(key) || !model.contains(edge)) {
-            if (model.contains(edge)) staleEdges.push(edge);
-            edgesByProjectionKey.delete(key);
-          }
-        }
-        if (staleEdges.length) graph.cellsRemoved(staleEdges);
-
-        const staleRegions = [];
-        for (const [regionId, cell] of cellsByRegionId) {
-          if (!desiredRegionIds.has(regionId) || !model.contains(cell)) {
-            if (model.contains(cell)) staleRegions.push(cell);
-            cellsByRegionId.delete(regionId);
-          }
-        }
-        if (staleRegions.length) graph.cellsRemoved(staleRegions);
-
-        const ordered = [...scene.representations].sort((a, b) => {
-          const leftZ = Number.isFinite(a.zIndex) ? a.zIndex : (a.mode === 'boundary' ? -1_000 : a.depth);
-          const rightZ = Number.isFinite(b.zIndex) ? b.zIndex : (b.mode === 'boundary' ? -1_000 : b.depth);
-          return leftZ - rightZ || a.depth - b.depth || String(a.regionId).localeCompare(String(b.regionId));
+  this.graph.addListener(InternalEvent.CELLS_RESIZED, (_sender, event) => {
+    if (this.projecting) return;
+    const cells = event.getProperty('cells') ?? [];
+    const resizedBounds = event.getProperty('bounds') ?? [];
+    const temporalItems = [];
+    const geometricItems = [];
+    let temporalAxis = null;
+    cells.forEach((cell, index) => {
+      if (!cell.isVertex() || cell.semantic?.type !== 'region' || cell.semantic.mode === 'boundary' || cell.semantic.readOnly) return;
+      const next = resizedBounds[index];
+      const edit = cell.semantic.temporalEdit;
+      if (edit) {
+        temporalAxis ??= edit.axis;
+        if (temporalAxis !== edit.axis) throw new Error('seq/1 temporal resize axes differ');
+        const startScalar = edit.origin + Math.round((next.x - edit.axisStartX - 6) / edit.unitWidth);
+        const endScalar = edit.origin + Math.round((next.x + next.width - edit.axisStartX + 6) / edit.unitWidth) - 1;
+        const start = Math.max(edit.axis === 'ordinal' ? 0 : Number.NEGATIVE_INFINITY, startScalar);
+        const endValue = Math.max(start, endScalar);
+        temporalItems.push({
+          regionId: cell.semantic.regionId,
+          actor: edit.actor,
+          start: temporalValue(start, edit.axis),
+          end: temporalValue(endValue, edit.axis),
         });
-
-        for (const representation of ordered) {
-          const { x, y, width, height } = representation.bounds;
-          let cell = cellsByRegionId.get(representation.regionId);
-          const style = vertexStyle(representation, styleScale, this.theme);
-          const styleKey = JSON.stringify(style);
-          const displayLabel = this.regionDisplayLabel(representation, scene, labelContext);
-          if (!cell) {
-            cell = graph.insertVertex({
-              parent,
-              id: `region:${representation.regionId}`,
-              value: displayLabel,
-              position: [x, y],
-              size: [width, height],
-              style,
-            });
-            cellsByRegionId.set(representation.regionId, cell);
-          } else {
-            const geometry = cell.getGeometry();
-            if (!geometryEquals(geometry, representation.bounds)) {
-              const next = geometry.clone();
-              next.x = x;
-              next.y = y;
-              next.width = width;
-              next.height = height;
-              model.setGeometry(cell, next);
-            }
-            if (cell.value !== displayLabel) model.setValue(cell, displayLabel);
-            if (cell.semanticStyleKey !== styleKey) model.setStyle(cell, style);
-          }
-          cell.semanticStyleKey = styleKey;
-          cell.semantic = Object.freeze({ type: 'region', ...representation, displayLabel });
-        }
-
-        for (const relation of scene.relations) {
-          const key = relationProjectionKey(relation);
-          const source = cellsByRegionId.get(relation.from);
-          const target = cellsByRegionId.get(relation.to);
-          if (!source || !target) continue;
-          let edge = edgesByProjectionKey.get(key);
-          const style = edgeStyle(relation, styleScale, this.theme);
-          const styleKey = JSON.stringify(style);
-          const displayLabel = this.relationDisplayLabel(relation, scene, labelContext);
-          if (!edge) {
-            edge = graph.insertEdge({
-              parent,
-              id: `relation:${key}`,
-              value: displayLabel,
-              source,
-              target,
-              style,
-            });
-            edgesByProjectionKey.set(key, edge);
-          } else {
-            if (edge.getTerminal(true) !== source) model.setTerminal(edge, source, true);
-            if (edge.getTerminal(false) !== target) model.setTerminal(edge, target, false);
-            if (edge.value !== displayLabel) model.setValue(edge, displayLabel);
-            if (edge.semanticStyleKey !== styleKey) model.setStyle(edge, style);
-          }
-          edge.semanticStyleKey = styleKey;
-          edge.semantic = Object.freeze({ type: 'relation', projectionKey: key, ...relation, displayLabel });
-        }
-
-        const managed = new Set([
-          ...cellsByRegionId.values(),
-          ...edgesByProjectionKey.values(),
-        ]);
-        const unmanaged = graph.getChildCells(parent, true, true).filter((cell) => !managed.has(cell));
-        if (unmanaged.length) graph.cellsRemoved(unmanaged);
-
-        const backgroundEdges = [...edgesByProjectionKey.values()].filter(
-          (cell) => model.contains(cell) && cell.semantic?.foreground !== true,
-        );
-        if (backgroundEdges.length) graph.orderCells(true, backgroundEdges);
-        const backgroundCells = [...cellsByRegionId.values()].filter(
-          (cell) => model.contains(cell) && cell.semantic?.shape === 'map-background',
-        );
-        if (backgroundCells.length) graph.orderCells(true, backgroundCells);
-
-        const zOrderedCells = [
-          ...cellsByRegionId.values(),
-          ...edgesByProjectionKey.values(),
-        ].filter((cell) => model.contains(cell) && Number.isFinite(cell.semantic?.zIndex))
-          .sort((left, right) => (
-            left.semantic.zIndex - right.semantic.zIndex
-            || String(left.id).localeCompare(String(right.id))
-          ));
-        if (zOrderedCells.length) graph.orderCells(false, zOrderedCells);
-      });
-
-      this.cellsByRegionId = cellsByRegionId;
-      this.edgesByProjectionKey = edgesByProjectionKey;
-
-      // Context boundaries stay visible but never intercept editing gestures.
-      // This leaves empty-space lasso/pan available inside the same semantic region.
-      for (const cell of cellsByRegionId.values()) {
-        const state = graph.getView().getState(cell);
-        if (!state) continue;
-        const interactive = cell.semantic?.mode !== 'boundary'
-          && (!cell.semantic?.readOnly || Boolean(cell.semantic?.activation));
-        if (state.shape && state.shape.pointerEvents !== interactive) {
-          state.shape.pointerEvents = interactive;
-          state.shape.redraw();
-        }
-        if (state.text && state.text.pointerEvents !== interactive) {
-          state.text.pointerEvents = interactive;
-          state.text.redraw();
-        }
+      } else if (cell.semantic.geometryEditable) {
+        geometricItems.push({
+          regionId: cell.semantic.regionId,
+          bounds: [next.x, next.y, next.width, next.height],
+        });
       }
-
-      this.edgeByRelationId = new Map();
-      for (const edge of edgesByProjectionKey.values()) {
-        if (edge.semantic?.relationIds?.length === 1) {
-          this.edgeByRelationId.set(edge.semantic.relationIds[0], edge);
-        }
-      }
-      this.lastScene = scene;
-      this.renderOverlays(scene);
-      this.restoreSelection(scene);
-    } finally {
-      this.projecting = false;
-    }
-  }
-
-  setTool(tool) {
-    if (!['select', 'hand'].includes(tool)) throw new Error(`unknown tool: ${tool}`);
-    this.tool = tool;
-    const selecting = tool === 'select';
-    this.graph.setCellsMovable(selecting);
-    this.graph.setCellsResizable(selecting);
-    this.graph.setCellsEditable(selecting);
-    this.graph.setCellsSelectable(selecting);
-
-    this.graph.getPlugin('SelectionHandler')?.setEnabled(selecting);
-    this.graph.getPlugin('SelectionCellsHandler')?.setEnabled(selecting);
-    this.graph.getPlugin('RubberBandHandler')?.setEnabled(selecting);
-    this.graph.getPlugin('ConnectionHandler')?.setEnabled(selecting);
-
-    const panning = this.graph.getPlugin('PanningHandler');
-    panning.useLeftButtonForPanning = !selecting;
-    panning.ignoreCell = !selecting;
-    this.container.dataset.tool = tool;
-  }
-
-  cancelInteraction() {
-    this.graph.stopEditing(true);
-    this.graph.getPlugin('ConnectionHandler')?.reset();
-    this.graph.getPlugin('SelectionHandler')?.reset();
-    this.graph.getPlugin('SelectionCellsHandler')?.reset();
-    this.graph.getPlugin('RubberBandHandler')?.reset();
-    this.graph.getPlugin('PanningHandler')?.reset();
-  }
-
-  isEditableTouchTarget(clientX, clientY, target = null) {
-    if (this.tool !== 'select') return false;
-    if (target?.tagName?.toLowerCase() === 'image') return true;
-    const rect = this.container.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    const cell = this.graph.getCellAt(x, y, null, true, false);
-    if (cell?.semantic?.activation) return true;
-    if (cell?.semantic?.type === 'region' && !cell.semantic.readOnly && (cell.semantic.mode !== 'boundary' || cell.semantic.labelEditable)) return true;
-    for (const selected of this.graph.getSelectionCells()) {
-      const state = this.graph.getView().getState(selected);
-      if (!state || !selected.isVertex()) continue;
-      const margin = 28;
-      if (
-        x >= state.x - margin && x <= state.x + state.width + margin
-        && y >= state.y - margin && y <= state.y + state.height + margin
-      ) return true;
-    }
-    return false;
-  }
-
-  deleteSelection() {
-    const selection = this.selectionSnapshot();
-    if (!selection.regionIds.length && !selection.relationIds.length) return null;
-    return this.submitOperation({
-      type: 'RemoveSelection',
-      regionIds: selection.regionIds,
-      relationIds: selection.relationIds,
     });
-  }
-
-  startEditingSelection() {
-    const selectedIds = [...this.selectionRegionIds];
-    if (selectedIds.length !== 1) return false;
-    const cell = this.cellsByRegionId.get(selectedIds[0]);
-    if (cell?.semantic?.type !== 'region' || !cell.semantic.labelEditable || cell.semantic.readOnly) return false;
-    this.graph.startEditingAtCell(cell);
-    return true;
-  }
-
-  setNativePinchEnabled(enabled) {
-    this.graph.getPlugin('PanningHandler')?.setPinchEnabled(enabled);
-  }
-
-  setCamera(scale, translateX, translateY) {
-    if (this.cameraPreview) this.cancelCameraPreview();
-    this.graph.getView().scaleAndTranslate(scale, translateX, translateY);
-  }
-
-  camera() {
-    const view = this.graph.getView();
-    return {
-      scale: view.scale,
-      translateX: view.translate.x,
-      translateY: view.translate.y,
-    };
-  }
-
-  // Touch gestures transform the already rendered SVG. The semantic camera,
-  // projection and maxGraph model are committed once when the gesture ends.
-  beginCameraPreview() {
-    if (this.cameraPreview) return { ...this.cameraPreview.camera };
-    this.graph.panGraph(0, 0);
-    const canvas = this.graph.getView().getCanvas();
-    const camera = this.camera();
-    this.cameraPreview = {
-      base: { ...camera },
-      camera: { ...camera },
-      canvas,
-      canvasTransform: canvas?.style.transform ?? '',
-      canvasTransformBox: canvas?.style.transformBox ?? '',
-      canvasTransformOrigin: canvas?.style.transformOrigin ?? '',
-      canvasWillChange: canvas?.style.willChange ?? '',
-      overlayTransform: this.overlayRoot?.style.transform ?? '',
-      overlayTransformBox: this.overlayRoot?.style.transformBox ?? '',
-      overlayTransformOrigin: this.overlayRoot?.style.transformOrigin ?? '',
-      overlayWillChange: this.overlayRoot?.style.willChange ?? '',
-      frame: 0,
-    };
-    this.container.dataset.cameraPreview = 'true';
-    return { ...camera };
-  }
-
-  previewCamera(scale, translateX, translateY) {
-    if (!this.cameraPreview) this.beginCameraPreview();
-    this.cameraPreview.camera = { scale, translateX, translateY };
-    if (!this.cameraPreview.frame) {
-      this.cameraPreview.frame = requestAnimationFrame(() => {
-        if (!this.cameraPreview) return;
-        this.cameraPreview.frame = 0;
-        this.applyCameraPreview();
-      });
+    if (temporalItems.length && geometricItems.length) {
+      this.errorHandler?.(new Error('seq/1 temporal items cannot resize with geometric regions'));
+      this.render(this.lastScene);
+      return;
     }
-    return { ...this.cameraPreview.camera };
-  }
+    if (temporalItems.length) this.submitOperation({ type: 'PlaceTemporalRegions', axis: temporalAxis, items: temporalItems });
+    else if (geometricItems.length) this.submitOperation({ type: 'ResizeRegions', items: geometricItems });
+  });
 
-  applyCameraPreview() {
-    const preview = this.cameraPreview;
-    if (!preview) return;
-    const ratio = preview.camera.scale / preview.base.scale;
-    const dx = preview.camera.scale * (preview.camera.translateX - preview.base.translateX);
-    const dy = preview.camera.scale * (preview.camera.translateY - preview.base.translateY);
-    const matrix = `matrix(${ratio}, 0, 0, ${ratio}, ${dx}, ${dy})`;
-    for (const node of [preview.canvas, this.overlayRoot]) {
-      if (!node) continue;
-      node.style.transformBox = 'view-box';
-      node.style.transformOrigin = '0 0';
-      node.style.willChange = 'transform';
-      node.style.transform = matrix;
+  this.graph.addListener(InternalEvent.LABEL_CHANGED, (_sender, event) => {
+    if (this.projecting) return;
+    const cell = event.getProperty('cell');
+    if (cell?.semantic?.type !== 'region' || !cell.semantic.labelEditable || cell.semantic.readOnly) return;
+    this.submitOperation({
+      type: 'RenameRegion',
+      regionId: cell.semantic.regionId,
+      label: event.getProperty('value'),
+    });
+  });
+
+  const connection = this.graph.getPlugin('ConnectionHandler');
+  connection.addListener(InternalEvent.CONNECT, (_sender, event) => {
+    if (this.projecting) return;
+    const edge = event.getProperty('cell');
+    const source = edge?.getTerminal(true);
+    const target = edge?.getTerminal(false);
+    const from = source?.semantic?.regionId;
+    const to = target?.semantic?.regionId;
+    if (!from || !to || source?.semantic?.readOnly || target?.semantic?.readOnly) return;
+    const result = this.submitOperation({
+      type: 'ConnectRegions',
+      from,
+      to,
+      kind: defaultRelationKind(this.lastScene?.pattern),
+      label: '',
+    });
+    if (result?.createdRelationId) {
+      this.pendingRelationSelection = result.createdRelationId;
+      this.selectionRegionIds.clear();
+      this.selectionRelationIds = new Set([result.createdRelationId]);
     }
-  }
+  });
 
-  clearCameraPreview() {
-    const preview = this.cameraPreview;
-    if (!preview) return null;
-    if (preview.frame) cancelAnimationFrame(preview.frame);
-    if (preview.canvas) {
-      preview.canvas.style.transform = preview.canvasTransform;
-      preview.canvas.style.transformBox = preview.canvasTransformBox;
-      preview.canvas.style.transformOrigin = preview.canvasTransformOrigin;
-      preview.canvas.style.willChange = preview.canvasWillChange;
+  this.graph.getSelectionModel().addListener(InternalEvent.CHANGE, () => {
+    if (this.projecting) return;
+    const selected = this.graph.getSelectionCells();
+    const regions = new Set();
+    const relations = new Set();
+    for (const cell of selected) {
+      if (cell.semantic?.type === 'region' && !cell.semantic.readOnly) regions.add(cell.semantic.regionId);
+      if (cell.semantic?.type === 'relation' && !cell.semantic.readOnly && cell.semantic.relationIds.length === 1) {
+        relations.add(cell.semantic.relationIds[0]);
+      }
     }
-    if (this.overlayRoot) {
-      this.overlayRoot.style.transform = preview.overlayTransform;
-      this.overlayRoot.style.transformBox = preview.overlayTransformBox;
-      this.overlayRoot.style.transformOrigin = preview.overlayTransformOrigin;
-      this.overlayRoot.style.willChange = preview.overlayWillChange;
+    if (selected.some((cell) => cell.isEdge() && !cell.semantic) && this.pendingRelationSelection) {
+      relations.add(this.pendingRelationSelection);
     }
-    delete this.container.dataset.cameraPreview;
-    this.cameraPreview = null;
-    return { ...preview.camera };
-  }
+    this.selectionRegionIds = regions;
+    this.selectionRelationIds = relations;
+    this.emitSelection();
+  });
+}
 
-  commitCameraPreview() {
-    const preview = this.cameraPreview;
-    if (!preview) return false;
-    const base = preview.base;
-    const camera = this.clearCameraPreview();
-    const changed = camera.scale !== base.scale
-      || camera.translateX !== base.translateX
-      || camera.translateY !== base.translateY;
-    if (changed) this.setCamera(camera.scale, camera.translateX, camera.translateY);
-    return changed;
-  }
+function setOperationHandler(handler) {
+  this.operationHandler = handler;
+}
 
-  cancelCameraPreview() {
-    return Boolean(this.clearCameraPreview());
-  }
+function setErrorHandler(handler) {
+  this.errorHandler = handler;
+}
 
-  cameraPreviewSnapshot() {
-    if (!this.cameraPreview) return Object.freeze({ active: false, camera: null });
-    return Object.freeze({ active: true, camera: { ...this.cameraPreview.camera } });
-  }
+function setActivationHandler(handler) {
+  this.activationHandler = handler;
+}
 
-  viewport() {
-    const { scale, translateX, translateY } = this.camera();
-    const { clientWidth, clientHeight } = this.graph.getContainer();
-    return {
-      x: -translateX,
-      y: -translateY,
-      width: clientWidth / scale,
-      height: clientHeight / scale,
-    };
-  }
-
-  onCameraChange(listener) {
-    const view = this.graph.getView();
-    view.addListener(InternalEvent.SCALE, listener);
-    view.addListener(InternalEvent.TRANSLATE, listener);
-    view.addListener(InternalEvent.SCALE_AND_TRANSLATE, listener);
+function submitOperation(operation) {
+  if (!this.operationHandler) return null;
+  try {
+    return this.operationHandler(Object.freeze({ ...operation }));
+  } catch (error) {
+    this.errorHandler?.(error);
+    return null;
   }
 }
+
+function onSelectionChange(listener) {
+  this.selectionListeners.add(listener);
+  return () => this.selectionListeners.delete(listener);
+}
+
+function emitSelection() {
+  this.refreshRenderedLabels();
+  const snapshot = this.selectionSnapshot();
+  for (const listener of this.selectionListeners) listener(snapshot);
+}
+
+function selectionSnapshot() {
+  return Object.freeze({
+    regionIds: Object.freeze([...this.selectionRegionIds]),
+    relationIds: Object.freeze([...this.selectionRelationIds]),
+  });
+}
+
+function setSelection({ regionIds = [], relationIds = [] }) {
+  const readOnlyRegions = new Set(
+    this.lastScene?.representations.filter((item) => item.readOnly).map((item) => item.regionId) ?? [],
+  );
+  const readOnlyRelations = new Set(
+    this.lastScene?.relations.filter((item) => item.readOnly).flatMap((item) => item.relationIds) ?? [],
+  );
+  this.selectionRegionIds = new Set(regionIds.filter((id) => !readOnlyRegions.has(id)));
+  this.selectionRelationIds = new Set(relationIds.filter((id) => !readOnlyRelations.has(id)));
+  this.restoreSelection(this.lastScene);
+  this.emitSelection();
+}
+
+function selectRegion(regionId) {
+  this.setSelection({ regionIds: [regionId] });
+}
+
+function setFocusMarker(regionId = null) {
+  if (regionId !== null && typeof regionId !== 'string') throw new Error('focus marker regionId must be a string or null');
+  this.focusMarkerRegionId = regionId;
+  this.renderOverlays();
+}
+
+function focusMarkerSnapshot() {
+  return this.focusMarkerRegionId;
+}
+
+function clearSelection() {
+  this.selectionRegionIds.clear();
+  this.selectionRelationIds.clear();
+  this.projecting = true;
+  try {
+    this.graph.clearSelection();
+  } finally {
+    this.projecting = false;
+  }
+  this.emitSelection();
+}
+
+function restoreSelection(scene) {
+  if (!scene) return;
+  const cells = [];
+  for (const regionId of this.selectionRegionIds) {
+    const visibleId = scene.selectionProxies[regionId];
+    if (visibleId) cells.push(this.cellsByRegionId.get(visibleId));
+  }
+  for (const relationId of this.selectionRelationIds) {
+    cells.push(this.edgeByRelationId.get(relationId));
+  }
+  this.projecting = true;
+  try {
+    this.graph.setSelectionCells(uniqueCells(cells));
+  } finally {
+    this.projecting = false;
+  }
+  this.pendingRelationSelection = null;
+}
+
+function renderOverlays(scene = this.lastScene) {
+  const svg = this.overlaySvg;
+  const root = this.overlayRoot;
+  if (!svg || !root) return;
+  root.replaceChildren();
+  const width = Math.max(1, this.container.clientWidth);
+  const height = Math.max(1, this.container.clientHeight);
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  if (!scene) return;
+  const camera = this.camera();
+  const screenPoint = ([x, y]) => [
+    (x + camera.translateX) * camera.scale,
+    (y + camera.translateY) * camera.scale,
+  ];
+
+  const terrainGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  terrainGroup.setAttribute('data-layer', 'terrain');
+  for (const cell of scene.terrain ?? []) {
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', cell.points.map((point) => screenPoint(point).join(',')).join(' '));
+    const [fill, stroke] = paletteFor(this.theme, `terrain:${cell.regionId}`);
+    polygon.setAttribute('fill', fill);
+    polygon.setAttribute('fill-opacity', String(this.theme.terrain.fillOpacity));
+    polygon.setAttribute('stroke', stroke);
+    polygon.setAttribute('stroke-opacity', String(this.theme.terrain.strokeOpacity));
+    polygon.setAttribute('stroke-width', String(this.theme.terrain.strokeWidth));
+    polygon.setAttribute('data-region-id', cell.regionId);
+    terrainGroup.append(polygon);
+  }
+  root.append(terrainGroup);
+
+  const setGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  setGroup.setAttribute('data-layer', 'sets');
+  for (const set of scene.setOverlay?.sets ?? []) {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    const x = (set.bounds.x + camera.translateX) * camera.scale;
+    const y = (set.bounds.y + camera.translateY) * camera.scale;
+    const w = set.bounds.width * camera.scale;
+    const h = set.bounds.height * camera.scale;
+    const [, stroke] = paletteFor(this.theme, `set:${set.regionId}`);
+    rect.setAttribute('x', String(x));
+    rect.setAttribute('y', String(y));
+    rect.setAttribute('width', String(w));
+    rect.setAttribute('height', String(h));
+    rect.setAttribute('rx', String(Math.min(
+      this.theme.set.cornerMax,
+      Math.max(this.theme.set.cornerMin, Math.min(w, h) * this.theme.set.cornerFactor),
+    )));
+    rect.setAttribute('fill', this.theme.set.fill);
+    rect.setAttribute('stroke', stroke);
+    rect.setAttribute('stroke-width', String(set.complete
+      ? this.theme.set.completeStrokeWidth
+      : this.theme.set.incompleteStrokeWidth));
+    rect.setAttribute('stroke-dasharray', set.complete
+      ? this.theme.set.completeDash
+      : this.theme.set.incompleteDash);
+    rect.setAttribute('stroke-opacity', String(this.theme.set.strokeOpacity));
+    rect.setAttribute('data-set-id', set.regionId);
+    rect.setAttribute('data-complete', String(set.complete));
+    setGroup.append(rect);
+  }
+  root.append(setGroup);
+
+  const requestedFocus = this.focusMarkerRegionId;
+  if (requestedFocus) {
+    const visibleFocus = scene.selectionProxies?.[requestedFocus] ?? requestedFocus;
+    const representation = scene.representations.find((item) => item.regionId === visibleFocus);
+    if (representation) {
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('data-layer', 'current-focus');
+      group.setAttribute('data-focus-ref', requestedFocus);
+      const x = (representation.bounds.x + camera.translateX) * camera.scale;
+      const y = (representation.bounds.y + camera.translateY) * camera.scale;
+      const w = representation.bounds.width * camera.scale;
+      const h = representation.bounds.height * camera.scale;
+      const region = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      region.setAttribute('x', String(x));
+      region.setAttribute('y', String(y));
+      region.setAttribute('width', String(w));
+      region.setAttribute('height', String(h));
+      region.setAttribute('rx', String(Math.min(10, Math.max(2, Math.min(w, h) * 0.08))));
+      region.setAttribute('fill', this.theme.focusMarker.regionFill);
+      region.setAttribute('fill-opacity', String(this.theme.focusMarker.regionFillOpacity));
+      region.setAttribute('stroke', this.theme.focusMarker.regionStroke);
+      region.setAttribute('stroke-width', String(this.theme.focusMarker.regionStrokeWidth));
+      region.setAttribute('vector-effect', 'non-scaling-stroke');
+      region.setAttribute('data-semantic-focus-region', requestedFocus);
+      group.append(region);
+
+      const size = this.theme.focusMarker.size;
+      const markerX = Math.max(2, Math.min(width - size - 2, x + w - size / 2));
+      const markerY = Math.max(2, Math.min(height - size - 2, y - size / 2));
+      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      marker.setAttribute('x', String(markerX));
+      marker.setAttribute('y', String(markerY));
+      marker.setAttribute('width', String(size));
+      marker.setAttribute('height', String(size));
+      marker.setAttribute('rx', String(this.theme.focusMarker.radius));
+      marker.setAttribute('fill', this.theme.focusMarker.fill);
+      marker.setAttribute('stroke', this.theme.focusMarker.outline);
+      marker.setAttribute('stroke-width', String(this.theme.focusMarker.outlineWidth));
+      marker.setAttribute('vector-effect', 'non-scaling-stroke');
+      marker.setAttribute('data-semantic-focus-marker', requestedFocus);
+      group.append(marker);
+      root.append(group);
+    }
+  }
+  appendReviewOverlay(root, this.reviewOverlay, camera);
+}
+
+function setReviewOverlay(overlay) {
+  if (overlay === null) return this.clearReviewOverlay();
+  if (overlay?.schema !== REVIEW_OVERLAY_SCHEMA) throw new Error('review overlay schema is invalid');
+  if (overlay.authority !== false || overlay.status !== 'proposal') {
+    throw new Error('review overlay must remain a non-authority Proposal');
+  }
+  if (!Array.isArray(overlay.regions) || !Array.isArray(overlay.relations)) {
+    throw new Error('review overlay regions and relations are required');
+  }
+  for (const item of [...overlay.regions, ...overlay.relations]) {
+    if (!REVIEW_STATUSES.has(item.status)) throw new Error(`review overlay status is invalid: ${item.status}`);
+  }
+  this.reviewOverlay = overlay;
+  this.renderOverlays();
+  return this.reviewOverlaySnapshot();
+}
+
+function clearReviewOverlay() {
+  this.reviewOverlay = null;
+  this.renderOverlays();
+  return this.reviewOverlaySnapshot();
+}
+
+function reviewOverlaySnapshot() {
+  if (!this.reviewOverlay) return Object.freeze({ active: false, overlay: null });
+  return Object.freeze({
+    active: true,
+    overlay: structuredClone(this.reviewOverlay),
+  });
+}
+
+function labelContext(scene) {
+  const representationsById = new Map(scene.representations.map((item) => [item.regionId, item]));
+  const selectedRegionIds = new Set();
+  for (const regionId of this.selectionRegionIds) {
+    selectedRegionIds.add(scene.selectionProxies[regionId] ?? regionId);
+  }
+  return Object.freeze({
+    representationsById,
+    selectedRegionIds,
+    selectedRelationIds: new Set(this.selectionRelationIds),
+  });
+}
+
+function regionDisplayLabel(representation, scene, context) {
+  return displayedRegionLabel(
+    representation,
+    scene.scale,
+    this.theme,
+    context.selectedRegionIds.has(representation.regionId),
+  );
+}
+
+function relationDisplayLabel(relation, scene, context) {
+  const selected = relation.relationIds.some((id) => context.selectedRelationIds.has(id));
+  return displayedRelationLabel(
+    relation,
+    scene.scale,
+    this.theme,
+    context.representationsById,
+    selected,
+  );
+}
+
+function refreshRenderedLabels() {
+  const scene = this.lastScene;
+  if (!scene) return;
+  const context = this.labelContext(scene);
+  const model = this.graph.getDataModel();
+  const previousProjecting = this.projecting;
+  this.projecting = true;
+  try {
+    this.graph.batchUpdate(() => {
+      for (const cell of this.cellsByRegionId.values()) {
+        const representation = cell.semantic;
+        if (representation?.type !== 'region') continue;
+        const label = this.regionDisplayLabel(representation, scene, context);
+        if (cell.value !== label) model.setValue(cell, label);
+      }
+      for (const edge of this.edgesByProjectionKey.values()) {
+        const relation = edge.semantic;
+        if (relation?.type !== 'relation') continue;
+        const label = this.relationDisplayLabel(relation, scene, context);
+        if (edge.value !== label) model.setValue(edge, label);
+      }
+    });
+  } finally {
+    this.projecting = previousProjecting;
+  }
+}
+
+function render(scene) {
+  const nextCompositionKey = JSON.stringify(scene.resourceComposition ?? null);
+  if (this.surfaceCompositionKey !== nextCompositionKey) {
+    renderResourceTarget({
+      document,
+      mount: this.surfaceBackgroundMount,
+      composition: scene.resourceComposition,
+      targetRef: 'surface:root',
+      slot: 'background',
+    });
+    renderResourceTarget({
+      document,
+      mount: this.surfaceContentMount,
+      composition: scene.resourceComposition,
+      targetRef: 'surface:root',
+      slot: 'content',
+    });
+    this.surfaceCompositionKey = nextCompositionKey;
+  }
+  const graph = this.graph;
+  const parent = graph.getDefaultParent();
+  const desiredRegionIds = new Set(scene.representations.map((item) => item.regionId));
+  const desiredEdgeKeys = new Set(scene.relations.map(relationProjectionKey));
+  const cellsByRegionId = new Map(this.cellsByRegionId);
+  const edgesByProjectionKey = new Map(this.edgesByProjectionKey);
+  const model = graph.getDataModel();
+  const styleScale = styleScaleFor(scene.scale);
+  const labelContext = this.labelContext(scene);
+
+  this.projecting = true;
+  try {
+    graph.batchUpdate(() => {
+      const staleEdges = [];
+      for (const [key, edge] of edgesByProjectionKey) {
+        if (!desiredEdgeKeys.has(key) || !model.contains(edge)) {
+          if (model.contains(edge)) staleEdges.push(edge);
+          edgesByProjectionKey.delete(key);
+        }
+      }
+      if (staleEdges.length) graph.cellsRemoved(staleEdges);
+
+      const staleRegions = [];
+      for (const [regionId, cell] of cellsByRegionId) {
+        if (!desiredRegionIds.has(regionId) || !model.contains(cell)) {
+          if (model.contains(cell)) staleRegions.push(cell);
+          cellsByRegionId.delete(regionId);
+        }
+      }
+      if (staleRegions.length) graph.cellsRemoved(staleRegions);
+
+      const ordered = [...scene.representations].sort((a, b) => {
+        const leftZ = Number.isFinite(a.zIndex) ? a.zIndex : (a.mode === 'boundary' ? -1_000 : a.depth);
+        const rightZ = Number.isFinite(b.zIndex) ? b.zIndex : (b.mode === 'boundary' ? -1_000 : b.depth);
+        return leftZ - rightZ || a.depth - b.depth || String(a.regionId).localeCompare(String(b.regionId));
+      });
+
+      for (const representation of ordered) {
+        const { x, y, width, height } = representation.bounds;
+        let cell = cellsByRegionId.get(representation.regionId);
+        const style = vertexStyle(representation, styleScale, this.theme);
+        const styleKey = JSON.stringify(style);
+        const displayLabel = this.regionDisplayLabel(representation, scene, labelContext);
+        if (!cell) {
+          cell = graph.insertVertex({
+            parent,
+            id: `region:${representation.regionId}`,
+            value: displayLabel,
+            position: [x, y],
+            size: [width, height],
+            style,
+          });
+          cellsByRegionId.set(representation.regionId, cell);
+        } else {
+          const geometry = cell.getGeometry();
+          if (!geometryEquals(geometry, representation.bounds)) {
+            const next = geometry.clone();
+            next.x = x;
+            next.y = y;
+            next.width = width;
+            next.height = height;
+            model.setGeometry(cell, next);
+          }
+          if (cell.value !== displayLabel) model.setValue(cell, displayLabel);
+          if (cell.semanticStyleKey !== styleKey) model.setStyle(cell, style);
+        }
+        cell.semanticStyleKey = styleKey;
+        cell.semantic = Object.freeze({ type: 'region', ...representation, displayLabel });
+      }
+
+      for (const relation of scene.relations) {
+        const key = relationProjectionKey(relation);
+        const source = cellsByRegionId.get(relation.from);
+        const target = cellsByRegionId.get(relation.to);
+        if (!source || !target) continue;
+        let edge = edgesByProjectionKey.get(key);
+        const style = edgeStyle(relation, styleScale, this.theme);
+        const styleKey = JSON.stringify(style);
+        const displayLabel = this.relationDisplayLabel(relation, scene, labelContext);
+        if (!edge) {
+          edge = graph.insertEdge({
+            parent,
+            id: `relation:${key}`,
+            value: displayLabel,
+            source,
+            target,
+            style,
+          });
+          edgesByProjectionKey.set(key, edge);
+        } else {
+          if (edge.getTerminal(true) !== source) model.setTerminal(edge, source, true);
+          if (edge.getTerminal(false) !== target) model.setTerminal(edge, target, false);
+          if (edge.value !== displayLabel) model.setValue(edge, displayLabel);
+          if (edge.semanticStyleKey !== styleKey) model.setStyle(edge, style);
+        }
+        edge.semanticStyleKey = styleKey;
+        edge.semantic = Object.freeze({ type: 'relation', projectionKey: key, ...relation, displayLabel });
+      }
+
+      const managed = new Set([
+        ...cellsByRegionId.values(),
+        ...edgesByProjectionKey.values(),
+      ]);
+      const unmanaged = graph.getChildCells(parent, true, true).filter((cell) => !managed.has(cell));
+      if (unmanaged.length) graph.cellsRemoved(unmanaged);
+
+      const backgroundEdges = [...edgesByProjectionKey.values()].filter(
+        (cell) => model.contains(cell) && cell.semantic?.foreground !== true,
+      );
+      if (backgroundEdges.length) graph.orderCells(true, backgroundEdges);
+      const backgroundCells = [...cellsByRegionId.values()].filter(
+        (cell) => model.contains(cell) && cell.semantic?.shape === 'map-background',
+      );
+      if (backgroundCells.length) graph.orderCells(true, backgroundCells);
+
+      const zOrderedCells = [
+        ...cellsByRegionId.values(),
+        ...edgesByProjectionKey.values(),
+      ].filter((cell) => model.contains(cell) && Number.isFinite(cell.semantic?.zIndex))
+        .sort((left, right) => (
+          left.semantic.zIndex - right.semantic.zIndex
+          || String(left.id).localeCompare(String(right.id))
+        ));
+      if (zOrderedCells.length) graph.orderCells(false, zOrderedCells);
+    });
+
+    this.cellsByRegionId = cellsByRegionId;
+    this.edgesByProjectionKey = edgesByProjectionKey;
+
+    // Context boundaries stay visible but never intercept editing gestures.
+    // This leaves empty-space lasso/pan available inside the same semantic region.
+    for (const cell of cellsByRegionId.values()) {
+      const state = graph.getView().getState(cell);
+      if (!state) continue;
+      const interactive = cell.semantic?.mode !== 'boundary'
+        && (!cell.semantic?.readOnly || Boolean(cell.semantic?.activation));
+      if (state.shape && state.shape.pointerEvents !== interactive) {
+        state.shape.pointerEvents = interactive;
+        state.shape.redraw();
+      }
+      if (state.text && state.text.pointerEvents !== interactive) {
+        state.text.pointerEvents = interactive;
+        state.text.redraw();
+      }
+    }
+
+    this.edgeByRelationId = new Map();
+    for (const edge of edgesByProjectionKey.values()) {
+      if (edge.semantic?.relationIds?.length === 1) {
+        this.edgeByRelationId.set(edge.semantic.relationIds[0], edge);
+      }
+    }
+    this.lastScene = scene;
+    this.renderOverlays(scene);
+    this.restoreSelection(scene);
+  } finally {
+    this.projecting = false;
+  }
+}
+
+function setTool(tool) {
+  if (!['select', 'hand'].includes(tool)) throw new Error(`unknown tool: ${tool}`);
+  this.tool = tool;
+  const selecting = tool === 'select';
+  this.graph.setCellsMovable(selecting);
+  this.graph.setCellsResizable(selecting);
+  this.graph.setCellsEditable(selecting);
+  this.graph.setCellsSelectable(selecting);
+
+  this.graph.getPlugin('SelectionHandler')?.setEnabled(selecting);
+  this.graph.getPlugin('SelectionCellsHandler')?.setEnabled(selecting);
+  this.graph.getPlugin('RubberBandHandler')?.setEnabled(selecting);
+  this.graph.getPlugin('ConnectionHandler')?.setEnabled(selecting);
+
+  const panning = this.graph.getPlugin('PanningHandler');
+  panning.useLeftButtonForPanning = !selecting;
+  panning.ignoreCell = !selecting;
+  this.container.dataset.tool = tool;
+}
+
+function cancelInteraction() {
+  this.graph.stopEditing(true);
+  this.graph.getPlugin('ConnectionHandler')?.reset();
+  this.graph.getPlugin('SelectionHandler')?.reset();
+  this.graph.getPlugin('SelectionCellsHandler')?.reset();
+  this.graph.getPlugin('RubberBandHandler')?.reset();
+  this.graph.getPlugin('PanningHandler')?.reset();
+}
+
+function isEditableTouchTarget(clientX, clientY, target = null) {
+  if (this.tool !== 'select') return false;
+  if (target?.tagName?.toLowerCase() === 'image') return true;
+  const rect = this.container.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  const cell = this.graph.getCellAt(x, y, null, true, false);
+  if (cell?.semantic?.activation) return true;
+  if (cell?.semantic?.type === 'region' && !cell.semantic.readOnly && (cell.semantic.mode !== 'boundary' || cell.semantic.labelEditable)) return true;
+  for (const selected of this.graph.getSelectionCells()) {
+    const state = this.graph.getView().getState(selected);
+    if (!state || !selected.isVertex()) continue;
+    const margin = 28;
+    if (
+      x >= state.x - margin && x <= state.x + state.width + margin
+      && y >= state.y - margin && y <= state.y + state.height + margin
+    ) return true;
+  }
+  return false;
+}
+
+function deleteSelection() {
+  const selection = this.selectionSnapshot();
+  if (!selection.regionIds.length && !selection.relationIds.length) return null;
+  return this.submitOperation({
+    type: 'RemoveSelection',
+    regionIds: selection.regionIds,
+    relationIds: selection.relationIds,
+  });
+}
+
+function startEditingSelection() {
+  const selectedIds = [...this.selectionRegionIds];
+  if (selectedIds.length !== 1) return false;
+  const cell = this.cellsByRegionId.get(selectedIds[0]);
+  if (cell?.semantic?.type !== 'region' || !cell.semantic.labelEditable || cell.semantic.readOnly) return false;
+  this.graph.startEditingAtCell(cell);
+  return true;
+}
+
+function setNativePinchEnabled(enabled) {
+  this.graph.getPlugin('PanningHandler')?.setPinchEnabled(enabled);
+}
+
+function setCamera(scale, translateX, translateY) {
+  if (this.cameraPreview) this.cancelCameraPreview();
+  this.graph.getView().scaleAndTranslate(scale, translateX, translateY);
+}
+
+function camera() {
+  const view = this.graph.getView();
+  return {
+    scale: view.scale,
+    translateX: view.translate.x,
+    translateY: view.translate.y,
+  };
+}
+
+// Touch gestures transform the already rendered SVG. The semantic camera,
+// projection and maxGraph model are committed once when the gesture ends.
+function beginCameraPreview() {
+  if (this.cameraPreview) return { ...this.cameraPreview.camera };
+  this.graph.panGraph(0, 0);
+  const canvas = this.graph.getView().getCanvas();
+  const camera = this.camera();
+  this.cameraPreview = {
+    base: { ...camera },
+    camera: { ...camera },
+    canvas,
+    canvasTransform: canvas?.style.transform ?? '',
+    canvasTransformBox: canvas?.style.transformBox ?? '',
+    canvasTransformOrigin: canvas?.style.transformOrigin ?? '',
+    canvasWillChange: canvas?.style.willChange ?? '',
+    overlayTransform: this.overlayRoot?.style.transform ?? '',
+    overlayTransformBox: this.overlayRoot?.style.transformBox ?? '',
+    overlayTransformOrigin: this.overlayRoot?.style.transformOrigin ?? '',
+    overlayWillChange: this.overlayRoot?.style.willChange ?? '',
+    frame: 0,
+  };
+  this.container.dataset.cameraPreview = 'true';
+  return { ...camera };
+}
+
+function previewCamera(scale, translateX, translateY) {
+  if (!this.cameraPreview) this.beginCameraPreview();
+  this.cameraPreview.camera = { scale, translateX, translateY };
+  if (!this.cameraPreview.frame) {
+    this.cameraPreview.frame = requestAnimationFrame(() => {
+      if (!this.cameraPreview) return;
+      this.cameraPreview.frame = 0;
+      this.applyCameraPreview();
+    });
+  }
+  return { ...this.cameraPreview.camera };
+}
+
+function applyCameraPreview() {
+  const preview = this.cameraPreview;
+  if (!preview) return;
+  const ratio = preview.camera.scale / preview.base.scale;
+  const dx = preview.camera.scale * (preview.camera.translateX - preview.base.translateX);
+  const dy = preview.camera.scale * (preview.camera.translateY - preview.base.translateY);
+  const matrix = `matrix(${ratio}, 0, 0, ${ratio}, ${dx}, ${dy})`;
+  for (const node of [preview.canvas, this.overlayRoot]) {
+    if (!node) continue;
+    node.style.transformBox = 'view-box';
+    node.style.transformOrigin = '0 0';
+    node.style.willChange = 'transform';
+    node.style.transform = matrix;
+  }
+}
+
+function clearCameraPreview() {
+  const preview = this.cameraPreview;
+  if (!preview) return null;
+  if (preview.frame) cancelAnimationFrame(preview.frame);
+  if (preview.canvas) {
+    preview.canvas.style.transform = preview.canvasTransform;
+    preview.canvas.style.transformBox = preview.canvasTransformBox;
+    preview.canvas.style.transformOrigin = preview.canvasTransformOrigin;
+    preview.canvas.style.willChange = preview.canvasWillChange;
+  }
+  if (this.overlayRoot) {
+    this.overlayRoot.style.transform = preview.overlayTransform;
+    this.overlayRoot.style.transformBox = preview.overlayTransformBox;
+    this.overlayRoot.style.transformOrigin = preview.overlayTransformOrigin;
+    this.overlayRoot.style.willChange = preview.overlayWillChange;
+  }
+  delete this.container.dataset.cameraPreview;
+  this.cameraPreview = null;
+  return { ...preview.camera };
+}
+
+function commitCameraPreview() {
+  const preview = this.cameraPreview;
+  if (!preview) return false;
+  const base = preview.base;
+  const camera = this.clearCameraPreview();
+  const changed = camera.scale !== base.scale
+    || camera.translateX !== base.translateX
+    || camera.translateY !== base.translateY;
+  if (changed) this.setCamera(camera.scale, camera.translateX, camera.translateY);
+  return changed;
+}
+
+function cancelCameraPreview() {
+  return Boolean(this.clearCameraPreview());
+}
+
+function cameraPreviewSnapshot() {
+  if (!this.cameraPreview) return Object.freeze({ active: false, camera: null });
+  return Object.freeze({ active: true, camera: { ...this.cameraPreview.camera } });
+}
+
+function viewport() {
+  const { scale, translateX, translateY } = this.camera();
+  const { clientWidth, clientHeight } = this.graph.getContainer();
+  return {
+    x: -translateX,
+    y: -translateY,
+    width: clientWidth / scale,
+    height: clientHeight / scale,
+  };
+}
+
+function onCameraChange(listener) {
+  const view = this.graph.getView();
+  view.addListener(InternalEvent.SCALE, listener);
+  view.addListener(InternalEvent.TRANSLATE, listener);
+  view.addListener(InternalEvent.SCALE_AND_TRANSLATE, listener);
+}
+const maxGraphAdapterMethods = Object.freeze({
+  installEditEvents,
+  setOperationHandler,
+  setErrorHandler,
+  setActivationHandler,
+  submitOperation,
+  onSelectionChange,
+  emitSelection,
+  selectionSnapshot,
+  setSelection,
+  selectRegion,
+  setFocusMarker,
+  focusMarkerSnapshot,
+  clearSelection,
+  restoreSelection,
+  renderOverlays,
+  setReviewOverlay,
+  clearReviewOverlay,
+  reviewOverlaySnapshot,
+  labelContext,
+  regionDisplayLabel,
+  relationDisplayLabel,
+  refreshRenderedLabels,
+  render,
+  setTool,
+  cancelInteraction,
+  isEditableTouchTarget,
+  deleteSelection,
+  startEditingSelection,
+  setNativePinchEnabled,
+  setCamera,
+  camera,
+  beginCameraPreview,
+  previewCamera,
+  applyCameraPreview,
+  clearCameraPreview,
+  commitCameraPreview,
+  cancelCameraPreview,
+  cameraPreviewSnapshot,
+  viewport,
+  onCameraChange,
+});
+
+export const createMaxGraphAdapter = (container, options = {}) => {
+  const adapter = Object.assign(Object.create(null), maxGraphAdapterMethods);
+  initializeMaxGraphAdapter.call(adapter, container, options);
+  return adapter;
+};
+
