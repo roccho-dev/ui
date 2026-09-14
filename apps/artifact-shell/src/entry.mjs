@@ -1,6 +1,6 @@
+import { registerArtifactWebMcp } from "../../../adapters/webmcp/index.mjs";
 import { setArtifactShellMode } from "../mode.mjs";
 import { createArtifactShell } from "./shell.mjs";
-import { registerArtifactShellWebMcp } from "./webmcp.mjs";
 
 setArtifactShellMode();
 globalThis.addEventListener("popstate", () => setArtifactShellMode());
@@ -19,8 +19,13 @@ const elements = Object.freeze({
 });
 
 createArtifactShell({ elements }).then(async shell => {
+  const webMcpPort = Object.freeze({
+    query: shell.snapshot,
+    render: shell.execute,
+    applyAction: shell.applyAction,
+  });
   try {
-    globalThis.artifactShellWebMcp = await registerArtifactShellWebMcp({ document, shell });
+    globalThis.artifactShellWebMcp = await registerArtifactWebMcp({ document, port: webMcpPort });
   } catch (error) {
     globalThis.artifactShellWebMcp = Object.freeze({ available: false, error: String(error.message) });
   }
