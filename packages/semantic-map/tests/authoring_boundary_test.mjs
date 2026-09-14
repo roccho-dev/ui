@@ -19,6 +19,10 @@ assert.match(authoringIndex, /activeList/);
 assert.match(authoringIndex, /createDocumentAuthoring/);
 assert.match(activeList, /data-maxgraph-active-list|dataset\.maxgraphActiveList/);
 assert.match(activeList, /onActivate/);
+assert.match(activeList, /ACTIVE_LIST_CSS/);
+assert.match(activeList, /style\.textContent = ACTIVE_LIST_CSS/);
+assert.doesNotMatch(activeList, /active-list\.css|new URL\(/);
+assert.equal(fs.existsSync(path.join(root, 'packages/semantic-map/renderer-maxgraph/authoring/active-list.css')), false);
 assert.match(documentAuthoring, /vendor\/maxgraph/);
 assert.match(documentAuthoring, /insertRectangle/);
 assert.match(documentAuthoring, /deleteSelection/);
@@ -27,9 +31,10 @@ assert.match(documentAuthoring, /undo/);
 assert.match(documentAuthoring, /redo/);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-maxgraph-authoring-boundary-test/3',
+  schema: 'semantic-map-maxgraph-authoring-boundary-test/4',
   status: 'PASS',
   semanticFeaturesUseAuthoringBoundary: true,
   activeListOwnedByAuthoring: true,
+  activeListSelfContained: true,
   documentAuthoringOwnedBySemanticMap: true,
 }));
