@@ -1,0 +1,59 @@
+name: Temporary graph218 self-loop geometry fix
+
+on:
+  push:
+    branches:
+      - feat/graph1-structured-graph-260914
+
+permissions:
+  contents: write
+
+jobs:
+  fix-loop-geometry:
+    if: ${{ !contains(github.event.head_commit.message, '[graph218-loop-geometry]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Give semantic self loops explicit control geometry
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('packages/semantic-map/renderer-maxgraph/render-methods.js')
+          text = path.read_text()
+          import_anchor = "import { paletteFor, styleScaleFor } from './theme.js';\n"
+          import_line = "import Point from '../vendor/maxgraph/view/geometry/Point.js';\n"
+          if import_line not in text:
+              text = text.replace(import_anchor, import_anchor + import_line, 1)
+          helper_anchor = "function relationProjectionKey(relation) {\n  return `${relation.relationIds.join(',')}@${relation.from}->${relation.to}:${relation.kind}`;\n}\n"
+          helper = helper_anchor + "\nfunction applySelfLoopGeometry(edge, source, relation, model) {\n  if (relation.from !== relation.to) return;\n  const sourceGeometry = source.getGeometry();\n  const edgeGeometry = edge.getGeometry();\n  if (!sourceGeometry || !edgeGeometry) return;\n  const offset = Math.max(48, sourceGeometry.width * 0.3);\n  const point = new Point(\n    sourceGeometry.x + sourceGeometry.width + offset,\n    sourceGeometry.y + sourceGeometry.height / 2,\n  );\n  const current = edgeGeometry.points?.[0];\n  if (edgeGeometry.points?.length === 1 && current?.x === point.x && current?.y === point.y) return;\n  const next = edgeGeometry.clone();\n  next.points = [point];\n  model.setGeometry(edge, next);\n}\n"
+          if 'function applySelfLoopGeometry(' not in text:
+              if helper_anchor not in text:
+                  raise SystemExit('relation helper anchor missing')
+              text = text.replace(helper_anchor, helper, 1)
+          semantic_anchor = "        edge.semanticStyleKey = styleKey;\n        edge.semantic = Object.freeze({ type: 'relation', projectionKey: key, ...relation, displayLabel });\n"
+          semantic_new = "        applySelfLoopGeometry(edge, source, relation, model);\n        edge.semanticStyleKey = styleKey;\n        edge.semantic = Object.freeze({ type: 'relation', projectionKey: key, ...relation, displayLabel });\n"
+          if 'applySelfLoopGeometry(edge, source, relation, model);' not in text:
+              if semantic_anchor not in text:
+                  raise SystemExit('edge semantic anchor missing')
+              text = text.replace(semantic_anchor, semantic_new, 1)
+          path.write_text(text)
+          PY
+
+      - name: Focused and full semantic-map gates
+        run: |
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name roccho
+          git config user.email 40359643+roccho-dev@users.noreply.github.com
+          git add packages/semantic-map/renderer-maxgraph/render-methods.js
+          git commit -m '[graph218-loop-geometry] fix: give self loops visible control geometry'
+          git push origin HEAD:feat/graph1-structured-graph-260914
