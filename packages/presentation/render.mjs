@@ -3,7 +3,6 @@ import { validateProfiledBusinessModelSequence } from './compiler/sequence.mjs';
 import { PROFILED_BUSINESS_MODEL_SURFACE_ID } from './contracts.mjs';
 import { createProfiledBusinessModelCatalog } from './render/catalog.mjs';
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
 const invariant = (condition, message) => { if (!condition) throw new Error(`presentation: ${message}`); };
 const element = (document, tag, id = null, className = '') => {
   const node = document.createElement(tag);
@@ -11,13 +10,6 @@ const element = (document, tag, id = null, className = '') => {
   if (className) node.className = className;
   return node;
 };
-const svgNode = (document, tag, attributes = {}) => {
-  const node = document.createElementNS(SVG_NS, tag);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
-  return node;
-};
-const center = region => ({ x: region.bounds[0] + region.bounds[2] / 2, y: region.bounds[1] + region.bounds[3] / 2 });
-const labelLines = (label, max = 15) => label.length <= max ? [label] : [label.slice(0, max), label.slice(max, max * 2)];
 
 const createShell = (document, root) => {
   const surface = element(document, 'main', 'surface');
@@ -59,18 +51,18 @@ const createShell = (document, root) => {
   return Object.freeze({ backdrop, close, current, mount, open, shell, surface });
 };
 
-export const mountFeature = async ({ input: payload, root, scope = globalThis }) => {
-  invariant(payload?.schema === 'business-model-presentation-minimal-payload/1', 'payload schema is invalid');
-  invariant(payload.coverage?.pass === true, 'projection coverage did not pass');
+export const mountFeature = async ({ input: payload, root, scope = globalThis, seqView }) => {
+  invariant(payload?.schema === 'business-model-presentation-runtime-payload/1', 'payload schema is invalid');
   const sequence = validateProfiledBusinessModelSequence(payload.sequence);
-  invariant(Array.isArray(payload.seqState) && payload.seqState.length > 0, 'seq state is missing');
   invariant(payload.stageFocus && typeof payload.stageFocus === 'object', 'stage focus is missing');
   invariant(payload.stageLabels && typeof payload.stageLabels === 'object', 'stage labels are missing');
+  invariant(typeof seqView?.mount === 'function', 'seq view is required');
 
   const document = root.ownerDocument;
   const ui = createShell(document, root);
   const catalog = createProfiledBusinessModelCatalog();
   let runtime = null;
+  let seq = null;
   let currentStageIndex = -1;
   let expanded = false;
   let preview = false;
@@ -86,80 +78,15 @@ export const mountFeature = async ({ input: payload, root, scope = globalThis })
     ui.close.hidden = !expanded;
     document.body.classList.toggle('seq-expanded', expanded);
   };
-  const closeSeq = () => { expanded = false; preview = false; setShellState(); };
-  const openSeq = () => { expanded = true; preview = false; setShellState(); scope.queueMicrotask(() => ui.close.focus()); };
-  const appendLabel = (svg, x, y, value, className = '') => {
-    const text = svgNode(document, 'text', { x, y, 'text-anchor': 'middle', class: className });
-    labelLines(value).forEach((line, index) => {
-      const span = svgNode(document, 'tspan', { x, dy: index === 0 ? 0 : 14 });
-      span.textContent = line;
-      text.append(span);
-    });
-    svg.append(text);
+  const refreshSeqLayout = () => scope.queueMicrotask(() => seq?.fit());
+  const closeSeq = () => { expanded = false; preview = false; setShellState(); refreshSeqLayout(); };
+  const openSeq = () => {
+    expanded = true;
+    preview = false;
+    setShellState();
+    refreshSeqLayout();
+    scope.queueMicrotask(() => ui.close.focus());
   };
-
-  const renderSeq = () => {
-    const records = payload.seqState;
-    const regions = records.filter(record => record.type === 'region');
-    const relations = records.filter(record => record.type === 'relation' && record.kind === 'next');
-    const seqRoot = regions.find(region => region.parent === null);
-    invariant(seqRoot, 'seq root region is missing');
-    const regionById = new Map(regions.map(region => [region.id, region]));
-    const stage = sequence.stages[currentStageIndex];
-    const focusRef = payload.stageFocus[stage.id];
-    const svg = svgNode(document, 'svg', {
-      class: 'seq-svg', viewBox: `0 0 ${seqRoot.bounds[2]} ${seqRoot.bounds[3]}`, preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': `${payload.label}の主体別Seq`,
-    });
-    const defs = svgNode(document, 'defs');
-    const arrow = svgNode(document, 'marker', { id: 'seq-arrow', markerWidth: 8, markerHeight: 8, refX: 7, refY: 4, orient: 'auto', markerUnits: 'strokeWidth' });
-    arrow.append(svgNode(document, 'path', { d: 'M0,0 L8,4 L0,8 z', fill: '#71808b' }));
-    const arrowDone = svgNode(document, 'marker', { id: 'seq-arrow-done', markerWidth: 8, markerHeight: 8, refX: 7, refY: 4, orient: 'auto', markerUnits: 'strokeWidth' });
-    arrowDone.append(svgNode(document, 'path', { d: 'M0,0 L8,4 L0,8 z', fill: '#2f6848' }));
-    defs.append(arrow, arrowDone);
-    svg.append(defs);
-    for (const actor of regions.filter(region => region.kind === 'actor')) {
-      const [, y, , height] = actor.bounds;
-      svg.append(svgNode(document, 'rect', { x: 220, y, width: seqRoot.bounds[2] - 240, height, rx: 8, class: 'seq-lane-bg' }));
-    }
-    for (const relation of relations) {
-      const from = regionById.get(relation.from);
-      const to = regionById.get(relation.to);
-      if (!from || !to) continue;
-      const a = center(from);
-      const b = center(to);
-      const active = from.id === focusRef || to.id === focusRef;
-      const line = svgNode(document, 'line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: `seq-edge${active ? ' active' : ''}` });
-      line.dataset.recordId = relation.id;
-      svg.append(line);
-      appendLabel(svg, (a.x + b.x) / 2, (a.y + b.y) / 2 - 7, relation.label, 'seq-edge-label');
-    }
-    for (const region of regions.filter(item => item.parent !== null)) {
-      const [x, y, width, height] = region.bounds;
-      const isFocus = region.id === focusRef;
-      const isStageNode = stageByFocus.has(region.id);
-      const group = svgNode(document, 'g', {
-        class: `seq-region seq-${region.kind}${isFocus ? ' current' : ''}${isStageNode ? ' navigable' : ''}`,
-        tabindex: isStageNode ? 0 : -1,
-        role: isStageNode ? 'button' : 'group',
-        'aria-label': region.label,
-      });
-      group.dataset.recordId = region.id;
-      group.append(svgNode(document, 'rect', { x, y, width, height, rx: region.kind === 'actor' ? 8 : 4 }));
-      const text = svgNode(document, 'text', { x: x + width / 2, y: y + Math.min(27, height / 2), 'text-anchor': 'middle' });
-      labelLines(region.label, 14).forEach((line, index) => {
-        const span = svgNode(document, 'tspan', { x: x + width / 2, dy: index === 0 ? 0 : 14 });
-        span.textContent = line;
-        text.append(span);
-      });
-      group.append(text);
-      if (isFocus) group.append(svgNode(document, 'rect', { x: x + 7, y: y + 7, width: 11, height: 11, class: 'seq-current-marker' }));
-      if (isStageNode) group.dataset.stageId = stageByFocus.get(region.id);
-      svg.append(group);
-    }
-    ui.mount.replaceChildren(svg);
-    ui.current.textContent = payload.stageLabels[stage.id] ?? stage.id;
-  };
-
   const createRuntime = () => {
     ui.surface.replaceChildren();
     runtime = createIncrementalSurfaceRuntime({
@@ -178,14 +105,26 @@ export const mountFeature = async ({ input: payload, root, scope = globalThis })
     const stage = sequence.stages[index];
     invariant(stage, `stage is missing: ${index}`);
     if (!runtime || index < currentStageIndex) createRuntime();
-    if (index > currentStageIndex) for (let cursor = currentStageIndex + 1; cursor <= index; cursor += 1) runtime.apply(sequence.stages[cursor].messages);
+    if (index > currentStageIndex) {
+      for (let cursor = currentStageIndex + 1; cursor <= index; cursor += 1) runtime.apply(sequence.stages[cursor].messages);
+    }
     currentStageIndex = index;
     document.documentElement.dataset.stage = stage.id;
-    renderSeq();
+    ui.current.textContent = payload.stageLabels[stage.id] ?? stage.id;
+    seq?.focus(payload.stageFocus[stage.id]);
     if (focus) scope.queueMicrotask(() => ui.surface.querySelectorAll('.profiled-timeline button')[index]?.focus());
     return runtime.read();
   };
+  const activateSeqRegion = regionId => {
+    const stageId = stageByFocus.get(regionId);
+    const index = stageIndexById.get(stageId);
+    if (!Number.isSafeInteger(index)) return false;
+    applyStage(index);
+    closeSeq();
+    return true;
+  };
 
+  seq = await seqView.mount({ root: ui.mount, scope, onActivate: activateSeqRegion });
   const stageAction = event => {
     if (event.detail?.action !== 'business-model-profiled.select-stage') return;
     const index = event.detail.context?.index;
@@ -193,21 +132,13 @@ export const mountFeature = async ({ input: payload, root, scope = globalThis })
   };
   scope.addEventListener('a2ui-client-action', stageAction);
   const canHover = scope.matchMedia('(hover:hover) and (pointer:fine)');
-  ui.shell.addEventListener('mouseenter', () => { if (canHover.matches && !expanded) { preview = true; setShellState(); } });
-  ui.shell.addEventListener('mouseleave', () => { if (!expanded) { preview = false; setShellState(); } });
-  const activateSeqTarget = target => {
-    const group = target?.closest?.('.seq-region[data-stage-id]');
-    if (!group) return false;
-    const index = stageIndexById.get(group.dataset.stageId);
-    if (!Number.isSafeInteger(index)) return false;
-    applyStage(index);
-    closeSeq();
-    return true;
-  };
-  ui.mount.addEventListener('click', event => { activateSeqTarget(event.target); });
-  ui.mount.addEventListener('keydown', event => {
-    if ((event.key === 'Enter' || event.key === ' ') && activateSeqTarget(event.target)) event.preventDefault();
+  ui.shell.addEventListener('mouseenter', () => {
+    if (canHover.matches && !expanded) { preview = true; setShellState(); refreshSeqLayout(); }
   });
+  ui.shell.addEventListener('mouseleave', () => {
+    if (!expanded) { preview = false; setShellState(); refreshSeqLayout(); }
+  });
+  ui.shell.addEventListener('transitionend', () => seq?.fit());
   ui.open.addEventListener('click', openSeq);
   ui.close.addEventListener('click', closeSeq);
   ui.backdrop.addEventListener('click', closeSeq);
@@ -219,7 +150,7 @@ export const mountFeature = async ({ input: payload, root, scope = globalThis })
     applyStage,
     closeSeq,
     openSeq,
-    read: () => Object.freeze({ currentStageIndex, expanded, preview, runtime: runtime.read() }),
+    read: () => Object.freeze({ currentStageIndex, expanded, preview, runtime: runtime.read(), seq: seq.read() }),
     schema: 'ui-presentation-runtime/1',
   });
 };
