@@ -7,6 +7,7 @@ import { createMaxGraphAdapter } from './renderer-maxgraph/index.js';
 const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1' });
 const GRAPH_LAYOUT_MODES = new Set(['auto', 'lr', 'tb']);
 const GRAPH_AUTO_BREAKPOINT_PX = 720;
+const GRAPH_MOBILE_MARGIN_PX = 24;
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-feature: ${message}`); };
 const frame = scope => new Promise(resolve => scope.requestAnimationFrame(() => resolve()));
 
@@ -98,23 +99,37 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
   };
 
   function renderAndFit() {
-    const direction = feature.id === 'graph' ? graphDirection(layoutMode, Math.max(1, surface.clientWidth)) : null;
+    surface.style.removeProperty('height');
+    const width = Math.max(1, surface.clientWidth);
+    const direction = feature.id === 'graph' ? graphDirection(layoutMode, width) : null;
     const presentationProjection = direction ? graphPresentationProjection(domain, direction) : null;
     const projector = new SemanticProjector(domain, null, view, { presentationProjection });
     const project = () => projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
     scene = project();
     adapter.render(scene);
 
-    const width = Math.max(1, surface.clientWidth);
-    const height = Math.max(1, surface.clientHeight);
     const bounds = scene.bounds;
-    const scale = Math.max(0.01, Math.min(
-      1,
-      Math.max(1, width - 48) / Math.max(1, bounds.width),
-      Math.max(1, height - 48) / Math.max(1, bounds.height),
-    ));
+    const mobileTopDown = direction === 'TB' && width < GRAPH_AUTO_BREAKPOINT_PX;
+    let height = Math.max(1, surface.clientHeight);
+    let scale;
+    let translateY;
+
+    if (mobileTopDown) {
+      scale = Math.max(0.01, Math.min(1, Math.max(1, width - GRAPH_MOBILE_MARGIN_PX) / Math.max(1, bounds.width)));
+      const renderedHeight = Math.ceil(bounds.height * scale + GRAPH_MOBILE_MARGIN_PX * 2);
+      surface.style.height = `${Math.max(680, renderedHeight)}px`;
+      height = Math.max(1, surface.clientHeight);
+      translateY = GRAPH_MOBILE_MARGIN_PX / scale - bounds.y;
+    } else {
+      scale = Math.max(0.01, Math.min(
+        1,
+        Math.max(1, width - 48) / Math.max(1, bounds.width),
+        Math.max(1, height - 48) / Math.max(1, bounds.height),
+      ));
+      translateY = height / (2 * scale) - (bounds.y + bounds.height / 2);
+    }
+
     const translateX = width / (2 * scale) - (bounds.x + bounds.width / 2);
-    const translateY = height / (2 * scale) - (bounds.y + bounds.height / 2);
     adapter.setCamera(scale, translateX, translateY);
     scene = project();
     adapter.render(scene);
@@ -123,6 +138,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
     if (layoutMode) {
       surface.dataset.layout = layoutMode;
       surface.dataset.layoutDirection = direction;
+      surface.dataset.fit = mobileTopDown ? 'width' : 'contain';
     }
     updateControls();
   }
