@@ -19,7 +19,7 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
   const response = await scope.fetch(new URL('./adapter.json', scope.location.href), { cache: 'no-store', credentials: 'omit' });
   if (!response.ok) throw new Error(`artifact-adapter: adapter.json returned ${response.status}`);
   const adapter = await response.json();
-  if (adapter.schema !== 'ui-adapter/1' || !['invocation', 'feature'].includes(adapter.kind)) throw new Error('artifact-adapter: unsupported adapter');
+  if (adapter.schema !== 'ui-adapter/1' || adapter.kind !== 'invocation') throw new Error('artifact-adapter: invocation adapter required');
   const target = new URL(adapter.href, scope.location.href);
   if (target.origin !== scope.location.origin) throw new Error('artifact-adapter: same-origin target required');
   document.title = `${adapter.label} · UI`;
@@ -33,20 +33,7 @@ export const bootArtifactAdapter = async ({ scope = globalThis } = {}) => {
     iframe.addEventListener('load', resolve, { once: true });
     iframe.addEventListener('error', () => reject(new Error(`artifact-adapter: ${adapter.id} frame failed`)), { once: true });
   });
-
-  if (adapter.kind === 'invocation') {
-    await wait(scope, () => iframe.contentWindow?.artifactShellProof?.outcome?.result?.status === 'PASS', `${adapter.id} invocation`);
-  } else {
-    const selectors = Array.isArray(adapter.proof?.selectors) ? adapter.proof.selectors : [];
-    if (selectors.length === 0) throw new Error(`artifact-adapter: ${adapter.id} proof selectors required`);
-    await wait(scope, () => {
-      const child = iframe.contentDocument;
-      if (!child) return false;
-      if (adapter.proof.rootStatus && child.documentElement.dataset.status !== adapter.proof.rootStatus) return false;
-      return selectors.every(selector => child.querySelector(selector));
-    }, `${adapter.id} feature UI`, 20_000);
-  }
-
+  await wait(scope, () => iframe.contentWindow?.artifactShellProof?.outcome?.result?.status === 'PASS', `${adapter.id} invocation`);
   if (!visible(iframe)) throw new Error(`artifact-adapter: ${adapter.id} frame is not visible`);
   document.body.dataset.adapterStatus = 'pass';
   status.textContent = 'PASS';
