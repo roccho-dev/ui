@@ -1,0 +1,21 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"mieru","title":"見えるんです | 産業医コメント連携"}
+{"type":"region","id":"mieru","parent":null,"label":"見えるんです | 産業医コメント連携","kind":"root","bounds":[0,0,1400,760],"summary":"three-column integration"}
+{"type":"region","id":"ui","parent":"mieru","label":"UI / Graph","kind":"group","bounds":[0,0,360,560],"summary":"UI side"}
+{"type":"region","id":"ui.request","parent":"ui","label":"松本さん側 | 29の正常を1 objectへ変形","kind":"process","bounds":[0,0,280,100],"summary":"request composition","order":0}
+{"type":"region","id":"s3","parent":"mieru","label":"AWS | Amazon S3","kind":"group","bounds":[0,0,420,620],"summary":"exchange storage"}
+{"type":"region","id":"s3.input","parent":"s3","label":"input.json","kind":"data","bounds":[0,0,300,190],"summary":"request data","order":0}
+{"type":"region","id":"s3.input.case","parent":"s3.input","label":"案件データ","kind":"field","bounds":[0,0,160,40],"summary":"case data","order":0}
+{"type":"region","id":"s3.input.schema","parent":"s3.input","label":"schemaVersion: 0.1-draft","kind":"field","bounds":[0,0,200,40],"summary":"schema","order":1}
+{"type":"region","id":"s3.input.items","parent":"s3.input","label":"items[] | id + コメント用input","kind":"field","bounds":[0,0,220,40],"summary":"items","order":2}
+{"type":"region","id":"s3.output","parent":"s3","label":"output.json","kind":"data","bounds":[0,0,300,150],"summary":"result data","order":1}
+{"type":"region","id":"s3.output.items","parent":"s3.output","label":"items[] | id / statusCode / comment","kind":"field","bounds":[0,0,240,40],"summary":"result items","order":0}
+{"type":"region","id":"dev","parent":"mieru","label":"mieru-dev","kind":"group","bounds":[0,0,390,600],"summary":"generation service"}
+{"type":"region","id":"dev.process","parent":"dev","label":"処理","kind":"process","bounds":[0,0,300,180],"summary":"generation process","order":0}
+{"type":"region","id":"dev.process.context","parent":"dev.process","label":"案件データを共通context化","kind":"attribute","bounds":[0,0,220,40],"summary":"context","order":0}
+{"type":"region","id":"dev.process.items","parent":"dev.process","label":"items[]を1件ずつ生成","kind":"attribute","bounds":[0,0,200,40],"summary":"generate","order":1}
+{"type":"region","id":"dev.process.return","parent":"dev.process","label":"同じidで結果を返す","kind":"attribute","bounds":[0,0,200,40],"summary":"return","order":2}
+{"type":"region","id":"dev.constraints","parent":"dev","label":"意味を持たない","kind":"process","bounds":[0,0,300,150],"summary":"non-semantic inputs","order":1}
+{"type":"region","id":"dev.constraints.page","parent":"dev.constraints","label":"page番号 / graph位置","kind":"attribute","bounds":[0,0,200,40],"summary":"ignored","order":0}
+{"type":"region","id":"dev.constraints.comment","parent":"dev.constraints","label":"comment idの個別位置","kind":"attribute","bounds":[0,0,200,40],"summary":"ignored","order":1}
+{"type":"relation","id":"a1","from":"ui.request","to":"s3.input","kind":"flow","label":"writes input.json"}
+{"type":"relation","id":"a2","from":"s3.input","to":"dev.process","kind":"flow","label":"triggers generation"}

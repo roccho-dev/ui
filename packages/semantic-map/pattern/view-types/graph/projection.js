@@ -1,6 +1,9 @@
 import { createGraphLayout } from '../spatial-layout.js';
 import { isGraphItemKind } from './contract.js';
 
+const OVERVIEW_DETAIL_KINDS = new Set(['group', 'package', 'subgraph']);
+const OVERVIEW_DETAIL_AREA_PX2 = 40_000;
+
 function orderedItemIds(domain, regionId) {
   return [...(domain.children.get(regionId) ?? [])]
     .filter((childId) => isGraphItemKind(domain.regions.get(childId)?.kind))
@@ -51,7 +54,8 @@ function project({ node, plan, transform, depthOffset, rootProxy, clipBounds, ap
       .filter(childId => plan.bounds.has(childId) && !isGraphItemKind(domain.regions.get(childId)?.kind));
     const mounted = mountedChild(node, region);
     const hasChildren = childIds.length > 0 || Boolean(mounted);
-    const showDetails = detailsVisible(node, region, projectedBounds, hasChildren, force);
+    const detailThreshold = OVERVIEW_DETAIL_KINDS.has(region.kind) ? OVERVIEW_DETAIL_AREA_PX2 : undefined;
+    const showDetails = detailsVisible(node, region, projectedBounds, hasChildren, force, detailThreshold);
     const depth = depthOffset + domain.depthById.get(localId);
     const representation = addRepresentation(node, region, projectedBounds, hasChildren || force ? 'boundary' : 'node', depth, {
       hasChildren,

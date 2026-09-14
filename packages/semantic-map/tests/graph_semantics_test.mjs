@@ -55,9 +55,21 @@ const subgraphOverview = project(subgraphDomain);
 const backend = subgraphOverview.representations.find((item) => item.sourceRegionId === 'backend');
 assert.equal(backend?.shape, 'boundary');
 assert.equal(backend?.hasChildren, true);
-const subgraphDetail = project(subgraphDomain, 4);
-assert.ok(subgraphDetail.representations.some((item) => item.sourceRegionId === 'worker'), 'nested regions must render when detail LOD is visible');
-assert.ok(subgraphDetail.relations.some((relation) => relation.id === 'g2' && relation.directed));
+assert.ok(subgraphOverview.representations.some((item) => item.sourceRegionId === 'worker'), 'graph overview must reveal useful group contents at scale 1');
+assert.ok(subgraphOverview.relations.some((relation) => relation.id === 'g2' && relation.directed));
+const subgraphLow = project(subgraphDomain, 0.1);
+assert.ok(!subgraphLow.representations.some((item) => item.sourceRegionId === 'worker'), 'low zoom must preserve graph LOD collapse');
+
+const selfLoop = project(load('self-loop'));
+const selfRelation = selfLoop.relations.find((relation) => relation.id === 'self-depends');
+assert.ok(selfRelation, 'semantic self relation must survive projection');
+assert.equal(selfRelation.from, selfRelation.to, 'self relation must remain a loop');
+assert.equal(selfRelation.directed, true);
+
+const architecture = project(load('architecture-nested'));
+for (const id of ['ui.request', 's3.input', 's3.output', 'dev.process', 'dev.constraints']) {
+  assert.ok(architecture.representations.some((item) => item.sourceRegionId === id), `overview must show nested ${id}`);
+}
 
 console.log(JSON.stringify({
   schema: 'semantic-map-graph-semantics-test/1',
@@ -65,5 +77,5 @@ console.log(JSON.stringify({
   pass: true,
   complete: true,
   pattern: GRAPH_PATTERN,
-  examples: ['flow', 'state', 'class', 'erd', 'subgraph'],
+  examples: ['flow', 'state', 'class', 'erd', 'subgraph', 'self-loop', 'architecture-nested'],
 }));
