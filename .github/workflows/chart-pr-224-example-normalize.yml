@@ -52,9 +52,30 @@ jobs:
               if updated != text:
                   path.write_text(updated, encoding='utf-8')
                   changed.append(str(path))
+
+          pattern = root / 'pattern_test.mjs'
+          text = pattern.read_text(encoding='utf-8')
+          old_helper = "function load(name) {\n  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8')));\n}"
+          new_helper = "function load(source) {\n  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(source, import.meta.url), 'utf8')));\n}"
+          if old_helper not in text:
+              raise SystemExit('pattern_test load helper shape changed')
+          text = text.replace(old_helper, new_helper)
+          for old, new in {
+              "load('example.jsonl')": "load('../examples/example.jsonl')",
+              "load('graph.jsonl')": "load('../examples/graph.jsonl')",
+              "load('sequence.jsonl')": "load('../examples/sequence.jsonl')",
+              "load('gantt.jsonl')": "load('../examples/gantt.jsonl')",
+              "load('chart.jsonl')": "load('../../../examples/chart/bar-horizontal.jsonl')",
+          }.items():
+              if old not in text:
+                  raise SystemExit(f'pattern_test missing {old}')
+              text = text.replace(old, new)
+          pattern.write_text(text, encoding='utf-8')
+          changed.append(str(pattern))
+
           if not changed:
               raise SystemExit('no legacy Chart fixture references were rewritten')
-          print('\n'.join(changed))
+          print('\n'.join(sorted(set(changed))))
           PY
 
           git rm --ignore-unmatch \
@@ -67,8 +88,8 @@ jobs:
             packages/semantic-map/examples/chart-composition/active.jsonl \
             packages/semantic-map/examples/chart-composition/share.jsonl
 
-          if git grep -n -E 'examples/(chart\.jsonl|chart-scatter\.jsonl|chart-heatmap\.jsonl|chart-sunburst\.jsonl|chart-composition/(sales|active|share)\.jsonl)'; then
-            echo 'legacy Chart example reference remains' >&2
+          if git grep -n -E 'chart\.jsonl|chart-scatter\.jsonl|chart-heatmap\.jsonl|chart-sunburst\.jsonl|chart-composition/(sales|active|share)\.jsonl' -- packages/semantic-map/tests; then
+            echo 'legacy Chart example filename remains in Semantic Map tests' >&2
             exit 1
           fi
 
