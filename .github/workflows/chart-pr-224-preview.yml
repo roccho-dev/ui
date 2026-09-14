@@ -1,0 +1,40 @@
+name: Chart PR 224 preview
+
+on:
+  push:
+    branches:
+      - deploy/chart-pr-224-260915
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: efa4b50c42d1e8af672b96686acc998e2a827617
+  CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
+  CLOUDFLARE_PAGES_BRANCH: pr-224
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ui-deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build Artifact Shell publication
+        run: npm run build:artifact-shell-publication -- --out=dist
+      - name: Deploy Cloudflare Pages preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.112.0 pages deploy dist \
+            --project-name="$CLOUDFLARE_PAGES_PROJECT" \
+            --branch="$CLOUDFLARE_PAGES_BRANCH" \
+            --commit-hash="$SOURCE_SHA"
