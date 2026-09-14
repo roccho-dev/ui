@@ -26,14 +26,18 @@ jobs:
         with:
           node-version: 24
       - name: Build Artifact Shell publication
-        run: npm run build:artifact-shell-publication -- --out=dist
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/artifact-shell-publication"
+          npm run build:artifact-shell-publication -- --out="$out"
+          echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
       - name: Deploy Cloudflare Pages preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.112.0 pages deploy dist \
+          npx --yes wrangler@4.112.0 pages deploy "$ARTIFACT_SHELL_PUBLICATION" \
             --project-name="$CLOUDFLARE_PAGES_PROJECT" \
             --branch="$CLOUDFLARE_PAGES_BRANCH" \
             --commit-hash="$SOURCE_SHA"
