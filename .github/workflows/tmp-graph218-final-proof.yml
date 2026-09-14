@@ -70,8 +70,14 @@ jobs:
           for (const [name, source] of Object.entries(sources)) {
             urls[name] = await createUrlModuleUrl({ base, fragment: 'data', value: await fs.readFile(source, 'utf8') });
           }
+          for (const mode of ['auto', 'lr', 'tb']) {
+            const url = new URL(urls.adr344);
+            url.searchParams.set('layout', mode);
+            urls[`adr344_${mode}`] = url.href;
+          }
           console.log(JSON.stringify(urls));
           NODE
+          cat "$RUNNER_TEMP/proof-urls.json"
 
       - name: Install pinned Chromium
         run: |
@@ -83,6 +89,75 @@ jobs:
           node packages/semantic-map/tests/graph_browser_proof.mjs \
             "$RUNNER_TEMP/proof-urls.json" \
             "$RUNNER_TEMP/graph218-screens"
+
+      - name: Prove Auto LR TB controls and mobile Auto
+        shell: bash
+        run: |
+          python3 - "$RUNNER_TEMP/proof-urls.json" "$RUNNER_TEMP/graph218-screens" <<'PY'
+          import json
+          import os
+          import sys
+          from playwright.sync_api import sync_playwright
+
+          urls_path, screenshot_dir = sys.argv[1], sys.argv[2]
+          with open(urls_path, encoding='utf-8') as handle:
+              urls = json.load(handle)
+
+          cases = [
+              ('adr344_auto', {'width': 412, 'height': 915}, 'auto', 'TB', 'y'),
+              ('adr344_lr', {'width': 1600, 'height': 1000}, 'lr', 'LR', 'x'),
+              ('adr344_tb', {'width': 1600, 'height': 1000}, 'tb', 'TB', 'y'),
+          ]
+
+          def visible_box(page, token):
+              locator = page.get_by_text(token, exact=False).first
+              locator.wait_for(state='visible', timeout=30000)
+              box = locator.bounding_box()
+              assert box and box['width'] > 0 and box['height'] > 0, '%s: no visible box' % token
+              return box
+
+          results = {}
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch()
+              for key, viewport, mode, direction, axis in cases:
+                  page_errors = []
+                  console_errors = []
+                  page = browser.new_page(viewport=viewport)
+                  page.on('pageerror', lambda error, bag=page_errors: bag.append(str(error)))
+                  page.on('console', lambda message, bag=console_errors: bag.append(message.text) if message.type == 'error' else None)
+                  response = page.goto(urls[key], wait_until='networkidle', timeout=60000)
+                  page.wait_for_selector('[data-status="pass"]', timeout=60000)
+                  selector = '.semantic-map-feature[data-layout="%s"][data-layout-direction="%s"]' % (mode, direction)
+                  page.wait_for_selector(selector, state='visible', timeout=60000)
+                  assert response and response.status == 200
+                  assert not page_errors, '%s page errors %r' % (key, page_errors)
+                  assert not console_errors, '%s console errors %r' % (key, console_errors)
+
+                  for option in ['auto', 'lr', 'tb']:
+                      button = page.locator('.semantic-map-layout-button[data-layout="%s"]' % option)
+                      button.wait_for(state='visible', timeout=30000)
+                      assert button.get_attribute('aria-pressed') == ('true' if option == mode else 'false')
+
+                  meaning = visible_box(page, 'Meaning authority')
+                  phases = visible_box(page, 'Progressive phase values')
+                  results_box = visible_box(page, 'Explicit non-green results')
+                  if axis == 'x':
+                      assert meaning['x'] < phases['x'] < results_box['x'], '%s lost LR order' % key
+                  else:
+                      assert meaning['y'] < phases['y'] < results_box['y'], '%s lost TB order' % key
+
+                  if key == 'adr344_auto':
+                      for token in ['Fact', 'Condition', 'Claim', 'CandidateData', 'Missing']:
+                          visible_box(page, token)
+
+                  screenshot = os.path.join(screenshot_dir, key + '.png')
+                  page.screenshot(path=screenshot, full_page=True)
+                  results[key] = {'status': 'PASS', 'layout': mode, 'direction': direction, 'viewport': viewport}
+                  page.close()
+              browser.close()
+
+          print(json.dumps({'schema': 'graph-layout-mode-browser-proof/1', 'status': 'PASS', 'results': results}, ensure_ascii=False))
+          PY
 
       - uses: actions/upload-artifact@v4
         with:
