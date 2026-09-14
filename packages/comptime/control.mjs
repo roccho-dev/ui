@@ -5,17 +5,14 @@ export const compileControl = jsonl => {
   });
   const root = records.find(record => record.rel === null);
   if (!root || typeof root.id !== "string") throw new Error("comptime.control: root record required");
-  const dataModel = { title: root.title ?? root.id };
   const children = ["title"];
-  const components = [{ id: "root", component: "Column", props: { gap: 10 }, children }, { id: "title", component: "Text", props: { text: { path: "title" }, variant: "title" } }];
+  const components = [{ id: "root", component: "Column", children }, { id: "title", component: "Text", text: root.title ?? root.id, variant: "h1" }];
   records.filter(record => record !== root).forEach((record, index) => {
-    const key = `record${index}`;
     const id = `record-${index}`;
-    dataModel[key] = `${record.title ?? record.id} · ${record.state ?? ""}`.trim();
     children.push(id);
-    components.push({ id, component: "Text", props: { text: { path: key } } });
+    components.push({ id, component: "Text", text: `${record.title ?? record.id}${record.state ? ` · ${record.state}` : ""}` });
   });
-  const surface = Object.freeze({ schema: "a2ui-surface/1", catalogId: "roccho.a2ui.rich.v1", surfaceId: "main", rootId: "root", dataModel, components });
+  const surface = Object.freeze({ rootId: "root", surfaceId: "control-example", dataModel: {}, components });
   return Object.freeze({
     schema: "artifact-invocation/2",
     id: "request.example.control",

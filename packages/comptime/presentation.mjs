@@ -7,20 +7,18 @@ export const compilePresentation = semanticText => {
   const stages = records.filter(record => record.type === "stage").sort((a, b) => a.order - b.order);
   if (meta?.schema !== "business-model-semantic-jsonl/2" || typeof meta.title !== "string") throw new Error("comptime.presentation: business-model semantic meta required");
   if (stages.length === 0) throw new Error("comptime.presentation: stage required");
-  const dataModel = { title: meta.title };
   const children = ["title"];
-  const components = [{ id: "root", component: "Column", props: { gap: 12 }, children }, { id: "title", component: "Text", props: { text: { path: "title" }, variant: "title" } }];
+  const components = [{ id: "root", component: "Column", children }, { id: "title", component: "Text", text: meta.title, variant: "h1" }];
   stages.forEach((stage, index) => {
-    const headingKey = `stage${index}Heading`;
-    const detailKey = `stage${index}Detail`;
-    dataModel[headingKey] = stage.name;
-    dataModel[detailKey] = [stage.goal, stage.evidence, stage.gate].filter(Boolean).join(" · ");
     const headingId = `stage-${index}-heading`;
     const detailId = `stage-${index}-detail`;
     children.push(headingId, detailId);
-    components.push({ id: headingId, component: "Text", props: { text: { path: headingKey } } }, { id: detailId, component: "Text", props: { text: { path: detailKey } } });
+    components.push(
+      { id: headingId, component: "Text", text: stage.name },
+      { id: detailId, component: "Text", text: [stage.goal, stage.evidence, stage.gate].filter(Boolean).join(" · ") },
+    );
   });
-  const surface = Object.freeze({ schema: "a2ui-surface/1", catalogId: "roccho.a2ui.rich.v1", surfaceId: "main", rootId: "root", dataModel, components });
+  const surface = Object.freeze({ rootId: "root", surfaceId: "presentation-example", dataModel: {}, components });
   return Object.freeze({
     schema: "artifact-invocation/2",
     id: `request.example.presentation.${meta.id}`,
