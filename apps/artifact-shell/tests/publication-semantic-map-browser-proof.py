@@ -62,7 +62,11 @@ def main() -> None:
                     text = source.read_text(encoding="utf-8")
                     url = f"http://127.0.0.1:{listen}/adapters/{feature_id}/#data={data_token(text)}"
                     page.goto(url, wait_until="networkidle", timeout=30_000)
-                    page.locator("html[data-status='pass']").wait_for(state="attached", timeout=30_000)
+                    page.wait_for_timeout(1_000)
+                    status = page.locator("html").get_attribute("data-status")
+                    if status != "pass":
+                        fatal = page.locator("#fatal").text_content() or ""
+                        raise AssertionError(f"{feature_id} status={status!r} fatal={fatal!r} pageerrors={errors!r}")
                     proof = page.evaluate("() => globalThis.uiFeatureProof")
                     assert proof["feature"]["id"] == feature_id
                     assert proof["mounted"]["pattern"] == pattern
