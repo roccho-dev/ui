@@ -22,7 +22,9 @@ const workflow = read(".github/workflows/a2ui-adapter-artifacts.yml");
 const workflowDir = path.join(root, ".github", "workflows");
 const workflows = fs.readdirSync(workflowDir).filter((name) => /\.ya?ml$/.test(name)).sort();
 
-assert.equal(workflows.length, 7, "the slice must reuse the seven existing workflows");
+const intentRows = read("ci.intent.v1.jsonl").trim().split(/\n+/).map((line) => JSON.parse(line));
+const registeredWorkflows = intentRows.flatMap((row) => row.kind === "ui.ciIntent.v1" ? row.entrypoints : [row.path]).sort();
+assert.deepEqual(workflows.map((name) => `.github/workflows/${name}`), registeredWorkflows, "the slice must reuse exactly the registered workflows");
 assert.deepEqual(packageJson.exports, {
   ".": "./packages/core-port/src/index.mjs",
   "./adapters": "./packages/core-port/src/adapters/index.mjs",
