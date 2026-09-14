@@ -24,6 +24,7 @@ const runtimeData = parseBusinessModelRuntimeJsonl(input);
 assert.equal(runtimeData.schema, 'business-model-runtime-data/1');
 assert.equal(runtimeData.model.sourceSchema, 'business-model-semantic-jsonl/2');
 assert.equal(runtimeData.presentation.schema, 'business-model-presentation-a2ui/1');
+assert.equal(runtimeData.presentation.a2ui.createSurface.sendDataModel, true);
 assert.equal(runtimeData.semanticText.includes('"type":"presentation"'), false);
 assert.equal(input.includes('"type":"presentation"'), true);
 
@@ -40,6 +41,7 @@ const presentation = compileBusinessModelPresentationPayload(runtimeData);
 assert.equal(presentation.id, runtimeData.model.id);
 assert.equal(presentation.sequence.sourceId, runtimeData.model.id);
 assert.equal(presentation.coverage.pass, true);
+assert.deepEqual(presentation.sequence.stages[0].messages[0], runtimeData.presentation.a2ui);
 assert.deepEqual(
   presentation.sequence.stages.map(stage => stage.id),
   runtimeData.model.stages.map(stage => stage.id),
