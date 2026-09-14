@@ -1,0 +1,65 @@
+name: Temporary ui218 runtime split proof
+
+on:
+  push:
+    branches:
+      - proof/ui218-runtime-split-260915
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: node packages/semantic-map/tests/example_reproducibility.mjs
+
+  semantic-rest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
+      - run: node apps/artifact-shell/tests/semantic-map-capability.mjs
+      - run: node tests/check-semantic-map-legacy-source-retirement.mjs
+
+  decision-repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: node packages/decision-packet/tests/example-reproducibility.mjs
+
+  decision-rest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+      - run: node apps/artifact-shell/tests/decision-packet-capability.mjs
+      - run: node tests/check-decision-packet-publication.mjs
