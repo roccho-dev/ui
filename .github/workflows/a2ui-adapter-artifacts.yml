@@ -1,35 +1,196 @@
 name: A2UI adapter artifacts
 
 on:
+  pull_request:
   push:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  migrate-maxgraph-factory:
+  adapter-artifacts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
-          persist-credentials: true
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Apply one-shot factory migration
+      - name: Install Japanese screenshot fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-cache -f
+      - name: Install pinned browser proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Expose pinned Chromium only as proof input
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
+      - name: Run complete UI checks
+        run: npm run check
+      - name: Prove migrated semantic-map in Chromium
+        run: |
+          python3 packages/semantic-map/tests/browser_example.py
+          npm run proof:semantic-map-meaning-recovery
+          python3 packages/decision-packet/tests/browser-example.py
+          python3 apps/artifact-shell/tests/browser-proof.py
+          python3 apps/artifact-shell/tests/decision-packet-browser-proof.py
+      - name: Select heavy SSG server proof scope
+        id: ssg_proof_scope
         env:
-          BRANCH: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          node scripts/refactor-maxgraph-adapter-factory.mjs
-          if git diff --quiet; then
-            echo 'no migration output'
+          select_proof() {
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=$1" >> "$GITHUB_OUTPUT"
             exit 0
+          }
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            select_proof "manual-dispatch"
           fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/semantic-map/renderer-maxgraph/adapter.js packages/semantic-map/renderer-maxgraph/index.js packages/semantic-map/authoring/main.js
-          git commit -m 'refactor: replace maxGraph adapter classes with factory'
-          git push origin "HEAD:$BRANCH"
+          base="$BEFORE_SHA"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$BASE_SHA"
+          fi
+          if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$'; then
+            select_proof "missing-comparison-base"
+          fi
+          if ! git fetch --no-tags --depth=1 origin "$base"; then
+            select_proof "comparison-fetch-failed"
+          fi
+          if ! git cat-file -e "${base}^{commit}"; then
+            select_proof "comparison-base-unresolved"
+          fi
+          if ! changed="$(git diff --name-only "$base" "$HEAD_SHA")"; then
+            select_proof "comparison-diff-failed"
+          fi
+          printf '%s\n' "$changed"
+          relevant='^(\.github/workflows/a2ui-adapter-artifacts\.yml|package\.json|packages/a2ui-adapter-artifacts/dev/ssg-output-refresh\.js|packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof\.mjs|tests/check-ssg-hot-refresh-viewport\.py|tests/check-ssg-hot-refresh-yagni\.mjs|tests/fixtures/ssg-hot-refresh-viewport/)'
+          if printf '%s\n' "$changed" | grep -Eq "$relevant"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=relevant-path" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=unrelated-paths" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install pinned Caddy proof server
+        if: steps.ssg_proof_scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          version="2.11.3"
+          directory="$RUNNER_TEMP/caddy"
+          archive="caddy_${version}_linux_amd64.tar.gz"
+          checksums="caddy_${version}_checksums.txt"
+          base="https://github.com/caddyserver/caddy/releases/download/v${version}"
+          mkdir -p "$directory"
+          cd "$directory"
+          curl -fsSLo "$archive" "$base/$archive"
+          curl -fsSLo "$checksums" "$base/$checksums"
+          ARCHIVE="$archive" CHECKSUMS="$checksums" python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+
+          archive = Path(os.environ["ARCHIVE"])
+          rows = Path(os.environ["CHECKSUMS"]).read_text(encoding="utf-8").splitlines()
+          expected = next(row.split()[0] for row in rows if row.split()[-1].lstrip("*") == archive.name)
+          algorithm = "sha512" if len(expected) == 128 else "sha256" if len(expected) == 64 else None
+          if algorithm is None:
+              raise SystemExit(f"unsupported checksum length: {len(expected)}")
+          actual = getattr(hashlib, algorithm)(archive.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"Caddy archive checksum mismatch: {actual} != {expected}")
+          print(f"verified {archive.name} with {algorithm}")
+          PY
+          tar -xzf "$archive" caddy
+          chmod +x caddy
+          test "$(./caddy version | awk '{print $1}')" = "v${version}"
+      - name: Prove SSG hot refresh viewport with selected servers
+        if: steps.ssg_proof_scope.outputs.run == 'true'
+        run: |
+          python3 tests/check-ssg-hot-refresh-viewport.py --server wrangler
+          python3 tests/check-ssg-hot-refresh-viewport.py --server caddy
+        env:
+          SSG_HOT_REFRESH_ARTIFACT_OUT: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
+          CADDY_EXECUTABLE: ${{ runner.temp }}/caddy/caddy
+          CADDY_EXPECTED_VERSION: v2.11.3
+      - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
+        env:
+          ADAPTER_ARTIFACT_OUT: adapter-result
+      - run: node scripts/build-contract-model-atlas-artifact.mjs --out adapter-result/contract-model-atlas-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs
+        env:
+          REPO_MAP_SVGPANZOOM_ARTIFACT_OUT: adapter-result/repo-map-svgpanzoom-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/patch-repo-map-svgpanzoom-preview.mjs adapter-result/repo-map-svgpanzoom-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/smoke-repo-map-svgpanzoom.mjs adapter-result/repo-map-svgpanzoom-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
+        env:
+          GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs
+        env:
+          GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
+          GEOMAP_ZIP_PARITY_RENDER: "1"
+          GEOMAP_ZIP_PARITY_INTERACTION: "1"
+      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs
+        env:
+          GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
+      - run: node packages/a2ui-adapter-artifacts/scripts/check-geomap-final-gate.mjs
+        env:
+          GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
+          GEOMAP_RUNTIME_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.ssg_proof_scope.outputs.run == 'true' }}
+        with:
+          name: ssg-hot-refresh-viewport-artifact
+          path: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-adapter-artifact
+          path: adapter-result/live-adapter-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: purpose-adapter-artifact
+          path: adapter-result/purpose-adapter-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contract-model-atlas-artifact
+          path: adapter-result/contract-model-atlas-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repo-map-svgpanzoom-artifact
+          path: adapter-result/repo-map-svgpanzoom-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: property-map-geo-artifact
+          path: adapter-result/property-map-geo-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: property-map-zip-parity-artifact
+          path: adapter-result/property-map-zip-parity-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: property-map-geo-runtime-hardening-artifact
+          path: adapter-result/property-map-geo-runtime-hardening-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adapter-artifact-index
+          path: adapter-result/adapter-artifact-index.json
