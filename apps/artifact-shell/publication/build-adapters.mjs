@@ -4,7 +4,6 @@ import { canonicalJson, createUrlModuleUrl } from '../../../packages/url-module/
 import { createAdapter as createChartAdapter } from '../adapters/chart.mjs';
 import { createAdapter as createControlAdapter } from '../adapters/control.mjs';
 import { createAdapter as createGraphAdapter } from '../adapters/graph.mjs';
-import { createAdapter as createGraphEditorAdapter } from '../adapters/graph-editor.mjs';
 import { createAdapter as createMapAdapter } from '../adapters/map.mjs';
 import { createAdapter as createPresentationAdapter } from '../adapters/presentation.mjs';
 import { createAdapter as createSeqAdapter } from '../adapters/seq.mjs';
@@ -14,7 +13,6 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/a2ui-browser/src',
   'packages/control',
   'packages/core-port/src',
-  'packages/graph-editor',
   'packages/presentation',
   'packages/semantic-map/domain',
   'packages/semantic-map/feature-runtime.mjs',
@@ -29,8 +27,14 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/url-module/src',
 ]);
 
+const variantIdPattern = /^[a-z][a-z0-9-]*$/u;
+const readSource = async (repoRoot, source) => {
+  const sourcePath = path.join(repoRoot, source);
+  return source.endsWith('.jsonl') ? fs.readFile(sourcePath, 'utf8') : JSON.parse(await fs.readFile(sourcePath, 'utf8'));
+};
+
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
-  const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createChartAdapter(), createPresentationAdapter(), createControlAdapter(), createGraphEditorAdapter()];
+  const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createChartAdapter(), createPresentationAdapter(), createControlAdapter()];
   if (new Set(adapters.map(adapter => adapter.id)).size !== adapters.length) throw new Error('artifact-adapters: duplicate id');
 
   await fs.copyFile(path.join(appRoot, 'src', 'adapter.mjs'), path.join(outputRoot, 'adapter.mjs'));
@@ -41,13 +45,29 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
   const adapterHost = await fs.readFile(path.join(appRoot, 'publication', 'adapter-host.html'));
 
   for (const adapter of adapters) {
-    const sourcePath = path.join(repoRoot, adapter.source);
-    const source = adapter.source.endsWith('.jsonl') ? await fs.readFile(sourcePath, 'utf8') : JSON.parse(await fs.readFile(sourcePath, 'utf8'));
+    const source = await readSource(repoRoot, adapter.source);
     const root = path.join(outputRoot, 'adapters', adapter.id);
     await fs.mkdir(root, { recursive: true });
 
     if (adapter.kind === 'feature') {
       await materializeFeature({ adapter, input: source, outputRoot, repoRoot, root });
+      const variants = adapter.variants ?? [];
+      if (!Array.isArray(variants)) throw new Error(`artifact-adapters: ${adapter.id} variants must be an array`);
+      if (new Set(variants.map(variant => variant.id)).size !== variants.length) throw new Error(`artifact-adapters: ${adapter.id} duplicate variant id`);
+      for (const variant of variants) {
+        if (!variantIdPattern.test(variant.id)) throw new Error(`artifact-adapters: ${adapter.id} invalid variant id ${String(variant.id)}`);
+        if (typeof variant.source !== 'string' || !variant.source) throw new Error(`artifact-adapters: ${adapter.id}/${variant.id} source required`);
+        const variantInput = await readSource(repoRoot, variant.source);
+        await materializeFeature({
+          adapter,
+          input: variantInput,
+          outputRoot,
+          repoRoot,
+          root: path.join(root, variant.id),
+          view: variant.view,
+          label: `${adapter.label}/${variant.id}`,
+        });
+      }
       continue;
     }
     if (adapter.kind !== 'invocation') throw new Error(`artifact-adapters: ${adapter.id} unsupported kind ${adapter.kind}`);

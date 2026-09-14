@@ -19,7 +19,7 @@ for (const id of ['graph', 'map', 'seq']) {
 const presentation = JSON.parse(await fs.readFile(new URL('examples/presentation/example.json', repo), 'utf8'));
 assert.equal(presentation.schema, 'business-model-presentation-minimal-payload/1');
 
-for (const id of ['graph', 'map', 'seq', 'presentation', 'control', 'graph-editor']) {
+for (const id of ['graph', 'map', 'seq', 'presentation', 'control']) {
   const adapter = await fs.readFile(new URL(`apps/artifact-shell/adapters/${id}.mjs`, repo), 'utf8');
   assert.equal(adapter.includes('compile:'), false, `${id} adapter must not own source compilation`);
   assert.equal(adapter.includes('source-compiler'), false, `${id} adapter must not depend on source compiler`);

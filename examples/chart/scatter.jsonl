@@ -1,0 +1,6 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"growth-root","title":"投入量と成果"}
+{"type":"region","id":"growth-root","parent":null,"label":"投入量と成果","kind":"root","bounds":[0,0,1000,680],"summary":"orderをX、valueをYとして描くscatter/1実証"}
+{"type":"region","id":"growth-a","parent":"growth-root","label":"試行A","kind":"chart-item","bounds":[0,0,170,70],"summary":"投入量0、成果12","order":0,"value":12}
+{"type":"region","id":"growth-b","parent":"growth-root","label":"試行B","kind":"chart-item","bounds":[0,0,170,70],"summary":"投入量2、成果25","order":2,"value":25}
+{"type":"region","id":"growth-c","parent":"growth-root","label":"試行C","kind":"chart-item","bounds":[0,0,170,70],"summary":"投入量5、成果21","order":5,"value":21}
+{"type":"region","id":"growth-d","parent":"growth-root","label":"試行D","kind":"chart-item","bounds":[0,0,170,70],"summary":"投入量9、成果44","order":9,"value":44}

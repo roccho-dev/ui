@@ -1,0 +1,17 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"traffic-root","title":"拠点別時間帯アクセス"}
+{"type":"region","id":"traffic-root","parent":null,"label":"拠点別時間帯アクセス","kind":"root","bounds":[0,0,1000,680],"summary":"row→cell階層とvalueだけで描くheatmap/1実証"}
+{"type":"region","id":"tokyo","parent":"traffic-root","label":"東京","kind":"chart-row","bounds":[0,0,170,70],"summary":"東京の時間帯別アクセス","order":0}
+{"type":"region","id":"tokyo-am","parent":"tokyo","label":"午前","kind":"chart-cell","bounds":[0,0,80,60],"summary":"東京・午前","order":0,"value":18}
+{"type":"region","id":"tokyo-noon","parent":"tokyo","label":"昼","kind":"chart-cell","bounds":[0,0,80,60],"summary":"東京・昼","order":1,"value":42}
+{"type":"region","id":"tokyo-evening","parent":"tokyo","label":"夕方","kind":"chart-cell","bounds":[0,0,80,60],"summary":"東京・夕方","order":2,"value":66}
+{"type":"region","id":"tokyo-night","parent":"tokyo","label":"夜","kind":"chart-cell","bounds":[0,0,80,60],"summary":"東京・夜","order":3,"value":31}
+{"type":"region","id":"osaka","parent":"traffic-root","label":"大阪","kind":"chart-row","bounds":[0,0,170,70],"summary":"大阪の時間帯別アクセス","order":1}
+{"type":"region","id":"osaka-am","parent":"osaka","label":"午前","kind":"chart-cell","bounds":[0,0,80,60],"summary":"大阪・午前","order":0,"value":25}
+{"type":"region","id":"osaka-noon","parent":"osaka","label":"昼","kind":"chart-cell","bounds":[0,0,80,60],"summary":"大阪・昼","order":1,"value":38}
+{"type":"region","id":"osaka-evening","parent":"osaka","label":"夕方","kind":"chart-cell","bounds":[0,0,80,60],"summary":"大阪・夕方","order":2,"value":54}
+{"type":"region","id":"osaka-night","parent":"osaka","label":"夜","kind":"chart-cell","bounds":[0,0,80,60],"summary":"大阪・夜","order":3,"value":72}
+{"type":"region","id":"nagoya","parent":"traffic-root","label":"名古屋","kind":"chart-row","bounds":[0,0,170,70],"summary":"名古屋の時間帯別アクセス","order":2}
+{"type":"region","id":"nagoya-am","parent":"nagoya","label":"午前","kind":"chart-cell","bounds":[0,0,80,60],"summary":"名古屋・午前","order":0,"value":12}
+{"type":"region","id":"nagoya-noon","parent":"nagoya","label":"昼","kind":"chart-cell","bounds":[0,0,80,60],"summary":"名古屋・昼","order":1,"value":29}
+{"type":"region","id":"nagoya-evening","parent":"nagoya","label":"夕方","kind":"chart-cell","bounds":[0,0,80,60],"summary":"名古屋・夕方","order":2,"value":47}
+{"type":"region","id":"nagoya-night","parent":"nagoya","label":"夜","kind":"chart-cell","bounds":[0,0,80,60],"summary":"名古屋・夜","order":3,"value":35}

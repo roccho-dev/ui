@@ -10,9 +10,16 @@ const paths = [
   "adapters/map/",
   "adapters/seq/",
   "adapters/chart/",
+  "adapters/chart/bar-horizontal/",
+  "adapters/chart/bar-vertical/",
+  "adapters/chart/line/",
+  "adapters/chart/pie/",
+  "adapters/chart/donut/",
+  "adapters/chart/scatter/",
+  "adapters/chart/heatmap/",
+  "adapters/chart/sunburst/",
   "adapters/presentation/",
   "adapters/control/",
-  "adapters/graph-editor/",
 ];
 
 for (const path of paths) {

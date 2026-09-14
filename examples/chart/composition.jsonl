@@ -1,0 +1,6 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"composition-root","title":"複合チャート"}
+{"type":"region","id":"composition-root","parent":null,"label":"複合チャート","kind":"root","bounds":[0,0,1000,420],"summary":"同じsemantic-map-state/1を複数chart layerへ投影する実証"}
+{"type":"region","id":"composition-a","parent":"composition-root","label":"A","kind":"chart-item","bounds":[0,0,170,70],"summary":"A: 42","order":0,"value":42}
+{"type":"region","id":"composition-b","parent":"composition-root","label":"B","kind":"chart-item","bounds":[0,0,170,70],"summary":"B: 31","order":1,"value":31}
+{"type":"region","id":"composition-c","parent":"composition-root","label":"C","kind":"chart-item","bounds":[0,0,170,70],"summary":"C: 18","order":2,"value":18}
+{"type":"region","id":"composition-d","parent":"composition-root","label":"D","kind":"chart-item","bounds":[0,0,170,70],"summary":"D: 9","order":3,"value":9}

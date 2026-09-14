@@ -45,7 +45,8 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
 
   const records = parseSemanticMapRecords(input);
   const store = new SemanticDomainStore(createSemanticMap(records));
-  const view = defaultViewForPattern(pattern);
+  const view = feature?.view ?? defaultViewForPattern(pattern);
+  invariant(view?.pattern === pattern, `feature view pattern must be ${pattern}`);
   const surface = scope.document.createElement('div');
   surface.className = 'semantic-map-feature';
   surface.dataset.feature = feature.id;

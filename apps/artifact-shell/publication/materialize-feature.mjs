@@ -16,7 +16,7 @@ const hrefFrom = (from, target) => {
   return relative.startsWith('.') ? relative : `./${relative}`;
 };
 
-export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot, root }) => {
+export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot, root, view = null, label = null }) => {
   invariant(typeof adapter.featureModule === 'string' && adapter.featureModule, `${adapter.id} featureModule required`);
 
   const descriptorPath = inside(repoRoot, path.join(repoRoot, adapter.featureModule));
@@ -25,6 +25,9 @@ export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot,
   invariant(feature?.id === adapter.id, `${adapter.id} feature descriptor mismatch`);
   invariant(typeof feature.entry === 'string' && feature.entry, `${adapter.id} entry required`);
   invariant(Array.isArray(feature.styles), `${adapter.id} styles required`);
+  if (view !== null) {
+    invariant(view && typeof view === 'object' && !Array.isArray(view), `${adapter.id} view must be an object`);
+  }
 
   const modulesRoot = path.join(outputRoot, 'modules');
   const entry = inside(modulesRoot, path.join(modulesRoot, feature.entry));
@@ -46,9 +49,10 @@ export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot,
   const publication = Object.freeze({
     schema: 'ui-feature-publication/1',
     id: feature.id,
-    label: feature.label ?? adapter.label,
+    label: label ?? feature.label ?? adapter.label,
     entry: hrefFrom(root, entry),
     styles: Object.freeze(styles.map(target => hrefFrom(root, target))),
+    ...(view === null ? {} : { view }),
   });
   await fs.writeFile(path.join(root, 'feature.json'), `${canonicalJson(publication)}\n`);
   await fs.writeFile(path.join(root, 'input.json'), `${canonicalJson(input)}\n`);
