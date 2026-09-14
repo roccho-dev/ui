@@ -45,7 +45,7 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
   if (height < minimumHeight) return '';
   if (estimatedLabelWidth(label, fontSize) <= availableWidth) return label;
 
-  if (lineCount > 1) return '';
+  if (lineCount > 1) return label;
   const compact = compactLabel(label);
   return compact !== label && estimatedLabelWidth(compact, fontSize) <= availableWidth
     ? compact
