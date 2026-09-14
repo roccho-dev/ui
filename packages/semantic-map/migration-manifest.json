@@ -1422,6 +1422,78 @@
       "sourceCommit": "ce2e3a9452bc82e9177ae152675a880331502f3b",
       "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
       "reason": "renderer-only-review-decoration"
+    },
+    {
+      "id": "history-1e4f0da19c0b-authoring-main-js",
+      "target": "packages/semantic-map/authoring/main.js",
+      "fromSha256": "619c2c718ae079fa4756637a1f51f78e4d8fc687054c157591d7329482b6571b",
+      "toSha256": "adfabb06dd08626dc45964f18d531dfa7e80500a569fe97744c1cb99b1c8286f",
+      "sourceCommit": "1e4f0da19c0b8c06f8a433d8d82ec69a26bab960",
+      "sourcePath": "packages/semantic-map/authoring/main.js",
+      "reason": "refactor: replace maxGraph adapter classes with factory"
+    },
+    {
+      "id": "history-20c22072454d-domain-index-js",
+      "target": "packages/semantic-map/domain/index.js",
+      "fromSha256": "b11b812996161aac7a847872bef77c992039e26c4b9e3fa955c8ca7d4c9ca8f2",
+      "toSha256": "0f7bf70df99aee65390b518ff94bb071791cb3bf98a951c78ca0a1ac8be8ceb5",
+      "sourceCommit": "20c22072454d9acc6324823300bceba9d64761d6",
+      "sourcePath": "packages/semantic-map/domain/index.js",
+      "reason": "fix: preserve edge reconnect in shared authoring"
+    },
+    {
+      "id": "history-20c22072454d-domain-reducer-js",
+      "target": "packages/semantic-map/domain/reducer.js",
+      "fromSha256": "7d2ca3f8ebfbd36ef6ed9a2fe103c0a2db01345ec7fc1903785e13e1e5a3e4c3",
+      "toSha256": "4084a078fdd0c9d9a5b4d47ccb87036f9ba676b7fb8d330955a842e43c352748",
+      "sourceCommit": "20c22072454d9acc6324823300bceba9d64761d6",
+      "sourcePath": "packages/semantic-map/domain/reducer.js",
+      "reason": "fix: preserve edge reconnect in shared authoring"
+    },
+    {
+      "id": "history-1e4f0da19c0b-renderer-maxgraph-adapter-js",
+      "target": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "fromSha256": "46bef25259ff6c39dafe5a264dad23bba330d7c27e07bcbb5d52f97592c7cea3",
+      "toSha256": "1c907b6d8b07eba2fadb7b0bc114d04981dd640514356344831550af1730c9a9",
+      "sourceCommit": "1e4f0da19c0b8c06f8a433d8d82ec69a26bab960",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "reason": "refactor: replace maxGraph adapter classes with factory"
+    },
+    {
+      "id": "history-188abff1c839-renderer-maxgraph-adapter-js",
+      "target": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "fromSha256": "1c907b6d8b07eba2fadb7b0bc114d04981dd640514356344831550af1730c9a9",
+      "toSha256": "b6af6f6997f72a651efc33a2d9f57eada081ad6c459f171c28c0ac861a92e7e8",
+      "sourceCommit": "188abff1c8396652ab396b814adf422f923debd5",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "reason": "refactor: split maxGraph adapter responsibilities"
+    },
+    {
+      "id": "history-1e4f0da19c0b-renderer-maxgraph-index-js",
+      "target": "packages/semantic-map/renderer-maxgraph/index.js",
+      "fromSha256": "93bfe5be8b9bd8d603083a9afc1e06ca0bf654f250cc3d5ae258f58a17967aa6",
+      "toSha256": "ddeb236d9684bd55a328009c02b2763353e980820265d58ce0c7f94431f47437",
+      "sourceCommit": "1e4f0da19c0b8c06f8a433d8d82ec69a26bab960",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/index.js",
+      "reason": "refactor: replace maxGraph adapter classes with factory"
+    },
+    {
+      "id": "history-79ee25cf656c-renderer-maxgraph-index-js",
+      "target": "packages/semantic-map/renderer-maxgraph/index.js",
+      "fromSha256": "ddeb236d9684bd55a328009c02b2763353e980820265d58ce0c7f94431f47437",
+      "toSha256": "c6f19aeaf519e7d6dbdc45a0338712603a95dd28e388797b72b2f0ef4aaa6854",
+      "sourceCommit": "79ee25cf656c3176c088f5039c102e30822dda25",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/index.js",
+      "reason": "refactor: centralize maxGraph authoring boundary"
+    },
+    {
+      "id": "history-b153a4cd3f03-renderer-maxgraph-shapes-js",
+      "target": "packages/semantic-map/renderer-maxgraph/shapes.js",
+      "fromSha256": "ed36e9e17de6fb7d757d268abb281300651dc0f59b8caa04e87c8191d020c73d",
+      "toSha256": "86835e887a65061a43002d4b504b514fc8053a628aa883f2fc4ff7d28406c07f",
+      "sourceCommit": "b153a4cd3f037c707d46a9c80bfdefe3f47e0080",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/shapes.js",
+      "reason": "refactor: make shapes index re-export only"
     }
   ]
 }
