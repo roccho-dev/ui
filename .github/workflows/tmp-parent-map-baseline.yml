@@ -1,0 +1,38 @@
+name: tmp-parent-map-baseline
+on:
+  push:
+    branches:
+      - chore/ui-decisions-compiler-boundary-260914
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: b327b6738ac43d683de0ba70ff8dfb4c38b4b522
+          path: parent
+      - uses: actions/checkout@v5
+        with:
+          ref: chore/ui-decisions-compiler-boundary-260914
+          path: proof
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install pinned Chromium proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Expose pinned Chromium
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
+      - name: Run child screen proof against parent baseline
+        run: |
+          cp proof/apps/artifact-shell/tests/publication-browser-proof.py parent/apps/artifact-shell/tests/publication-browser-proof.py
+          cd parent
+          python3 apps/artifact-shell/tests/publication-browser-proof.py
