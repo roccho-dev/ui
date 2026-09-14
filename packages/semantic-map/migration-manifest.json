@@ -1422,6 +1422,51 @@
       "sourceCommit": "ce2e3a9452bc82e9177ae152675a880331502f3b",
       "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
       "reason": "renderer-only-review-decoration"
+    },
+    {
+      "id": "maxgraph-shapes-reexport-only-260914",
+      "target": "packages/semantic-map/renderer-maxgraph/shapes.js",
+      "fromSha256": "ed36e9e17de6fb7d757d268abb281300651dc0f59b8caa04e87c8191d020c73d",
+      "toSha256": "86835e887a65061a43002d4b504b514fc8053a628aa883f2fc4ff7d28406c07f",
+      "sourceCommit": "b153a4cd3f037c707d46a9c80bfdefe3f47e0080",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/shapes.js",
+      "reason": "maxgraph-shapes-index-reexport-only"
+    },
+    {
+      "id": "maxgraph-authoring-factory-cutover-260914",
+      "target": "packages/semantic-map/authoring/main.js",
+      "fromSha256": "619c2c718ae079fa4756637a1f51f78e4d8fc687054c157591d7329482b6571b",
+      "toSha256": "adfabb06dd08626dc45964f18d531dfa7e80500a569fe97744c1cb99b1c8286f",
+      "sourceCommit": "1e4f0da19c0b8c06f8a433d8d82ec69a26bab960",
+      "sourcePath": "packages/semantic-map/authoring/main.js",
+      "reason": "maxgraph-adapter-class-to-factory-cutover"
+    },
+    {
+      "id": "maxgraph-adapter-factory-cutover-260914",
+      "target": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "fromSha256": "46bef25259ff6c39dafe5a264dad23bba330d7c27e07bcbb5d52f97592c7cea3",
+      "toSha256": "1c907b6d8b07eba2fadb7b0bc114d04981dd640514356344831550af1730c9a9",
+      "sourceCommit": "1e4f0da19c0b8c06f8a433d8d82ec69a26bab960",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "reason": "maxgraph-adapter-class-to-factory-cutover"
+    },
+    {
+      "id": "maxgraph-index-factory-export-260914",
+      "target": "packages/semantic-map/renderer-maxgraph/index.js",
+      "fromSha256": "93bfe5be8b9bd8d603083a9afc1e06ca0bf654f250cc3d5ae258f58a17967aa6",
+      "toSha256": "ddeb236d9684bd55a328009c02b2763353e980820265d58ce0c7f94431f47437",
+      "sourceCommit": "1e4f0da19c0b8c06f8a433d8d82ec69a26bab960",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/index.js",
+      "reason": "maxgraph-adapter-factory-export"
+    },
+    {
+      "id": "maxgraph-adapter-responsibility-split-260914",
+      "target": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "fromSha256": "1c907b6d8b07eba2fadb7b0bc114d04981dd640514356344831550af1730c9a9",
+      "toSha256": "b6af6f6997f72a651efc33a2d9f57eada081ad6c459f171c28c0ac861a92e7e8",
+      "sourceCommit": "188abff1c8396652ab396b814adf422f923debd5",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "reason": "maxgraph-adapter-responsibility-split"
     }
   ]
 }
