@@ -1,0 +1,62 @@
+name: Temporary graph218 loop points
+
+on:
+  push:
+    branches:
+      - feat/graph1-structured-graph-260914
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[graph218-loop-points]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch visible loop points
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/semantic-map/renderer-maxgraph/render-methods.js')
+          s = p.read_text()
+          old = (
+              "  const offset = Math.max(48, sourceGeometry.width * 0.3);\n"
+              "  const point = new Point(\n"
+              "    sourceGeometry.x + sourceGeometry.width + offset,\n"
+              "    sourceGeometry.y + sourceGeometry.height / 2,\n"
+              "  );\n"
+              "  const current = edgeGeometry.points?.[0];\n"
+              "  if (edgeGeometry.points?.length === 1 && current?.x === point.x && current?.y === point.y) return;\n"
+              "  const next = edgeGeometry.clone();\n"
+              "  next.points = [point];\n"
+          )
+          new = (
+              "  const offset = Math.max(48, sourceGeometry.width * 0.3);\n"
+              "  const points = [\n"
+              "    new Point(sourceGeometry.x + sourceGeometry.width + offset, sourceGeometry.y + sourceGeometry.height / 2),\n"
+              "    new Point(sourceGeometry.x + sourceGeometry.width + offset, sourceGeometry.y - offset),\n"
+              "    new Point(sourceGeometry.x + sourceGeometry.width / 2, sourceGeometry.y - offset),\n"
+              "  ];\n"
+              "  const current = edgeGeometry.points ?? [];\n"
+              "  if (current.length === points.length && current.every((point, index) => point.x === points[index].x && point.y === points[index].y)) return;\n"
+              "  const next = edgeGeometry.clone();\n"
+              "  next.points = points;\n"
+          )
+          if old not in s:
+              raise SystemExit('loop geometry anchor missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Gates
+        run: |
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+      - name: Commit
+        run: |
+          git config user.name roccho
+          git config user.email 40359643+roccho-dev@users.noreply.github.com
+          git add packages/semantic-map/renderer-maxgraph/render-methods.js
+          git commit -m '[graph218-loop-points] fix: close self-loop geometry'
+          git push origin HEAD:feat/graph1-structured-graph-260914
