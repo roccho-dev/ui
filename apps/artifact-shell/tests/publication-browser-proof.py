@@ -43,6 +43,28 @@ def child_frame(locator):
     return frame
 
 
+def semantic_debug(shell):
+    locator = shell.locator("#surface iframe[data-package='semantic-map']")
+    if not locator.count():
+        return None
+    rendered = child_frame(locator)
+    return rendered.evaluate("""() => ({
+      href: location.href,
+      site: globalThis.semanticMapSite ? {
+        ready: Boolean(globalThis.semanticMapSite.ready),
+        editorReady: Boolean(globalThis.semanticMapSite.editor?.ready),
+      } : null,
+      runtime: globalThis.semanticMapRuntime ? {
+        pattern: globalThis.semanticMapRuntime.view?.pattern ?? null,
+        mapId: globalThis.semanticMapRuntime.mapId ?? null,
+      } : null,
+      bodyState: document.body?.dataset ?? null,
+      status: document.querySelector('#status')?.textContent ?? null,
+      graphSvg: Boolean(document.querySelector('#graph-container svg')),
+      graphText: document.querySelector('#graph-container')?.textContent?.slice(0, 300) ?? null,
+    })""")
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="ui-publication-") as directory:
         output = Path(directory) / "dist"
@@ -102,6 +124,7 @@ def main() -> None:
                         proof = page.evaluate("() => globalThis.artifactAdapterProof ?? null")
                         outer = page.locator(f"iframe[data-adapter-frame='{feature}']")
                         shell_debug = None
+                        semantic_state = None
                         if outer.count():
                             shell = child_frame(outer)
                             shell_debug = shell.evaluate("""() => ({
@@ -110,8 +133,9 @@ def main() -> None:
                               status: document.querySelector('#status')?.textContent ?? null,
                               surfaceFrames: [...document.querySelectorAll('#surface iframe')].map(frame => ({ src: frame.src, package: frame.dataset.package ?? null })),
                             })""")
+                            semantic_state = semantic_debug(shell)
                         raise AssertionError(
-                            f"{feature} adapter failed: {status}; proof={proof}; shell={shell_debug}; "
+                            f"{feature} adapter failed: {status}; proof={proof}; shell={shell_debug}; semantic={semantic_state}; "
                             f"pageErrors={errors[-8:]}; requests={requests[-20:]}"
                         )
                     outer = page.locator(f"iframe[data-adapter-frame='{feature}']")
