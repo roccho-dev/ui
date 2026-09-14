@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - packages/semantic-map/**
+      - apps/artifact-shell/tests/direct-feature-authoring-browser-proof.py
       - examples/render.semantic-map.set-topology/**
       - .github/workflows/semantic-map-gesture-review-join.yml
   workflow_dispatch:
@@ -28,3 +29,5 @@ jobs:
           PY
       - name: Prove actual gesture through review and fresh JSONL replay
         run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
+      - name: Prove direct feature authoring hydration
+        run: python3 apps/artifact-shell/tests/direct-feature-authoring-browser-proof.py
