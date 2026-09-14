@@ -23,14 +23,15 @@ function applySelfLoopGeometry(edge, source, relation, model) {
   const edgeGeometry = edge.getGeometry();
   if (!sourceGeometry || !edgeGeometry) return;
   const offset = Math.max(48, sourceGeometry.width * 0.3);
-  const point = new Point(
-    sourceGeometry.x + sourceGeometry.width + offset,
-    sourceGeometry.y + sourceGeometry.height / 2,
-  );
-  const current = edgeGeometry.points?.[0];
-  if (edgeGeometry.points?.length === 1 && current?.x === point.x && current?.y === point.y) return;
+  const points = [
+    new Point(sourceGeometry.x + sourceGeometry.width + offset, sourceGeometry.y + sourceGeometry.height / 2),
+    new Point(sourceGeometry.x + sourceGeometry.width + offset, sourceGeometry.y - offset),
+    new Point(sourceGeometry.x + sourceGeometry.width / 2, sourceGeometry.y - offset),
+  ];
+  const current = edgeGeometry.points ?? [];
+  if (current.length === points.length && current.every((point, index) => point.x === points[index].x && point.y === points[index].y)) return;
   const next = edgeGeometry.clone();
-  next.points = [point];
+  next.points = points;
   model.setGeometry(edge, next);
 }
 
