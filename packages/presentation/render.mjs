@@ -1,9 +1,7 @@
 import { createIncrementalSurfaceRuntime } from '../a2ui-browser/src/incremental-surface.mjs';
-import {
-  PROFILED_BUSINESS_MODEL_SURFACE_ID,
-  createProfiledBusinessModelCatalog,
-  validateProfiledBusinessModelSequence,
-} from './compiler/index.mjs';
+import { validateProfiledBusinessModelSequence } from './compiler/sequence.mjs';
+import { PROFILED_BUSINESS_MODEL_SURFACE_ID } from './contracts.mjs';
+import { createProfiledBusinessModelCatalog } from './render/catalog.mjs';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const invariant = (condition, message) => { if (!condition) throw new Error(`presentation: ${message}`); };
