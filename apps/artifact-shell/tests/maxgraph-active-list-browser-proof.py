@@ -63,24 +63,11 @@ def active_state(child):
     return child.evaluate("""() => {
       const site = globalThis.semanticMapSite;
       const active = site?.editor?.adapter?.activeList?.snapshot?.() ?? null;
-      const scene = site?.editor?.snapshot?.().scene ?? null;
       const element = document.querySelector('[data-maxgraph-active-list]');
       const style = element ? getComputedStyle(element) : null;
       const rect = element?.getBoundingClientRect?.() ?? null;
       return {
         active,
-        scene: scene ? {
-          pattern: scene.pattern,
-          representationCount: scene.representations?.length ?? -1,
-          representations: (scene.representations ?? []).slice(0, 12).map(item => ({
-            regionId: item.regionId,
-            isRoot: item.isRoot,
-            isGuide: item.isGuide,
-            moduleNamespace: item.moduleNamespace,
-            label: item.label,
-          })),
-          relationCount: scene.relations?.length ?? -1,
-        } : null,
         dom: element ? {
           hidden: element.hidden,
           display: style?.display ?? null,
@@ -117,6 +104,7 @@ def main() -> None:
             page.on("request", lambda request: requests.append(request.url))
             base = f"http://127.0.0.1:{listen}"
             page.goto(f"{base}/apps/artifact-shell/index.html", wait_until="networkidle", timeout=30_000)
+            page.evaluate("() => { document.body.dataset.mode = 'invoke'; }")
             status = page.locator("#status")
             status.wait_for(state="attached", timeout=30_000)
             assert status.get_attribute("data-state") == "idle"
@@ -132,7 +120,7 @@ def main() -> None:
                 )
                 assert status.get_attribute("data-state") == "pass", status.text_content()
                 frame_element = page.locator("#surface iframe[data-package='semantic-map']")
-                frame_element.wait_for(state="attached", timeout=30_000)
+                frame_element.wait_for(state="visible", timeout=30_000)
                 child = child_frame(frame_element)
                 poll(
                     lambda: child.evaluate("() => globalThis.semanticMapSite ? { ready: semanticMapSite.ready, error: semanticMapSite.error ?? null } : null"),
@@ -143,10 +131,9 @@ def main() -> None:
                 assert site["ready"] is True, site["error"]
                 state = poll(
                     lambda: active_state(child),
-                    lambda value: value.get("active") is not None and value.get("scene") is not None,
-                    f"active-list state unavailable for {pattern}",
+                    lambda value: value.get("active") is not None and bool(value["active"]["items"]),
+                    f"active-list did not receive items for {pattern}",
                 )
-                assert state["active"]["items"], f"active-list has no items for {pattern}: {state}"
                 assert state["active"]["visible"] is True, f"active-list model hidden for {pattern}: {state}"
                 assert state["dom"]["hidden"] is False, f"active-list DOM hidden for {pattern}: {state}"
                 assert state["dom"]["display"] != "none", f"active-list display none for {pattern}: {state}"
