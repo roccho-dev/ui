@@ -1,0 +1,93 @@
+name: Temporary graph218 final proof
+
+on:
+  push:
+    branches:
+      - feat/graph1-structured-graph-260914
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-check:
+    runs-on: ubuntu-latest
+    environment: ui-deploy
+    env:
+      PROJECT_NAME: ui-graph-218
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Graph gates
+        run: |
+          node packages/semantic-map/tests/graph_semantics_test.mjs
+          node packages/semantic-map/tests/run.mjs
+
+      - name: Build publication outside source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          publication="$RUNNER_TEMP/ui-graph-218-publication"
+          test ! -e "$publication"
+          node apps/artifact-shell/scripts/build-publication.mjs --out="$publication"
+          echo "PUBLICATION_ROOT=$publication" >> "$GITHUB_ENV"
+
+      - name: Deploy publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@4 pages deploy "$PUBLICATION_ROOT" \
+            --project-name="$PROJECT_NAME" \
+            --branch="$GITHUB_REF_NAME"
+          base="https://${PROJECT_NAME}.pages.dev"
+          for attempt in $(seq 1 30); do
+            if curl -fsS "$base/index.html" >/dev/null; then
+              echo "PAGES_BASE_URL=$base" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Build exact proof URLs
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' > "$RUNNER_TEMP/proof-urls.json"
+          import fs from 'node:fs/promises';
+          import { createUrlModuleUrl } from './packages/url-module/src/index.mjs';
+          const base = `${process.env.PAGES_BASE_URL}/adapters/graph/`;
+          const sources = {
+            self: 'packages/semantic-map/examples/graph/self-loop.jsonl',
+            mimic: 'packages/semantic-map/examples/graph/architecture-nested.jsonl',
+            adr344: 'packages/semantic-map/examples/graph/adr344.jsonl',
+          };
+          const urls = {};
+          for (const [name, source] of Object.entries(sources)) {
+            urls[name] = await createUrlModuleUrl({ base, fragment: 'data', value: await fs.readFile(source, 'utf8') });
+          }
+          console.log(JSON.stringify(urls));
+          NODE
+
+      - name: Install pinned Chromium
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir 'playwright==1.57.0'
+          python3 -m playwright install --with-deps chromium
+
+      - name: Prove deployed visuals
+        run: |
+          node packages/semantic-map/tests/graph_browser_proof.mjs \
+            "$RUNNER_TEMP/proof-urls.json" \
+            "$RUNNER_TEMP/graph218-screens"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graph218-final-proof
+          path: |
+            ${{ runner.temp }}/proof-urls.json
+            ${{ runner.temp }}/graph218-screens/*.png
+          if-no-files-found: error

@@ -74,10 +74,29 @@ assert.equal(displayedRegionLabel(selfClaim, 0.35, DEFAULT_THEME, false), 'Claim
 const wrappedSingleLine = { ...selfClaim, label: 'CandidateData', bounds: { ...selfClaim.bounds, width: 180, height: 92 } };
 assert.equal(displayedRegionLabel(wrappedSingleLine, 0.4, DEFAULT_THEME, false), 'CandidateData', 'fitted labels may wrap instead of disappearing');
 
+const adr344 = project(load('adr344'));
+for (const id of ['meaning', 'phases', 'results', 'fact', 'claim', 'candidate', 'missing']) {
+  assert.ok(adr344.representations.some((item) => item.sourceRegionId === id), `ADR #344 must render ${id}`);
+}
+assert.ok(
+  adr344.relations.some((relation) => relation.id === 'r4' && relation.from === relation.to),
+  'ADR #344 Claim self relation must survive',
+);
+
 const architecture = project(load('architecture-nested'));
-for (const id of ['ui.request', 's3.input', 's3.output', 'dev.process', 'dev.constraints']) {
+for (const id of ['ui.request', 'ui.result', 's3.input', 's3.output', 'dev.process', 'dev.constraints', 'dev.contract']) {
   assert.ok(architecture.representations.some((item) => item.sourceRegionId === id), `overview must show nested ${id}`);
 }
+const writesOutput = architecture.relations.find((relation) => relation.id === 'a3');
+assert.equal(writesOutput?.directed, true);
+assert.equal(writesOutput?.from, 'dev.process');
+assert.equal(writesOutput?.to, 's3.output');
+assert.equal(writesOutput?.label, 'writes output.json');
+const readsResult = architecture.relations.find((relation) => relation.id === 'a4');
+assert.equal(readsResult?.directed, true);
+assert.equal(readsResult?.from, 's3.output');
+assert.equal(readsResult?.to, 'ui.result');
+assert.equal(readsResult?.label, 'reads result');
 
 console.log(JSON.stringify({
   schema: 'semantic-map-graph-semantics-test/1',
@@ -85,5 +104,5 @@ console.log(JSON.stringify({
   pass: true,
   complete: true,
   pattern: GRAPH_PATTERN,
-  examples: ['flow', 'state', 'class', 'erd', 'subgraph', 'self-loop', 'architecture-nested'],
+  examples: ['flow', 'state', 'class', 'erd', 'subgraph', 'self-loop', 'adr344', 'architecture-nested'],
 }));

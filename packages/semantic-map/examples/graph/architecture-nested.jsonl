@@ -21,3 +21,5 @@
 {"type":"region","id":"dev.contract","parent":"dev","label":"1 object / join不要 / 契約は統合","kind":"data","bounds":[0,0,280,90],"summary":"one-object contract","order":2}
 {"type":"relation","id":"a1","from":"ui.request","to":"s3.input","kind":"flow","label":"writes input.json"}
 {"type":"relation","id":"a2","from":"s3.input","to":"dev.process","kind":"flow","label":"triggers generation"}
+{"type":"relation","id":"a3","from":"dev.process","to":"s3.output","kind":"flow","label":"writes output.json"}
+{"type":"relation","id":"a4","from":"s3.output","to":"ui.result","kind":"flow","label":"reads result"}
