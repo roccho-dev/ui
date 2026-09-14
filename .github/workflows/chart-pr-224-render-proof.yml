@@ -33,41 +33,50 @@ jobs:
           from playwright.sync_api import sync_playwright
 
           url = os.environ['PREVIEW_URL']
-          out = Path(os.environ['RUNNER_TEMP']) / 'chart-pr-224.png'
+          root = Path(os.environ['RUNNER_TEMP']) / 'chart-pr-224-render-proof'
+          root.mkdir(parents=True, exist_ok=True)
           labels = ['製品質問', '導入相談', '不具合', 'その他']
+          events = {'console': [], 'pageErrors': [], 'requestFailed': []}
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page(viewport={'width': 1440, 'height': 1000})
-              response = page.goto(url, wait_until='networkidle', timeout=60_000)
-              assert response is not None and response.ok, f'HTTP failure: {response.status if response else None}'
-              page.wait_for_selector('[data-adapter-status="pass"]', timeout=60_000)
-              outputs = page.locator('output').all_text_contents()
-              assert any(text.strip() == 'PASS' for text in outputs), outputs
-              svg = page.locator('svg').first
-              svg.wait_for(state='visible', timeout=60_000)
-              box = svg.bounding_box()
-              assert box and box['width'] > 0 and box['height'] > 0, box
+              page.on('console', lambda msg: events['console'].append({'type': msg.type, 'text': msg.text}))
+              page.on('pageerror', lambda exc: events['pageErrors'].append(str(exc)))
+              page.on('requestfailed', lambda req: events['requestFailed'].append({'url': req.url, 'failure': req.failure}))
+              response = page.goto(url, wait_until='domcontentloaded', timeout=60_000)
+              page.wait_for_timeout(10_000)
+              html = page.content()
               body = page.locator('body').inner_text()
-              for label in labels:
-                  assert label in body, f'missing label: {label}'
-              page.screenshot(path=str(out), full_page=True)
+              statuses = page.locator('[data-adapter-status]').evaluate_all("els => els.map(el => ({tag: el.tagName, status: el.getAttribute('data-adapter-status'), text: el.textContent}))")
+              outputs = page.locator('output').all_text_contents()
+              svg_count = page.locator('svg').count()
+              svg_box = page.locator('svg').first.bounding_box() if svg_count else None
+              labels_found = {label: (label in body) for label in labels}
+              page.screenshot(path=str(root / 'chart-pr-224.png'), full_page=True)
+              (root / 'page.html').write_text(html, encoding='utf-8')
+              (root / 'events.json').write_text(json.dumps(events, ensure_ascii=False, indent=2), encoding='utf-8')
               receipt = {
                   'schema': 'ui.chart-deployed-render-proof/1',
-                  'status': 'PASS',
+                  'status': 'PASS' if any(s['status'] == 'pass' for s in statuses) and any(t.strip() == 'PASS' for t in outputs) and svg_box and all(labels_found.values()) else 'FAIL',
                   'sourceSha': os.environ['SOURCE_SHA'],
                   'url': url,
-                  'httpStatus': response.status,
-                  'adapterStatus': 'pass',
-                  'output': 'PASS',
-                  'svg': {'visible': True, 'width': box['width'], 'height': box['height']},
-                  'labels': labels,
-                  'screenshot': str(out),
+                  'httpStatus': response.status if response else None,
+                  'statuses': statuses,
+                  'outputs': outputs,
+                  'svgCount': svg_count,
+                  'svgBox': svg_box,
+                  'labelsFound': labels_found,
+                  'bodyPreview': body[:4000],
+                  'events': events,
               }
+              (root / 'receipt.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding='utf-8')
               print(json.dumps(receipt, ensure_ascii=False))
               browser.close()
+              assert receipt['status'] == 'PASS', 'deployed Chart render proof failed; inspect uploaded diagnostics'
           PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: chart-pr-224-render-proof
-          path: ${{ runner.temp }}/chart-pr-224.png
+          path: ${{ runner.temp }}/chart-pr-224-render-proof
           if-no-files-found: error
