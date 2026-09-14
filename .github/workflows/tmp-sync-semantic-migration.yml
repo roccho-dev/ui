@@ -1,0 +1,53 @@
+name: Temporary sync semantic migration manifest
+
+on:
+  push:
+    paths:
+      - .github/workflows/tmp-sync-semantic-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Record maxGraph factory evolution
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'packages/semantic-map/migration-manifest.json';
+          const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const evolution = {
+            id: 'maxgraph-adapter-factory-260914',
+            target: 'packages/semantic-map/authoring/main.js',
+            fromSha256: '619c2c718ae079fa4756637a1f51f78e4d8fc687054c157591d7329482b6571b',
+            toSha256: 'adfabb06dd08626dc45964f18d531dfa7e80500a569fe97744c1cb99b1c8286f',
+            sourceCommit: '1e4f0da19c0b8c06f8a433d8d82ec69a26bab960',
+            sourcePath: 'packages/semantic-map/authoring/main.js',
+            reason: 'maxgraph-adapter-class-replaced-by-factory-callsite'
+          };
+          if (!manifest.evolutions.some(item => item.id === evolution.id && item.target === evolution.target)) {
+            manifest.evolutions.push(evolution);
+            fs.writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+          }
+          NODE
+          node tests/check-semantic-map-migration.mjs
+      - name: Commit manifest
+        run: |
+          git add packages/semantic-map/migration-manifest.json
+          if git diff --cached --quiet; then
+            echo "manifest already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: record maxGraph factory migration evolution"
+          git push origin HEAD:${GITHUB_REF_NAME}
