@@ -48,6 +48,10 @@ function uniqueCells(cells) {
   return [...new Set(cells.filter(Boolean))];
 }
 
+function authoringRegionId(cell) {
+  return cell?.semantic?.sourceRegionId ?? cell?.semantic?.regionId ?? null;
+}
+
 function initializeMaxGraphAdapter(container, options = {}) {
   InternalEvent.disableContextMenu(container);
   this.container = container;
@@ -213,7 +217,7 @@ function installEditEvents() {
         const end = temporalScalar(edit.end, axis) + delta;
         const centerY = cell.semantic.bounds.y + cell.semantic.bounds.height / 2 + dy;
         return {
-          regionId: cell.semantic.regionId,
+          regionId: authoringRegionId(cell),
           actor: nearestLaneActor(edit, centerY),
           start: temporalValue(start, axis),
           end: temporalValue(end, axis),
@@ -224,7 +228,7 @@ function installEditEvents() {
     }
     this.submitOperation({
       type: 'MoveRegions',
-      regionIds: cells.map((cell) => cell.semantic.regionId),
+      regionIds: cells.map(authoringRegionId),
       dx: event.getProperty('dx'),
       dy: event.getProperty('dy'),
     });
@@ -249,14 +253,14 @@ function installEditEvents() {
         const start = Math.max(edit.axis === 'ordinal' ? 0 : Number.NEGATIVE_INFINITY, startScalar);
         const endValue = Math.max(start, endScalar);
         temporalItems.push({
-          regionId: cell.semantic.regionId,
+          regionId: authoringRegionId(cell),
           actor: edit.actor,
           start: temporalValue(start, edit.axis),
           end: temporalValue(endValue, edit.axis),
         });
       } else if (cell.semantic.geometryEditable) {
         geometricItems.push({
-          regionId: cell.semantic.regionId,
+          regionId: authoringRegionId(cell),
           bounds: [next.x, next.y, next.width, next.height],
         });
       }
@@ -276,7 +280,7 @@ function installEditEvents() {
     if (cell?.semantic?.type !== 'region' || !cell.semantic.labelEditable || cell.semantic.readOnly) return;
     this.submitOperation({
       type: 'RenameRegion',
-      regionId: cell.semantic.regionId,
+      regionId: authoringRegionId(cell),
       label: event.getProperty('value'),
     });
   });
@@ -287,8 +291,8 @@ function installEditEvents() {
     const edge = event.getProperty('cell');
     const source = edge?.getTerminal(true);
     const target = edge?.getTerminal(false);
-    const from = source?.semantic?.regionId;
-    const to = target?.semantic?.regionId;
+    const from = authoringRegionId(source);
+    const to = authoringRegionId(target);
     if (!from || !to || source?.semantic?.readOnly || target?.semantic?.readOnly) return;
     const result = this.submitOperation({
       type: 'ConnectRegions',
@@ -310,7 +314,7 @@ function installEditEvents() {
     const regions = new Set();
     const relations = new Set();
     for (const cell of selected) {
-      if (cell.semantic?.type === 'region' && !cell.semantic.readOnly) regions.add(cell.semantic.regionId);
+      if (cell.semantic?.type === 'region' && !cell.semantic.readOnly) regions.add(authoringRegionId(cell));
       if (cell.semantic?.type === 'relation' && !cell.semantic.readOnly && cell.semantic.relationIds.length === 1) {
         relations.add(cell.semantic.relationIds[0]);
       }
@@ -365,13 +369,15 @@ function selectionSnapshot() {
 }
 
 function setSelection({ regionIds = [], relationIds = [] }) {
-  const readOnlyRegions = new Set(
-    this.lastScene?.representations.filter((item) => item.readOnly).map((item) => item.regionId) ?? [],
+  const editableRegions = new Set(
+    this.lastScene?.representations
+      .filter((item) => !item.readOnly && !item.isGuide && !item.isRoot)
+      .map((item) => item.sourceRegionId ?? item.regionId) ?? [],
   );
   const readOnlyRelations = new Set(
     this.lastScene?.relations.filter((item) => item.readOnly).flatMap((item) => item.relationIds) ?? [],
   );
-  this.selectionRegionIds = new Set(regionIds.filter((id) => !readOnlyRegions.has(id)));
+  this.selectionRegionIds = new Set(regionIds.filter((id) => editableRegions.has(id)));
   this.selectionRelationIds = new Set(relationIds.filter((id) => !readOnlyRelations.has(id)));
   this.restoreSelection(this.lastScene);
   this.emitSelection();
@@ -407,7 +413,7 @@ function restoreSelection(scene) {
   if (!scene) return;
   const cells = [];
   for (const regionId of this.selectionRegionIds) {
-    const visibleId = scene.selectionProxies[regionId];
+    const visibleId = scene.selectionProxies[regionId] ?? regionId;
     if (visibleId) cells.push(this.cellsByRegionId.get(visibleId));
   }
   for (const relationId of this.selectionRelationIds) {
@@ -485,7 +491,8 @@ function deleteSelection() {
 function startEditingSelection() {
   const selectedIds = [...this.selectionRegionIds];
   if (selectedIds.length !== 1) return false;
-  const cell = this.cellsByRegionId.get(selectedIds[0]);
+  const visibleId = this.lastScene?.selectionProxies?.[selectedIds[0]] ?? selectedIds[0];
+  const cell = this.cellsByRegionId.get(visibleId);
   if (cell?.semantic?.type !== 'region' || !cell.semantic.labelEditable || cell.semantic.readOnly) return false;
   this.graph.startEditingAtCell(cell);
   return true;

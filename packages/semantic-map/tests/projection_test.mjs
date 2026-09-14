@@ -47,7 +47,9 @@ assert.equal(
   'one Human lane must express repeated occurrences without duplicating actor identity',
 );
 assert.equal(chartScene.representations.filter((item) => item.mode === 'bar').length, 4);
-assert.ok(chartScene.representations.filter((item) => item.mode === 'bar').every((item) => item.readOnly));
+assert.ok(chartScene.representations
+  .filter((item) => item.mode === 'bar')
+  .every((item) => !item.readOnly && chartDomain.regions.has(item.sourceRegionId)));
 assert.ok(graphScene.relations.every((item) => item.directed && item.line === 'graph'));
 assert.ok(ordinalScene.relations.every((item) => item.directed));
 assert.deepEqual(validateSceneGraph(graphDomain, null, { pattern: 'graph/1' }), { rootPattern: 'graph/1', scenes: 1 });
