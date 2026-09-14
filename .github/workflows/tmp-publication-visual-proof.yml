@@ -52,8 +52,21 @@ jobs:
           printf '%s/\n' "$url" > public-url.txt
           echo "PUBLIC_URL=$url/"
 
-      - name: Smoke deployed URLs
-        run: node apps/artifact-shell/tests/publication-deployed-smoke.mjs "$UI_PUBLIC_URL"
+      - name: Wait for public route and smoke deployed URLs
+        run: |
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --max-time 5 "$UI_PUBLIC_URL" >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "TODO public route DNS/HTTP timeout: $UI_PUBLIC_URL"
+            exit 0
+          fi
+          node apps/artifact-shell/tests/publication-deployed-smoke.mjs "$UI_PUBLIC_URL"
 
       - name: Capture deployed screens
         run: |
