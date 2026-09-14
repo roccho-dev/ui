@@ -1,5 +1,5 @@
 import { EditorCore } from '../editor-core/index.js';
-import { normalizeOperations } from './operation.js';
+import { normalizeOperations } from '../editor-core/operation.js';
 import { createSemanticMap } from './semantic-map.js';
 
 function invariant(condition, message) {
