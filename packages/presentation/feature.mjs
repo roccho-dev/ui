@@ -8,6 +8,7 @@ export const feature = Object.freeze({
     'packages/presentation/styles.css',
     'packages/presentation/compiler',
     'packages/a2ui-browser/src',
+    'packages/core-port/src',
   ]),
   proof: Object.freeze({ rootStatus: 'pass', selectors: Object.freeze(['#surface .profiled-app', '#seq-shell', '.seq-svg']) }),
 });
