@@ -1,0 +1,158 @@
+name: WebMCP PR 230 preview
+
+on:
+  pull_request:
+    branches:
+      - deploy/webmcp-pr-230-260915
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: f93e5df88a4ca85becdd38a6bf3cb88ffdfd91e7
+  CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
+  CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-230
+  PREVIEW_URL: https://ui-deploy-pr-230.stg-artifact-runtime.pages.dev/
+
+jobs:
+  deploy-webmcp-proof:
+    runs-on: ubuntu-latest
+    environment: ui-deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build Artifact Shell publication
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/artifact-shell-publication"
+          npm run build:artifact-shell-publication -- --out="$out"
+          test -f "$out/adapters/webmcp/index.mjs"
+          grep -q 'registerArtifactWebMcp' "$out/entry.mjs"
+          echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
+      - name: Deploy Cloudflare Pages preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.112.0 pages deploy "$ARTIFACT_SHELL_PUBLICATION" \
+            --project-name="$CLOUDFLARE_PAGES_PROJECT" \
+            --branch="$CLOUDFLARE_PAGES_BRANCH" \
+            --commit-hash="$SOURCE_SHA"
+      - name: Install WebMCP proof tooling
+        run: |
+          set -euo pipefail
+          google-chrome --version
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+      - name: Prove deployed native WebMCP query render action parity
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+
+          url = os.environ['PREVIEW_URL']
+          source_sha = os.environ['SOURCE_SHA']
+          request = json.loads(Path('apps/artifact-shell/fixtures/requests/render-a2ui-app-inline.json').read_text())
+          action = {
+              'action': 'artifact.state.patch',
+              'context': {
+                  'schema': 'artifact-state-action/1',
+                  'inputId': 'app',
+                  'history': 'push',
+                  'operations': [{'op': 'increment', 'path': '/state/count', 'by': 1}],
+              },
+              'sourceComponentId': 'webmcp-proof',
+              'surfaceId': 'bidirectional-url-proof',
+              'version': 'v0.9.1',
+          }
+          screenshot = Path(os.environ['RUNNER_TEMP']) / 'webmcp-pr-230.png'
+          proof_path = Path(os.environ['RUNNER_TEMP']) / 'webmcp-pr-230-proof.json'
+
+          def tool_names(page):
+              return page.evaluate("""async () => (await document.modelContext.getTools()).map(tool => tool.name).sort()""")
+
+          def execute(page, name, arguments):
+              return page.evaluate("""async ({name, arguments}) => {
+                const tools = await document.modelContext.getTools();
+                const tool = tools.find(candidate => candidate.name === name);
+                if (!tool) throw new Error(`missing WebMCP tool: ${name}`);
+                return document.modelContext.executeTool(tool, arguments);
+              }""", {'name': name, 'arguments': arguments})
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(
+                  executable_path='/usr/bin/google-chrome',
+                  headless=True,
+                  args=['--enable-features=WebMCP'],
+              )
+              page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+              response = None
+              last_error = None
+              for _ in range(12):
+                  try:
+                      response = page.goto(url, wait_until='networkidle', timeout=30_000)
+                      if response is not None and response.ok:
+                          break
+                  except Exception as error:
+                      last_error = error
+                  time.sleep(5)
+              assert response is not None and response.ok, f'preview unavailable: {getattr(response, "status", None)} {last_error}'
+              page.wait_for_function("() => globalThis.artifactShellWebMcp?.available === true", timeout=30_000)
+              assert page.evaluate("() => typeof document.modelContext?.getTools === 'function'")
+              assert page.evaluate("() => typeof document.modelContext?.executeTool === 'function'")
+
+              names = tool_names(page)
+              expected = ['artifact_apply_action', 'artifact_query', 'artifact_render']
+              assert names == expected, {'expected': expected, 'actual': names}
+
+              render_result = execute(page, 'artifact_render', {'request': request})
+              assert render_result['result']['status'] == 'PASS', render_result
+              page.wait_for_function("() => document.querySelector('#status')?.dataset.state === 'pass'", timeout=30_000)
+              before = execute(page, 'artifact_query', {})
+              assert before == request, {'query': before, 'request': request}
+              assert '0' in page.locator('#surface').inner_text()
+
+              action_result = execute(page, 'artifact_apply_action', {'detail': action})
+              assert action_result is not None, action_result
+              page.wait_for_function("() => document.querySelector('#surface')?.innerText?.includes('1')", timeout=30_000)
+              after = execute(page, 'artifact_query', {})
+              count = after['inputs'][0]['source']['value']['state']['count']
+              assert count == 1, after
+              human_text = page.locator('#surface').inner_text()
+              assert '1' in human_text, human_text
+              page.screenshot(path=str(screenshot), full_page=True)
+
+              proof = {
+                  'schema': 'ui.webmcp-deployed-proof/1',
+                  'status': 'PASS',
+                  'sourceSha': source_sha,
+                  'url': url,
+                  'httpStatus': response.status,
+                  'documentModelContext': True,
+                  'tools': names,
+                  'renderStatus': render_result['result']['status'],
+                  'queryMatchesHumanRequest': before == request,
+                  'semanticActionCount': count,
+                  'humanProjectionContainsCount': '1' in human_text,
+                  'screenshot': str(screenshot),
+              }
+              proof_path.write_text(json.dumps(proof, ensure_ascii=False, indent=2) + '\n')
+              print(json.dumps(proof, ensure_ascii=False))
+              browser.close()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webmcp-pr-230-proof
+          path: |
+            ${{ runner.temp }}/webmcp-pr-230.png
+            ${{ runner.temp }}/webmcp-pr-230-proof.json
+          if-no-files-found: warn
