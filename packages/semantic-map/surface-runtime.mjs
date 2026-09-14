@@ -86,6 +86,7 @@ export const mountSemanticMapSurface = async ({
     queueRender,
     read: () => Object.freeze({
       camera: adapter.camera(),
+      focusMarker: adapter.focusMarkerSnapshot?.() ?? null,
       pattern: scene?.pattern ?? null,
       selection: adapter.selectionSnapshot(),
     }),
