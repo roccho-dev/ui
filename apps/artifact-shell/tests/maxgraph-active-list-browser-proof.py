@@ -58,14 +58,16 @@ def main() -> None:
             page.on("request", lambda request: requests.append(request.url))
             base = f"http://127.0.0.1:{listen}"
             page.goto(f"{base}/apps/artifact-shell/index.html", wait_until="networkidle", timeout=30_000)
-            page.locator("#status[data-state='idle']").wait_for(timeout=30_000)
+            status = page.locator("#status")
+            status.wait_for(state="attached", timeout=30_000)
+            assert status.get_attribute("data-state") == "idle"
 
             proven: list[str] = []
             for name, pattern in (("graph.pass.json", "graph/1"), ("map.pass.json", "map/1"), ("seq.pass.json", "seq/1")):
                 current = fixture(name)
                 page.locator("#request").fill(json.dumps(current["request"], ensure_ascii=False))
                 page.locator("#run").click()
-                page.locator("#status[data-state='pass']").wait_for(timeout=30_000)
+                page.locator("#status[data-state='pass']").wait_for(state="attached", timeout=30_000)
                 frame_element = page.locator("#surface iframe[data-package='semantic-map']")
                 frame_element.wait_for(state="attached", timeout=30_000)
                 child = child_frame(frame_element)
