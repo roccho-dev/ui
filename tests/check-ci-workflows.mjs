@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowsDir = path.join(root, ".github", "workflows");
 const intentRows = fs.readFileSync(path.join(root, "ci.intent.v1.jsonl"), "utf8").trim().split(/\n+/).map((line) => JSON.parse(line));
-assert.equal(intentRows.length, 7);
+assert.equal(intentRows.length, 8);
 
 const primary = byKind("ui.ciIntent.v1");
 assert.equal(primary.command, "nix flake check --print-build-logs && nix build --print-build-logs .#gov-package-output --out-link result-gov-package-output");
@@ -108,8 +108,25 @@ assert.equal(finalConsumer.final_role, "evidence-only selected positive consumer
 assert.equal(finalConsumer.exception.owner, "governance#150");
 assert.equal(finalConsumer.exception.expiry, "2026-08-31");
 
+const gestureJoin = byRole("semantic_map_gesture_review_join");
+assert.equal(gestureJoin.path, ".github/workflows/semantic-map-gesture-review-join.yml");
+assert.equal(gestureJoin.entrypoint, "PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py");
+assert.equal(gestureJoin.source, "packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py");
+assert.equal(gestureJoin.provider, "github-actions");
+assert.equal(gestureJoin.authority, false);
+assert.deepEqual(gestureJoin.dispatch, ["pull_request", "workflow_dispatch"]);
+assert.deepEqual(gestureJoin.pull_request_paths, [
+  "packages/semantic-map/**",
+  "examples/render.semantic-map.set-topology/**",
+  ".github/workflows/semantic-map-gesture-review-join.yml",
+]);
+assert.equal(gestureJoin.generation_mode, "checked_in");
+assert.equal(gestureJoin.workflow_definition, "checked_in");
+assert.equal(gestureJoin.artifact_source, "none");
+assert.equal(gestureJoin.artifact_generation, "none");
+
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
-assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path, finalConsumer.path].sort());
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path, finalConsumer.path, gestureJoin.path].sort());
 
 const primaryText = read(primary.entrypoints[0]);
 assert.match(primaryText, /name:\s*Nix Flake Check/);
@@ -202,6 +219,16 @@ assert.match(purposeVizText, /node scripts\/smoke-purpose-visualization\.mjs pur
 assert.doesNotMatch(purposeVizText, /node scripts\/build-purpose-visualization-artifact\.mjs purpose-visualization-result/);
 assert.match(purposeVizText, /actions\/upload-artifact@v4/);
 for (const name of purposeViz.artifacts) assert.match(purposeVizText, new RegExp(`name:\\s*${name}`));
+
+const gestureJoinText = read(gestureJoin.path);
+assert.match(gestureJoinText, /name:\s*Semantic Map gesture-review join/);
+const gestureTriggers = gestureJoinText.match(/^on:\n  pull_request:\n    paths:\n((?:      - [^\n]+\n)+)  workflow_dispatch:\n\njobs:/m);
+assert.ok(gestureTriggers, "gesture-review workflow must retain its registered triggers and path scope");
+assert.deepEqual(gestureTriggers[1].trimEnd().split("\n").map((line) => line.slice("      - ".length)), gestureJoin.pull_request_paths);
+assert.ok(gestureJoinText.includes(`run: ${gestureJoin.entrypoint}\n`));
+assert.match(gestureJoinText, /persist-credentials:\s*false/);
+assert.match(gestureJoinText, /playwright==1\.57\.0/);
+assert.match(gestureJoinText, /playwright install --with-deps chromium/);
 
 const finalConsumerText = read(finalConsumer.path);
 assert.match(finalConsumerText, /name:\s*final CI consumer/);
