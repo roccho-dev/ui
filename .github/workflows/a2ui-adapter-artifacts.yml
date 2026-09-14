@@ -8,6 +8,8 @@ on:
 jobs:
   complete-ui-checks:
     runs-on: ubuntu-latest
+    env:
+      CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
         with:
