@@ -1,0 +1,61 @@
+name: UI213 migration evolution proof
+
+on:
+  push:
+    branches:
+      - fix/semantic-map-migration-factory-evolution-260914
+
+permissions:
+  contents: write
+
+jobs:
+  evolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Append verified evolution and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          manifest_path=Path('packages/semantic-map/migration-manifest.json')
+          target=Path('packages/semantic-map/authoring/main.js')
+          data=json.loads(manifest_path.read_text(encoding='utf-8'))
+          target_name=target.as_posix()
+          chain=[x for x in data.get('evolutions',[]) if x.get('target')==target_name]
+          assert chain, 'main.js evolution chain missing'
+          assert chain[-1]['toSha256']=='619c2c718ae079fa4756637a1f51f78e4d8fc687054c157591d7329482b6571b', chain[-1]
+          actual=hashlib.sha256(target.read_bytes()).hexdigest()
+          assert actual=='adfabb06dd08626dc45964f18d531dfa7e80500a569fe97744c1cb99b1c8286f', actual
+          item={
+            'id':'maxgraph-adapter-factory-cutover-260914',
+            'target':target_name,
+            'fromSha256':'619c2c718ae079fa4756637a1f51f78e4d8fc687054c157591d7329482b6571b',
+            'toSha256':actual,
+            'sourceCommit':'1e4f0da19c0b8c06f8a433d8d82ec69a26bab960',
+            'sourcePath':target_name,
+            'reason':'maxgraph-adapter-class-to-factory-cutover',
+          }
+          assert all(x.get('id')!=item['id'] for x in data.get('evolutions',[]))
+          data.setdefault('evolutions',[]).append(item)
+          manifest_path.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+          node tests/check-semantic-map-migration.mjs
+          changed="$(git status --short)"
+          printf '%s\n' "$changed"
+          test "$(printf '%s\n' "$changed" | wc -l)" -eq 1
+          printf '%s\n' "$changed" | grep -q 'packages/semantic-map/migration-manifest.json$'
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add packages/semantic-map/migration-manifest.json
+          git commit -m 'test: record maxGraph factory migration evolution'
+          git push origin HEAD:fix/semantic-map-migration-factory-evolution-260914
