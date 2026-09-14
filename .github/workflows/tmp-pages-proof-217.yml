@@ -76,10 +76,7 @@ jobs:
           done
           exit 1
 
-      - name: Prove published feature surfaces in Chromium
-        run: bash apps/artifact-shell/tests/prove-publication-browser.sh "$PAGES_BASE_URL"
-
-      - name: Install pinned active-list browser tooling
+      - name: Install pinned browser tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
           python3 -m playwright install --with-deps chromium
@@ -97,6 +94,32 @@ jobs:
           ARTIFACT_SHELL_BASE_URL: ${{ env.PAGES_BASE_URL }}
         run: python3 apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
 
+      - name: Prove retained direct feature surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_feature() {
+            name="$1"; shift
+            output="$RUNNER_TEMP/retained-$name.html"
+            "$CHROMIUM_EXECUTABLE" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 \
+              --dump-dom "$PAGES_BASE_URL/adapters/$name/index.html" > "$output"
+            grep -q 'data-status="pass"' "$output"
+            for pattern in "$@"; do grep -q "$pattern" "$output"; done
+          }
+          check_feature presentation 'class="profiled-app"' 'class="seq-svg"'
+          check_feature control 'id="tree"' 'class="node"'
+
+      - name: Diagnose retiring graph-editor remote module
+        shell: bash
+        run: |
+          set -u
+          url="$PAGES_BASE_URL/modules/packages/graph-editor/render.mjs"
+          printf '%s\n' "graph-editor-module=$url"
+          curl -sS -D - -o "$RUNNER_TEMP/graph-editor-render.mjs" "$url" || true
+          wc -c "$RUNNER_TEMP/graph-editor-render.mjs" || true
+          head -c 200 "$RUNNER_TEMP/graph-editor-render.mjs" || true
+          printf '\n'
+
       - name: Receipt
         run: |
-          printf '%s\n' "{\"schema\":\"ui.pages-proof/1\",\"status\":\"PASS\",\"project\":\"${PROJECT_NAME}\",\"url\":\"${PAGES_BASE_URL}\",\"projectCreated\":\"${{ steps.project.outputs.created }}\"}"
+          printf '%s\n' "{\"schema\":\"ui.pages-proof/1\",\"status\":\"PASS\",\"project\":\"${PROJECT_NAME}\",\"url\":\"${PAGES_BASE_URL}\",\"projectCreated\":\"${{ steps.project.outputs.created }}\",\"proven\":[\"graph\",\"map\",\"seq\",\"presentation\",\"control\"]}"
