@@ -1,0 +1,29 @@
+name: tmp-source-compiler-e2e
+on:
+  push:
+    branches:
+      - chore/ui-decisions-compiler-boundary-260914
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run check:source-compiler
+      - name: Install pinned Chromium proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Expose pinned Chromium
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
+      - name: Prove root and all six published screens
+        run: python3 apps/artifact-shell/tests/publication-browser-proof.py
