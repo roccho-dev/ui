@@ -169,7 +169,20 @@ def main() -> None:
             page.keyboard.press("Escape")
             poll(lambda: child.locator(".mxCellEditor").count(), lambda count: count == 0, "Escape did not close Enter editor")
 
-            # Arrow and Shift+Arrow nudge the selected region via shared authoring.
+            # graph/1 is topology-layout: projected geometry is intentionally not editable.
+            graph_x = child.evaluate("id => semanticMapSite.editor.store.domain.regions.get(id).bounds.x", created_id)
+            child.evaluate("id => semanticMapSite.editor.adapter.setSelection({ regionIds: [id], relationIds: [] })", created_id)
+            focus_canvas(child)
+            page.keyboard.press("ArrowRight")
+            assert child.evaluate("id => semanticMapSite.editor.store.domain.regions.get(id).bounds.x", created_id) == graph_x
+
+            # Nudge is meaningful in map/1 where projection uses semantic bounds.
+            child.locator("#pattern-select").select_option("map/1")
+            poll(
+                lambda: child.evaluate("() => semanticMapSite.editor.snapshot().scene.pattern"),
+                lambda pattern: pattern == "map/1",
+                "map pattern did not activate",
+            )
             child.evaluate("id => semanticMapSite.editor.adapter.setSelection({ regionIds: [id], relationIds: [] })", created_id)
             focus_canvas(child)
             before = child.evaluate("id => ({ ...semanticMapSite.editor.store.domain.regions.get(id).bounds })", created_id)
@@ -177,13 +190,13 @@ def main() -> None:
             poll(
                 lambda: child.evaluate("id => semanticMapSite.editor.store.domain.regions.get(id).bounds.x", created_id),
                 lambda value: value == before["x"] + 1,
-                "ArrowRight did not nudge by 1",
+                "ArrowRight did not nudge map region by 1",
             )
             page.keyboard.press("Shift+ArrowDown")
             poll(
                 lambda: child.evaluate("id => semanticMapSite.editor.store.domain.regions.get(id).bounds.y", created_id),
                 lambda value: value == before["y"] + 10,
-                "Shift+ArrowDown did not nudge by 10",
+                "Shift+ArrowDown did not nudge map region by 10",
             )
 
             # Delete and Backspace both delete selection and remain undoable.
@@ -223,7 +236,8 @@ def main() -> None:
             "status": "PASS",
             "focusableCanvas": True,
             "toolShortcuts": ["V", "H", "Space", "Escape"],
-            "editShortcuts": ["N", "Enter", "F2", "Delete", "Backspace", "Arrow", "Shift+Arrow"],
+            "editShortcuts": ["N", "Enter", "F2", "Delete", "Backspace"],
+            "geometryShortcuts": {"graph/1": "intentionally-disabled", "map/1": ["Arrow", "Shift+Arrow"]},
             "historyShortcuts": ["Ctrl+Z", "Ctrl+Y"],
             "base": base,
         }, ensure_ascii=False))
