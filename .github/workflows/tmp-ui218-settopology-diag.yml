@@ -1,0 +1,60 @@
+name: Temporary ui218 set-topology diag
+
+on:
+  push:
+    branches:
+      - proof/ui218-settopology-diag-260915
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 72e044d6f46c982762e129b1c4c8e7f962617106
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir 'playwright==1.57.0'
+          python3 -m playwright install --with-deps chromium
+      - name: Diagnose generated set-topology page
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+
+          html = Path('examples/render.semantic-map.set-topology/dist/index.html').read_text(encoding='utf-8')
+          errors=[]
+          console=[]
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
+              context=browser.new_context(viewport={'width':1180,'height':820})
+              page=context.new_page()
+              page.on('pageerror', lambda error: errors.append(str(error)))
+              page.on('console', lambda msg: console.append(f'{msg.type}: {msg.text}'))
+              page.expose_function('__semanticTestSha256', lambda values: list(hashlib.sha256(bytes(values)).digest()))
+              page.evaluate("""() => {
+                let uuidSequence = 0;
+                Object.defineProperty(crypto, 'subtle', {configurable:true,value:{digest:async (_algorithm,input)=>Uint8Array.from(await __semanticTestSha256([...new Uint8Array(input)])).buffer}});
+                Object.defineProperty(crypto, 'randomUUID', {configurable:true,value:()=>{uuidSequence += 1; return `00000000-0000-4000-8000-${String(uuidSequence).padStart(12,'0')}`;}});
+              }""")
+              page.set_content(html, wait_until='load')
+              page.wait_for_timeout(3000)
+              state=page.evaluate("""() => ({
+                site: globalThis.semanticMapSite ?? null,
+                app: globalThis.semanticMapApp ? {ready: globalThis.semanticMapApp.ready, error: globalThis.semanticMapApp.error ?? null} : null,
+                runtime: globalThis.semanticMapRuntime ? {ready: globalThis.semanticMapRuntime.ready, error: globalThis.semanticMapRuntime.error ?? null} : null,
+                body: document.body.innerText.slice(0,4000),
+              })""")
+              print('STATE=',state)
+              print('PAGEERRORS=',errors)
+              print('CONSOLE=',console[-50:])
+              browser.close()
+          PY
