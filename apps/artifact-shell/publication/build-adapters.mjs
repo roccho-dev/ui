@@ -9,13 +9,24 @@ import { createAdapter as createPresentationAdapter } from '../adapters/presenta
 import { createAdapter as createSeqAdapter } from '../adapters/seq.mjs';
 import { materializeFeature } from './materialize-feature.mjs';
 
+const PUBLIC_MODULE_ROOTS = Object.freeze([
+  'packages/a2ui-browser/src',
+  'packages/control',
+  'packages/core-port/src',
+  'packages/graph-editor',
+  'packages/presentation',
+  'packages/semantic-map/vendor',
+]);
+
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
   const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createPresentationAdapter(), createControlAdapter(), createGraphEditorAdapter()];
   if (new Set(adapters.map(adapter => adapter.id)).size !== adapters.length) throw new Error('artifact-adapters: duplicate id');
 
   await fs.copyFile(path.join(appRoot, 'src', 'adapter.mjs'), path.join(outputRoot, 'adapter.mjs'));
   await fs.copyFile(path.join(appRoot, 'publication', 'adapter-host.css'), path.join(outputRoot, 'adapter.css'));
-  await fs.cp(path.join(repoRoot, 'packages'), path.join(outputRoot, 'modules', 'packages'), { recursive: true });
+  for (const relative of PUBLIC_MODULE_ROOTS) {
+    await fs.cp(path.join(repoRoot, relative), path.join(outputRoot, 'modules', relative), { recursive: true });
+  }
   const adapterHost = await fs.readFile(path.join(appRoot, 'publication', 'adapter-host.html'));
 
   for (const adapter of adapters) {
