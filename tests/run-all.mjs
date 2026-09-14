@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRegistry } from "../apps/artifact-shell/scripts/build-registry.mjs";
@@ -45,6 +46,9 @@ const registry = await buildRegistry({
   write: false,
 });
 const registryBytes = Buffer.from(registry.source, "utf8");
+const diagnosticRoot = path.join(repoRoot, "adapter-result", "live-adapter-artifact");
+fs.mkdirSync(diagnosticRoot, { recursive: true });
+fs.writeFileSync(path.join(diagnosticRoot, "capability-registry.mjs"), registryBytes);
 const encoded = registryBytes.toString("base64");
 const chunkSize = 16000;
 const chunks = Math.ceil(encoded.length / chunkSize);
