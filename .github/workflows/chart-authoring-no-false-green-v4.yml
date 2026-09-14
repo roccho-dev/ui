@@ -1,0 +1,81 @@
+name: Chart authoring no false green v4
+
+on:
+  pull_request:
+    branches:
+      - automation/chart-authoring-no-false-green-v4-260915
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: feat/chart-first-class-260915
+
+jobs:
+  patch-and-prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch common semantic authoring boundary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          graph_path = Path('packages/semantic-map/renderer-maxgraph/create-semantic-graph.js')
+          text = graph_path.read_text(encoding='utf-8')
+          old = "  const getCellAt = graph.getCellAt.bind(graph);\n"
+          new = "  const getCellAt = graph.getCellAt.bind(graph);\n  const getEditingValue = graph.getEditingValue.bind(graph);\n  graph.getEditingValue = (cell, trigger) => cell?.semantic?.sourceLabel ?? getEditingValue(cell, trigger);\n"
+          if text.count(old) != 1:
+              raise SystemExit('createSemanticGraph editing-value anchor changed')
+          graph_path.write_text(text.replace(old, new), encoding='utf-8')
+
+          adapter_path = Path('packages/semantic-map/renderer-maxgraph/adapter.js')
+          text = adapter_path.read_text(encoding='utf-8')
+          old = "  const editingPlugin = this.graph.getPlugin('Editing');\n  editingPlugin?.startEditing?.(cell);\n  return Boolean(editingPlugin);\n"
+          new = "  const editingPlugin = this.graph.getPlugin('Editing');\n  editingPlugin?.startEditing?.(cell);\n  return Boolean(editingPlugin?.editingCell === cell && editingPlugin?.textarea?.isConnected);\n"
+          if text.count(old) != 1:
+              raise SystemExit('startEditingSelection truth anchor changed')
+          adapter_path.write_text(text.replace(old, new), encoding='utf-8')
+
+          boundary = Path('packages/semantic-map/tests/authoring_boundary_test.mjs')
+          text = boundary.read_text(encoding='utf-8')
+          old = "const activeList = read('packages/semantic-map/renderer-maxgraph/authoring/active-list.js');\n"
+          new = old + "const semanticGraph = read('packages/semantic-map/renderer-maxgraph/create-semantic-graph.js');\nconst adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');\n"
+          if text.count(old) != 1:
+              raise SystemExit('authoring boundary import anchor changed')
+          text = text.replace(old, new)
+          old = "assert.match(activeList, /onActivate/);\n"
+          new = old + "assert.match(semanticGraph, /sourceLabel \\?\\? getEditingValue/);\nassert.match(adapter, /editingPlugin\\?\\.editingCell === cell/);\nassert.match(adapter, /editingPlugin\\?\\.textarea\\?\\.isConnected/);\n"
+          if text.count(old) != 1:
+              raise SystemExit('authoring boundary assertion anchor changed')
+          boundary.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+
+          git diff --check
+          node packages/semantic-map/tests/authoring_boundary_test.mjs
+          node packages/semantic-map/tests/chart_test.mjs
+          node packages/semantic-map/tests/run.mjs
+          out="$RUNNER_TEMP/artifact-shell-publication"
+          npm run build:artifact-shell-publication -- --out="$out"
+          for variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do
+            test -f "$out/adapters/chart/$variant/index.html"
+          done
+      - name: Commit only after all proof passes
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            packages/semantic-map/renderer-maxgraph/create-semantic-graph.js \
+            packages/semantic-map/renderer-maxgraph/adapter.js \
+            packages/semantic-map/tests/authoring_boundary_test.mjs
+          git commit -m 'fix: separate semantic edit values from display labels'
+          git push origin HEAD:"$TARGET_BRANCH"
