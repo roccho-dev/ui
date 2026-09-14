@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  SOURCE_SHA: efa4b50c42d1e8af672b96686acc998e2a827617
+  SOURCE_SHA: 25f77a896abd4e6d50bb49bcb6319144cc81870a
   PREVIEW_URL: https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev/adapters/chart/
 
 jobs:
@@ -43,12 +43,11 @@ jobs:
               page.on('console', lambda msg: events['console'].append({'type': msg.type, 'text': msg.text}))
               page.on('pageerror', lambda exc: events['pageErrors'].append(str(exc)))
               page.on('requestfailed', lambda req: events['requestFailed'].append({'url': req.url, 'failure': req.failure}))
-              response = page.goto(url, wait_until='domcontentloaded', timeout=60_000)
-              page.wait_for_timeout(10_000)
+              response = page.goto(url, wait_until='networkidle', timeout=60_000)
+              page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
               html = page.content()
               body = page.locator('body').inner_text()
-              statuses = page.locator('[data-adapter-status]').evaluate_all("els => els.map(el => ({tag: el.tagName, status: el.getAttribute('data-adapter-status'), text: el.textContent}))")
-              outputs = page.locator('output').all_text_contents()
+              feature_status = page.locator('html').get_attribute('data-status')
               svg_count = page.locator('svg').count()
               svg_box = page.locator('svg').first.bounding_box() if svg_count else None
               labels_found = {label: (label in body) for label in labels}
@@ -57,12 +56,11 @@ jobs:
               (root / 'events.json').write_text(json.dumps(events, ensure_ascii=False, indent=2), encoding='utf-8')
               receipt = {
                   'schema': 'ui.chart-deployed-render-proof/1',
-                  'status': 'PASS' if any(s['status'] == 'pass' for s in statuses) and any(t.strip() == 'PASS' for t in outputs) and svg_box and all(labels_found.values()) else 'FAIL',
+                  'status': 'PASS' if response and response.ok and feature_status == 'pass' and svg_box and all(labels_found.values()) and not events['pageErrors'] and not events['requestFailed'] else 'FAIL',
                   'sourceSha': os.environ['SOURCE_SHA'],
                   'url': url,
                   'httpStatus': response.status if response else None,
-                  'statuses': statuses,
-                  'outputs': outputs,
+                  'featureStatus': feature_status,
                   'svgCount': svg_count,
                   'svgBox': svg_box,
                   'labelsFound': labels_found,
