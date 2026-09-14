@@ -104,7 +104,7 @@ jobs:
             cmp "dist/$path" "$RUNNER_TEMP/remote-$path"
           done
 
-      - name: Prove shell and six adapters in real Chrome
+      - name: Prove real features and six adapters in Chrome
         shell: bash
         env:
           DEPLOYMENT: ${{ steps.deploy.outputs.deployment }}
@@ -117,33 +117,33 @@ jobs:
           adapters=(graph map seq presentation control graph-editor)
           for adapter in "${adapters[@]}"; do grep -q "href=\"adapters/$adapter/\"" "$root"; done
           ! grep -q 'adapters/shell/' "$root"
+
+          check_feature() {
+            name="$1"; budget="$2"; shift 2
+            output="$RUNNER_TEMP/feature-$name.html"
+            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget="$budget" --dump-dom "$DEPLOYMENT/features/$name/" > "$output"
+            if ! grep -q 'data-status="pass"' "$output"; then
+              echo "feature=$name failed"
+              grep -E 'BLOCKED|fatal|data-status=' "$output" || true
+              exit 1
+            fi
+            for pattern in "$@"; do grep -q "$pattern" "$output"; done
+          }
+          check_feature presentation 30000 'class="profiled-app"' 'class="seq-svg"'
+          check_feature control 15000 'id="tree"' 'class="node"'
+          check_feature graph-editor 30000 'class="roccho-graph-editor"' 'roccho-graph-editor__canvas' '<svg' 'roccho-graph-editor__projection'
+
           for adapter in "${adapters[@]}"; do
             echo "adapter=$adapter"
             output="$RUNNER_TEMP/adapter-$adapter.html"
             "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$DEPLOYMENT/adapters/$adapter/" > "$output"
-            grep -q 'data-adapter-status="pass"' "$output"
+            if ! grep -q 'data-adapter-status="pass"' "$output"; then
+              echo "adapter=$adapter failed"
+              grep -E 'FAIL|data-adapter-status=' "$output" || true
+              exit 1
+            fi
             grep -q '>PASS</output>' "$output"
           done
-
-          presentation="$RUNNER_TEMP/feature-presentation.html"
-          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$DEPLOYMENT/features/presentation/" > "$presentation"
-          grep -q 'data-status="pass"' "$presentation"
-          grep -q 'class="profiled-app"' "$presentation"
-          grep -q 'class="seq-svg"' "$presentation"
-
-          control="$RUNNER_TEMP/feature-control.html"
-          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "$DEPLOYMENT/features/control/" > "$control"
-          grep -q 'data-status="pass"' "$control"
-          grep -q 'id="tree"' "$control"
-          grep -q 'class="node"' "$control"
-
-          graph_editor="$RUNNER_TEMP/feature-graph-editor.html"
-          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$DEPLOYMENT/features/graph-editor/" > "$graph_editor"
-          grep -q 'data-status="pass"' "$graph_editor"
-          grep -q 'class="roccho-graph-editor"' "$graph_editor"
-          grep -q 'roccho-graph-editor__canvas' "$graph_editor"
-          grep -q '<svg' "$graph_editor"
-          grep -q 'roccho-graph-editor__projection' "$graph_editor"
           printf '%s\n' '{"schema":"ui.adapter-browser-proof/5","status":"PASS","adapters":["graph","map","seq","presentation","control","graph-editor"],"realFeatures":["presentation","control","graph-editor"],"host":"generic"}'
 
       - name: Emit proof receipt
