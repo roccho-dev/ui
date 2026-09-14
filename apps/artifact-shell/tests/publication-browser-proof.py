@@ -81,14 +81,14 @@ def main() -> None:
                 page.on("request", lambda request: requests.append(request.url))
                 base = f"http://127.0.0.1:{listen}"
 
-                page.goto(f"{base}/index.html", wait_until="networkidle", timeout=30_000)
+                page.goto(f"{base}/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("body[data-mode='launcher']").wait_for(timeout=30_000)
                 labels = page.locator("#launcher a").all_text_contents()
                 assert labels == ["graph", "map", "seq", "presentation", "control", "graph-editor"]
 
                 patterns: dict[str, str] = {}
                 for feature, pattern in (("graph", "graph/1"), ("map", "map/1"), ("seq", "seq/1")):
-                    page.goto(f"{base}/adapters/{feature}/index.html", wait_until="networkidle", timeout=30_000)
+                    page.goto(f"{base}/adapters/{feature}/index.html", wait_until="domcontentloaded", timeout=30_000)
                     page.locator("body[data-adapter-status='pass']").wait_for(timeout=30_000)
                     outer = page.locator(f"iframe[data-adapter-frame='{feature}']")
                     outer.wait_for(state="visible", timeout=30_000)
@@ -108,20 +108,20 @@ def main() -> None:
                     assert state == {"pattern": pattern, "svg": True, "editorReady": True}
                     patterns[feature] = pattern
 
-                page.goto(f"{base}/adapters/presentation/index.html", wait_until="networkidle", timeout=30_000)
+                page.goto(f"{base}/adapters/presentation/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("html[data-status='pass']").wait_for(timeout=30_000)
                 page.locator("#surface").wait_for(state="visible", timeout=30_000)
                 page.locator("#seq-shell").wait_for(state="visible", timeout=30_000)
                 assert page.locator("#seq-mount svg").count() == 1
                 assert page.locator("#surface").inner_text().strip()
 
-                page.goto(f"{base}/adapters/control/index.html", wait_until="networkidle", timeout=30_000)
+                page.goto(f"{base}/adapters/control/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("html[data-status='pass']").wait_for(timeout=30_000)
                 page.locator("#tree .node").first.wait_for(state="visible", timeout=30_000)
                 assert page.locator("#tree .node").count() > 0
                 assert page.locator("#status").inner_text() == "loaded"
 
-                page.goto(f"{base}/adapters/graph-editor/index.html", wait_until="networkidle", timeout=30_000)
+                page.goto(f"{base}/adapters/graph-editor/index.html", wait_until="domcontentloaded", timeout=30_000)
                 page.locator("html[data-status='pass']").wait_for(timeout=30_000)
                 page.locator(".roccho-graph-editor").wait_for(state="visible", timeout=30_000)
                 page.locator(".roccho-graph-editor__canvas svg").wait_for(state="visible", timeout=30_000)
