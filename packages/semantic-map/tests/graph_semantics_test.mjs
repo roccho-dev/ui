@@ -1,0 +1,69 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createSemanticMap, parseSemanticMapRecords } from '../domain/index.js';
+import { GRAPH_PATTERN, validatePatternDomain } from '../pattern/index.js';
+import { SemanticProjector } from '../projection/index.js';
+import { displayedRegionLabel } from '../renderer-maxgraph/labels.js';
+import { DEFAULT_THEME } from '../renderer-maxgraph/theme.js';
+
+function load(name) {
+  const text = fs.readFileSync(new URL(`../examples/graph/${name}.jsonl`, import.meta.url), 'utf8');
+  const domain = createSemanticMap(parseSemanticMapRecords(text));
+  validatePatternDomain(domain, GRAPH_PATTERN);
+  return domain;
+}
+
+function project(domain, scale = 1) {
+  return new SemanticProjector(domain, null, { pattern: GRAPH_PATTERN }).project({
+    scale,
+    viewport: { x: -100, y: -100, width: 2400, height: 1600 },
+  });
+}
+
+const flow = project(load('flow'));
+assert.ok(flow.relations.every((relation) => relation.directed), 'flow relations must be directed');
+assert.equal(flow.representations.find((item) => item.sourceRegionId === 'start')?.shape, 'graph-terminal');
+assert.equal(flow.representations.find((item) => item.sourceRegionId === 'done')?.shape, 'graph-terminal');
+
+const state = project(load('state'));
+assert.equal(state.representations.find((item) => item.sourceRegionId === 'initial')?.shape, 'graph-terminal');
+assert.equal(state.representations.find((item) => item.sourceRegionId === 'final')?.shape, 'graph-terminal');
+assert.ok(state.relations.every((relation) => relation.kind === 'transition' && relation.directed));
+
+const classScene = project(load('class'));
+const user = classScene.representations.find((item) => item.sourceRegionId === 'user');
+assert.ok(user, 'class region must render');
+assert.match(user.label, /id: UUID/u);
+assert.match(user.label, /email: string/u);
+assert.ok(user.bounds.height > 92, 'structured class region must reserve rows for internal items');
+assert.ok(!classScene.representations.some((item) => item.sourceRegionId === 'user.id'), 'attributes render inside their owner region');
+assert.equal(classScene.selectionProxies['user.id'], user.regionId, 'attribute selection must proxy to its owner region');
+const classAssociation = classScene.relations.find((relation) => relation.id === 'c1');
+assert.equal(classAssociation?.directed, false, 'class association must be undirected');
+assert.equal(classAssociation?.label, '1 owns 0..*');
+assert.match(displayedRegionLabel(user, 1, DEFAULT_THEME, false), /email: string/u, 'renderer must keep multiline structured labels visible');
+
+const erd = project(load('erd'));
+const customer = erd.representations.find((item) => item.sourceRegionId === 'customer');
+assert.match(customer?.label ?? '', /id: UUID PK/u);
+const erdRelation = erd.relations.find((relation) => relation.id === 'e1');
+assert.equal(erdRelation?.directed, false, 'ER relationship must be undirected');
+assert.match(erdRelation?.label ?? '', /0\.\.\*/u, 'cardinality remains semantic relation text');
+
+const subgraphDomain = load('subgraph');
+const subgraphOverview = project(subgraphDomain);
+const backend = subgraphOverview.representations.find((item) => item.sourceRegionId === 'backend');
+assert.equal(backend?.shape, 'boundary');
+assert.equal(backend?.hasChildren, true);
+const subgraphDetail = project(subgraphDomain, 4);
+assert.ok(subgraphDetail.representations.some((item) => item.sourceRegionId === 'worker'), 'nested regions must render when detail LOD is visible');
+assert.ok(subgraphDetail.relations.some((relation) => relation.id === 'g2' && relation.directed));
+
+console.log(JSON.stringify({
+  schema: 'semantic-map-graph-semantics-test/1',
+  status: 'PASS',
+  pass: true,
+  complete: true,
+  pattern: GRAPH_PATTERN,
+  examples: ['flow', 'state', 'class', 'erd', 'subgraph'],
+}));

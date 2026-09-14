@@ -1,4 +1,26 @@
 import { createGraphLayout } from '../spatial-layout.js';
+import { isGraphItemKind } from './contract.js';
+
+function orderedItemIds(domain, regionId) {
+  return [...(domain.children.get(regionId) ?? [])]
+    .filter((childId) => isGraphItemKind(domain.regions.get(childId)?.kind))
+    .sort((leftId, rightId) => {
+      const left = domain.regions.get(leftId);
+      const right = domain.regions.get(rightId);
+      const leftOrder = Number.isSafeInteger(left?.order) ? left.order : Number.MAX_SAFE_INTEGER;
+      const rightOrder = Number.isSafeInteger(right?.order) ? right.order : Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || leftId.localeCompare(rightId);
+    });
+}
+
+function structuredLabel(domain, region, itemIds) {
+  if (itemIds.length === 0) return region.label;
+  return [
+    region.label,
+    '────────',
+    ...itemIds.map((itemId) => domain.regions.get(itemId)?.label ?? itemId),
+  ].join('\n');
+}
 
 function createPlan(domain) {
   const layout = createGraphLayout(domain);
@@ -24,7 +46,9 @@ function project({ node, plan, transform, depthOffset, rootProxy, clipBounds, ap
     if (!region || !localBounds) return;
     const projectedBounds = clippedBounds(transformBounds(localBounds, transform), clipBounds);
     if (area(projectedBounds) === 0 || area(intersect(projectedBounds, visibleViewport)) === 0) return;
-    const childIds = (domain.children.get(localId) ?? []).filter(childId => plan.bounds.has(childId));
+    const itemIds = orderedItemIds(domain, localId);
+    const childIds = (domain.children.get(localId) ?? [])
+      .filter(childId => plan.bounds.has(childId) && !isGraphItemKind(domain.regions.get(childId)?.kind));
     const mounted = mountedChild(node, region);
     const hasChildren = childIds.length > 0 || Boolean(mounted);
     const showDetails = detailsVisible(node, region, projectedBounds, hasChildren, force);
@@ -33,8 +57,10 @@ function project({ node, plan, transform, depthOffset, rootProxy, clipBounds, ap
       hasChildren,
       detailsVisible: showDetails,
       geometryEditable: Boolean(plan.geometryEditable),
+      label: structuredLabel(domain, region, itemIds),
     });
     localVisible.set(localId, representation.regionId);
+    for (const itemId of itemIds) localVisible.set(itemId, representation.regionId);
     if (!showDetails || !hasChildren) return;
     detailIds.add(representation.regionId);
     for (const childId of childIds) visit(childId, false);

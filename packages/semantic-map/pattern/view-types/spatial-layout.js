@@ -1,10 +1,12 @@
 import { SEMANTIC_2D_SPACE, TOPOLOGY_SPACE } from '../../domain/index.js';
+import { isGraphItemKind } from './graph/contract.js';
 
 const GRAPH_LEAF_WIDTH = 180;
 const GRAPH_LEAF_HEIGHT = 92;
 const GRAPH_PADDING_X = 32;
 const GRAPH_PADDING_Y = 26;
 const GRAPH_HEADER = 46;
+const GRAPH_ITEM_ROW_HEIGHT = 22;
 const GRAPH_COLUMN_GAP = 76;
 const GRAPH_ROW_GAP = 30;
 
@@ -154,12 +156,19 @@ export function createGraphLayout(domain) {
 
   function measure(id) {
     if (measured.has(id)) return measured.get(id);
-    const childIds = orderedRegions(
+    const allChildIds = orderedRegions(
       domain,
       (domain.children.get(id) ?? []).filter((childId) => domain.regions.get(childId).kind !== 'actor'),
     );
+    const itemCount = allChildIds.filter((childId) => isGraphItemKind(domain.regions.get(childId).kind)).length;
+    const childIds = allChildIds.filter((childId) => !isGraphItemKind(domain.regions.get(childId).kind));
+    const headerHeight = GRAPH_HEADER + itemCount * GRAPH_ITEM_ROW_HEIGHT;
     if (childIds.length === 0) {
-      const leaf = Object.freeze({ width: GRAPH_LEAF_WIDTH, height: GRAPH_LEAF_HEIGHT, offsets: new Map() });
+      const leaf = Object.freeze({
+        width: GRAPH_LEAF_WIDTH,
+        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y),
+        offsets: new Map(),
+      });
       measured.set(id, leaf);
       return leaf;
     }
@@ -178,11 +187,11 @@ export function createGraphLayout(domain) {
       + GRAPH_COLUMN_GAP * Math.max(0, columns.length - 1);
     const contentHeight = Math.max(...columns.map((column) => column.height));
     const width = Math.max(GRAPH_LEAF_WIDTH, GRAPH_PADDING_X * 2 + contentWidth);
-    const height = Math.max(GRAPH_LEAF_HEIGHT, GRAPH_HEADER + GRAPH_PADDING_Y * 2 + contentHeight);
+    const height = Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y * 2 + contentHeight);
     const offsets = new Map();
     let x = GRAPH_PADDING_X;
     for (const column of columns) {
-      let y = GRAPH_HEADER + GRAPH_PADDING_Y + (contentHeight - column.height) / 2;
+      let y = headerHeight + GRAPH_PADDING_Y + (contentHeight - column.height) / 2;
       for (const childId of column.ids) {
         const child = children.get(childId);
         offsets.set(childId, Object.freeze({ x: x + (column.width - child.width) / 2, y }));
