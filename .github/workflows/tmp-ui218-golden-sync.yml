@@ -1,4 +1,4 @@
-name: Temporary ui218 golden sync
+name: Temporary ui218 derived sync
 
 on:
   push:
@@ -14,13 +14,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2d60c04461092aadd514d4e5dcd7dc74a8a47e4d
+          ref: 645b49f20c9a4b4b4ced757ab837391fd6b2e50f
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - name: Bind exact candidate
-        run: test "$(git rev-parse HEAD)" = "2d60c04461092aadd514d4e5dcd7dc74a8a47e4d"
+        run: test "$(git rev-parse HEAD)" = "645b49f20c9a4b4b4ced757ab837391fd6b2e50f"
+      - name: Verify migration and active-list boundary
+        run: |
+          node tests/check-semantic-map-migration.mjs
+          node packages/semantic-map/tests/authoring_boundary_test.mjs
+      - name: Regenerate canonical capability registry
+        run: |
+          node apps/artifact-shell/scripts/build-registry.mjs
+          node apps/artifact-shell/scripts/build-registry.mjs --check
       - name: Regenerate only set-topology checked projections
         shell: bash
         run: |
@@ -41,6 +49,8 @@ jobs:
           cp "$tmp/horizontal/receipt.json" examples/render.semantic-map.set-topology/dist/receipt.json
           cp "$tmp/vertical/index.html" examples/render.semantic-map.set-topology/dist/vertical.html
           python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
+      - name: Prove full Semantic Map source gates
+        run: node packages/semantic-map/tests/run.mjs
       - name: Verify bounded generated diff and publish temporary output branch
         shell: bash
         run: |
@@ -49,12 +59,12 @@ jobs:
           test "${#changed[@]}" -gt 0
           for path in "${changed[@]}"; do
             case "$path" in
-              examples/render.semantic-map.set-topology/dist/index.html|examples/render.semantic-map.set-topology/dist/receipt.json|examples/render.semantic-map.set-topology/dist/vertical.html) ;;
+              apps/artifact-shell/generated/capability-registry.mjs|examples/render.semantic-map.set-topology/dist/index.html|examples/render.semantic-map.set-topology/dist/receipt.json|examples/render.semantic-map.set-topology/dist/vertical.html) ;;
               *) echo "unexpected path: $path" >&2; exit 1 ;;
             esac
           done
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add examples/render.semantic-map.set-topology/dist/
-          git commit -m 'chore(graph): refresh set-topology generated proof'
-          git push origin HEAD:refs/heads/tmp/ui218-golden-output-260915
+          git add apps/artifact-shell/generated/capability-registry.mjs examples/render.semantic-map.set-topology/dist/
+          git commit -m 'chore(graph): refresh derived authoring projections'
+          git push origin HEAD:refs/heads/tmp/ui218-authoring-output-260915
