@@ -28,3 +28,5 @@ jobs:
           PY
       - name: Prove actual gesture through review and fresh JSONL replay
         run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
+      - name: Prove generic data semantic feature publication
+        run: python3 apps/artifact-shell/tests/publication-semantic-map-browser-proof.py
