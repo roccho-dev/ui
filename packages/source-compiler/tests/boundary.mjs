@@ -10,8 +10,11 @@ const presentationExamples = await fs.readdir(new URL('examples/presentation/', 
 assert.deepEqual(presentationExamples.sort(), ['example.json'], 'presentation UI examples must not contain upstream JSONL');
 
 for (const id of ['graph', 'map', 'seq']) {
-  const example = JSON.parse(await fs.readFile(new URL(`examples/${id}/example.json`, repo), 'utf8'));
-  assert.equal(example.schema, 'artifact-invocation/2', `${id} UI example must be direct artifact-invocation/2`);
+  const examples = await fs.readdir(new URL(`examples/${id}/`, repo));
+  assert.deepEqual(examples.sort(), ['example.jsonl'], `${id} UI example must be raw JSONL only`);
+  const source = await fs.readFile(new URL(`examples/${id}/example.jsonl`, repo), 'utf8');
+  const rows = source.trim().split(/\r?\n/).map(line => JSON.parse(line));
+  assert.ok(rows.length > 1, `${id} UI example must contain JSONL records`);
 }
 const presentation = JSON.parse(await fs.readFile(new URL('examples/presentation/example.json', repo), 'utf8'));
 assert.equal(presentation.schema, 'business-model-presentation-minimal-payload/1');
