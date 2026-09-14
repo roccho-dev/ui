@@ -1,13 +1,10 @@
-import {
-  SemanticDomainStore,
-  createSemanticMap,
-  normalizeOperation,
-  parseSemanticMapRecords,
-} from './domain/index.js';
+import { createSemanticMap, parseSemanticMapRecords } from './domain/index.js';
+import { normalizeOperation } from './domain/authoring-operation.js';
+import { SemanticDomainStore } from './domain/authoring-store.js';
 import { patternConfigKey, validatePatternDomain } from './pattern/index.js';
 import { SemanticProjector } from './projection/index.js';
 import { defaultViewForPattern } from './protocol/index.js';
-import { createSemanticAuthoring } from './renderer-maxgraph/index.js';
+import { createSemanticAuthoring } from './renderer-maxgraph/authoring/index.js';
 
 const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1' });
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-feature: ${message}`); };
