@@ -23,30 +23,83 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Patch exact maxGraph editing plugin identity
+      - name: Remove vector-sector editability override
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          adapter = Path('packages/semantic-map/renderer-maxgraph/adapter.js')
-          text = adapter.read_text(encoding='utf-8')
-          old = "  const editingPlugin = this.graph.getPlugin('Editing');\n"
-          new = "  const editingPlugin = this.graph.getPlugin('CellEditorHandler');\n"
+          styles = Path('packages/semantic-map/renderer-maxgraph/styles.js')
+          text = styles.read_text(encoding='utf-8')
+          old = """    case 'vector-sector':
+      return {
+        ...common,
+        shape: 'semanticSector',
+        sectorStartAngle: visual?.sector?.startAngle ?? -90,
+        sectorEndAngle: visual?.sector?.endAngle ?? 270,
+        sectorInnerRatio: visual?.sector?.innerRatio ?? 0,
+        sectorOuterRatio: visual?.sector?.outerRatio ?? 1,
+        rounded: false,
+        fontSize: 0,
+        fontStyle: 0,
+        shadow: false,
+        movable: false,
+        resizable: false,
+        selectable: false,
+        editable: false,
+        connectable: false,
+        deletable: false,
+      };
+"""
+          new = """    case 'vector-sector':
+      return {
+        ...common,
+        shape: 'semanticSector',
+        sectorStartAngle: visual?.sector?.startAngle ?? -90,
+        sectorEndAngle: visual?.sector?.endAngle ?? 270,
+        sectorInnerRatio: visual?.sector?.innerRatio ?? 0,
+        sectorOuterRatio: visual?.sector?.outerRatio ?? 1,
+        rounded: false,
+        shadow: false,
+      };
+"""
           if text.count(old) != 1:
-              raise SystemExit('adapter editing plugin anchor changed')
-          adapter.write_text(text.replace(old, new), encoding='utf-8')
+              raise SystemExit('vector-sector style anchor changed')
+          styles.write_text(text.replace(old, new), encoding='utf-8')
 
           boundary = Path('packages/semantic-map/tests/authoring_boundary_test.mjs')
           text = boundary.read_text(encoding='utf-8')
-          old = "assert.match(adapter, /editingPlugin\\?\\.editingCell === cell/);\n"
-          new = "assert.match(adapter, /getPlugin\\('CellEditorHandler'\\)/);\n" + old
+          old = "const adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');\n"
+          new = old + "const styles = read('packages/semantic-map/renderer-maxgraph/styles.js');\n"
           if text.count(old) != 1:
-              raise SystemExit('authoring boundary editing assertion anchor changed')
-          boundary.write_text(text.replace(old, new), encoding='utf-8')
+              raise SystemExit('authoring boundary styles import anchor changed')
+          text = text.replace(old, new)
+          anchor = "assert.match(adapter, /editingPlugin\\?\\.textarea\\?\\.isConnected/);\n"
+          addition = anchor + "assert.doesNotMatch(styles, /case 'vector-sector':[\\s\\S]*?editable: false/);\n"
+          if text.count(anchor) != 1:
+              raise SystemExit('authoring boundary styles assertion anchor changed')
+          boundary.write_text(text.replace(anchor, addition), encoding='utf-8')
           PY
 
           git diff --check
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { vertexStyle } from './packages/semantic-map/renderer-maxgraph/styles.js';
+          import { DEFAULT_THEME } from './packages/semantic-map/renderer-maxgraph/theme.js';
+          const style = vertexStyle({
+            shape: 'vector-sector', kind: 'chart-slice', depth: 1,
+            readOnly: false, labelEditable: true, geometryEditable: false,
+            temporalEdit: null, href: null,
+            visual: { paletteKey: 'chart:pie', sector: { startAngle: 0, endAngle: 90, innerRatio: 0, outerRatio: 1 } },
+          }, 1, DEFAULT_THEME);
+          assert.equal(style.selectable, true);
+          assert.equal(style.editable, true);
+          assert.equal(style.connectable, true);
+          assert.equal(style.deletable, true);
+          assert.equal(style.movable, false);
+          assert.equal(style.resizable, false);
+          assert.ok(style.fontSize > 0);
+          NODE
           node packages/semantic-map/tests/authoring_boundary_test.mjs
           node packages/semantic-map/tests/chart_test.mjs
           node packages/semantic-map/tests/run.mjs
@@ -60,6 +113,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/semantic-map/renderer-maxgraph/adapter.js packages/semantic-map/tests/authoring_boundary_test.mjs
-          git commit -m 'fix: verify the actual maxGraph cell editor'
+          git add packages/semantic-map/renderer-maxgraph/styles.js packages/semantic-map/tests/authoring_boundary_test.mjs
+          git commit -m 'fix: inherit common editability for vector sectors'
           git push origin HEAD:"$TARGET_BRANCH"
