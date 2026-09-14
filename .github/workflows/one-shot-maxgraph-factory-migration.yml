@@ -1,0 +1,37 @@
+name: One-shot maxGraph factory migration
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/one-shot-maxgraph-factory-migration.yml
+      - scripts/refactor-maxgraph-adapter-factory.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: true
+      - run: node scripts/refactor-maxgraph-adapter-factory.mjs
+      - name: Commit migration output
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'no migration output'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/semantic-map/renderer-maxgraph/adapter.js packages/semantic-map/renderer-maxgraph/index.js packages/semantic-map/authoring/main.js
+          git commit -m 'refactor: replace maxGraph adapter classes with factory'
+          test -n "$HEAD_REF"
+          git push origin "HEAD:$HEAD_REF"
