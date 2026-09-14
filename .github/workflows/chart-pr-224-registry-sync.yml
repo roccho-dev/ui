@@ -1,0 +1,43 @@
+name: Chart PR 224 registry sync
+
+on:
+  pull_request:
+    branches:
+      - automation/chart-pr-224-registry-260915
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: feat/chart-first-class-260915
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Generate canonical registry
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/scripts/build-registry.mjs
+          git diff --check
+          git status --short
+      - name: Commit generated registry
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- apps/artifact-shell/generated/capability-registry.mjs; then
+            echo 'registry already current'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          git commit -m 'build: regenerate Artifact Shell registry'
+          git push origin HEAD:"$TARGET_BRANCH"
