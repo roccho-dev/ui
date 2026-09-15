@@ -11,10 +11,11 @@ const stringMap = (value, name) => {
   for (const [key, item] of Object.entries(value)) text(item, `${name}.${key}`);
   return value;
 };
+const pathTokens = path => String(path).replace(/^\/+/, '').split(/[\/.]/u).filter(Boolean);
+const rootKey = path => pathTokens(path)[0];
 const readPath = (value, path) => {
-  const tokens = String(path).replace(/^\/+/u, '').split(/[\/.]/u).filter(Boolean);
   let cursor = value;
-  for (const token of tokens) {
+  for (const token of pathTokens(path)) {
     if (cursor === null || typeof cursor !== 'object' || !Object.hasOwn(cursor, token)) return undefined;
     cursor = cursor[token];
   }
@@ -22,52 +23,45 @@ const readPath = (value, path) => {
 };
 const className = (classes, key) => classes?.[key] ?? '';
 const addClass = (element, value) => { if (value) element.className = value; };
+const valueText = value => typeof value === 'string' ? value : JSON.stringify(value);
 
-const validateFields = (fields, name) => {
-  invariant(Array.isArray(fields) && fields.length > 0, `${name} required`);
-  for (const [index, field] of fields.entries()) {
-    assertExactKeys(field, ['path'], ['label', 'variant', 'omitIfMissing', 'missing'], `${name}[${index}]`);
-    text(field.path, `${name}[${index}].path`);
-    if (field.label !== undefined) text(field.label, `${name}[${index}].label`);
-    if (field.variant !== undefined) text(field.variant, `${name}[${index}].variant`);
-    if (field.omitIfMissing !== undefined) invariant(typeof field.omitIfMissing === 'boolean', `${name}[${index}].omitIfMissing invalid`);
-    if (field.missing !== undefined) text(field.missing, `${name}[${index}].missing`);
-  }
-  return fields;
-};
 const validateJoin = (join, name) => {
   if (join === undefined) return;
-  assertExactKeys(join, ['sourcePath', 'foreignPath', 'localPath', 'as', 'pick'], [], name);
+  assertExactKeys(join, ['sourcePath', 'foreignPath', 'localPath', 'as', 'pick'], ['missing'], name);
   for (const key of ['sourcePath', 'foreignPath', 'localPath', 'as']) text(join[key], `${name}.${key}`);
   invariant(join.pick === 'last', `${name}.pick must be last`);
+  if (join.missing !== undefined) text(join.missing, `${name}.missing`);
 };
-const joinRecord = ({ join, model, record }) => {
-  if (!join) return {};
+const findJoinedRecord = ({ join, model, record }) => {
+  if (!join) return undefined;
   const source = readPath(model, join.sourcePath);
   invariant(Array.isArray(source), `${join.sourcePath} must resolve to an array`);
   const local = readPath(record, join.localPath);
-  const matches = source.filter(item => readPath(item, join.foreignPath) === local);
-  return { [join.as]: matches.at(-1) };
+  return source.filter(item => readPath(item, join.foreignPath) === local).at(-1);
 };
-const fieldElement = ({ classes, document, field, scope }) => {
-  const value = readPath(scope, field.path);
-  if (value === undefined || value === null || value === '') {
-    if (field.omitIfMissing || field.missing === undefined) return null;
-    const missing = document.createElement('span');
-    addClass(missing, className(classes, 'property'));
-    missing.dataset.missing = 'true';
-    missing.textContent = field.missing;
-    return missing;
-  }
+const propertyElement = ({ classes, document, key, value, title = false }) => {
   const item = document.createElement('span');
   addClass(item, className(classes, 'property'));
-  item.dataset.key = field.label ?? field.path;
-  item.dataset.value = String(value);
-  if (field.variant) item.dataset.variant = field.variant;
-  item.textContent = field.variant === 'title'
-    ? String(value)
-    : `${field.label ?? field.path}: ${typeof value === 'string' ? value : JSON.stringify(value)}`;
+  item.dataset.key = key;
+  item.dataset.value = valueText(value);
+  if (title) item.dataset.variant = 'title';
+  item.textContent = title ? valueText(value) : `${key}: ${valueText(value)}`;
   return item;
+};
+const appendMissing = ({ classes, document, properties, value }) => {
+  if (!value) return;
+  const missing = document.createElement('span');
+  addClass(missing, className(classes, 'property'));
+  missing.dataset.missing = 'true';
+  missing.textContent = value;
+  properties.append(missing);
+};
+const appendRecordProperties = ({ classes, document, excluded, properties, record, titlePath }) => {
+  const titleKey = rootKey(titlePath);
+  for (const [key, value] of Object.entries(record)) {
+    if (excluded.has(key)) continue;
+    properties.append(propertyElement({ classes, document, key, value, title: key === titleKey }));
+  }
 };
 
 const definitions = [
@@ -116,10 +110,9 @@ const definitions = [
   {
     name: 'Tree',
     validate: component => {
-      assertExactKeys(component, ['id', 'component', 'sourcePath', 'idPath', 'parentPath', 'relationKindPath', 'syncKey', 'classes', 'fields'], ['join'], 'Tree');
-      for (const key of ['sourcePath', 'idPath', 'parentPath', 'relationKindPath', 'syncKey']) text(component[key], `Tree.${key}`);
+      assertExactKeys(component, ['id', 'component', 'sourcePath', 'idPath', 'parentPath', 'relationKindPath', 'titlePath', 'syncKey', 'classes'], ['join'], 'Tree');
+      for (const key of ['sourcePath', 'idPath', 'parentPath', 'relationKindPath', 'titlePath', 'syncKey']) text(component[key], `Tree.${key}`);
       stringMap(component.classes, 'Tree.classes');
-      validateFields(component.fields, 'Tree.fields');
       validateJoin(component.join, 'Tree.join');
       return component;
     },
@@ -169,12 +162,35 @@ const definitions = [
         addClass(row, className(component.classes, 'row'));
         const properties = document.createElement('div');
         addClass(properties, className(component.classes, 'properties'));
-        const scope = { ...record, ...joinRecord({ join: component.join, model: dataModel, record }) };
-        for (const field of component.fields) {
-          const item = fieldElement({ classes: component.classes, document, field, scope });
-          if (item) properties.append(item);
+
+        if (component.join) {
+          const title = readPath(record, component.titlePath);
+          if (title !== undefined) properties.append(propertyElement({ classes: component.classes, document, key: rootKey(component.titlePath), value: title, title: true }));
+          const localId = readPath(record, component.idPath);
+          properties.append(propertyElement({ classes: component.classes, document, key: rootKey(component.idPath), value: localId }));
+          const joined = findJoinedRecord({ join: component.join, model: dataModel, record });
+          if (joined) {
+            appendRecordProperties({
+              classes: component.classes,
+              document,
+              excluded: new Set([rootKey(component.join.foreignPath)]),
+              properties,
+              record: joined,
+              titlePath: '__joined_record_has_no_title__',
+            });
+          } else appendMissing({ classes: component.classes, document, properties, value: component.join.missing });
+        } else {
+          appendRecordProperties({
+            classes: component.classes,
+            document,
+            excluded: new Set([rootKey(component.parentPath), rootKey(component.relationKindPath)]),
+            properties,
+            record,
+            titlePath: component.titlePath,
+          });
         }
         row.append(properties);
+
         const nested = children.get(id);
         if (nested.length) {
           const groups = new Map();
