@@ -1539,6 +1539,15 @@
       "sourceCommit": "0d42ea8f56890fdc99fc41076c6b4b969e68a900",
       "sourcePath": "packages/semantic-map/projection/projector.js",
       "reason": "graph-structured-semantics-and-layout"
+    },
+    {
+      "id": "retire-document-authoring-260915",
+      "target": "packages/semantic-map/renderer-maxgraph/index.js",
+      "fromSha256": "c6f19aeaf519e7d6dbdc45a0338712603a95dd28e388797b72b2f0ef4aaa6854",
+      "toSha256": "2a556822558d65b5fb8d00d10ed4fe36ff885467706c71bac745bf8a5210a8a4",
+      "sourceCommit": "5d7942a6677a545ad5717b77ecb29f29aa3f4775",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/index.js",
+      "reason": "refactor: retire standalone document authoring"
     }
   ]
 }
