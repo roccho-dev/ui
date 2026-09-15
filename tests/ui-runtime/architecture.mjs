@@ -57,7 +57,7 @@ assert.throws(
 assert.throws(() => editorCore.assertAuthorityPort({}), /AuthorityPort\.authorize is required/u);
 
 assert.doesNotMatch(coreSource, /Object\.defineProperty\(api,\s*['"](?:runtime|workspace)['"]|runtimePort\s*\(/u);
-assert.match(coreSource, /dispatch:\s*\(command\).*acceptGesture:[\s\S]*replaceInput:[\s\S]*snapshot:[\s\S]*subscribe:[\s\S]*destroy:/u);
+assert.match(coreSource, /dispatch:\s*\(command\)[\s\S]*acceptGesture:[\s\S]*replaceInput:[\s\S]*snapshot:[\s\S]*subscribe:[\s\S]*destroy:/u);
 assert.doesNotMatch(surfaceSource, /new Proxy|claimPendingEditorCore/u);
 assert.match(surfaceSource, /#inner/u);
 assert.match(surfaceSource, /#rollback/u);
