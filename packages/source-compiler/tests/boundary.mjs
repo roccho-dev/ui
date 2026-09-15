@@ -35,6 +35,7 @@ assert.deepEqual(controlExamples.sort(), ['claims.jsonl', 'control.jsonl', 'desi
 const controlDesign = JSON.parse(await fs.readFile(new URL('examples/control/design.json', repo), 'utf8'));
 assert.equal(controlDesign.schema, 'ui-a2ui-app-design/1');
 assert.equal(controlDesign.app, 'control');
+assert.equal(JSON.stringify(controlDesign).includes('"fields"'), false, 'Control Tree must project properties generically without a fields allowlist');
 
 for (const id of ['graph', 'map', 'seq']) {
   const examples = await fs.readdir(new URL(`examples/${id}/`, repo));
