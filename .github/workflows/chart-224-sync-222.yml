@@ -1,0 +1,52 @@
+name: Chart 224 sync 222 three-way
+
+on:
+  push:
+    branches:
+      - proof/chart-data-url-codec-260915
+
+permissions:
+  contents: read
+
+env:
+  TARGET_BRANCH: sync/chart-224-with-222-260915
+  TARGET_HEAD: b682eef6cbe7f5a0ff2a76618a515d3e73216c91
+  BASE_HEAD: f2dd463c372d18761834313183258e2c6ab31b92
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove exact refs and run real three-way merge
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_HEAD"
+          git fetch --no-tags origin "$BASE_HEAD"
+          set +e
+          git merge --no-ff --no-commit "$BASE_HEAD" > "$RUNNER_TEMP/merge.log" 2>&1
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/merge.log"
+          git diff --name-only --diff-filter=U | tee "$RUNNER_TEMP/conflicts.txt"
+          printf 'merge_exit=%s\n' "$code"
+          printf 'conflict_count=%s\n' "$(wc -l < "$RUNNER_TEMP/conflicts.txt")"
+          if [ "$code" -eq 0 ]; then
+            echo 'unexpected: merge is clean'
+            git merge --abort || true
+            exit 0
+          fi
+          test -s "$RUNNER_TEMP/conflicts.txt"
+          git merge --abort
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chart-224-sync-222-three-way-diagnostic
+          path: |
+            ${{ runner.temp }}/merge.log
+            ${{ runner.temp }}/conflicts.txt
+          if-no-files-found: error
