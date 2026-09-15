@@ -109,17 +109,10 @@ async function install() {
   copyButton.addEventListener('click', () => copy().catch((error) => showStatus(error.message, 'error')));
   layer.addEventListener('click', (event) => { if (event.target === layer) close(); });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !layer.hidden) close(); });
-  app.store.onChange(() => { if (!layer.hidden) void render(); });
+  app.core.subscribe(() => { if (!layer.hidden) void render(); });
   runtime.onChange(() => { if (!layer.hidden) void render(); });
 
-  const api = Object.freeze({
-    ready: true,
-    open,
-    close,
-    render,
-    copy,
-    current: () => current,
-  });
+  const api = Object.freeze({ ready: true, open, close, render, copy, current: () => current });
   globalThis.semanticMapSource = api;
 }
 
