@@ -6,5 +6,9 @@ export const feature = Object.freeze({
   id,
   label: id,
   entry: 'packages/semantic-map/feature-runtime.mjs',
-  styles: Object.freeze(['packages/semantic-map/feature.css']),
+  styles: Object.freeze([
+    'packages/semantic-map/feature.css',
+    'packages/semantic-map/authoring/styles/handoff.css',
+    'packages/semantic-map/authoring/styles/review.css',
+  ]),
 });

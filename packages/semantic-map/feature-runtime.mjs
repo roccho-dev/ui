@@ -1,8 +1,12 @@
 import { createSemanticMap, parseSemanticMapRecords } from './domain/index.js';
-import { normalizeOperation } from './domain/authoring-operation.js';
 import { SemanticDomainStore } from './domain/authoring-store.js';
+import { ModuleResolver } from './module-embedding/index.js';
 import { patternConfigKey, validatePatternDomain } from './pattern/index.js';
+import { createDecisionLog, createEnvelope, defaultViewForPattern } from './protocol/index.js';
+import { validateSceneGraph } from './projection/index.js';
 import { mountSemanticMapSurface } from './surface-runtime.mjs';
+import { DecisionRuntime } from './authoring/runtime.js';
+import { waitFor } from './authoring/shared.js';
 
 const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1', chart: 'chart/1' });
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-feature: ${message}`); };
@@ -23,25 +27,44 @@ const snapshotDomain = domain => Object.freeze({
   relations: Object.freeze(domain.relations.map(relation => Object.freeze({ ...relation }))),
 });
 
-const prepareRuntimeOperation = (operation, store, scope) => {
-  if (operation?.type !== 'ConnectRegions' || Object.hasOwn(operation, 'relationId')) {
-    return normalizeOperation(operation);
-  }
-  invariant(typeof scope.crypto?.randomUUID === 'function', 'crypto.randomUUID is required for relation creation');
-  let relationId;
-  do relationId = `relation-${scope.crypto.randomUUID()}`;
-  while (store.relations.has(relationId));
-  return normalizeOperation({ ...operation, relationId });
+const bootstrapEnvelope = async ({ input, view, scope }) => {
+  invariant(typeof input === 'string', 'raw JSONL text is required');
+  invariant(typeof scope.crypto?.randomUUID === 'function', 'crypto.randomUUID is required');
+  const records = parseSemanticMapRecords(input);
+  const created = await createDecisionLog(records, `urn:uuid:${scope.crypto.randomUUID()}`);
+  return createEnvelope(created.log, null, view);
 };
 
 export const mountFeature = async ({ feature, input, root, scope = globalThis }) => {
   invariant(root?.replaceChildren, 'root is required');
-  invariant(typeof input === 'string', 'raw JSONL text is required');
   const pattern = patterns[feature?.id];
   invariant(pattern, `unsupported feature ${String(feature?.id)}`);
+  const initialView = feature?.view ?? defaultViewForPattern(pattern);
+  invariant(initialView?.pattern === pattern, `view pattern must be ${pattern}`);
 
-  const records = parseSemanticMapRecords(input);
-  const store = new SemanticDomainStore(createSemanticMap(records));
+  const moduleResolver = new ModuleResolver();
+  const validateRecords = async (records, context) => {
+    const domain = createSemanticMap(records);
+    const modules = await moduleResolver.resolve(domain, context);
+    const scenes = validateSceneGraph(domain, modules, context.view);
+    return Object.freeze({ modules, scenes });
+  };
+  const envelope = await bootstrapEnvelope({ input, view: initialView, scope });
+  const runtime = await DecisionRuntime.create(envelope, {
+    validateRecords,
+    baseUrl: () => scope.location.href,
+    replaceUrl: url => scope.history.replaceState(scope.history.state, '', url),
+  });
+
+  const initialDomain = createSemanticMap(runtime.records);
+  const initialModules = await moduleResolver.resolve(initialDomain, {
+    mapId: runtime.mapId,
+    head: runtime.head,
+    view: runtime.view,
+  });
+  const store = new SemanticDomainStore(initialDomain);
+  runtime.attachStore(store);
+
   const surface = await mountSemanticMapSurface({
     featureId: feature.id,
     mode: 'authoring',
@@ -49,28 +72,36 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
     root,
     scope,
     store,
-    view: feature?.view ?? null,
+    view: runtime.view,
+    modules: initialModules,
   });
   const { adapter, canvas } = surface;
 
   adapter.setOperationHandler(operation => {
-    const prepared = prepareRuntimeOperation(operation, store, scope);
-    const view = surface.view;
-    const configKey = patternConfigKey(view.pattern);
+    const prepared = runtime.prepareLocalOperation(operation);
+    const configKey = patternConfigKey(runtime.view.pattern);
     const batch = store.performBatch([prepared], candidate => validatePatternDomain(
       candidate.domain,
-      view.pattern,
-      configKey === null ? null : view[configKey],
+      runtime.view.pattern,
+      configKey === null ? null : runtime.view[configKey],
     ));
     return batch.results[0];
   });
-  adapter.setActivationHandler(activation => {
+  adapter.setActivationHandler(async activation => {
     invariant(activation?.kind === 'set-view', `unsupported activation ${String(activation?.kind)}`);
     const nextView = activation.view;
     invariant(nextView?.pattern === pattern, `activation view pattern must be ${pattern}`);
     const configKey = patternConfigKey(nextView.pattern);
     validatePatternDomain(store.domain, nextView.pattern, configKey === null ? null : nextView[configKey]);
-    return surface.setView(nextView);
+    const previous = surface.view;
+    const rendered = surface.setView(nextView);
+    try {
+      await runtime.changeView(nextView);
+      return rendered;
+    } catch (error) {
+      surface.setView(previous);
+      throw error;
+    }
   });
   adapter.setErrorHandler(surface.queueRender);
   adapter.setTool('select');
@@ -89,7 +120,33 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
       selection: adapter.selectionSnapshot(),
     }),
   });
-  scope.semanticMapSite = Object.freeze({ ready: true, error: null, editor });
+  const app = Object.freeze({
+    ready: true,
+    adapter,
+    store,
+    projectDomain: surface.projectDomain,
+  });
+  scope.semanticMapRuntime = runtime;
+  scope.semanticMapModuleResolver = moduleResolver;
+  scope.semanticMapApp = app;
+  scope.semanticMapSite = Object.freeze({ ready: true, error: null, editor, runtime });
+
+  let moduleRevision = 0;
+  store.onChange(() => {
+    const revision = ++moduleRevision;
+    queueMicrotask(async () => {
+      try {
+        const modules = await moduleResolver.resolve(store.domain, {
+          mapId: runtime.mapId,
+          head: runtime.head,
+          view: runtime.view,
+        });
+        if (revision === moduleRevision) surface.setModules(modules);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  });
 
   scope.document.addEventListener('keydown', event => {
     const target = event.target;
@@ -116,6 +173,19 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
     }
   });
 
+  await Promise.all([
+    import('./authoring/handoff.js'),
+    import('./authoring/review.js'),
+  ]);
+  await Promise.all([
+    waitFor('semanticMapHandoff'),
+    waitFor('semanticMapReview'),
+  ]);
+  const handoffButton = scope.document.getElementById('handoff-fab');
+  invariant(handoffButton, 'canonical handoff control is missing');
+  handoffButton.disabled = false;
+  scope.document.documentElement.dataset.semanticHandoff = 'ready';
+
   const svg = Boolean(canvas.querySelector('svg'));
   invariant(svg, 'rendered SVG is missing');
   const activeList = adapter.activeList?.snapshot?.() ?? null;
@@ -125,9 +195,10 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
     schema: 'semantic-map-feature-receipt/1',
     feature: feature.id,
     pattern: scene.pattern,
-    records: records.length,
+    records: runtime.records.length,
     svg,
     authoring: true,
+    handoff: 'semantic-map-handoff/2',
     activeItems: activeList.items.length,
   });
 };
