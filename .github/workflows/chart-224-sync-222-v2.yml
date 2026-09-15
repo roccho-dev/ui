@@ -1,0 +1,192 @@
+name: Chart 224 sync 222 three-way v2
+
+on:
+  push:
+    branches:
+      - proof/chart-data-url-codec-260915
+
+permissions:
+  contents: write
+
+env:
+  TARGET_BRANCH: sync/chart-224-with-222-260915
+  TARGET_HEAD: b682eef6cbe7f5a0ff2a76618a515d3e73216c91
+  BASE_BRANCH: archive/ui213-pre-216-260914
+  BASE_HEAD: f2dd463c372d18761834313183258e2c6ab31b92
+  PR224_BRANCH: feat/chart-first-class-260915
+  CHART_SOURCE_COMMIT: b682eef6cbe7f5a0ff2a76618a515d3e73216c91
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+      - name: Exact three-way merge
+        run: |
+          set -euo pipefail
+          git config user.name "roccho-sync-proof"
+          git config user.email "40359643+roccho-dev@users.noreply.github.com"
+          git fetch --no-tags origin "$BASE_BRANCH" "$PR224_BRANCH" "$TARGET_BRANCH"
+          test "$(git rev-parse HEAD)" = "$TARGET_HEAD"
+          test "$(git rev-parse origin/$TARGET_BRANCH)" = "$TARGET_HEAD"
+          test "$(git rev-parse origin/$PR224_BRANCH)" = "$TARGET_HEAD"
+          test "$(git rev-parse origin/$BASE_BRANCH)" = "$BASE_HEAD"
+          set +e
+          git merge --no-ff --no-commit "$BASE_HEAD" > "$RUNNER_TEMP/merge.log" 2>&1
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/merge.log"
+          test "$code" -eq 1
+          git diff --name-only --diff-filter=U | sort > "$RUNNER_TEMP/conflicts.txt"
+          cat > "$RUNNER_TEMP/expected-conflicts.txt" <<'EOF'
+          apps/artifact-shell/generated/capability-registry.mjs
+          packages/semantic-map/feature-runtime.mjs
+          packages/semantic-map/tests/authoring_boundary_test.mjs
+          EOF
+          diff -u "$RUNNER_TEMP/expected-conflicts.txt" "$RUNNER_TEMP/conflicts.txt"
+
+      - name: Resolve only the three witnessed conflicts
+        run: |
+          set -euo pipefail
+          # Generated projection: regenerate after semantic sources are resolved.
+          git checkout --ours apps/artifact-shell/generated/capability-registry.mjs
+
+          # Latest #222 runtime is authoritative for Graph layout; add only #224 Chart/view semantics.
+          git checkout --theirs packages/semantic-map/feature-runtime.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/semantic-map/feature-runtime.mjs')
+          s = p.read_text()
+          old = "const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1' });"
+          new = "const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1', chart: 'chart/1' });"
+          assert s.count(old) == 1
+          s = s.replace(old, new)
+          old = "  const view = defaultViewForPattern(pattern);"
+          new = "  let view = feature?.view ?? defaultViewForPattern(pattern);\n  invariant(view?.pattern === pattern, `feature view pattern must be ${pattern}`);"
+          assert s.count(old) == 1
+          s = s.replace(old, new)
+          needle = """  adapter.setOperationHandler(operation => {\n    const prepared = prepareRuntimeOperation(operation, store, scope);\n    const configKey = patternConfigKey(view.pattern);\n    const batch = store.performBatch([prepared], candidate => validatePatternDomain(\n      candidate.domain,\n      view.pattern,\n      configKey === null ? null : view[configKey],\n    ));\n    return batch.results[0];\n  });\n"""
+          assert s.count(needle) == 1
+          activation = """  adapter.setActivationHandler(activation => {\n    invariant(activation?.kind === 'set-view', `unsupported activation ${String(activation?.kind)}`);\n    const nextView = activation.view;\n    invariant(nextView?.pattern === pattern, `activation view pattern must be ${pattern}`);\n    const configKey = patternConfigKey(nextView.pattern);\n    validatePatternDomain(\n      store.domain,\n      nextView.pattern,\n      configKey === null ? null : nextView[configKey],\n    );\n    const previousView = view;\n    view = nextView;\n    try {\n      const nextScene = render();\n      return Object.freeze({ kind: 'set-view', pattern: nextScene.pattern });\n    } catch (error) {\n      view = previousView;\n      render();\n      throw error;\n    }\n  });\n"""
+          s = s.replace(needle, needle + activation)
+          p.write_text(s)
+          PY
+
+          # Latest #222 retirement contract is authoritative; add #224 canonical authoring assertions.
+          git checkout --theirs packages/semantic-map/tests/authoring_boundary_test.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/semantic-map/tests/authoring_boundary_test.mjs')
+          s = p.read_text()
+          needle = "const activeList = read('packages/semantic-map/renderer-maxgraph/authoring/active-list.js');\n"
+          add = """const semanticGraph = read('packages/semantic-map/renderer-maxgraph/create-semantic-graph.js');\nconst adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');\nconst styles = read('packages/semantic-map/renderer-maxgraph/styles.js');\nconst featureRuntime = read('packages/semantic-map/feature-runtime.mjs');\n"""
+          assert s.count(needle) == 1
+          s = s.replace(needle, needle + add)
+          needle = "assert.match(authoringIndex, /activeList/);\n"
+          add = """assert.match(authoringIndex, /semanticRegionId/);\nassert.match(authoringIndex, /sourceRegionId/);\nassert.match(semanticGraph, /sourceLabel \\?\\? getEditingValue/);\nassert.match(adapter, /getPlugin\\('CellEditorHandler'\\)/);\nassert.match(adapter, /editingPlugin\\?\\.editingCell === cell/);\nassert.match(adapter, /editingPlugin\\?\\.textarea\\?\\.isConnected/);\nassert.match(featureRuntime, /setActivationHandler/);\nassert.match(featureRuntime, /activation\\?\\.kind === 'set-view'/);\nassert.match(featureRuntime, /view = nextView/);\nassert.match(featureRuntime, /view = previousView/);\nconst vectorSectorStart = styles.indexOf(\"case 'vector-sector':\");\nconst vectorSectorEnd = styles.indexOf(\"case 'seq-step':\", vectorSectorStart);\nassert.ok(vectorSectorStart >= 0 && vectorSectorEnd > vectorSectorStart);\nconst vectorSectorStyle = styles.slice(vectorSectorStart, vectorSectorEnd);\nassert.doesNotMatch(vectorSectorStyle, /(?:fontSize: 0|selectable: false|editable: false|connectable: false|deletable: false)/);\n"""
+          assert s.count(needle) == 1
+          s = s.replace(needle, needle + add)
+          s = s.replace("'semantic-map-maxgraph-authoring-boundary-test/5'", "'semantic-map-maxgraph-authoring-boundary-test/6'")
+          p.write_text(s)
+          PY
+
+          git add packages/semantic-map/feature-runtime.mjs packages/semantic-map/tests/authoring_boundary_test.mjs apps/artifact-shell/generated/capability-registry.mjs
+          test -z "$(git diff --name-only --diff-filter=U)"
+
+      - name: Admit only intended migrated-source evolutions
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const manifestPath = 'packages/semantic-map/migration-manifest.json';
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const allowed = new Set([
+            'packages/semantic-map/pattern/view-types/chart/projection.js',
+            'packages/semantic-map/projection/projector.js',
+            'packages/semantic-map/renderer-maxgraph/adapter.js',
+            'packages/semantic-map/renderer-maxgraph/authoring/active-list.js',
+            'packages/semantic-map/renderer-maxgraph/authoring/index.js',
+            'packages/semantic-map/renderer-maxgraph/create-semantic-graph.js',
+            'packages/semantic-map/renderer-maxgraph/styles.js',
+          ]);
+          const evolutions = manifest.evolutions ??= [];
+          const currentExpected = target => {
+            const entry = manifest.entries.find(item => item.target === target);
+            if (!entry) return null;
+            let expected = entry.targetSha256;
+            for (const evolution of evolutions.filter(item => item.target === target)) {
+              if (evolution.fromSha256 !== expected) throw new Error(`${target}: broken existing evolution chain`);
+              expected = evolution.toSha256;
+            }
+            return expected;
+          };
+          const mismatches = [];
+          for (const entry of manifest.entries) {
+            const bytes = fs.readFileSync(entry.target);
+            const actual = crypto.createHash('sha256').update(bytes).digest('hex');
+            const expected = currentExpected(entry.target);
+            if (actual !== expected) mismatches.push({ target: entry.target, expected, actual });
+          }
+          console.log(JSON.stringify({ mismatches }, null, 2));
+          if (!mismatches.length) throw new Error('expected at least one #224 migrated-source evolution');
+          for (const item of mismatches) {
+            if (!allowed.has(item.target)) throw new Error(`unapproved migrated-source mismatch: ${item.target}`);
+          }
+          for (const item of mismatches) {
+            const id = `chart-integration-${item.target.split('/').slice(-2).join('-').replaceAll('.', '-')}-260915/1`;
+            if (evolutions.some(e => e.id === id && e.target === item.target)) throw new Error(`duplicate evolution ${id}`);
+            evolutions.push({
+              id,
+              reason: 'integrate first-class Chart authoring and projection semantics from #224',
+              sourceCommit: process.env.CHART_SOURCE_COMMIT,
+              sourcePath: item.target,
+              target: item.target,
+              fromSha256: item.expected,
+              toSha256: item.actual,
+            });
+          }
+          fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+          git add packages/semantic-map/migration-manifest.json
+          node tests/check-semantic-map-migration.mjs
+
+      - name: Regenerate and run full gates
+        run: |
+          set -euo pipefail
+          npm run build:artifact-shell-registry
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          git diff --check
+          node packages/semantic-map/tests/authoring_boundary_test.mjs
+          node packages/semantic-map/tests/chart_test.mjs
+          node packages/semantic-map/tests/run.mjs
+          npm run check:artifact-runtime-core
+          npm run check:semantic-map-runtime
+          npm run build:artifact-shell-publication -- --out="$RUNNER_TEMP/publication"
+          for variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do
+            test -f "$RUNNER_TEMP/publication/adapters/chart/$variant/index.html"
+          done
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+
+      - name: Commit and push isolated validated merge
+        run: |
+          set -euo pipefail
+          git commit -m "Merge #222 into #224: preserve Chart and latest Semantic Map runtime"
+          merge_sha="$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD^1)" = "$TARGET_HEAD"
+          test "$(git rev-parse HEAD^2)" = "$BASE_HEAD"
+          git push origin "HEAD:$TARGET_BRANCH"
+          printf '%s\n' "$merge_sha" | tee "$RUNNER_TEMP/merge-sha.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chart-224-sync-222-integration-v2
+          path: |
+            ${{ runner.temp }}/merge.log
+            ${{ runner.temp }}/conflicts.txt
+            ${{ runner.temp }}/merge-sha.txt
+          if-no-files-found: warn
