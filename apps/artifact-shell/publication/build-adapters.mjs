@@ -30,36 +30,36 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
 ]);
 
 const variantIdPattern = /^[a-z][a-z0-9-]*$/u;
-const readSource = async (repoRoot, source) => {
+const readSourceFile = async (repoRoot, source) => {
   const sourcePath = path.join(repoRoot, source);
   return source.endsWith('.jsonl') ? fs.readFile(sourcePath, 'utf8') : JSON.parse(await fs.readFile(sourcePath, 'utf8'));
 };
-const featureExampleHref = async ({ adapter, source }) => {
-  const encoded = new URL(await createUrlModuleUrl({
-    base: `https://artifact-shell.invalid/adapters/${adapter.id}/`,
-    fragment: 'data',
-    value: source,
+const readSource = async (repoRoot, source) => {
+  if (typeof source === 'string') return readSourceFile(repoRoot, source);
+  if (!source || Array.isArray(source) || typeof source !== 'object') throw new Error('artifact-adapters: source must be a path or named path object');
+  const entries = await Promise.all(Object.entries(source).map(async ([id, sourcePath]) => {
+    if (typeof sourcePath !== 'string' || !sourcePath) throw new Error(`artifact-adapters: source ${id} path required`);
+    return [id, await readSourceFile(repoRoot, sourcePath)];
   }));
+  return Object.freeze(Object.fromEntries(entries));
+};
+const featureExampleHref = async ({ adapter, source }) => {
+  const encoded = new URL(await createUrlModuleUrl({ base: `https://artifact-shell.invalid/adapters/${adapter.id}/`, fragment: 'data', value: source }));
   return `adapters/${adapter.id}/${encoded.hash}`;
 };
 
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
   const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createChartAdapter(), createPresentationAdapter(), createControlAdapter()];
   if (new Set(adapters.map(adapter => adapter.id)).size !== adapters.length) throw new Error('artifact-adapters: duplicate id');
-
   await fs.copyFile(path.join(appRoot, 'src', 'adapter.mjs'), path.join(outputRoot, 'adapter.mjs'));
   await fs.copyFile(path.join(appRoot, 'publication', 'adapter-host.css'), path.join(outputRoot, 'adapter.css'));
-  for (const relative of PUBLIC_MODULE_ROOTS) {
-    await fs.cp(path.join(repoRoot, relative), path.join(outputRoot, 'modules', relative), { recursive: true });
-  }
+  for (const relative of PUBLIC_MODULE_ROOTS) await fs.cp(path.join(repoRoot, relative), path.join(outputRoot, 'modules', relative), { recursive: true });
   const adapterHost = await fs.readFile(path.join(appRoot, 'publication', 'adapter-host.html'));
   const featureExamples = new Map();
-
   for (const adapter of adapters) {
     const source = await readSource(repoRoot, adapter.source);
     const root = path.join(outputRoot, 'adapters', adapter.id);
     await fs.mkdir(root, { recursive: true });
-
     if (adapter.kind === 'feature') {
       featureExamples.set(adapter.id, await featureExampleHref({ adapter, source }));
       await materializeFeature({ adapter, outputRoot, repoRoot, root });
@@ -70,14 +70,7 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
         if (!variantIdPattern.test(variant.id)) throw new Error(`artifact-adapters: ${adapter.id} invalid variant id ${String(variant.id)}`);
         if (typeof variant.source !== 'string' || !variant.source) throw new Error(`artifact-adapters: ${adapter.id}/${variant.id} source required`);
         await fs.access(path.join(repoRoot, variant.source));
-        await materializeFeature({
-          adapter,
-          outputRoot,
-          repoRoot,
-          root: path.join(root, variant.id),
-          view: variant.view,
-          label: `${adapter.label}/${variant.id}`,
-        });
+        await materializeFeature({ adapter, outputRoot, repoRoot, root: path.join(root, variant.id), view: variant.view, label: `${adapter.label}/${variant.id}` });
       }
       continue;
     }
@@ -88,7 +81,6 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     await fs.writeFile(path.join(root, 'adapter.json'), `${canonicalJson(published)}\n`);
     await fs.writeFile(path.join(root, 'index.html'), adapterHost);
   }
-
   const launcherPath = path.join(outputRoot, 'index.html');
   let launcher = await fs.readFile(launcherPath, 'utf8');
   for (const [id, href] of featureExamples) {
@@ -97,6 +89,5 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     launcher = launcher.replace(marker, `href="${href}"`);
   }
   await fs.writeFile(launcherPath, launcher);
-
   return Object.freeze(adapters.map(adapter => adapter.id));
 };
