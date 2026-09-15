@@ -431,10 +431,6 @@ class EditorCoreState extends DomainStateStore {
     return this.snapshot();
   }
 
-  workspace() {
-    return createWorkspace(this.toRecords(), { selection: this.selection, frame: this.frame });
-  }
-
   snapshotSession() {
     return Object.freeze({
       domain: super.snapshotSession(),
@@ -525,12 +521,6 @@ function publicCore(state) {
     writable: false,
     configurable: false,
   });
-  Object.defineProperty(api, 'workspace', {
-    value: () => state.workspace(),
-    enumerable: false,
-    writable: false,
-    configurable: false,
-  });
   return Object.freeze(api);
 }
 
@@ -544,6 +534,10 @@ export function createSemanticMapEditorCore({
 }
 
 export function editorDocumentBytes(core) {
-  invariant(core && typeof core.workspace === 'function', 'EditorCore is required');
-  return workspaceBytes(core.workspace());
+  invariant(core && typeof core.snapshot === 'function', 'EditorCore is required');
+  const snapshot = core.snapshot();
+  return workspaceBytes(createWorkspace(snapshot.records, {
+    selection: snapshot.selection,
+    frame: snapshot.frame,
+  }));
 }
