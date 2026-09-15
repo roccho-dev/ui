@@ -2,13 +2,8 @@ import { createUrlModuleUrl, readUrlModule } from '../../packages/url-module/src
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`ui-preview: ${message}`); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-const cases = Object.freeze(__UI_PREVIEW_CASES__.map(item => Object.freeze({
-  ...item,
-  feature: Object.freeze({ ...item.feature, styles: Object.freeze([...item.feature.styles]) }),
-})));
-const byId = new Map(cases.map(item => [item.id, item]));
-invariant(byId.size === cases.length, 'duplicate case id');
 
+const featureModules = import.meta.glob('../../packages/*/feature.mjs', { eager: true });
 const runtimeModules = import.meta.glob([
   '../../packages/**/feature-runtime.mjs',
   '../../packages/**/*-feature-runtime.mjs',
@@ -21,28 +16,103 @@ const jsonlExamples = import.meta.glob('../../examples/**/*.jsonl', { eager: tru
 const jsonExamples = import.meta.glob('../../examples/**/*.json', { eager: true, import: 'default' });
 const moduleKey = path => `../../${path}`;
 
-const sourceValue = (sourcePath, id) => {
-  if (sourcePath.endsWith('.jsonl')) {
-    const value = jsonlExamples[moduleKey(sourcePath)];
-    invariant(typeof value === 'string', `${id}: example missing ${sourcePath}`);
-    return value;
-  }
-  if (sourcePath.endsWith('.json')) {
-    const value = jsonExamples[moduleKey(sourcePath)];
-    invariant(plain(value), `${id}: example missing ${sourcePath}`);
-    return value;
-  }
-  throw new Error(`ui-preview: ${id}: unsupported source ${sourcePath}`);
+const exampleFiles = new Map();
+const registerExample = (path, value) => {
+  const prefix = '../../examples/';
+  invariant(path.startsWith(prefix), `unexpected example path ${path}`);
+  const relative = path.slice(prefix.length);
+  const parts = relative.split('/');
+  if (parts.length !== 2) return;
+  const match = /^(.*)\.(jsonl|json)$/u.exec(parts[1]);
+  invariant(match, `unsupported example file ${relative}`);
+  const key = `${parts[0]}/${match[1]}`;
+  invariant(!exampleFiles.has(key), `duplicate example key ${key}`);
+  exampleFiles.set(key, Object.freeze({ group: parts[0], name: match[1], extension: match[2], path: `examples/${relative}`, value }));
 };
-const inputFor = item => {
-  if (typeof item.source === 'string') return sourceValue(item.source, item.id);
-  invariant(plain(item.source), `${item.id}: source must be a path or named paths`);
-  return Object.freeze(Object.fromEntries(Object.entries(item.source).map(([name, sourcePath]) => [name, sourceValue(sourcePath, item.id)])));
+for (const [path, value] of Object.entries(jsonlExamples)) registerExample(path, value);
+for (const [path, value] of Object.entries(jsonExamples)) registerExample(path, value);
+
+const consumed = new Set();
+const takeNamed = (group, name, caseId) => {
+  const example = exampleFiles.get(`${group}/${name}`);
+  invariant(example, `${caseId}: example missing ${group}/${name}`);
+  consumed.add(example.path);
+  return example;
 };
+const takeSingleJsonl = (group, caseId) => {
+  const matches = [...exampleFiles.values()].filter(example => example.group === group && example.extension === 'jsonl');
+  invariant(matches.length === 1, `${caseId}: ${group} must contain exactly one JSONL input`);
+  consumed.add(matches[0].path);
+  return matches[0];
+};
+
+const freezeFeature = feature => Object.freeze({ ...feature, styles: Object.freeze([...(feature.styles ?? [])]) });
+const discovered = [];
+const addCase = ({ id, input, source, feature }) => {
+  invariant(typeof id === 'string' && id, 'case id required');
+  invariant(feature?.id === id || id.startsWith(`${feature?.id}/`), `${id}: feature id mismatch`);
+  invariant(typeof feature.entry === 'string' && feature.entry, `${id}: feature entry required`);
+  invariant(Array.isArray(feature.styles), `${id}: feature styles required`);
+  discovered.push(Object.freeze({ id, label: id, input, source, feature: freezeFeature(feature) }));
+};
+
+for (const [path, loaded] of Object.entries(featureModules).sort(([left], [right]) => left.localeCompare(right))) {
+  if (!Array.isArray(loaded.featureIds)) continue;
+  invariant(loaded.featureIds.length > 0, `${path}: featureIds required`);
+  invariant(new Set(loaded.featureIds).size === loaded.featureIds.length, `${path}: duplicate feature id`);
+  invariant(typeof loaded.getFeature === 'function', `${path}: getFeature export required`);
+
+  for (const featureId of loaded.featureIds) {
+    const baseFeature = loaded.getFeature(featureId);
+    const contract = baseFeature.input;
+    invariant(contract !== undefined, `${featureId}: input contract required`);
+
+    if (typeof contract === 'string') {
+      const example = takeSingleJsonl(contract, featureId);
+      addCase({ id: featureId, input: example.value, source: example.path, feature: baseFeature });
+      continue;
+    }
+
+    if (Array.isArray(contract)) {
+      invariant(contract.length > 0 && new Set(contract).size === contract.length, `${featureId}: named inputs must be unique`);
+      const entries = contract.map(name => {
+        invariant(typeof name === 'string' && name, `${featureId}: named input required`);
+        return [name, takeNamed(featureId, name, featureId)];
+      });
+      addCase({
+        id: featureId,
+        input: Object.freeze(Object.fromEntries(entries.map(([name, example]) => [name, example.value]))),
+        source: Object.freeze(Object.fromEntries(entries.map(([name, example]) => [name, example.path]))),
+        feature: baseFeature,
+      });
+      continue;
+    }
+
+    invariant(plain(contract) && Array.isArray(contract.variants), `${featureId}: unsupported input contract`);
+    invariant(contract.variants.length > 0, `${featureId}: variants required`);
+    invariant(new Set(contract.variants).size === contract.variants.length, `${featureId}: duplicate variant`);
+    invariant(contract.default === undefined || contract.variants.includes(contract.default), `${featureId}: default variant must be supported`);
+    for (const variant of contract.variants) {
+      invariant(typeof variant === 'string' && variant, `${featureId}: variant id required`);
+      const id = `${featureId}/${variant}`;
+      const example = takeNamed(featureId, variant, id);
+      const feature = loaded.getFeature(featureId, variant);
+      addCase({ id, input: example.value, source: example.path, feature });
+      if (contract.default === variant) addCase({ id: featureId, input: example.value, source: example.path, feature });
+    }
+  }
+}
+
+for (const example of exampleFiles.values()) invariant(consumed.has(example.path), `orphan example ${example.path}`);
+discovered.sort((left, right) => left.id.localeCompare(right.id));
+const cases = Object.freeze(discovered);
+const byId = new Map(cases.map(item => [item.id, item]));
+invariant(byId.size === cases.length, 'duplicate case id');
+
 const hrefFor = async item => createUrlModuleUrl({
   base: new URL(`?case=${encodeURIComponent(item.id)}`, globalThis.location.href).href,
   fragment: 'data',
-  value: inputFor(item),
+  value: item.input,
 });
 
 const renderLauncher = async () => {
@@ -84,7 +154,7 @@ const renderFeature = async item => {
   document.title = `UI · ${item.label}`;
   const mounted = await runtime.mountFeature({ feature, input, root, scope: globalThis });
   document.documentElement.dataset.status = 'pass';
-  globalThis.uiPreviewProof = Object.freeze({ status: 'PASS', mode: 'feature', caseId: item.id, feature, mounted: mounted ?? null });
+  globalThis.uiPreviewProof = Object.freeze({ status: 'PASS', mode: 'feature', caseId: item.id, source: item.source, feature, mounted: mounted ?? null });
 };
 
 const boot = async () => {
