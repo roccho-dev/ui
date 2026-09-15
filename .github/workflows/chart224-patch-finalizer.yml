@@ -1,0 +1,50 @@
+name: Patch Chart 224 finalizer
+
+on:
+  push:
+    branches: [control/chart224-finalize-54ba-v2-260915]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'ci: patch finalizer migration target handling'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: control/chart224-finalize-54ba-v2-260915
+          persist-credentials: true
+      - name: Patch tracked or untracked migration target logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/chart224-finalize-54ba.yml')
+          s=p.read_text()
+          old="""          const target=process.env.TARGET; const prior=(m.evolutions??[]).filter(x=>x.target===target).at(-1); if(!prior) throw new Error('missing prior evolution');
+          const to=crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
+          m.evolutions.push({id:'chart-unified-surface-runtime-260915/1',target,fromSha256:prior.toSha256,toSha256:to,sourceCommit:process.env.SOURCE_COMMIT,sourcePath:target,reason:'carry-chart-view-presets-and-set-view-activation-through-unified-surface-runtime'});
+          fs.writeFileSync(path,JSON.stringify(m,null,2)+'\\n');"""
+          new="""          const target=process.env.TARGET;
+          const prior=(m.evolutions??[]).filter(x=>x.target===target).at(-1);
+          const entry=(m.entries??[]).find(x=>x.target===target);
+          const from=prior?.toSha256 ?? entry?.targetSha256 ?? null;
+          if(from){
+            const to=crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
+            m.evolutions.push({id:'chart-unified-surface-runtime-260915/1',target,fromSha256:from,toSha256:to,sourceCommit:process.env.SOURCE_COMMIT,sourcePath:target,reason:'carry-chart-view-presets-and-set-view-activation-through-unified-surface-runtime'});
+            fs.writeFileSync(path,JSON.stringify(m,null,2)+'\\n');
+          } else {
+            console.log(`migration target not tracked: ${target}`);
+          }"""
+          if s.count(old)!=1:
+              raise SystemExit(f'patch anchor count={s.count(old)}')
+          p.write_text(s.replace(old,new))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/chart224-finalize-54ba.yml
+          git commit -m 'ci: handle untracked unified feature runtime'
+          git push origin HEAD:control/chart224-finalize-54ba-v2-260915
