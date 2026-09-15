@@ -1,7 +1,7 @@
 import { SemanticDomainStore as DomainStateStore } from '../domain/domain-store.js';
 import { executeReconnectRelation, normalizeOperation } from '../domain/editor-operation.js';
 import { createSemanticMap } from '../domain/semantic-map.js';
-import { gestureToOperation } from './commands.js';
+import { assertSurfaceGesture, gestureToOperation } from './commands.js';
 import {
   assertAuthorityPort,
   assertDocumentPort,
@@ -385,10 +385,9 @@ class EditorCoreState extends DomainStateStore {
   acceptGesture(gesture) {
     invariant(!this.destroyed, 'core is destroyed');
     invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
-    invariant(gesture && typeof gesture === 'object', 'gesture is required');
+    assertSurfaceGesture(gesture);
     switch (gesture.type) {
       case 'selection.changed':
-      case 'selection-changed':
         return this.changeSelection(gesture.selection, 'surface');
       case 'camera.changed':
         return this.transaction('presentation', null, () => ({

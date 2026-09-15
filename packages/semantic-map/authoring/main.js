@@ -1,4 +1,6 @@
-import { createSemanticMapEditorCore, normalizeOperation } from '../domain/index.js';
+import { normalizeOperation } from '../domain/index.js';
+import { createSemanticMapEditorCore } from '../editor-core/index.js';
+import { commandForKey } from '../editor-core/commands.js';
 import { SemanticProjector, projectorThresholds } from '../projection/index.js';
 import { PATTERN_SEQ, normalizeView } from '../protocol/index.js';
 import { patternCapabilities, patternConfigKey, validatePatternDomain } from '../pattern/index.js';
@@ -42,7 +44,7 @@ function showToast(message, isError = false) {
   }, isError ? 3200 : 1700);
 }
 
-function installTouchNavigation({ container, adapter, minimumScale }) {
+function installTouchNavigation({ container, adapter, minimumScale, signal }) {
   if (!globalThis.PointerEvent) {
     return Object.freeze({ snapshot: () => ({ enabled: false, mode: 'native', pointers: 0 }) });
   }
@@ -252,7 +254,14 @@ function installTouchNavigation({ container, adapter, minimumScale }) {
     }
   }
 
-  const options = { capture: true, passive: false };
+  signal.addEventListener('abort', () => {
+    for (const id of pointers.keys()) release(id);
+    pointers.clear();
+    intercepted.clear();
+    adapter.cancelCameraPreview();
+  }, { once: true });
+
+  const options = { capture: true, passive: false, signal };
   container.addEventListener('pointerdown', onPointerDown, options);
   container.addEventListener('pointermove', onPointerMove, options);
   container.addEventListener('pointerup', onPointerEnd, options);
@@ -271,6 +280,13 @@ function installTouchNavigation({ container, adapter, minimumScale }) {
 
 export async function createSemanticMapEditor(initialDomain, options = {}) {
   const readOnly = options.readOnly === true;
+  const lifetime = new AbortController();
+  const listenerOptions = { signal: lifetime.signal };
+  const disposers = [];
+  let destroyed = false;
+  let labelEditor = null;
+  let displayErrorShown = false;
+  if (!container.hasAttribute('tabindex')) container.tabIndex = 0;
   const moduleResolver = options.moduleResolver ?? null;
   const moduleContext = options.moduleContext ?? (() => ({}));
   const projectPresentation = options.projectPresentation ?? (() => null);
@@ -314,7 +330,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     },
     commit: ({ revision }) => Object.freeze({ revision }),
     reload: ({ input, expectedRevision }) => Object.freeze({ input, revision: expectedRevision }),
-    renderChrome: () => updateControls(),
+    renderChrome: viewModel => updateControls(viewModel),
   });
   const authorityPort = Object.freeze({
     authorize: () => Object.freeze({
@@ -360,6 +376,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   let renderQueued = false;
+  let renderFrame = 0;
   let lastScene = null;
   let elementCompositionKey = null;
   let currentTool = 'select';
@@ -370,12 +387,12 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     projector.setPresentationProjection(lastPresentationProjection);
   }
 
-  function updateControls() {
-    const draft = store.draftSnapshot();
-    const selection = adapter.selectionSnapshot();
-    undoButton.disabled = !draft.canUndo;
-    redoButton.disabled = !draft.canRedo;
-    deleteButton.disabled = selection.regionIds.length + selection.relationIds.length === 0;
+  function updateControls(viewModel = core.snapshot()) {
+    const { draft, selection } = viewModel;
+    undoButton.disabled = readOnly || !draft.canUndo;
+    redoButton.disabled = readOnly || !draft.canRedo;
+    addNodeButton.disabled = readOnly;
+    deleteButton.disabled = readOnly || selection.regionIds.length + selection.relationIds.length === 0;
     const selectedRepresentation = selection.regionIds.length === 1
       ? lastScene?.representations.find((item) => item.regionId === selection.regionIds[0])
       : null;
@@ -383,10 +400,19 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       ?? (selection.regionIds.length === 1 ? store.domain.regions.get(selection.regionIds[0])?.href : null);
     if (openLinkButton) openLinkButton.disabled = !linked;
     draftLabel.textContent = `Draft ${draft.applied} · redo ${draft.redo}`;
+    if (viewModel.display.status === 'error') {
+      showToast(viewModel.display.failures.map(failure => failure.message).join(' / '), true);
+      toastRun += 1; // A current display failure does not expire on a timer.
+      displayErrorShown = true;
+    } else if (displayErrorShown) {
+      toastRun += 1;
+      toast.hidden = true;
+      displayErrorShown = false;
+    }
   }
 
   function pruneSelection() {
-    const selection = adapter.selectionSnapshot();
+    const selection = core.snapshot().selection;
     const relationIds = new Set(store.domain.relations.map((relation) => relation.id));
     const nextRegions = selection.regionIds.filter((id) => store.domain.regions.has(id));
     const nextRelations = selection.relationIds.filter((id) => relationIds.has(id));
@@ -394,12 +420,14 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       nextRegions.length !== selection.regionIds.length
       || nextRelations.length !== selection.relationIds.length
     ) {
-      adapter.setSelection({ regionIds: nextRegions, relationIds: nextRelations });
+      core.dispatch({ type: 'selection.set', selection: { regionIds: nextRegions, relationIds: nextRelations } });
     }
   }
 
   function render() {
+    renderFrame = 0;
     renderQueued = false;
+    if (destroyed) return;
     projector.setDomain(store.domain);
     const camera = adapter.camera();
     const scene = projector.project({ scale: camera.scale, viewport: adapter.viewport() });
@@ -420,9 +448,9 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   function queueRender() {
-    if (renderQueued) return;
+    if (destroyed || renderQueued) return;
     renderQueued = true;
-    requestAnimationFrame(render);
+    renderFrame = requestAnimationFrame(render);
   }
 
   async function refreshModules() {
@@ -430,14 +458,14 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     const revision = ++moduleRevision;
     try {
       const resolved = await moduleResolver.resolve(store.domain, { ...moduleContext(), view: currentView });
-      if (revision !== moduleRevision) return modules;
+      if (destroyed || revision !== moduleRevision) return modules;
       modules = resolved;
       moduleError = null;
       projector.setModules(resolved);
       queueRender();
       return resolved;
     } catch (error) {
-      if (revision !== moduleRevision) return modules;
+      if (destroyed || revision !== moduleRevision) return modules;
       moduleError = error;
       projector.setModules(modules);
       showToast(error.message, true);
@@ -481,14 +509,14 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     showToast(error.message, true);
     queueRender();
   });
-  adapter.onSelectionChange(updateControls);
-  store.onChange(() => {
+  disposers.push(adapter.onSelectionChange(() => updateControls()));
+  disposers.push(store.onChange(() => {
     projector.setDomain(store.domain);
     refreshPresentationProjection();
     queueMicrotask(() => { void refreshModules(); });
     queueRender();
     updateControls();
-  });
+  }));
 
   function zoomAt(clientX, clientY, factor) {
     const camera = adapter.camera();
@@ -604,11 +632,11 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       return null;
     }
     if (currentView.pattern === PATTERN_SEQ) {
-      const selectedId = adapter.selectionSnapshot().regionIds[0] ?? null;
+      const selectedId = core.snapshot().selection.regionIds[0] ?? null;
       const selected = selectedId ? store.domain.regions.get(selectedId) : null;
       const actors = [...store.domain.regions.values()].filter((region) => region.kind === 'actor');
       if (currentView.seq.groupBy === 'actor' && actors.length === 0) {
-        const result = adapter.submitOperation({
+        const result = core.dispatch({
           type: 'AddRegion',
           parentId: store.domain.meta.root,
           label: 'Untitled actor',
@@ -617,16 +645,15 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
           bounds: [0, 0, 146, 60],
         });
         if (!result?.createdRegionId) return null;
-        adapter.selectRegion(result.createdRegionId);
         showToast('actorを追加しました');
-        requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
+        startEditingSelection();
         return result.createdRegionId;
       }
       const actor = currentView.seq.groupBy === 'actor'
         ? (selected?.kind === 'actor' ? selected.id : actors[0]?.id ?? null)
         : (selected?.kind === 'actor' ? selected.id : null);
       const interval = nextTemporal(currentView.seq.axis);
-      const result = adapter.submitOperation({
+      const result = core.dispatch({
         type: 'AddRegion',
         parentId: selected && selected.kind === 'task' ? selected.id : store.domain.meta.root,
         label: 'Untitled task',
@@ -636,13 +663,12 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
         temporal: { actor, [currentView.seq.axis]: interval },
       });
       if (!result?.createdRegionId) return null;
-      adapter.selectRegion(result.createdRegionId);
       showToast('seq itemを追加しました');
-      requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
+      startEditingSelection();
       return result.createdRegionId;
     }
 
-    const selectedId = adapter.selectionSnapshot().regionIds[0] ?? null;
+    const selectedId = core.snapshot().selection.regionIds[0] ?? null;
     const selectedRepresentation = lastScene?.representations.find(
       (representation) => representation.regionId === selectedId,
     );
@@ -653,7 +679,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       parentId = store.domain.regions.get(selectedId)?.parent ?? store.domain.meta.root;
     }
     const parent = store.domain.regions.get(parentId);
-    const result = adapter.submitOperation({
+    const result = core.dispatch({
       type: 'AddRegion',
       parentId,
       label: 'Untitled',
@@ -662,9 +688,8 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       bounds: Object.values(newNodeBounds(parent.bounds)),
     });
     if (!result?.createdRegionId) return null;
-    adapter.selectRegion(result.createdRegionId);
     showToast('ノードを追加しました');
-    requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
+    startEditingSelection();
     return result.createdRegionId;
   }
 
@@ -677,8 +702,11 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   function deleteSelection() {
-    const result = adapter.deleteSelection();
+    const selection = core.snapshot().selection;
+    if (!selection.regionIds.length && !selection.relationIds.length) return null;
+    const result = core.dispatch({ type: 'RemoveSelection', ...selection });
     if (result) showToast('選択を削除しました');
+    return result;
   }
 
   function openRegionLink(regionId, navigate = (url) => location.assign(url), base = location.href) {
@@ -691,7 +719,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   function openSelectedLink() {
-    const selection = adapter.selectionSnapshot();
+    const selection = core.snapshot().selection;
     if (selection.regionIds.length !== 1) return null;
     return openRegionLink(selection.regionIds[0]);
   }
@@ -700,19 +728,28 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     container,
     adapter,
     minimumScale,
+    signal: lifetime.signal,
   });
 
   container.addEventListener('wheel', (event) => {
     event.preventDefault();
     const factor = WHEEL_ZOOM_FACTOR ** (-wheelDeltaPixels(event) / WHEEL_PIXEL_STEP);
     zoomAt(event.clientX, event.clientY, factor);
-  }, { passive: false });
+  }, { passive: false, signal: lifetime.signal });
 
-  addNodeButton.addEventListener('click', addNode);
-  undoButton.addEventListener('click', undo);
-  redoButton.addEventListener('click', redo);
-  deleteButton.addEventListener('click', deleteSelection);
-  openLinkButton?.addEventListener('click', openSelectedLink);
+  addNodeButton.addEventListener('click', () => {
+    try { addNode(); } catch (error) { showToast(error.message, true); }
+  }, listenerOptions);
+  undoButton.addEventListener('click', () => {
+    try { undo(); } catch (error) { showToast(error.message, true); }
+  }, listenerOptions);
+  redoButton.addEventListener('click', () => {
+    try { redo(); } catch (error) { showToast(error.message, true); }
+  }, listenerOptions);
+  deleteButton.addEventListener('click', () => {
+    try { deleteSelection(); } catch (error) { showToast(error.message, true); }
+  }, listenerOptions);
+  openLinkButton?.addEventListener('click', openSelectedLink, listenerOptions);
 
   function isTextInput(event) {
     const target = event.target;
@@ -722,78 +759,79 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       || target?.isContentEditable;
   }
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key === ' ' && !isTextInput(event)) {
-      if (!event.repeat && spacePreviousTool === null) {
-        spacePreviousTool = currentTool;
-        setTool('hand');
+  function startEditingSelection() {
+    if (destroyed || readOnly) return false;
+    const selection = core.snapshot().selection;
+    if (selection.regionIds.length !== 1 || selection.relationIds.length) return false;
+    const regionId = selection.regionIds[0];
+    const record = core.snapshot().records.find(row => row.type === 'region' && row.id === regionId);
+    if (!record) return false;
+    labelEditor?.remove();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = record.label;
+    input.setAttribute('aria-label', '名前');
+    input.setAttribute('data-editor-label', regionId);
+    Object.assign(input.style, { position: 'absolute', left: '12px', top: '12px', zIndex: '10', width: 'min(320px, 80%)' });
+    labelEditor = input;
+    const close = (focus = true) => {
+      input.remove();
+      if (labelEditor === input) labelEditor = null;
+      if (focus && !destroyed) container.focus();
+    };
+    input.addEventListener('keydown', event => {
+      if (event.isComposing || event.keyCode === 229) return;
+      if (event.key !== 'Enter' && event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Escape') { close(); return; }
+      try {
+        core.dispatch({ type: 'RenameRegion', regionId, label: input.value });
+        close();
+      } catch (error) { showToast(error.message, true); }
+    }, listenerOptions);
+    input.addEventListener('blur', () => close(false), { ...listenerOptions, once: true });
+    container.append(input);
+    input.focus();
+    input.select();
+    return true;
+  }
+
+  const onKeyDown = event => {
+    const command = commandForKey(event, { selection: core.snapshot().selection, editing: isTextInput(event) });
+    if (!command) return;
+    event.preventDefault();
+    try {
+      switch (command.type) {
+        case 'node.create': addNode(); break;
+        case 'node.edit': startEditingSelection(); break;
+        case 'link.open': openSelectedLink(); break;
+        case 'tool.set': setTool(command.tool); break;
+        case 'tool.hold':
+          if (spacePreviousTool === null) { spacePreviousTool = currentTool; setTool(command.tool); }
+          break;
+        case 'interaction.cancel': adapter.cancelInteraction(); setTool('select'); break;
+        case 'RemoveSelection': deleteSelection(); break;
+        default: core.dispatch(command); break;
       }
-      event.preventDefault();
-      return;
-    }
-
-    const modifier = event.ctrlKey || event.metaKey;
-    if (modifier && !event.altKey && event.key.toLowerCase() === 'z') {
-      event.preventDefault();
-      if (event.shiftKey) redo();
-      else undo();
-      return;
-    }
-    if (modifier && !event.altKey && event.key.toLowerCase() === 'y') {
-      event.preventDefault();
-      redo();
-      return;
-    }
-    if (isTextInput(event)) return;
-
-    switch (event.key.toLowerCase()) {
-      case 'v':
-        setTool('select');
-        break;
-      case 'h':
-        setTool('hand');
-        break;
-      case 'n':
-        event.preventDefault();
-        addNode();
-        break;
-      case 'o':
-        event.preventDefault();
-        openSelectedLink();
-        break;
-      case 'delete':
-      case 'backspace':
-        event.preventDefault();
-        deleteSelection();
-        break;
-      case 'enter':
-      case 'f2':
-        event.preventDefault();
-        adapter.startEditingSelection();
-        break;
-      case 'escape':
-        adapter.cancelInteraction();
-        setTool('select');
-        break;
-      default:
-        break;
-    }
-  });
-
-  document.addEventListener('keyup', (event) => {
+    } catch (error) { showToast(error.message, true); }
+  };
+  document.addEventListener('keydown', onKeyDown, listenerOptions);
+  document.addEventListener('keyup', event => {
     if (event.key === ' ' && spacePreviousTool !== null) {
       const restore = spacePreviousTool;
       spacePreviousTool = null;
       setTool(restore);
       event.preventDefault();
     }
-  });
+  }, listenerOptions);
 
-  adapter.onCameraChange(queueRender);
-  new ResizeObserver(() => {
+  disposers.push(adapter.onCameraChange(queueRender));
+  const resizeObserver = new ResizeObserver(() => {
     if (!lastScene) resetCamera();
     else queueRender();
-  }).observe(container);
+  });
+  resizeObserver.observe(container);
 
   setTool('select');
   resetCamera();
@@ -894,7 +932,20 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     get view() { return currentView; },
     notify: showToast,
     showError: (message) => showToast(message, true),
-    destroy: () => core.destroy(),
+    destroy: () => {
+      if (destroyed) return false;
+      const result = core.destroy();
+      destroyed = true;
+      moduleRevision += 1;
+      lifetime.abort();
+      labelEditor?.remove();
+      labelEditor = null;
+      if (renderFrame) cancelAnimationFrame(renderFrame);
+      resizeObserver.disconnect();
+      for (const dispose of disposers) dispose?.();
+      if (globalThis.semanticMapApp === api) delete globalThis.semanticMapApp;
+      return result;
+    },
   });
   globalThis.semanticMapApp = api;
   return api;

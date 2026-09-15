@@ -2,85 +2,75 @@ function invariant(condition, message) {
   if (!condition) throw new Error(`editor-command: ${message}`);
 }
 
-function copyArray(value) {
-  return Array.isArray(value) ? value.map((item) => structuredClone(item)) : value;
-}
+export const SURFACE_GESTURES = Object.freeze([
+  'selection.changed',
+  'relation.connect',
+  'relation.reconnect',
+  'camera.changed',
+  'activation.requested',
+]);
 
-export function operationToGesture(operation) {
-  invariant(operation && typeof operation === 'object' && !Array.isArray(operation), 'operation is required');
-  const type = operation.type;
-  switch (type) {
-    case 'MoveRegions':
-      return Object.freeze({ type: 'move-regions', regionIds: copyArray(operation.regionIds), dx: operation.dx, dy: operation.dy });
-    case 'ResizeRegions':
-      return Object.freeze({ type: 'resize-regions', items: copyArray(operation.items) });
-    case 'PlaceTemporalRegions':
-      return Object.freeze({ type: 'place-temporal-regions', axis: operation.axis, items: copyArray(operation.items) });
-    case 'RenameRegion':
-      return Object.freeze({ type: 'rename-region', regionId: operation.regionId, label: operation.label });
-    case 'SetRegionOrder':
-      return Object.freeze({ type: 'set-region-order', regionId: operation.regionId, order: operation.order });
-    case 'SetRegionValue':
-      return Object.freeze({ type: 'set-region-value', regionId: operation.regionId, value: structuredClone(operation.value) });
-    case 'SetRegionLink':
-      return Object.freeze({ type: 'set-region-link', regionId: operation.regionId, href: operation.href });
-    case 'SetSetCompleteness':
-      return Object.freeze({ type: 'set-set-completeness', regionId: operation.regionId, complete: operation.complete });
-    case 'AddRegion': {
-      const { type: _type, ...fields } = operation;
-      return Object.freeze({ type: 'add-region', fields: structuredClone(fields) });
-    }
-    case 'ConnectRegions': {
-      const { type: _type, ...fields } = operation;
-      return Object.freeze({ type: 'relation.connect', ...structuredClone(fields) });
-    }
-    case 'MountRegionModule':
-      return Object.freeze({ type: 'mount-region-module', regionId: operation.regionId, src: operation.src });
-    case 'UnmountRegionModule':
-      return Object.freeze({ type: 'unmount-region-module', regionId: operation.regionId });
-    case 'RemoveSelection':
-      return Object.freeze({ type: 'remove-selection', regionIds: copyArray(operation.regionIds), relationIds: copyArray(operation.relationIds) });
-    case 'ReconnectRelation':
-      return Object.freeze({ type: 'relation.reconnect', relationId: operation.relationId, from: operation.from, to: operation.to });
-    default:
-      throw new Error(`editor-command: unsupported operation ${String(type)}`);
-  }
-}
-
-export function gestureToOperation(gesture) {
+export function assertSurfaceGesture(gesture) {
   invariant(gesture && typeof gesture === 'object' && !Array.isArray(gesture), 'gesture is required');
+  invariant(SURFACE_GESTURES.includes(gesture.type), `unsupported gesture ${String(gesture.type)}`);
+  return gesture;
+}
+
+export function gestureToOperation(input) {
+  const gesture = assertSurfaceGesture(input);
   switch (gesture.type) {
-    case 'move-regions':
-      return { type: 'MoveRegions', regionIds: copyArray(gesture.regionIds), dx: gesture.dx, dy: gesture.dy };
-    case 'resize-regions':
-      return { type: 'ResizeRegions', items: copyArray(gesture.items) };
-    case 'place-temporal-regions':
-      return { type: 'PlaceTemporalRegions', axis: gesture.axis, items: copyArray(gesture.items) };
-    case 'rename-region':
-      return { type: 'RenameRegion', regionId: gesture.regionId, label: gesture.label };
-    case 'set-region-order':
-      return { type: 'SetRegionOrder', regionId: gesture.regionId, order: gesture.order };
-    case 'set-region-value':
-      return { type: 'SetRegionValue', regionId: gesture.regionId, value: structuredClone(gesture.value) };
-    case 'set-region-link':
-      return { type: 'SetRegionLink', regionId: gesture.regionId, href: gesture.href };
-    case 'set-set-completeness':
-      return { type: 'SetSetCompleteness', regionId: gesture.regionId, complete: gesture.complete };
-    case 'add-region':
-      return { type: 'AddRegion', ...structuredClone(gesture.fields) };
     case 'relation.connect': {
-      const { type: _type, ...fields } = gesture;
-      return { type: 'ConnectRegions', ...structuredClone(fields) };
+      const { type: _type, pattern, ...fields } = gesture;
+      return {
+        type: 'ConnectRegions',
+        ...structuredClone(fields),
+        kind: fields.kind ?? (pattern === 'seq/1' ? 'message' : 'relates'),
+        label: fields.label ?? '',
+      };
     }
-    case 'mount-region-module':
-      return { type: 'MountRegionModule', regionId: gesture.regionId, src: gesture.src };
-    case 'unmount-region-module':
-      return { type: 'UnmountRegionModule', regionId: gesture.regionId };
-    case 'remove-selection':
-      return { type: 'RemoveSelection', regionIds: copyArray(gesture.regionIds), relationIds: copyArray(gesture.relationIds) };
     case 'relation.reconnect':
       return { type: 'ReconnectRelation', relationId: gesture.relationId, from: gesture.from, to: gesture.to };
     default:
-      throw new Error(`editor-command: unsupported gesture ${String(gesture.type)}`);
+      throw new Error(`editor-command: gesture ${gesture.type} is not a document edit`);
+  }
+}
+
+// The DOM supplies key facts and the core's logical selection, never cells.
+// Text/IME editing takes precedence over *all* editor shortcuts, including undo.
+export function commandForKey(event, { selection, editing = false }) {
+  if (editing || event.isComposing || event.keyCode === 229 || event.altKey) return null;
+  const key = String(event.key ?? '').toLowerCase();
+  const modifier = event.ctrlKey || event.metaKey;
+  if (modifier) {
+    if (key === 'z') return { type: event.shiftKey ? 'history.redo' : 'history.undo' };
+    if (key === 'y') return { type: 'history.redo' };
+    return null;
+  }
+  switch (key) {
+    case 'insert':
+    case 'n': return event.repeat ? null : { type: 'node.create' };
+    case 'enter':
+    case 'f2': return event.repeat ? null : { type: 'node.edit' };
+    case 'delete':
+    case 'backspace':
+      return { type: 'RemoveSelection', regionIds: [...selection.regionIds], relationIds: [...selection.relationIds] };
+    case 'arrowleft':
+    case 'arrowright':
+    case 'arrowup':
+    case 'arrowdown': {
+      if (!selection.regionIds.length) return null;
+      const step = event.shiftKey ? 10 : 1;
+      return {
+        type: 'MoveRegions', regionIds: [...selection.regionIds],
+        dx: key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0,
+        dy: key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0,
+      };
+    }
+    case 'o': return { type: 'link.open' };
+    case 'v': return { type: 'tool.set', tool: 'select' };
+    case 'h': return { type: 'tool.set', tool: 'hand' };
+    case ' ': return event.repeat ? null : { type: 'tool.hold', tool: 'hand' };
+    case 'escape': return { type: 'interaction.cancel' };
+    default: return null;
   }
 }
