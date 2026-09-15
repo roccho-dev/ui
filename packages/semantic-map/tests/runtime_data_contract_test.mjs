@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compileBusinessModelPresentationPayload } from '../../business-model/presentation.mjs';
 import { parseBusinessModelRuntimeJsonl } from '../../business-model/runtime-data.mjs';
 import { projectBusinessModelSemanticMapRecords } from '../../business-model/semantic-map.mjs';
+import { compileBusinessModelPresentationPlan } from '../../presentation/compiler/profile.mjs';
+import { derivePublicBusinessModelProjectionProfile } from '../../presentation/compiler/public-profile.mjs';
 import { createSemanticMap } from '../domain/index.js';
 import { validatePatternDomain } from '../pattern/index.js';
 import { defaultViewForPattern } from '../protocol/index.js';
@@ -15,20 +16,30 @@ const previewCases = (await fs.readFile(path.join(repoRoot, 'apps/preview/cases.
   .split(/\r?\n/u)
   .filter(Boolean)
   .map(line => JSON.parse(line));
-const runtimeIds = ['graph', 'seq', 'presentation'];
-const cases = runtimeIds.map(id => previewCases.find(item => item.id === id));
-assert.equal(cases.every(Boolean), true, 'preview must declare graph, seq and presentation');
-const sources = new Set(cases.map(item => item.source));
-assert.equal(sources.size, 1, 'graph, seq and presentation must share one runtime-data source');
-const source = cases[0].source;
+const byId = id => previewCases.find(item => item.id === id);
+const graph = byId('graph');
+const seq = byId('seq');
+const presentation = byId('presentation');
+assert.ok(graph && seq && presentation, 'preview must declare graph, seq and presentation');
+assert.equal(graph.source, seq.source, 'Graph and Seq must share one semantic JSONL');
+assert.equal(presentation.source.presentation, graph.source, 'Presentation must consume the same semantic JSONL');
+assert.equal(typeof presentation.source.design, 'string');
+assert.equal(graph.featureModule, seq.featureModule);
+assert.equal(presentation.featureModule, 'packages/a2ui-browser/feature.mjs');
+
+const source = graph.source;
 const input = await fs.readFile(path.join(repoRoot, source), 'utf8');
 const runtimeData = parseBusinessModelRuntimeJsonl(input);
 assert.equal(runtimeData.schema, 'business-model-runtime-data/1');
 assert.equal(runtimeData.model.sourceSchema, 'business-model-semantic-jsonl/2');
-assert.equal(runtimeData.presentation.schema, 'business-model-presentation-a2ui/1');
-assert.equal(runtimeData.presentation.a2ui.createSurface.sendDataModel, true);
-assert.equal(runtimeData.semanticText.includes('"type":"presentation"'), false);
-assert.equal(input.includes('"type":"presentation"'), true);
+assert.equal(runtimeData.presentation, null, 'semantic JSONL must not embed Presentation A2UI design');
+assert.equal(input.includes('"type":"presentation"'), false);
+
+const design = JSON.parse(await fs.readFile(path.join(repoRoot, presentation.source.design), 'utf8'));
+assert.equal(design.schema, 'ui-a2ui-app-design/1');
+assert.equal(design.app, 'presentation');
+assert.equal(design.profileId, 'business-model/1');
+assert.equal(design.messages[0].createSurface.sendDataModel, true);
 
 const records = projectBusinessModelSemanticMapRecords(runtimeData.model);
 const domain = createSemanticMap(records);
@@ -39,26 +50,20 @@ validatePatternDomain(domain, seqView.pattern, seqView.seq);
 assert.equal(records.some(record => record.type === 'region' && record.temporal), true);
 assert.equal(records.some(record => record.type === 'relation'), true);
 
-const presentation = compileBusinessModelPresentationPayload(runtimeData);
-assert.equal(presentation.schema, 'business-model-presentation-runtime-payload/1');
-assert.equal(presentation.id, runtimeData.model.id);
-assert.equal(presentation.sequence.sourceId, runtimeData.model.id);
-assert.equal(Object.hasOwn(presentation, 'seqState'), false);
-assert.equal(Object.hasOwn(presentation, 'mapState'), false);
-assert.equal(Object.hasOwn(presentation, 'coverage'), false);
-assert.deepEqual(presentation.sequence.stages[0].messages[0], runtimeData.presentation.a2ui);
-assert.deepEqual(
-  presentation.sequence.stages.map(stage => stage.id),
-  runtimeData.model.stages.map(stage => stage.id),
-);
+const profile = derivePublicBusinessModelProjectionProfile(runtimeData.model);
+assert.equal(profile.id, design.profileId);
+const plan = compileBusinessModelPresentationPlan(runtimeData.model, profile);
+assert.equal(plan.modelId, runtimeData.model.id);
+assert.deepEqual(plan.stageIds, runtimeData.model.stages.map(stage => stage.id));
 
 console.log(JSON.stringify({
-  schema: 'unified-runtime-data-contract-test/2',
+  schema: 'unified-runtime-data-contract-test/3',
   status: 'PASS',
   source,
+  design: presentation.source.design,
   sourceId: runtimeData.model.id,
-  runtimes: runtimeIds,
+  runtimes: [graph.id, seq.id, presentation.id],
   semanticRecords: records.length,
-  stages: presentation.sequence.stages.length,
-  compiledViewData: false,
+  stages: plan.stageIds.length,
+  presentationDesignData: true,
 }));
