@@ -7,6 +7,7 @@ const roots = [
   'packages/semantic-map',
   'apps/preview',
   'apps/artifact-shell/tests',
+  'apps/artifact-shell/capabilities/render-semantic-map',
 ];
 const self = 'packages/semantic-map/tests/transport_retirement_test.mjs';
 const forbidden = ['#' + 'smap', 'smap' + '-ref', 'Smap', 'SMAP'];
