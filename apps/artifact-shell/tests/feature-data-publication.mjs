@@ -25,6 +25,8 @@ await buildArtifactShellPublication({
 });
 
 const launcher = await fs.readFile(path.join(outputRoot, 'index.html'), 'utf8');
+assert.match(launcher, /<body data-mode="launcher">/u, 'launcher mode must exist before JavaScript boot');
+assert.match(launcher, /body\[data-mode="launcher"\] #debug/u, 'launcher mode must hide debug controls');
 
 for (const adapter of adapters) {
   const { id, source: sourcePath } = adapter;
