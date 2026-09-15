@@ -50,6 +50,15 @@ jobs:
           npm --prefix apps/preview run build -- --outDir="$out"
           echo "UI_PREVIEW=$out" >> "$GITHUB_ENV"
 
+      - name: Regenerate capability registry for handoff
+        run: node apps/artifact-shell/scripts/build-registry.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-capability-registry
+          path: apps/artifact-shell/generated/capability-registry.mjs
+          if-no-files-found: error
+
       - name: Deploy staging preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
