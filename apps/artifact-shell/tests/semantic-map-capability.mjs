@@ -1,61 +1,101 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createArtifactInvocationRuntime } from '../../../packages/artifact-invocation/src/index.mjs';
+import { inspectEnvelope } from '../../../packages/semantic-map/protocol/index.js';
+import { createEnvelopeInputBridge, lockDetachedAuthoring } from '../../../packages/semantic-map/runtime.js';
 import { buildRegistry } from '../scripts/build-registry.mjs';
-import { createEnvelopeInputBridge, lockDetachedAuthoring } from '../../../packages/semantic-map/authoring/artifact-module.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const currentRegistry = await fs.readFile(path.join(ROOT, 'apps/artifact-shell/generated/capability-registry.mjs'), 'utf8');
-const expectedRegistry = await buildRegistry({ root: ROOT, check: false, write: false });
-assert.equal(currentRegistry, expectedRegistry);
+const here = path.dirname(fileURLToPath(import.meta.url));
+const appRoot = path.resolve(here, '..');
+const capabilityRoot = path.join(appRoot, 'capabilities', 'render-semantic-map');
+const registryOutput = path.join(appRoot, 'generated', 'capability-registry.mjs');
+const registry = await buildRegistry({ capabilitiesRoot: path.join(appRoot, 'capabilities'), check: true, output: registryOutput });
+const manifest = registry.manifests.find(item => item.id === 'render.semantic-map');
+assert.ok(manifest, 'render.semantic-map manifest is missing');
+assert.deepEqual(manifest.requires.services, ['ui.package.execute']);
 
-const capability = (await import('../generated/capability-registry.mjs')).CAPABILITY_REGISTRY.capabilities['render-semantic-map'];
-assert(capability);
-assert.equal(capability.route, '/v1/capabilities/render-semantic-map');
-assert.equal(capability.requestSchema, 'artifact-invocation/2');
-assert.equal(capability.responseSchema, 'artifact-result/2');
-assert.equal(capability.runtime, 'local-runtime/1');
+let serviceCalls = 0;
+const runtime = await createArtifactInvocationRuntime({
+  engineBaseUrl: pathToFileURL(registryOutput).href,
+  environment: { runtime: 'browser', features: ['crypto.subtle', 'dom', 'fetch'] },
+  fetchEngine: async href => new Response(await fs.readFile(fileURLToPath(new URL(href))), { headers: { 'content-type': 'text/javascript' } }),
+  manifests: registry.manifests,
+  runtimeBuild: { digest: registry.runtimeBuild.digest, id: registry.runtimeBuild.id, version: registry.runtimeBuild.version },
+  services: {
+    'ui.package.execute': async ({ packageId, input }) => {
+      assert.equal(packageId, 'semantic-map');
+      const inspected = await inspectEnvelope(input.envelope);
+      serviceCalls += 1;
+      return Object.freeze({
+        schema: 'semantic-map-render-receipt/1',
+        mapId: inspected.base.mapId,
+        head: inspected.base.head,
+        stateHash: inspected.base.stateHash,
+        pattern: inspected.envelope.view.pattern,
+        proposal: Boolean(inspected.envelope.proposal),
+        editorReady: true,
+        source: Object.freeze({ contract: 'semantic-map-envelope/3', mode: 'test-service' }),
+      });
+    },
+  },
+});
 
-const bridgeInitial = {
-  schema: 'semantic-map-envelope/3',
-  log: '{"type":"Decision","id":"d1","parent":"genesis","stateHash":"sha256:state","operations":[],"reason":"seed","sourceRefs":[],"timestamp":"2026-09-01T00:00:00Z"}\n',
-  proposal: null,
-  view: { pattern: 'graph/1' },
-};
+const files = [...manifest.fixtures.pass.map(file => ['pass', file]), ...manifest.fixtures.destructive.map(file => ['destructive', file])];
+const outcomes = [];
+for (const [kind, relative] of files) {
+  const fixture = JSON.parse(await fs.readFile(path.join(capabilityRoot, relative), 'utf8'));
+  const outcome = await runtime.execute({ request: fixture.request });
+  if (outcome.result.status !== fixture.expected.status) console.error(JSON.stringify({fixture:fixture.id,result:outcome.result,manifest:outcome.manifest}, null, 2));
+  assert.equal(outcome.result.status, fixture.expected.status, fixture.id);
+  assert.deepEqual(outcome.result.outputs.map(item => item.contract), fixture.expected.outputContracts, fixture.id);
+  if (kind === 'pass') {
+    assert.equal(outcome.manifest.id, 'render.semantic-map');
+    assert.equal(outcome.result.outputs[0].value.schema, 'semantic-map-render-receipt/1');
+  }
+  outcomes.push(Object.freeze({ id: fixture.id, kind, status: outcome.result.status }));
+}
+assert.equal(serviceCalls, manifest.fixtures.pass.length);
+assert.deepEqual(runtime.loadedCapabilities(), ['render.semantic-map@1']);
+
+const bridgeFixture = JSON.parse(await fs.readFile(path.join(capabilityRoot, 'fixtures/graph.pass.json'), 'utf8'));
+const bridgeInitial = bridgeFixture.request.inputs[0].source.value;
+let bridgeValue = bridgeInitial;
 let bridgeListener = null;
-const replaced = [];
+const bridgeActions = [];
+const bridgeErrors = [];
+const bridgeSite = {
+  editor: { showError: message => bridgeErrors.push(message) },
+  runtime: {
+    proposal: bridgeInitial.proposal,
+    view: bridgeInitial.view,
+    envelope: async () => bridgeValue,
+    onChange(listener) { bridgeListener = listener; return () => { bridgeListener = null; }; },
+  },
+};
 const bridge = createEnvelopeInputBridge({
   initialEnvelope: bridgeInitial,
   inputAction: {
     enabled: true,
     inputId: 'map',
-    async replace(value) { replaced.push(structuredClone(value)); },
+    async replace(action) { bridgeActions.push(structuredClone(action)); return Object.freeze({ schema: 'artifact-shell-action-commit/1' }); },
   },
-  site: {
-    editor: { showError: assert.fail },
-    runtime: {
-      proposal: null,
-      view: bridgeInitial.view,
-      envelope: async () => bridgeInitial,
-      onChange(listener) { bridgeListener = listener; return () => { bridgeListener = null; }; },
-    },
-  },
+  site: bridgeSite,
 });
-assert.equal(typeof bridgeListener, 'function');
-assert.deepEqual(bridge.snapshot(), {
-  schema: 'semantic-map-artifact-input-bridge/1',
-  attached: true,
-  inputId: 'map',
-  replaceEnabled: true,
-  revisions: 0,
-  lastError: null,
-});
+assert.equal(bridge.snapshot().revisions, 0);
+bridgeValue = structuredClone(bridgeInitial);
+bridgeValue.view = { ...bridgeValue.view, frame: { focus: 'request', scale: 1 } };
+bridgeSite.runtime.view = bridgeValue.view;
 await bridgeListener({ kind: 'view' });
-await new Promise(resolve => setImmediate(resolve));
-assert.equal(replaced.length, 1);
-assert.deepEqual(replaced[0], bridgeInitial);
+assert.equal(bridgeActions.length, 1);
+assert.deepEqual(bridgeActions[0].expectedValue, bridgeInitial);
+assert.deepEqual(bridgeActions[0].value, bridgeValue);
+assert.equal(bridgeActions[0].history, 'replace');
 assert.equal(bridge.snapshot().revisions, 1);
+await bridgeListener({ kind: 'view' });
+assert.equal(bridgeActions.length, 1);
+assert.deepEqual(bridgeErrors, []);
 bridge.unsubscribe();
 assert.equal(bridgeListener, null);
 
@@ -103,18 +143,15 @@ const readOnly = lockDetachedAuthoring({
   } },
 }, {
   editor: { adapter: {
-    setOperationHandler(handler) { readOnlyHandlers.operation = handler; },
     setActivationHandler(handler) { readOnlyHandlers.activation = handler; },
+    setOperationHandler(handler) { readOnlyHandlers.operation = handler; },
   } },
   runtime: readOnlyRuntime,
 });
-assert(readOnlyControls.every(item => item.disabled));
-assert.throws(() => readOnlyHandlers.operation({ type: 'MoveRegion' }), /read-only/);
-await assert.rejects(() => readOnlyHandlers.activation({ kind: 'set-view' }), /read-only/);
-assert.throws(() => readOnlyRuntime.accept(), /read-only/);
-assert.throws(() => readOnlyRuntime.changeView(), /read-only/);
-assert.throws(() => readOnlyRuntime.commitView(), /read-only/);
-assert.throws(() => readOnlyRuntime.reject(), /read-only/);
-assert.deepEqual(readOnly.snapshot(), { schema: 'semantic-map-detached-authoring-lock/1', locked: true });
+assert.deepEqual(readOnly, { enabled: true, reason: 'host-input-immutable', schema: 'semantic-map-read-only-lock/1' });
+assert.ok(readOnlyControls.every(control => control.disabled));
+for (const blocked of [readOnlyHandlers.activation, readOnlyHandlers.operation, readOnlyRuntime.accept, readOnlyRuntime.changeView, readOnlyRuntime.commitView, readOnlyRuntime.reject]) {
+  assert.throws(() => blocked(), /input is read-only/);
+}
 
-console.log(JSON.stringify({ schema: 'semantic-map-capability-test/1', status: 'PASS' }));
+console.log(JSON.stringify({ schema: 'semantic-map-capability-integration/1', status: 'PASS', fixtures: outcomes.length, serviceCalls, inputBridgeActions: bridgeActions.length, outcomes }));
