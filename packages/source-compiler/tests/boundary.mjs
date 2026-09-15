@@ -12,10 +12,16 @@ for (const path of [
   'packages/control/design.json',
   'packages/control/feature.mjs',
   'packages/control/render.mjs',
+  'packages/presentation/contracts.mjs',
   'packages/presentation/feature.mjs',
   'packages/presentation/render.mjs',
   'packages/presentation/render/catalog.mjs',
   'packages/presentation/styles.css',
+  'packages/presentation/compiler/catalog.mjs',
+  'packages/presentation/compiler/index.mjs',
+  'packages/presentation/compiler/model.mjs',
+  'packages/presentation/compiler/projectors.mjs',
+  'packages/presentation/compiler/sequence.mjs',
   'packages/business-model/presentation-feature-runtime.mjs',
   'packages/business-model/presentation.mjs',
 ]) assert.equal(await exists(new URL(path, repo)), false, `${path} must stay retired`);
@@ -59,6 +65,9 @@ assert.match(presentationAdapter, /packages\/a2ui-browser\/feature\.mjs/u, 'Pres
 
 const runtimeData = await fs.readFile(new URL('packages/business-model/runtime-data.mjs', repo), 'utf8');
 assert.doesNotMatch(runtimeData, /type.*presentation|PRESENTATION_A2UI|parsePresentation/u, 'business-model runtime parser must not own Presentation A2UI fallback');
+
+const presentationCompiler = (await fs.readdir(new URL('packages/presentation/compiler/', repo))).sort();
+assert.deepEqual(presentationCompiler, ['profile.mjs', 'public-profile.mjs'], 'Presentation compiler may retain only pure profile/plan helpers');
 
 const publication = await fs.readFile(new URL('apps/artifact-shell/publication/build-adapters.mjs', repo), 'utf8');
 for (const forbidden of ['adapter.compile', 'source-compiler', 'decisions-compiler', 'business-model-semantic-jsonl']) {
