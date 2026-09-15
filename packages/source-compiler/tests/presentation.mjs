@@ -4,7 +4,7 @@ import { parseBusinessModelRuntimeJsonl } from '../../business-model/runtime-dat
 import { compilePresentationRuntimeData } from '../presentation.mjs';
 
 const fixtureRoot = new URL('../fixtures/presentation/', import.meta.url);
-const sharedExample = await fs.readFile(new URL('../../../examples/shared/business-model.jsonl', import.meta.url), 'utf8');
+const sharedExample = await fs.readFile(new URL('../../../examples/shared/presentation.jsonl', import.meta.url), 'utf8');
 for (const name of ['2-actors.jsonl', '3-actors.jsonl', '4-actors.jsonl']) {
   const source = await fs.readFile(new URL(name, fixtureRoot), 'utf8');
   const compiled = compilePresentationRuntimeData(source);

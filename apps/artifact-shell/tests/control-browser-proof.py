@@ -14,6 +14,7 @@ from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_NODES = 129
+STAGING_BASE = "feat/opt-manually-and-beautifully"
 
 
 def port() -> int:
@@ -65,12 +66,15 @@ def deployed_control_url(page: Page, pr_number: int) -> str:
     return urljoin(alias, href)
 
 
-def pull_request_number() -> int | None:
+def staging_pull_request_number() -> int | None:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
         return None
     event = json.loads(Path(event_path).read_text(encoding="utf-8"))
-    value = event.get("pull_request", {}).get("number")
+    pull_request = event.get("pull_request", {})
+    if pull_request.get("base", {}).get("ref") != STAGING_BASE:
+        return None
+    value = pull_request.get("number")
     return value if isinstance(value, int) and value > 0 else None
 
 
@@ -110,7 +114,7 @@ def main() -> None:
                 page.goto(urljoin(base, match.group(1)), wait_until="networkidle", timeout=30_000)
                 local = prove_control_page(page)
 
-                pr_number = pull_request_number()
+                pr_number = staging_pull_request_number()
                 if pr_number is not None:
                     deployed_page = browser.new_page(viewport={"width": 1280, "height": 900})
                     deployed_page.on("pageerror", lambda error: errors.append(str(error)))
