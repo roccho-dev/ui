@@ -29,7 +29,7 @@ const input = await fs.readFile(path.join(repoRoot, source), 'utf8');
 const runtimeData = parseBusinessModelRuntimeJsonl(input);
 assert.equal(runtimeData.schema, 'business-model-runtime-data/1');
 assert.equal(runtimeData.model.sourceSchema, 'business-model-semantic-jsonl/2');
-assert.equal(runtimeData.presentation, null, 'semantic JSONL must not embed Presentation A2UI design');
+assert.equal(Object.hasOwn(runtimeData, 'presentation'), false, 'business-model runtime data must not own Presentation A2UI design');
 assert.equal(input.includes('"type":"presentation"'), false);
 
 const design = JSON.parse(await fs.readFile(path.join(repoRoot, presentation.source.design), 'utf8'));
