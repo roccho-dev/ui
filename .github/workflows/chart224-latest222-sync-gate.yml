@@ -1,0 +1,328 @@
+name: Chart 224 latest 222 sync gate
+
+on:
+  push:
+    branches:
+      - control/chart224-latest222-controller-260915
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: candidate/chart224-latest222-fix-260915
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Exact 3-way merge and bounded conflict resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          ours='940de85e3dddbb60ec486f65a442c99c1660e257'
+          theirs='1cd16866870c7878c3ac80b8b402d437b1e8a044'
+          test "$(git rev-parse HEAD)" = "$ours"
+          git fetch origin archive/ui213-pre-216-260914
+          test "$(git rev-parse origin/archive/ui213-pre-216-260914)" = "$theirs"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          set +e
+          git merge --no-ff --no-commit "$theirs"
+          merge_status=$?
+          set -e
+          test "$merge_status" -ne 0
+          conflicts="$(git diff --name-only --diff-filter=U | sort)"
+          expected="$(printf '%s\n' \
+            apps/artifact-shell/publication/feature-host.mjs \
+            apps/artifact-shell/publication/materialize-feature.mjs \
+            apps/artifact-shell/tests/prove-publication-browser.sh | sort)"
+          printf 'conflicts:\n%s\n' "$conflicts"
+          test "$conflicts" = "$expected"
+
+          cat > apps/artifact-shell/publication/feature-host.mjs <<'EOF'
+          import { createHttpResource } from './http-resource.mjs';
+
+          const invariant = (condition, message) => { if (!condition) throw new Error(`ui-feature-host: ${message}`); };
+          const sameOriginUrl = (value, base) => {
+            const url = new URL(value, base);
+            invariant(url.origin === base.origin, `same-origin URL required: ${value}`);
+            return url;
+          };
+          const readData = async (base, entry) => {
+            if (!base.hash) return null;
+            const moduleUrl = new URL('../url-module/src/index.mjs', entry);
+            const { readUrlModule } = await import(moduleUrl.href);
+            return readUrlModule({ fragment: 'data', input: base.href });
+          };
+          const readSource = async ({ base, scope }) => {
+            if (!base.searchParams.has('source')) return null;
+            invariant(!base.hash, 'source and #data are mutually exclusive');
+            const source = base.searchParams.get('source');
+            invariant(source, 'source URL required');
+            const href = sameOriginUrl(source, base).href;
+            const resource = createHttpResource({ fetch: scope.fetch.bind(scope), href });
+            return Object.freeze({ input: await resource.read(), resource });
+          };
+
+          export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
+            const base = new URL(scope.location.href);
+            const root = scope.document.querySelector('#feature');
+            const fatal = scope.document.querySelector('#fatal');
+            invariant(root && fatal, 'feature/fatal mount required');
+
+            const response = await scope.fetch(new URL('./feature.json', base), { cache: 'no-store', credentials: 'omit' });
+            invariant(response.ok, `feature.json returned ${response.status}`);
+            const feature = await response.json();
+            invariant(feature?.schema === 'ui-feature-publication/1', 'feature schema is invalid');
+            invariant(typeof feature.id === 'string' && feature.id, 'feature id required');
+            invariant(typeof feature.entry === 'string' && feature.entry, 'feature entry required');
+            invariant(Array.isArray(feature.styles), 'feature styles required');
+            const entry = sameOriginUrl(feature.entry, base);
+
+            scope.document.title = feature.label || feature.id;
+            for (const href of feature.styles) {
+              const link = scope.document.createElement('link');
+              link.rel = 'stylesheet';
+              link.href = sameOriginUrl(href, base).href;
+              scope.document.head.append(link);
+            }
+
+            const sourced = await readSource({ base, scope });
+            const resource = sourced?.resource ?? null;
+            let input;
+            if (sourced) input = sourced.input;
+            else input = await readData(base, entry);
+            if (!sourced && input === null) {
+              const inputResponse = await scope.fetch(new URL('./input.json', base), { cache: 'no-store', credentials: 'omit' });
+              invariant(inputResponse.ok, `input.json returned ${inputResponse.status}`);
+              input = await inputResponse.json();
+            }
+            const module = await import(entry.href);
+            invariant(typeof module.mountFeature === 'function', 'mountFeature export required');
+            const mounted = await module.mountFeature({ feature, input, resource, root, scope });
+
+            scope.document.documentElement.dataset.status = 'pass';
+            scope.uiFeatureProof = Object.freeze({ feature, mounted: mounted ?? null, status: 'PASS' });
+            return scope.uiFeatureProof;
+          };
+
+          if (globalThis.location?.protocol === 'http:' || globalThis.location?.protocol === 'https:') {
+            bootFeatureHost().catch(error => {
+              document.documentElement.dataset.status = 'fail';
+              const fatal = document.querySelector('#fatal');
+              if (fatal) { fatal.hidden = false; fatal.textContent = `BLOCKED · ${error.message}`; }
+              globalThis.uiFeatureProof = Object.freeze({ error: String(error.message), status: 'FAIL' });
+            });
+          }
+          EOF
+
+          cat > apps/artifact-shell/publication/materialize-feature.mjs <<'EOF'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          import { pathToFileURL } from 'node:url';
+          import { canonicalJson } from '../../../packages/url-module/src/index.mjs';
+
+          const invariant = (condition, message) => { if (!condition) throw new Error(`feature-materializer: ${message}`); };
+          const posix = value => value.split(path.sep).join('/');
+          const inside = (root, target) => {
+            const base = path.resolve(root);
+            const resolved = path.resolve(target);
+            invariant(resolved === base || resolved.startsWith(`${base}${path.sep}`), `${target} escapes ${root}`);
+            return resolved;
+          };
+          const hrefFrom = (from, target) => {
+            const relative = posix(path.relative(from, target));
+            return relative.startsWith('.') ? relative : `./${relative}`;
+          };
+
+          export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot, root, view = null, label = null }) => {
+            invariant(typeof adapter.featureModule === 'string' && adapter.featureModule, `${adapter.id} featureModule required`);
+
+            const descriptorPath = inside(repoRoot, path.join(repoRoot, adapter.featureModule));
+            const loaded = await import(`${pathToFileURL(descriptorPath).href}?feature=${encodeURIComponent(adapter.id)}`);
+            const feature = loaded.feature;
+            invariant(feature?.id === adapter.id, `${adapter.id} feature descriptor mismatch`);
+            invariant(typeof feature.entry === 'string' && feature.entry, `${adapter.id} entry required`);
+            invariant(Array.isArray(feature.styles), `${adapter.id} styles required`);
+            if (view !== null) {
+              invariant(view && typeof view === 'object' && !Array.isArray(view), `${adapter.id} view must be an object`);
+            }
+
+            const modulesRoot = path.join(outputRoot, 'modules');
+            const entry = inside(modulesRoot, path.join(modulesRoot, feature.entry));
+            await fs.access(entry);
+            const styles = [];
+            for (const relative of feature.styles) {
+              invariant(typeof relative === 'string' && relative, `${adapter.id} style path required`);
+              const target = inside(modulesRoot, path.join(modulesRoot, relative));
+              await fs.access(target);
+              styles.push(target);
+            }
+
+            await fs.mkdir(root, { recursive: true });
+            const hostRoot = path.join(repoRoot, 'apps', 'artifact-shell', 'publication');
+            await fs.copyFile(path.join(hostRoot, 'feature-host.html'), path.join(root, 'index.html'));
+            await fs.copyFile(path.join(hostRoot, 'feature-host.css'), path.join(root, 'host.css'));
+            await fs.copyFile(path.join(hostRoot, 'feature-host.mjs'), path.join(root, 'host.mjs'));
+            await fs.copyFile(path.join(hostRoot, 'http-resource.mjs'), path.join(root, 'http-resource.mjs'));
+
+            const publication = Object.freeze({
+              schema: 'ui-feature-publication/1',
+              id: feature.id,
+              label: label ?? feature.label ?? adapter.label,
+              entry: hrefFrom(root, entry),
+              styles: Object.freeze(styles.map(target => hrefFrom(root, target))),
+              ...(view === null ? {} : { view }),
+            });
+            await fs.writeFile(path.join(root, 'feature.json'), `${canonicalJson(publication)}\n`);
+            await fs.writeFile(path.join(root, 'input.json'), `${canonicalJson(input)}\n`);
+          };
+          EOF
+
+          cat > apps/artifact-shell/tests/prove-publication-browser.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          base="${1:?base URL required}"
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+
+          root="${RUNNER_TEMP:-/tmp}/artifact-shell-root.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=5000 --dump-dom "$base/index.html" > "$root"
+          for adapter in graph map seq chart presentation control; do grep -q "href=\"adapters/$adapter/\"" "$root"; done
+          ! grep -q 'adapters/graph-editor/' "$root"
+          ! grep -q 'adapters/shell/' "$root"
+
+          check_feature() {
+            name="$1"; budget="$2"; shift 2
+            output="${RUNNER_TEMP:-/tmp}/artifact-feature-${name//\//-}.html"
+            "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget="$budget" --dump-dom "$base/adapters/$name/index.html" > "$output"
+            if ! grep -q 'data-status="pass"' "$output"; then
+              echo "feature=$name failed"
+              grep -E 'BLOCKED|fatal|data-status=' "$output" || true
+              exit 1
+            fi
+            for pattern in "$@"; do grep -q "$pattern" "$output"; done
+          }
+
+          check_feature graph 30000 '<svg'
+          check_feature map 30000 '<svg'
+          check_feature seq 30000 '<svg'
+          check_feature chart 30000 '<svg'
+          for variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do
+            check_feature "chart/$variant" 30000 '<svg'
+          done
+
+          sentinel='__nested_chart_data_url_proof__'
+          data_url="$(BROWSER_PROOF_BASE="${base%/}" BROWSER_PROOF_SENTINEL="$sentinel" node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { createUrlModuleUrl } from './packages/url-module/src/codec.mjs';
+          const records = fs.readFileSync('./examples/chart/bar-horizontal.jsonl', 'utf8')
+            .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
+          const target = records.find(record => record.type === 'region' && record.id === 'product');
+          if (!target) throw new Error('bar-horizontal product fixture missing');
+          target.label = process.env.BROWSER_PROOF_SENTINEL;
+          const value = records.map(record => JSON.stringify(record)).join('\n') + '\n';
+          console.log(await createUrlModuleUrl({
+            base: `${process.env.BROWSER_PROOF_BASE}/adapters/chart/bar-horizontal/`,
+            fragment: 'data',
+            value,
+          }));
+          NODE
+          )"
+          data_output="${RUNNER_TEMP:-/tmp}/artifact-feature-chart-bar-horizontal-data.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$data_url" > "$data_output"
+          grep -q 'data-status="pass"' "$data_output"
+          grep -q "$sentinel" "$data_output"
+
+          check_feature presentation 30000 'class="profiled-app"' 'class="seq-svg"'
+          check_feature control 15000 'id="tree"' 'class="node"'
+
+          source_output="${RUNNER_TEMP:-/tmp}/artifact-feature-control-source.html"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "$base/adapters/control/index.html?source=./input.json" > "$source_output"
+          grep -q 'data-status="pass"' "$source_output"
+          grep -q 'id="tree"' "$source_output"
+          grep -q 'class="node"' "$source_output"
+
+          printf '%s\n' '{"schema":"ui.adapter-browser-proof/10","status":"PASS","directFeatures":["graph","map","seq","chart","presentation","control"],"chartVariants":["bar-horizontal","bar-vertical","line","pie","donut","scatter","heatmap","sunburst"],"nestedChartDataUrl":true,"controlSource":true,"host":"generic"}'
+          EOF
+          chmod +x apps/artifact-shell/tests/prove-publication-browser.sh
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('packages/semantic-map/feature-runtime.mjs')
+          text = path.read_text()
+          old = """    return batch.results[0];\n  });\n  adapter.setActivationHandler"""
+          new = """    const result = batch.results[0];\n    if (result?.createdRegionId) render();\n    return result;\n  });\n  adapter.setActivationHandler"""
+          if text.count(old) != 1:
+              raise SystemExit(f'feature-runtime patch anchor count={text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
+
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git commit -m 'Merge latest #222 into #224 and preserve new-region selection'
+          git show --no-patch --format='%H %P' HEAD
+
+      - name: Prove source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/check-semantic-map-migration.mjs
+          node packages/semantic-map/tests/run.mjs
+          python3 packages/semantic-map/tests/meaning_recovery_negative_controls.py
+          node apps/artifact-shell/tests/semantic-map-capability.mjs
+          node tests/check-semantic-map-legacy-source-retirement.mjs
+          node apps/artifact-shell/tests/http-resource.mjs
+          node apps/artifact-shell/tests/control-resource.mjs
+          node apps/artifact-shell/tests/publication.mjs
+          npm run build:artifact-shell-publication
+
+      - name: Prove keyboard regression in real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --user 'playwright==1.57.0'
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+          export CHROMIUM_EXECUTABLE="$chrome"
+          python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
+
+      - name: Write proof receipt
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          sha = subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
+          parents = subprocess.check_output(['git','show','-s','--format=%P','HEAD'], text=True).strip().split()
+          with open('chart224-latest222-proof.json','w') as f:
+              json.dump({
+                  'schema':'chart224-latest222-sync-proof/1',
+                  'status':'PASS',
+                  'sha':sha,
+                  'parents':parents,
+                  'latest222':'1cd16866870c7878c3ac80b8b402d437b1e8a044',
+                  'keyboardNewRegionSelection':True,
+                  'nestedChartDataUrl':True,
+                  'controlHttpSource':True,
+              }, f, indent=2)
+          PY
+
+      - name: Upload proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: chart224-latest222-sync-proof
+          path: chart224-latest222-proof.json
+          if-no-files-found: error
+
+      - name: Push validated candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:candidate/chart224-latest222-fix-260915
