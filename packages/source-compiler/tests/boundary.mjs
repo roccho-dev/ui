@@ -24,16 +24,14 @@ for (const id of ['graph', 'map', 'seq']) {
   assert.ok(rows.length > 1, `${id} UI example must contain JSONL records`);
 }
 
-for (const id of ['graph', 'map', 'seq', 'presentation', 'control']) {
-  const adapter = await fs.readFile(new URL(`apps/artifact-shell/adapters/${id}.mjs`, repo), 'utf8');
-  assert.equal(adapter.includes('compile:'), false, `${id} adapter must not own source compilation`);
-  assert.equal(adapter.includes('source-compiler'), false, `${id} adapter must not depend on source compiler`);
-  assert.equal(adapter.includes('business-model-semantic-jsonl'), false, `${id} adapter must not know upstream source schema`);
+const previewMain = await fs.readFile(new URL('apps/preview/main.mjs', repo), 'utf8');
+const previewCases = await fs.readFile(new URL('apps/preview/cases.jsonl', repo), 'utf8');
+for (const [name, source] of [['preview main', previewMain], ['preview cases', previewCases]]) {
+  for (const forbidden of ['compile' + ':', 'source-compiler', 'decisions-compiler', 'business-model-semantic-jsonl']) {
+    assert.equal(source.includes(forbidden), false, `${name} must not contain ${forbidden}`);
+  }
 }
-
-const publication = await fs.readFile(new URL('apps/artifact-shell/publication/build-adapters.mjs', repo), 'utf8');
-for (const forbidden of ['adapter.compile', 'source-compiler', 'decisions-compiler', 'business-model-semantic-jsonl']) {
-  assert.equal(publication.includes(forbidden), false, `publication must not contain ${forbidden}`);
-}
+assert.equal(await exists(new URL('apps/artifact-shell/adapters/', repo)), false, 'artifact shell must not own feature preview adapters');
+assert.equal(await exists(new URL('apps/artifact-shell/publication/', repo)), false, 'artifact shell must not own feature preview publication helpers');
 
 console.log('source-compiler boundary: PASS');

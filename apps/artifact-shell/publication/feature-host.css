@@ -1,7 +1,0 @@
-*{box-sizing:border-box}
-html,body,#feature{min-height:100%}
-body{margin:0;background:Canvas;color:CanvasText}
-#fatal{margin:16px;padding:12px;border:1px solid #b75959;background:#fff0f0;color:#7a2424;white-space:pre-wrap}
-#handoff-fab{display:none;position:fixed;right:16px;bottom:16px;z-index:50;min-width:62px;min-height:50px;padding:7px 12px;border:1px solid #4f5fc5;border-radius:15px;background:#5d6dd2;color:#fff;box-shadow:0 8px 28px #0003;font:800 11px/1.1 system-ui,sans-serif;place-items:center;gap:2px}
-#handoff-fab>span:first-child{font-size:17px}#handoff-fab:disabled{opacity:.45}
-html[data-semantic-handoff="ready"] #handoff-fab{display:grid}

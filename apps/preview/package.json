@@ -1,0 +1,9 @@
+{
+  "name": "@ui/preview",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npx --yes vite@8.3.0 build .",
+    "check": "node tests/preview.mjs"
+  }
+}

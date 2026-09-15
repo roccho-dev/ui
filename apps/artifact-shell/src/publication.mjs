@@ -11,7 +11,6 @@ import {
   validateArtifactCapabilityManifest,
 } from "../../../packages/artifact-invocation/src/index.mjs";
 import { canonicalJson } from "../../../packages/url-module/src/index.mjs";
-import { buildAdapters } from "../publication/build-adapters.mjs";
 import { buildRegistry } from "../scripts/build-registry.mjs";
 
 export const ARTIFACT_CAPABILITY_PUBLICATION_SCHEMA = "artifact-capability-publication/2";
@@ -207,11 +206,10 @@ export const buildArtifactShellPublication = async ({ capabilitiesRoot, outputRo
   await copyFile(path.join(repoRoot, "adapters", "webmcp", "index.mjs"), path.join(outputRoot, "adapters", "webmcp", "index.mjs"));
   await fs.writeFile(path.join(outputRoot, "entry.mjs"), publicationEntrySource(kernelId));
   await fs.writeFile(path.join(outputRoot, "index.html"), publicationIndexHtml(await fs.readFile(path.join(appRoot, "index.html"), "utf8")));
-  const adapters = await buildAdapters({ appRoot, outputRoot, repoRoot });
   const files = await listFiles(outputRoot);
   const described = Object.freeze(await Promise.all(files.map(file => descriptor(outputRoot, file))));
   const treeDigest = sha(Buffer.from(canonicalJson(described)));
   const artifactManifest = Object.freeze({ files: described, schema: "artifact-shell-publication-artifact/2", treeDigest });
   await writeJson(path.join(outputRoot, "artifact-manifest.json"), artifactManifest);
-  return Object.freeze({ adapters, artifactManifest, catalog, kernel, outputRoot });
+  return Object.freeze({ artifactManifest, catalog, kernel, outputRoot });
 };
