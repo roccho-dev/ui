@@ -1,6 +1,7 @@
 import { createUrlModuleUrl, readUrlModule } from '../../packages/url-module/src/index.mjs';
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`ui-preview: ${message}`); };
+const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const cases = Object.freeze(__UI_PREVIEW_CASES__.map(item => Object.freeze({
   ...item,
   feature: Object.freeze({ ...item.feature, styles: Object.freeze([...item.feature.styles]) }),
@@ -11,21 +12,37 @@ invariant(byId.size === cases.length, 'duplicate case id');
 const runtimeModules = import.meta.glob([
   '../../packages/**/feature-runtime.mjs',
   '../../packages/**/*-feature-runtime.mjs',
+  '../../packages/**/feature-app.mjs',
   '../../packages/**/render.mjs',
 ]);
+const planModules = import.meta.glob('../../packages/**/model.mjs');
 const styleModules = import.meta.glob('../../packages/**/*.css');
-const examples = import.meta.glob('../../examples/**/*.jsonl', { eager: true, query: '?raw', import: 'default' });
+const jsonlExamples = import.meta.glob('../../examples/**/*.jsonl', { eager: true, query: '?raw', import: 'default' });
+const jsonExamples = import.meta.glob('../../examples/**/*.json', { eager: true, import: 'default' });
 const moduleKey = path => `../../${path}`;
 
-const exampleFor = item => {
-  const input = examples[moduleKey(item.source)];
-  invariant(typeof input === 'string', `${item.id}: example missing ${item.source}`);
-  return input;
+const sourceValue = (sourcePath, id) => {
+  if (sourcePath.endsWith('.jsonl')) {
+    const value = jsonlExamples[moduleKey(sourcePath)];
+    invariant(typeof value === 'string', `${id}: example missing ${sourcePath}`);
+    return value;
+  }
+  if (sourcePath.endsWith('.json')) {
+    const value = jsonExamples[moduleKey(sourcePath)];
+    invariant(plain(value), `${id}: example missing ${sourcePath}`);
+    return value;
+  }
+  throw new Error(`ui-preview: ${id}: unsupported source ${sourcePath}`);
+};
+const inputFor = item => {
+  if (typeof item.source === 'string') return sourceValue(item.source, item.id);
+  invariant(plain(item.source), `${item.id}: source must be a path or named paths`);
+  return Object.freeze(Object.fromEntries(Object.entries(item.source).map(([name, sourcePath]) => [name, sourceValue(sourcePath, item.id)])));
 };
 const hrefFor = async item => createUrlModuleUrl({
   base: new URL(`?case=${encodeURIComponent(item.id)}`, globalThis.location.href).href,
   fragment: 'data',
-  value: exampleFor(item),
+  value: inputFor(item),
 });
 const createDataTransport = scope => {
   const create = (value, { base = scope.location.href } = {}) => createUrlModuleUrl({
@@ -61,7 +78,12 @@ const renderFeature = async item => {
   const transport = createDataTransport(globalThis);
   const input = await transport.read(globalThis.location.href);
   invariant(input !== null, `${item.id}: #data required`);
-  const feature = item.feature;
+  let feature = item.feature;
+  if (typeof feature.plan === 'string') {
+    const loadPlan = planModules[moduleKey(feature.plan)];
+    invariant(typeof loadPlan === 'function', `${item.id}: plan missing ${feature.plan}`);
+    feature = Object.freeze({ ...feature, planModule: await loadPlan() });
+  }
   for (const style of feature.styles) {
     const load = styleModules[moduleKey(style)];
     invariant(typeof load === 'function', `${item.id}: style missing ${style}`);
