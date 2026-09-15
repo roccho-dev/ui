@@ -3,16 +3,23 @@ name: Semantic Map gesture-review join
 on:
   pull_request:
     paths:
+      - packages/a2ui-browser/**
+      - packages/control/**
+      - packages/presentation/**
       - packages/semantic-map/**
       - packages/business-model/**
-      - examples/shared/**
+      - examples/control/**
+      - examples/presentation/**
       - examples/chart/**
       - examples/render.semantic-map.set-topology/**
+      - apps/artifact-shell/adapters/control.mjs
       - apps/artifact-shell/adapters/chart.mjs
       - apps/artifact-shell/adapters/graph.mjs
       - apps/artifact-shell/adapters/seq.mjs
       - apps/artifact-shell/adapters/presentation.mjs
       - apps/artifact-shell/publication/build-adapters.mjs
+      - apps/artifact-shell/publication/materialize-feature.mjs
+      - apps/artifact-shell/tests/control-browser-proof.py
       - apps/artifact-shell/tests/feature-data-publication.mjs
       - apps/artifact-shell/tests/chart-publication-browser-proof.py
       - apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
@@ -44,7 +51,7 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
-      - name: Prove one data fragment across graph seq presentation
+      - name: Prove Graph Seq semantic data and Presentation design-data path
         run: python3 apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
       - name: Prove Control A2UI design and claims projection
         run: python3 apps/artifact-shell/tests/control-browser-proof.py
