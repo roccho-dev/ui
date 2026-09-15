@@ -3,5 +3,5 @@ export const createAdapter = () => Object.freeze({
   id: 'presentation',
   kind: 'feature',
   label: 'presentation',
-  source: 'examples/shared/business-model.jsonl',
+  source: 'examples/shared/presentation.jsonl',
 });
