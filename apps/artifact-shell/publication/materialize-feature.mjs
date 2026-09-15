@@ -25,12 +25,15 @@ export const materializeFeature = async ({ adapter, outputRoot, repoRoot, root, 
   invariant(feature?.id === adapter.id, `${adapter.id} feature descriptor mismatch`);
   invariant(typeof feature.entry === 'string' && feature.entry, `${adapter.id} entry required`);
   invariant(Array.isArray(feature.styles), `${adapter.id} styles required`);
+  if (feature.plan !== undefined) invariant(typeof feature.plan === 'string' && feature.plan, `${adapter.id} plan path required`);
   if (view !== null) invariant(view && typeof view === 'object' && !Array.isArray(view), `${adapter.id} view must be an object`);
 
   const modulesRoot = path.join(outputRoot, 'modules');
   const entry = inside(modulesRoot, path.join(modulesRoot, feature.entry));
+  const plan = feature.plan === undefined ? null : inside(modulesRoot, path.join(modulesRoot, feature.plan));
   const urlModule = inside(modulesRoot, path.join(modulesRoot, 'packages', 'url-module', 'src', 'index.mjs'));
   await fs.access(entry);
+  if (plan) await fs.access(plan);
   await fs.access(urlModule);
   const styles = [];
   for (const relative of feature.styles) {
@@ -57,6 +60,7 @@ export const materializeFeature = async ({ adapter, outputRoot, repoRoot, root, 
     id: feature.id,
     label: label ?? feature.label ?? adapter.label,
     entry: hrefFrom(root, entry),
+    ...(plan === null ? {} : { plan: hrefFrom(root, plan) }),
     styles: Object.freeze(styles.map(target => hrefFrom(root, target))),
     ...(view === null ? {} : { view }),
   });
