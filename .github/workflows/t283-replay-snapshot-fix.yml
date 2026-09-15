@@ -1,0 +1,40 @@
+name: T283 replay snapshot fix
+
+on:
+  push:
+    branches:
+      - fix/retire-smap-t283
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/retire-smap-t283
+          token: ${{ github.token }}
+      - name: Use canonical editor snapshot on replay
+        run: |
+          set -euxo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py')
+          s = p.read_text()
+          old = '          const state = semanticMapApp.snapshot();\n          return {'
+          new = "          const state = typeof semanticMapApp.snapshot === 'function'\\n            ? semanticMapApp.snapshot()\\n            : semanticMapSite.editor.snapshot();\\n          return {"
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one snapshot anchor, got {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          rm .github/workflows/t283-replay-snapshot-fix.yml
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'test: read canonical replay snapshot from editor'
+          git push origin HEAD:fix/retire-smap-t283
