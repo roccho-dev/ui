@@ -66,10 +66,12 @@ const rewrite = (relative, source, known) => {
   return source.replace(importOrExport, replaceStatic).replace(dynamicImport, replaceDynamic);
 };
 
-const inlineStyle = async (html, href, file, attrs = '') => {
+const inlineStyle = async (html, href, files, attrs = '') => {
   const marker = `<link rel="stylesheet" href="${href}">`;
   if ((html.split(marker).length - 1) !== 1) throw new Error(`style marker missing/duplicated: ${href}`);
-  return html.replace(marker, `<style${attrs}>${await fs.readFile(file, 'utf8')}</style>`);
+  const sources = Array.isArray(files) ? files : [files];
+  const css = (await Promise.all(sources.map(file => fs.readFile(file, 'utf8')))).join('\n');
+  return html.replace(marker, `<style${attrs}>${css}</style>`);
 };
 
 const envelope = JSON.parse(await fs.readFile(inputPath, 'utf8'));
@@ -90,7 +92,10 @@ for (const relative of modules) {
 const importMap = JSON.stringify({ imports });
 
 let html = await fs.readFile(path.join(packageRoot, 'authoring', 'pages', 'app.html'), 'utf8');
-html = await inlineStyle(html, '../styles/styles.css', path.join(packageRoot, 'authoring', 'styles', 'styles.css'));
+html = await inlineStyle(html, '../styles/styles.css', [
+  path.join(packageRoot, 'authoring', 'styles', 'styles.css'),
+  path.join(packageRoot, 'renderer-maxgraph', 'authoring', 'active-list.css'),
+], ' data-maxgraph-active-list-style');
 html = await inlineStyle(html, '../styles/handoff.css', path.join(packageRoot, 'authoring', 'styles', 'handoff.css'), ' id="semantic-handoff-style"');
 html = await inlineStyle(html, '../styles/review.css', path.join(packageRoot, 'authoring', 'styles', 'review.css'), ' id="semantic-review-style"');
 html = await inlineStyle(html, '../styles/source.css', path.join(packageRoot, 'authoring', 'styles', 'source.css'), ' id="semantic-source-style"');

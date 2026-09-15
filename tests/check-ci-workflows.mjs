@@ -165,7 +165,7 @@ assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/build-geomap-runtime-hardening\.mjs/);
 assert.match(adapterText, /node packages\/a2ui-adapter-artifacts\/scripts\/check-geomap-final-gate\.mjs/);
 assert.match(adapterText, /if:\s*steps\.ssg_proof_scope\.outputs\.run == 'true'/);
-assert.match(adapterText, /wrangler@4\.112\.0/);
+assert.match(adapterText, /python3 tests\/check-ssg-hot-refresh-viewport\.py --server wrangler/);
 assert.match(adapterText, /CADDY_EXPECTED_VERSION:\s*v2\.11\.3/);
 assert.match(adapterText, /name:\s*ssg-hot-refresh-viewport-artifact/);
 assert.match(adapterText, /name:\s*live-adapter-artifact/);

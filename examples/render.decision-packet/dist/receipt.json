@@ -17,8 +17,8 @@
   "output": {
     "html": {
       "path": "dist/index.html",
-      "bytes": 2506798,
-      "sha256": "sha256:1d07b46e9fefb35960529a45c191b2d9da50f77c219ea2e6989f10cde7360acc"
+      "bytes": 2537063,
+      "sha256": "sha256:0da45086c3e4927357460a0e7faf561b09b3fb6bbeccbd78a4906a20724da3b0"
     },
     "agent": {
       "path": "dist/agent.json",
@@ -35,10 +35,10 @@
     },
     "output": {
       "path": "dist/index.html",
-      "bytes": 2506798,
-      "sha256": "sha256:1d07b46e9fefb35960529a45c191b2d9da50f77c219ea2e6989f10cde7360acc"
+      "bytes": 2537063,
+      "sha256": "sha256:0da45086c3e4927357460a0e7faf561b09b3fb6bbeccbd78a4906a20724da3b0"
     },
-    "modules": 192,
+    "modules": 207,
     "pattern": "graph/1"
   },
   "generatedArtifactsAreAuthority": false
