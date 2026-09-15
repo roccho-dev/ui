@@ -1,0 +1,143 @@
+name: Chart 224 integrated runtime proof
+
+on:
+  push:
+    branches:
+      - control/chart-224-runtime-proof-260915
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: 940de85e3dddbb60ec486f65a442c99c1660e257
+  DEPLOY_ROOT: https://799b22f3.stg-artifact-runtime.pages.dev
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Trace legacy shell browser proof
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/integrated-runtime-proof"
+          bash -x apps/artifact-shell/tests/prove-publication-browser.sh "$DEPLOY_ROOT" > "$RUNNER_TEMP/integrated-runtime-proof/shell-proof.log" 2>&1
+          code=$?
+          echo "legacy_shell_proof_exit=$code"
+          tail -n 120 "$RUNNER_TEMP/integrated-runtime-proof/shell-proof.log"
+          exit 0
+      - name: Install pinned browser tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Generate canonical Chart #data URLs
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/integrated-runtime-proof/screenshots"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { createUrlModuleUrl, readUrlModule } from './packages/url-module/src/codec.mjs';
+          const targets = Object.freeze({
+            'bar-horizontal': 'product', 'bar-vertical': 'sales-0', line: 'active-0', pie: 'share-0',
+            donut: 'share-0', scatter: 'growth-a', heatmap: 'tokyo-am', sunburst: 'product',
+          });
+          const specs=[];
+          for (const [variant,targetId] of Object.entries(targets)) {
+            const records=fs.readFileSync(`examples/chart/${variant}.jsonl`,'utf8').split(/\r?\n/u).filter(Boolean).map(JSON.parse);
+            const target=records.find(r=>r.type==='region'&&r.id===targetId);
+            if(!target) throw new Error(`${variant}: target missing`);
+            const sentinel=`__integrated_${variant.replaceAll('-','_')}__`;
+            target.label=sentinel;
+            const value=records.map(JSON.stringify).join('\n')+'\n';
+            const url=await createUrlModuleUrl({base:`${process.env.DEPLOY_ROOT}/adapters/chart/${variant}/`,fragment:'data',value});
+            if(await readUrlModule({fragment:'data',input:url})!==value) throw new Error(`${variant}: codec mismatch`);
+            if(url.length>8192) throw new Error(`${variant}: URL too long`);
+            specs.push({variant,targetId,sentinel,edited:`${sentinel}_edited`,url,chars:url.length});
+          }
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/integrated-runtime-proof/specs.json',JSON.stringify(specs,null,2));
+          NODE
+      - name: Prove deployed publication and Chart authoring
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+
+          root=Path(os.environ['RUNNER_TEMP'])/'integrated-runtime-proof'
+          specs=json.loads((root/'specs.json').read_text())
+          publication=['graph','map','seq','chart','chart/bar-horizontal','chart/bar-vertical','chart/line','chart/pie','chart/donut','chart/scatter','chart/heatmap','chart/sunburst','presentation','control']
+          publication_results=[]
+          chart_results=[]
+
+          def wait_label(page,rid,label):
+              page.wait_for_function("args => window.semanticMapSite?.editor?.snapshot().domain.regions.find(r=>r.id===args.id)?.label===args.label", {'id':rid,'label':label}, timeout=30000)
+
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True)
+              for name in publication:
+                  page=browser.new_page(viewport={'width':1440,'height':1000})
+                  errs=[]; failed=[]
+                  page.on('pageerror',lambda e,bag=errs:bag.append(str(e)))
+                  page.on('requestfailed',lambda r,bag=failed:bag.append({'url':r.url,'failure':r.failure}))
+                  url=f"{os.environ['DEPLOY_ROOT']}/adapters/{name}/"
+                  response=page.goto(url,wait_until='domcontentloaded',timeout=30000)
+                  assert response and response.ok,(name,response.status if response else None)
+                  page.wait_for_selector('html[data-status="pass"]',timeout=60000)
+                  if name in ['graph','map','seq','chart'] or name.startswith('chart/'):
+                      page.locator('svg').first.wait_for(state='visible',timeout=30000)
+                  assert not errs,(name,errs)
+                  assert not failed,(name,failed)
+                  publication_results.append({'route':name,'status':'PASS','pageErrors':errs,'requestFailed':failed})
+                  page.close()
+
+              for spec in specs:
+                  page=browser.new_page(viewport={'width':1440,'height':1000})
+                  errs=[]; failed=[]; requests=[]
+                  page.on('pageerror',lambda e,bag=errs:bag.append(str(e)))
+                  page.on('requestfailed',lambda r,bag=failed:bag.append({'url':r.url,'failure':r.failure}))
+                  page.on('request',lambda r,bag=requests:bag.append(r.url))
+                  response=page.goto(spec['url'],wait_until='domcontentloaded',timeout=30000)
+                  assert response and response.ok,spec['variant']
+                  page.wait_for_selector('html[data-status="pass"]',timeout=60000)
+                  label=page.evaluate("rid => window.semanticMapSite?.editor?.snapshot().domain.regions.find(r=>r.id===rid)?.label",spec['targetId'])
+                  assert label==spec['sentinel'],(spec['variant'],label)
+                  fallback=[u for u in requests if u.split('?',1)[0].endswith('/input.json')]
+                  assert not fallback,(spec['variant'],fallback)
+                  active=page.locator(f"button[data-active-key='region:{spec['targetId']}']")
+                  active.wait_for(state='visible',timeout=30000)
+                  assert spec['sentinel'] in (active.text_content() or '')
+                  active.click()
+                  assert page.evaluate('window.semanticMapSite.editor.adapter.startEditingSelection()') is True
+                  assert page.evaluate("""() => { const p=window.semanticMapSite.editor.adapter.graph.getPlugin('CellEditorHandler'); if(!p?.textarea?.isConnected||p.editingCell==null)return false; p.textarea.dataset.proof='editor'; return true; }""") is True
+                  editor=page.locator("textarea[data-proof='editor']")
+                  editor.wait_for(state='visible',timeout=10000)
+                  editor.fill(spec['edited']); editor.press('Enter')
+                  wait_label(page,spec['targetId'],spec['edited'])
+                  assert spec['edited'] in (active.text_content() or '')
+                  page.keyboard.press('Control+z'); wait_label(page,spec['targetId'],spec['sentinel'])
+                  page.keyboard.press('Control+y'); wait_label(page,spec['targetId'],spec['edited'])
+                  page.keyboard.press('Control+z'); wait_label(page,spec['targetId'],spec['sentinel'])
+                  assert not errs,(spec['variant'],errs)
+                  assert not failed,(spec['variant'],failed)
+                  page.screenshot(path=str(root/'screenshots'/f"{spec['variant']}.png"),full_page=True)
+                  chart_results.append({'variant':spec['variant'],'status':'PASS','url':spec['url'],'chars':spec['chars'],'domainFromHash':True,'activeListFromHash':True,'inputJsonFallbackRequests':fallback,'inlineEdit':True,'undo':True,'redo':True,'finalRestore':True,'pageErrors':errs,'requestFailed':failed})
+                  page.close()
+              browser.close()
+
+          receipt={'schema':'ui.chart-integrated-runtime-proof/1','status':'PASS','sourceSha':os.environ['SOURCE_SHA'],'immutableDeployment':os.environ['DEPLOY_ROOT'],'publication':publication_results,'chartVariants':chart_results}
+          (root/'receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2))
+          print(json.dumps(receipt,ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chart-224-integrated-runtime-proof
+          path: ${{ runner.temp }}/integrated-runtime-proof
+          if-no-files-found: error
