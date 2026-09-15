@@ -23,6 +23,17 @@ def port() -> int:
     return value
 
 
+def build_preview(output: Path) -> None:
+    completed = subprocess.run(
+        ["npm", "--prefix", "apps/preview", "run", "build", "--", f"--outDir={output}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
 def encoded_hash() -> str:
     code = """
 import fs from 'node:fs/promises';
@@ -47,12 +58,12 @@ def wait_for_proof(page, runtime: str) -> dict[str, object]:
     deadline = time.monotonic() + 30
     last = None
     while time.monotonic() < deadline:
-        last = page.evaluate("() => globalThis.uiFeatureProof ?? null")
+        last = page.evaluate("() => globalThis.uiPreviewProof ?? null")
         if isinstance(last, dict) and last.get("status") in {"PASS", "FAIL"}:
             assert last["status"] == "PASS", f"{runtime}: {last}"
             return last
         time.sleep(0.05)
-    raise AssertionError(f"{runtime}: feature proof did not settle: {last!r}")
+    raise AssertionError(f"{runtime}: preview proof did not settle: {last!r}")
 
 
 def main() -> None:
@@ -60,21 +71,13 @@ def main() -> None:
     source_bytes = SOURCE.read_bytes()
     errors: list[str] = []
     requests: list[str] = []
-    with tempfile.TemporaryDirectory(prefix="ui-unified-runtime-data-") as temp:
-        publication = Path(temp) / "publication"
-        built = subprocess.run(
-            ["node", "apps/artifact-shell/scripts/build-publication.mjs", f"--out={publication}"],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        receipt = json.loads(built.stdout)
-        assert receipt["status"] == "PASS"
+    with tempfile.TemporaryDirectory(prefix="ui-preview-unified-runtime-data-") as temp:
+        preview = Path(temp) / "dist"
+        build_preview(preview)
         listen = port()
         server = subprocess.Popen(
             ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
-            cwd=publication,
+            cwd=preview,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             text=True,
@@ -93,7 +96,7 @@ def main() -> None:
                     page = context.new_page()
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.on("request", lambda request: requests.append(request.url))
-                    url = f"{base}/adapters/{runtime}/index.html{fragment}"
+                    url = f"{base}/?case={runtime}{fragment}"
                     page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                     proof = wait_for_proof(page, runtime)
                     mounted = proof["mounted"]
@@ -112,13 +115,18 @@ def main() -> None:
                         assert page.locator(".seq-mount .semantic-map-feature[data-feature='seq']").count() == 1
                         assert page.locator(".seq-mount svg").count() > 0
                         assert page.locator(".seq-svg").count() == 0
-                        state = page.evaluate("() => uiFeatureProof.mounted.read()")
+                        state = page.evaluate("() => uiPreviewProof.mounted.read()")
                         assert state["currentStageIndex"] == 0, state
                         assert state["seq"]["pattern"] == "seq/1", state
                         assert state["seq"]["focusMarker"] == "act-t0-provider", state
                         page.locator(".profiled-timeline button").nth(1).click()
-                        page.wait_for_function("() => uiFeatureProof.mounted.read().currentStageIndex === 1")
-                        state = page.evaluate("() => uiFeatureProof.mounted.read()")
+                        deadline = time.monotonic() + 10
+                        while time.monotonic() < deadline:
+                            state = page.evaluate("() => uiPreviewProof.mounted.read()")
+                            if state["currentStageIndex"] == 1:
+                                break
+                            time.sleep(0.05)
+                        assert state["currentStageIndex"] == 1, state
                         assert state["seq"]["focusMarker"] == "act-t1-customer", state
                     assert page.url.endswith(fragment), page.url
                     observed[runtime] = {
@@ -135,7 +143,7 @@ def main() -> None:
                 assert unexpected == [], unexpected
                 browser.close()
             print(json.dumps({
-                "schema": "unified-runtime-data-browser-proof/2",
+                "schema": "ui-preview-unified-runtime-data-browser-proof/1",
                 "status": "PASS",
                 "source": str(SOURCE.relative_to(ROOT)),
                 "sourceBytes": len(source_bytes),

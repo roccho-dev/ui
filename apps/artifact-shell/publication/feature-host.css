@@ -1,4 +1,0 @@
-*{box-sizing:border-box}
-html,body,#feature{min-height:100%}
-body{margin:0;background:Canvas;color:CanvasText}
-#fatal{margin:16px;padding:12px;border:1px solid #b75959;background:#fff0f0;color:#7a2424;white-space:pre-wrap}

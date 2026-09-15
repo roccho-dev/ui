@@ -43,13 +43,9 @@ def poll(read, accept, message: str, timeout: float = 30.0):
     raise AssertionError(f"{message}: {last!r}")
 
 
-def build_publication(output: Path) -> None:
+def build_preview(output: Path) -> None:
     completed = subprocess.run(
-        [
-            "node",
-            str(ROOT / "apps" / "artifact-shell" / "scripts" / "build-publication.mjs"),
-            f"--out={output}",
-        ],
+        ["npm", "--prefix", "apps/preview", "run", "build", "--", f"--outDir={output}"],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -93,23 +89,23 @@ def replace_region_label(source: Path, region_id: str, label: str, output: Path)
 
 
 def assert_feature_pass(page, variant_id: str, errors: list[str], phase: str) -> None:
-    proof = page.evaluate("() => globalThis.uiFeatureProof ?? null")
+    proof = page.evaluate("() => globalThis.uiPreviewProof ?? null")
     fatal = page.locator("#fatal").text_content()
     assert proof and proof.get("status") == "PASS", (
-        f"{variant_id} {phase}: feature host failed: proof={proof!r}; fatal={fatal!r}; pageErrors={errors!r}"
+        f"{variant_id} {phase}: preview failed: proof={proof!r}; fatal={fatal!r}; pageErrors={errors!r}"
     )
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="chart-publication-browser-") as temporary_name:
+    with tempfile.TemporaryDirectory(prefix="chart-preview-browser-") as temporary_name:
         temporary = Path(temporary_name)
-        publication = temporary / "publication"
-        build_publication(publication)
+        preview = temporary / "dist"
+        build_preview(preview)
 
         listen = port()
         server = subprocess.Popen(
             ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
-            cwd=publication,
+            cwd=preview,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             text=True,
@@ -118,7 +114,7 @@ def main() -> None:
         errors: list[str] = []
         input_json_requests: list[str] = []
         receipts: list[dict[str, object]] = []
-        negative_controls = {"missingSelection": False, "missingRoute": False}
+        negative_controls = {"missingSelection": False, "missingCase": False}
 
         try:
             time.sleep(0.4)
@@ -131,22 +127,22 @@ def main() -> None:
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.on("request", lambda request: input_json_requests.append(request.url) if "input.json" in request.url else None)
 
-                first_url: str | None = None
+                first_source: Path | None = None
                 for variant_id, chart_type, relative_source in VARIANTS:
                     source = ROOT / relative_source
-                    route = f"{base}/adapters/chart/{variant_id}/"
+                    first_source = first_source or source
+                    route = f"{base}/?case=chart/{variant_id}"
                     url = encode_data(source, route)
-                    first_url = first_url or url
                     page.goto(url, wait_until="networkidle", timeout=30_000)
                     poll(
-                        lambda: page.evaluate("() => globalThis.uiFeatureProof?.status ?? null"),
+                        lambda: page.evaluate("() => globalThis.uiPreviewProof?.status ?? null"),
                         lambda status: status in {"PASS", "FAIL"},
-                        f"{variant_id}: feature host did not settle",
+                        f"{variant_id}: preview did not settle",
                     )
                     assert_feature_pass(page, variant_id, errors, "initial")
                     assert page.evaluate("() => semanticMapSite.ready") is True
                     assert page.evaluate("() => semanticMapSite.editor.snapshot().scene.pattern") == "chart/1"
-                    assert page.evaluate("() => uiFeatureProof.feature.view.chart.type") == chart_type
+                    assert page.evaluate("() => uiPreviewProof.feature.view.chart.type") == chart_type
 
                     editable_id = page.evaluate(
                         """() => {
@@ -221,7 +217,7 @@ def main() -> None:
                     page.goto(updated_url, wait_until="networkidle", timeout=30_000)
                     page.reload(wait_until="networkidle", timeout=30_000)
                     poll(
-                        lambda: page.evaluate("() => globalThis.uiFeatureProof?.status ?? null"),
+                        lambda: page.evaluate("() => globalThis.uiPreviewProof?.status ?? null"),
                         lambda status: status in {"PASS", "FAIL"},
                         f"{variant_id}: updated #data did not settle",
                     )
@@ -254,20 +250,15 @@ def main() -> None:
                         "updatedDataReload": True,
                     })
 
-                assert first_url is not None
-                feature_json = publication / "adapters" / "chart" / "bar-horizontal" / "feature.json"
-                hidden = feature_json.with_suffix(".json.negative-control")
-                feature_json.rename(hidden)
-                try:
-                    page.goto(first_url, wait_until="domcontentloaded", timeout=30_000)
-                    poll(
-                        lambda: page.evaluate("() => globalThis.uiFeatureProof?.status ?? null"),
-                        lambda status: status == "FAIL",
-                        "negative control: missing chart route did not fail closed",
-                    )
-                    negative_controls["missingRoute"] = True
-                finally:
-                    hidden.rename(feature_json)
+                assert first_source is not None
+                missing_url = encode_data(first_source, f"{base}/?case=chart/missing")
+                page.goto(missing_url, wait_until="domcontentloaded", timeout=30_000)
+                poll(
+                    lambda: page.evaluate("() => globalThis.uiPreviewProof?.status ?? null"),
+                    lambda status: status == "FAIL",
+                    "negative control: unknown chart case did not fail closed",
+                )
+                negative_controls["missingCase"] = True
 
                 browser.close()
 
@@ -276,7 +267,7 @@ def main() -> None:
             assert input_json_requests == [], input_json_requests
             assert all(negative_controls.values()), negative_controls
             print(json.dumps({
-                "schema": "chart-publication-browser-proof/1",
+                "schema": "ui-preview-chart-browser-proof/1",
                 "status": "PASS",
                 "variants": receipts,
                 "variantCount": len(receipts),
