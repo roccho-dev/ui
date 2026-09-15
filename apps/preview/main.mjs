@@ -17,7 +17,10 @@ const runtimeModules = import.meta.glob([
 ]);
 const planModules = import.meta.glob('../../packages/**/model.mjs');
 const styleModules = import.meta.glob('../../packages/**/*.css');
-const jsonlExamples = import.meta.glob('../../examples/**/*.jsonl', { eager: true, query: '?raw', import: 'default' });
+const jsonlExamples = Object.freeze({
+  ...import.meta.glob('../../examples/**/*.jsonl', { eager: true, query: '?raw', import: 'default' }),
+  ...import.meta.glob('../../packages/semantic-map/examples/**/*.jsonl', { eager: true, query: '?raw', import: 'default' }),
+});
 const jsonExamples = import.meta.glob('../../examples/**/*.json', { eager: true, import: 'default' });
 const moduleKey = path => `../../${path}`;
 
