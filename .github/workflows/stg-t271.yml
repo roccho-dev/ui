@@ -62,3 +62,11 @@ jobs:
             --branch="$CLOUDFLARE_PAGES_BRANCH" \
             --commit-hash="$SOURCE_SHA"
           echo "https://${CLOUDFLARE_PAGES_BRANCH}.${CLOUDFLARE_PAGES_PROJECT}.pages.dev" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install pinned browser proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+
+      - name: Prove deployed UI preview
+        run: python3 apps/preview/tests/deployed-browser-proof.py "https://${CLOUDFLARE_PAGES_BRANCH}.${CLOUDFLARE_PAGES_PROJECT}.pages.dev"
