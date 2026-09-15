@@ -1,4 +1,4 @@
-import { normalizeOperation } from '../domain/index.js';
+import { createSemanticMap, normalizeOperation, recordsToJSONL } from '../domain/index.js';
 import { createSemanticMapEditorCore } from '../editor-core/index.js';
 import { commandForKey } from '../editor-core/commands.js';
 import { SemanticProjector, projectorThresholds } from '../projection/index.js';
@@ -30,8 +30,6 @@ const toast = document.getElementById('toast');
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
-
-
 
 let toastRun = 0;
 function showToast(message, isError = false) {
@@ -345,14 +343,21 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     revision: options.revision ?? null,
     ports: Object.freeze({ surface: adapter, document: documentPort, authority: authorityPort }),
   });
-  const store = core.runtime;
-  lastPresentationProjection = projectPresentation(store.domain, currentView);
-  const projector = new SemanticProjector(store.domain, modules, currentView, {
+  let currentDomain = createSemanticMap(core.snapshot().records);
+  const legacyReadModel = Object.freeze({
+    get domain() { return createSemanticMap(core.snapshot().records); },
+    onChange(listener) { return core.subscribe(listener); },
+    draftSnapshot() { return structuredClone(core.snapshot().draft); },
+    toRecords() { return structuredClone(core.snapshot().records); },
+    toJSONL() { return recordsToJSONL(core.snapshot().records); },
+  });
+  lastPresentationProjection = projectPresentation(currentDomain, currentView);
+  const projector = new SemanticProjector(currentDomain, modules, currentView, {
     presentationProjection: lastPresentationProjection,
   });
 
   function fitScale(maxScale = INITIAL_SCALE) {
-    const root = lastScene?.bounds ?? store.domain.regions.get(store.domain.meta.root).bounds;
+    const root = lastScene?.bounds ?? currentDomain.regions.get(currentDomain.meta.root).bounds;
     const availableWidth = Math.max(1, container.clientWidth - 48);
     const availableHeight = Math.max(1, container.clientHeight - 48);
     return Math.max(0.01, Math.min(
@@ -383,7 +388,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   let spacePreviousTool = null;
 
   function refreshPresentationProjection() {
-    lastPresentationProjection = projectPresentation(store.domain, currentView);
+    lastPresentationProjection = projectPresentation(currentDomain, currentView);
     projector.setPresentationProjection(lastPresentationProjection);
   }
 
@@ -397,7 +402,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       ? lastScene?.representations.find((item) => item.regionId === selection.regionIds[0])
       : null;
     const linked = selectedRepresentation?.href
-      ?? (selection.regionIds.length === 1 ? store.domain.regions.get(selection.regionIds[0])?.href : null);
+      ?? (selection.regionIds.length === 1 ? currentDomain.regions.get(selection.regionIds[0])?.href : null);
     if (openLinkButton) openLinkButton.disabled = !linked;
     draftLabel.textContent = `Draft ${draft.applied} · redo ${draft.redo}`;
     if (viewModel.display.status === 'error') {
@@ -413,8 +418,8 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
 
   function pruneSelection() {
     const selection = core.snapshot().selection;
-    const relationIds = new Set(store.domain.relations.map((relation) => relation.id));
-    const nextRegions = selection.regionIds.filter((id) => store.domain.regions.has(id));
+    const relationIds = new Set(currentDomain.relations.map((relation) => relation.id));
+    const nextRegions = selection.regionIds.filter((id) => currentDomain.regions.has(id));
     const nextRelations = selection.relationIds.filter((id) => relationIds.has(id));
     if (
       nextRegions.length !== selection.regionIds.length
@@ -428,7 +433,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     renderFrame = 0;
     renderQueued = false;
     if (destroyed) return;
-    projector.setDomain(store.domain);
+    projector.setDomain(currentDomain);
     const camera = adapter.camera();
     const scene = projector.project({ scale: camera.scale, viewport: adapter.viewport() });
     adapter.render(scene);
@@ -457,7 +462,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     if (!moduleResolver) return modules;
     const revision = ++moduleRevision;
     try {
-      const resolved = await moduleResolver.resolve(store.domain, { ...moduleContext(), view: currentView });
+      const resolved = await moduleResolver.resolve(currentDomain, { ...moduleContext(), view: currentView });
       if (destroyed || revision !== moduleRevision) return modules;
       modules = resolved;
       moduleError = null;
@@ -510,12 +515,13 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     queueRender();
   });
   disposers.push(adapter.onSelectionChange(() => updateControls()));
-  disposers.push(store.onChange(() => {
-    projector.setDomain(store.domain);
+  disposers.push(core.subscribe(event => {
+    currentDomain = createSemanticMap(event.core.records);
+    projector.setDomain(currentDomain);
     refreshPresentationProjection();
     queueMicrotask(() => { void refreshModules(); });
     queueRender();
-    updateControls();
+    updateControls(event.core);
   }));
 
   function zoomAt(clientX, clientY, factor) {
@@ -542,7 +548,6 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     zoomAt(clientX, clientY, scale / camera.scale);
   }
 
-
   function focusAtWorld(worldX, worldY, scale) {
     const nextScale = clamp(scale, minimumScale(), MAX_SCALE);
     const translateX = container.clientWidth / (2 * nextScale) - worldX;
@@ -563,7 +568,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
 
   function focusRegion(regionId, scale) {
     const representation = lastScene?.representations.find((item) => item.regionId === regionId);
-    const bounds = representation?.bounds ?? store.domain.regions.get(regionId)?.bounds;
+    const bounds = representation?.bounds ?? currentDomain.regions.get(regionId)?.bounds;
     if (!bounds) return false;
     focusAtWorld(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, scale);
     return true;
@@ -572,13 +577,12 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   function resetCamera(maxScale = INITIAL_SCALE) {
     const width = container.clientWidth;
     const height = container.clientHeight;
-    const root = lastScene?.bounds ?? store.domain.regions.get(store.domain.meta.root).bounds;
+    const root = lastScene?.bounds ?? currentDomain.regions.get(currentDomain.meta.root).bounds;
     const scale = fitScale(maxScale);
     const translateX = (width / scale - root.width) / 2 - root.x;
     const translateY = (height / scale - root.height) / 2 - root.y;
     adapter.setCamera(scale, translateX, translateY);
   }
-
 
   function setTool(tool) {
     currentTool = tool;
@@ -611,7 +615,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   function nextTemporal(axis) {
-    const intervals = [...store.domain.regions.values()]
+    const intervals = [...currentDomain.regions.values()]
       .map((region) => region.temporal?.[axis])
       .filter(Boolean);
     if (axis === 'ordinal') {
@@ -633,12 +637,12 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     }
     if (currentView.pattern === PATTERN_SEQ) {
       const selectedId = core.snapshot().selection.regionIds[0] ?? null;
-      const selected = selectedId ? store.domain.regions.get(selectedId) : null;
-      const actors = [...store.domain.regions.values()].filter((region) => region.kind === 'actor');
+      const selected = selectedId ? currentDomain.regions.get(selectedId) : null;
+      const actors = [...currentDomain.regions.values()].filter((region) => region.kind === 'actor');
       if (currentView.seq.groupBy === 'actor' && actors.length === 0) {
         const result = core.dispatch({
           type: 'AddRegion',
-          parentId: store.domain.meta.root,
+          parentId: currentDomain.meta.root,
           label: 'Untitled actor',
           kind: 'actor',
           summary: '',
@@ -655,7 +659,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       const interval = nextTemporal(currentView.seq.axis);
       const result = core.dispatch({
         type: 'AddRegion',
-        parentId: selected && selected.kind === 'task' ? selected.id : store.domain.meta.root,
+        parentId: selected && selected.kind === 'task' ? selected.id : currentDomain.meta.root,
         label: 'Untitled task',
         kind: 'task',
         summary: '',
@@ -672,13 +676,13 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     const selectedRepresentation = lastScene?.representations.find(
       (representation) => representation.regionId === selectedId,
     );
-    let parentId = store.domain.meta.root;
+    let parentId = currentDomain.meta.root;
     if (currentView.pattern !== 'graph/1' && selectedId && selectedRepresentation?.detailsVisible) {
       parentId = selectedId;
     } else if (currentView.pattern !== 'graph/1' && selectedId) {
-      parentId = store.domain.regions.get(selectedId)?.parent ?? store.domain.meta.root;
+      parentId = currentDomain.regions.get(selectedId)?.parent ?? currentDomain.meta.root;
     }
-    const parent = store.domain.regions.get(parentId);
+    const parent = currentDomain.regions.get(parentId);
     const result = core.dispatch({
       type: 'AddRegion',
       parentId,
@@ -711,7 +715,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
 
   function openRegionLink(regionId, navigate = (url) => location.assign(url), base = location.href) {
     const representation = lastScene?.representations.find((item) => item.regionId === regionId);
-    const href = representation?.href ?? store.domain.regions.get(regionId)?.href ?? null;
+    const href = representation?.href ?? currentDomain.regions.get(regionId)?.href ?? null;
     if (!href) return null;
     const url = new URL(href, base).href;
     navigate(url);
@@ -840,9 +844,9 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   const api = Object.freeze({
     ready: true,
     readOnly,
-    get domain() { return store.domain; },
+    get domain() { return createSemanticMap(core.snapshot().records); },
     core,
-    store,
+    store: legacyReadModel,
     projector,
     adapter,
     thresholds: projectorThresholds,
@@ -852,15 +856,15 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       viewport: adapter.viewport(),
       tool: currentTool,
       selection: core.snapshot().selection,
-      draft: store.draftSnapshot(),
+      draft: core.snapshot().draft,
       domain: {
         meta: {
-          schema: store.domain.meta.schema,
-          root: store.domain.meta.root,
-          title: store.domain.meta.title,
-          geoSpec: store.domain.meta.geoSpec ? structuredClone(store.domain.meta.geoSpec) : null,
+          schema: currentDomain.meta.schema,
+          root: currentDomain.meta.root,
+          title: currentDomain.meta.title,
+          geoSpec: currentDomain.meta.geoSpec ? structuredClone(currentDomain.meta.geoSpec) : null,
         },
-        regions: [...store.domain.regions.values()].map((region) => ({
+        regions: [...currentDomain.regions.values()].map((region) => ({
           id: region.id,
           parent: region.parent,
           label: region.label,
@@ -872,7 +876,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
           set: region.set ? { ...region.set } : null,
           bounds: { ...region.bounds },
         })),
-        relations: store.domain.relations.map((relation) => ({ ...relation })),
+        relations: currentDomain.relations.map((relation) => ({ ...relation })),
       },
       modules: lastScene ? { ...lastScene.modules, error: moduleError?.message ?? null } : null,
       resourceComposition: currentView.resourceComposition ? structuredClone(currentView.resourceComposition) : null,
@@ -918,7 +922,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     deleteSelection,
     openRegionLink,
     openSelectedLink,
-    exportJSONL: () => store.toJSONL(),
+    exportJSONL: () => recordsToJSONL(core.snapshot().records),
     setTool,
     zoomAtWorld: setScaleAtWorld,
     focusRegion,
