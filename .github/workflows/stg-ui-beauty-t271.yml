@@ -1,4 +1,4 @@
-name: Staging preview for #271
+name: "Staging preview for #271"
 
 on:
   pull_request:
