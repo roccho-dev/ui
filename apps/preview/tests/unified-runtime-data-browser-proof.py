@@ -116,11 +116,13 @@ def main() -> None:
                         assert state["seq"]["focusMarker"] == "act-t1-customer", state
                     else:
                         assert mounted["schema"] == "ui-control-runtime/3", mounted
-                        assert page.locator("[data-a2ui-component='Pane']").count() == 2
-                        left_root = page.locator("[data-a2ui-id='control-tree'] [data-control-id='/root'] > .row").inner_text()
-                        right_root = page.locator("[data-a2ui-id='claims-tree'] [data-control-id='/root'] > .row").inner_text()
+                        assert page.locator("[data-a2ui-component='TreeGrid']").count() == 1
+                        assert page.locator("[data-a2ui-component='Tree']").count() == 0
+                        root_row = page.locator("[data-control-row='/root']")
+                        left_root = root_row.locator(":scope > [data-control-column='control']").inner_text()
+                        right_root = root_row.locator(":scope > [data-control-column='claims']").inner_text()
                         assert "schema: 3" in left_root and "rel:" not in left_root, left_root
-                        assert "id: report.001" in right_root and "op: report" in right_root and "rel:" not in right_root, right_root
+                        assert "op: report" in right_root and "by: d" in right_root and "rel:" not in right_root, right_root
                     observed[runtime] = {"schema": mounted.get("schema"), "sourceId": mounted.get("sourceId")}
                     page.close()
 
