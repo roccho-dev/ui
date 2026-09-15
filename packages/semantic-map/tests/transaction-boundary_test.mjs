@@ -194,6 +194,8 @@ for (const action of ['accept', 'reject']) {
     test.core.dispatch({ type: 'presentation.refresh' });
     const repaired = test.core.snapshot();
     assert.equal(repaired.display.status, 'ready');
+    assert.deepEqual(test.calls.chrome.at(-1).display, repaired.display, 'E_STALE_CHROME_REPLAY');
+    assert.deepEqual(test.calls.events.at(-1).core.display, repaired.display);
     assert.deepEqual(repaired.display.failures, []);
     assert.deepEqual({ ...repaired, display: accepted.display }, accepted);
     assert.equal(test.calls.commit.length, committedCalls);
@@ -204,8 +206,39 @@ for (const action of ['accept', 'reject']) {
   }
 }
 
+let displayReplayCases = 0;
+for (const failures of [[], ['render'], ['chrome'], ['render', 'chrome']]) {
+  const test = harness();
+  const before = test.core.snapshot();
+  // Repeated failure must remain an error with this attempt's message.
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (const phase of failures) {
+      test.hooks[phase] = () => { throw new Error(`E_REPLAY_${phase}_${attempt}`); };
+    }
+    test.core.dispatch({ type: 'presentation.refresh' });
+    const observed = test.core.snapshot();
+    assert.equal(observed.display.status, failures.length ? 'error' : 'ready');
+    assert.equal(observed.display.failures.length, failures.length);
+    for (const failure of observed.display.failures) {
+      assert.match(failure.message, new RegExp(`_${attempt}$`, 'u'));
+    }
+    assert.deepEqual({ ...observed, display: before.display }, before);
+    assert.deepEqual(test.calls.events.at(-1).core, observed);
+  }
+  for (const phase of failures) delete test.hooks[phase];
+  test.core.dispatch({ type: 'presentation.refresh' });
+  const repaired = test.core.snapshot();
+  assert.deepEqual(repaired, before);
+  assert.deepEqual(test.calls.chrome.at(-1), repaired, 'E_STALE_CHROME_REPLAY');
+  assert.deepEqual(test.calls.events.at(-1).core, repaired);
+  for (const phase of ['render', 'chrome', 'events']) assert.equal(test.calls[phase].length, 3, phase);
+  for (const phase of ['authorize', 'requestEdit', 'reload', 'commit']) assert.equal(test.calls[phase].length, 0, phase);
+  test.core.destroy();
+  displayReplayCases += 1;
+}
+
 console.log(JSON.stringify({
-  schema: 'semantic-map-transaction-boundary-test/1', status: 'PASS',
+  schema: 'semantic-map-transaction-boundary-test/2', status: 'PASS',
   earlyReentryCases, provisionalReadCases, publicationReentryCases, committedDisplayFailureCases,
-  formalBrowser: false,
+  displayReplayCases, formalBrowser: false,
 }));

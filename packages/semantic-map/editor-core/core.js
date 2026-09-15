@@ -141,6 +141,8 @@ class EditorCoreState extends DomainStateStore {
     this.transactionSnapshot = this.readSnapshot();
     const display = (phase, callback) => {
       this.displayFailures = this.displayFailures.filter(failure => failure.phase !== phase);
+      // The retry receives the current attempt, not a stale failure projection.
+      this.transactionSnapshot = this.readSnapshot();
       try { synchronous(callback(), phase); } catch (error) {
         this.displayFailures.push({ code: 'E_EDITOR_DISPLAY', phase, message: String(error?.message ?? error) });
       }
