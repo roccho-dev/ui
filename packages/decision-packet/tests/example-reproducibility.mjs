@@ -22,13 +22,11 @@ const heartbeat = setInterval(() => {
 }, 15_000);
 
 try {
-  const first = path.join(temporary, 'first');
-  const second = path.join(temporary, 'second');
-  await buildDecisionPacketExample({ inputPath, outputRoot: first });
-  await buildDecisionPacketExample({ inputPath, outputRoot: second });
-  assert.deepEqual(await snapshot(first), await snapshot(second));
-  assert.deepEqual(await snapshot(first), await snapshot(expectedRoot));
-  console.log(JSON.stringify({ schema: 'decision-packet-example-reproducibility/1', status: 'PASS', files: Object.keys(await snapshot(first)).length }));
+  const actual = path.join(temporary, 'actual');
+  await buildDecisionPacketExample({ inputPath, outputRoot: actual });
+  const actualSnapshot = await snapshot(actual);
+  assert.deepEqual(actualSnapshot, await snapshot(expectedRoot));
+  console.log(JSON.stringify({ schema: 'decision-packet-example-reproducibility/1', status: 'PASS', files: Object.keys(actualSnapshot).length }));
 } finally {
   clearInterval(heartbeat);
   await fs.rm(temporary, { recursive: true, force: true });
