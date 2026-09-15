@@ -3,38 +3,26 @@ if (!base) throw new Error("UI_PUBLIC_URL or deployed base URL argument is requi
 
 const root = new URL(base);
 if (!root.pathname.endsWith("/")) root.pathname += "/";
+const get = async relative => {
+  const url = new URL(relative, root);
+  const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+  if (!response.ok) throw new Error(`${response.status} ${url}`);
+  return response;
+};
 
-const paths = [
-  "",
-  "adapters/graph/",
-  "adapters/map/",
-  "adapters/seq/",
-  "adapters/chart/",
-  "adapters/chart/bar-horizontal/",
-  "adapters/chart/bar-vertical/",
-  "adapters/chart/line/",
-  "adapters/chart/pie/",
-  "adapters/chart/donut/",
-  "adapters/chart/scatter/",
-  "adapters/chart/heatmap/",
-  "adapters/chart/sunburst/",
-  "adapters/presentation/",
-  "adapters/control/",
-];
+await get("");
+const catalog = await (await get("catalog.json")).json();
+if (catalog?.schema !== "artifact-capability-catalog/2") throw new Error("unsupported capability catalog");
+if (!Array.isArray(catalog.capabilities) || catalog.capabilities.length === 0) throw new Error("capability catalog is empty");
 
-for (const path of paths) {
-  const url = new URL(path, root);
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-    if (!response.ok) throw new Error(`${response.status} ${url}`);
-    console.log(`PASS ${response.status} ${url}`);
-  } catch (error) {
-    if (error?.name === "TimeoutError") {
-      console.log(`TODO timeout ${url}`);
-      continue;
-    }
-    throw error;
-  }
+for (const entry of catalog.capabilities) {
+  const release = `${entry.root}/`;
+  const publication = await (await get(`${release}manifest.json`)).json();
+  if (publication?.releaseHash !== entry.releaseHash) throw new Error(`${entry.root}: release hash mismatch`);
+  await get(`${release}agent.json`);
+  await get(`${release}engine.mjs`);
+  await get(`${release}${publication.human.href}`);
+  console.log(`PASS ${entry.capability.id}@${entry.capability.version}`);
 }
 
-console.log("VISUAL: open the URLs above and confirm the rendered screens.");
+console.log(JSON.stringify({ schema: "artifact-shell-publication-smoke/1", status: "PASS", capabilities: catalog.capabilities.length }));
