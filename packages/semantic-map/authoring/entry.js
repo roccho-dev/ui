@@ -229,9 +229,15 @@ async function start() {
   runtime.attachCore(editor.core);
   artifactModuleBridge.attach(editor);
   if (!artifactModuleBridge.embedded) {
-    editor.adapter.setActivationHandler(async (activation) => {
-      if (activation?.kind !== 'set-view') throw new Error(`unsupported activation: ${activation?.kind ?? '<missing>'}`);
-      await commitViewChange(runtime, editor, activation.view, 'Chart drilldown');
+    editor.core.subscribe(event => {
+      if (event.kind !== 'activation') return;
+      const activation = event.activation;
+      if (activation?.kind !== 'set-view') {
+        editor.notify(`unsupported activation: ${activation?.kind ?? '<missing>'}`, true);
+        return;
+      }
+      void commitViewChange(runtime, editor, activation.view, 'Chart drilldown')
+        .catch(error => editor.notify(error.message, true));
     });
   }
   await applyView(editor, runtime.view);
