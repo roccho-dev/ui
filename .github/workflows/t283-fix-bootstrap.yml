@@ -25,9 +25,16 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git fetch origin feat/opt-manually-and-beautifully
           if ! git merge --no-edit origin/feat/opt-manually-and-beautifully; then
-            git status --short
-            git diff --name-only --diff-filter=U
-            exit 1
+            git diff --name-only --diff-filter=U | sort > /tmp/actual-conflicts
+            printf '%s\n' \
+              apps/artifact-shell/publication/build-adapters.mjs \
+              apps/artifact-shell/publication/feature-host.html \
+              apps/artifact-shell/publication/feature-host.mjs \
+              apps/artifact-shell/tests/unified-runtime-data-browser-proof.py \
+              | sort > /tmp/expected-conflicts
+            diff -u /tmp/expected-conflicts /tmp/actual-conflicts
+            xargs -r git rm -- < /tmp/expected-conflicts
+            git commit --no-edit
           fi
       - name: Finish retired transport cleanup
         run: |
