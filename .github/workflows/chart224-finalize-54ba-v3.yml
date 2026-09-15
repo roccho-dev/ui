@@ -1,0 +1,34 @@
+name: Chart 224 finalize on 54ba v3
+
+on:
+  push:
+    branches: [control/chart224-finalize-54ba-v3-260915]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/chart224-final-54ba-260915
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Load pinned finalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin control/chart224-finalize-54ba-v3-260915
+          git show origin/control/chart224-finalize-54ba-v3-260915:tools/chart224-finalize-54ba.sh > "$RUNNER_TEMP/chart224-finalize.sh"
+          chmod +x "$RUNNER_TEMP/chart224-finalize.sh"
+      - name: Finalize and prove
+        shell: bash
+        run: "$RUNNER_TEMP/chart224-finalize.sh"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chart224-final-54ba-proof-v2
+          path: chart224-final-54ba-proof.json
+          if-no-files-found: error
