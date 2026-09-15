@@ -42,4 +42,4 @@ for adapter in graph map seq; do
   fi
 done
 
-printf '%s\n' '{"schema":"ui.adapter-browser-proof/9","status":"PASS","directFeatures":["presentation","control"],"sourceRef":"control/input.json","invocationAdapters":["graph","map","seq"],"host":"generic"}'
+printf '%s\n' '{"schema":"ui.adapter-browser-proof/8","status":"PASS","directFeatures":["presentation","control"],"invocationAdapters":["graph","map","seq"],"host":"generic"}'
