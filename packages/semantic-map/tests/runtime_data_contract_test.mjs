@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getFeature as getA2uiFeature } from '../../a2ui-browser/feature.mjs';
+import { getFeature as getBusinessFeature } from '../../business-model/feature.mjs';
 import { parseBusinessModelRuntimeJsonl } from '../../business-model/runtime-data.mjs';
 import { projectBusinessModelSemanticMapRecords } from '../../business-model/semantic-map.mjs';
 import { compileBusinessModelPresentationPlan } from '../../presentation/compiler/profile.mjs';
@@ -12,22 +14,21 @@ import { defaultViewForPattern } from '../protocol/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
-const previewCases = (await fs.readFile(path.join(repoRoot, 'apps/preview/cases.jsonl'), 'utf8'))
-  .split(/\r?\n/u)
-  .filter(Boolean)
-  .map(line => JSON.parse(line));
-const byId = id => previewCases.find(item => item.id === id);
-const graph = byId('graph');
-const seq = byId('seq');
-const presentation = byId('presentation');
-assert.ok(graph && seq && presentation, 'preview must declare graph, seq and presentation');
-assert.equal(graph.source, seq.source, 'Graph and Seq must share one semantic JSONL');
-assert.equal(presentation.source.presentation, graph.source, 'Presentation must consume the same semantic JSONL');
-assert.equal(typeof presentation.source.design, 'string');
-assert.equal(graph.featureModule, seq.featureModule);
-assert.equal(presentation.featureModule, 'packages/a2ui-browser/feature.mjs');
+const graph = getBusinessFeature('graph');
+const seq = getBusinessFeature('seq');
+const presentation = getA2uiFeature('presentation');
 
-const source = graph.source;
+assert.equal(graph.input, seq.input, 'Graph and Seq must share one semantic input group');
+assert.equal(graph.input, 'presentation');
+assert.deepEqual([...presentation.input], ['design', 'presentation']);
+assert.ok(presentation.input.includes(graph.input), 'Presentation must consume the same semantic input');
+assert.equal(graph.entry, seq.entry);
+assert.equal(presentation.entry, 'packages/a2ui-browser/src/feature-app.mjs');
+
+const sourceDir = path.join(repoRoot, 'examples', graph.input);
+const jsonl = (await fs.readdir(sourceDir)).filter(name => name.endsWith('.jsonl'));
+assert.deepEqual(jsonl, ['presentation.jsonl'], 'shared semantic input group must contain one JSONL');
+const source = path.join('examples', graph.input, jsonl[0]);
 const input = await fs.readFile(path.join(repoRoot, source), 'utf8');
 const runtimeData = parseBusinessModelRuntimeJsonl(input);
 assert.equal(runtimeData.schema, 'business-model-runtime-data/1');
@@ -35,7 +36,8 @@ assert.equal(runtimeData.model.sourceSchema, 'business-model-semantic-jsonl/2');
 assert.equal(Object.hasOwn(runtimeData, 'presentation'), false, 'semantic runtime data must not own Presentation A2UI design');
 assert.equal(input.includes('"type":"presentation"'), false);
 
-const design = JSON.parse(await fs.readFile(path.join(repoRoot, presentation.source.design), 'utf8'));
+const designPath = path.join('examples', 'presentation', 'design.json');
+const design = JSON.parse(await fs.readFile(path.join(repoRoot, designPath), 'utf8'));
 assert.equal(design.schema, 'ui-a2ui-app-design/1');
 assert.equal(design.app, 'presentation');
 assert.equal(design.profileId, 'business-model/1');
@@ -57,13 +59,14 @@ assert.equal(plan.modelId, runtimeData.model.id);
 assert.deepEqual(plan.stageIds, runtimeData.model.stages.map(stage => stage.id));
 
 console.log(JSON.stringify({
-  schema: 'unified-runtime-data-contract-test/3',
+  schema: 'unified-runtime-data-contract-test/4',
   status: 'PASS',
   source,
-  design: presentation.source.design,
+  design: designPath,
   sourceId: runtimeData.model.id,
   runtimes: [graph.id, seq.id, presentation.id],
   semanticRecords: records.length,
   stages: plan.stageIds.length,
   presentationDesignData: true,
+  previewRegistry: false,
 }));
