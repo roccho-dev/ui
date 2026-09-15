@@ -219,6 +219,7 @@ def main() -> None:
                     replace_region_label(source, editable_id, updated_label, updated_source)
                     updated_url = encode_data(updated_source, route)
                     page.goto(updated_url, wait_until="networkidle", timeout=30_000)
+                    page.reload(wait_until="networkidle", timeout=30_000)
                     poll(
                         lambda: page.evaluate("() => globalThis.uiFeatureProof?.status ?? null"),
                         lambda status: status in {"PASS", "FAIL"},
