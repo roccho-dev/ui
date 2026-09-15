@@ -47,10 +47,7 @@ function installTouchNavigation({ container, adapter, minimumScale, signal }) {
     return Object.freeze({ snapshot: () => ({ enabled: false, mode: 'native', pointers: 0 }) });
   }
 
-  // maxGraph handles one-finger editing. This adapter owns empty-space pan and
-  // standards-based two-finger pinch, because maxGraph's pinch path uses gesture events.
   adapter.setNativePinchEnabled(false);
-
   const pointers = new Map();
   const intercepted = new Set();
   let mode = 'idle';
@@ -58,73 +55,40 @@ function installTouchNavigation({ container, adapter, minimumScale, signal }) {
   let pinchStart = null;
 
   function pointFrom(event) {
-    return {
-      id: event.pointerId,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      target: event.target,
-    };
+    return { id: event.pointerId, clientX: event.clientX, clientY: event.clientY, target: event.target };
   }
-
   function preventGraphHandling(event) {
     if (event.cancelable) event.preventDefault();
     event.stopImmediatePropagation();
   }
-
   function showScale(scale) {
     zoomLabel.value = `${Math.round(scale * 100)}%`;
     zoomLabel.textContent = zoomLabel.value;
   }
-
-  function capture(id) {
-    try { container.setPointerCapture(id); } catch (_) { /* capture is best effort */ }
-  }
-
-  function release(id) {
-    try { container.releasePointerCapture(id); } catch (_) { /* already released */ }
-  }
-
-  function activeCamera() {
-    return adapter.cameraPreviewSnapshot().camera ?? adapter.camera();
-  }
-
+  function capture(id) { try { container.setPointerCapture(id); } catch (_) {} }
+  function release(id) { try { container.releasePointerCapture(id); } catch (_) {} }
+  function activeCamera() { return adapter.cameraPreviewSnapshot().camera ?? adapter.camera(); }
   function beginPan(point) {
     adapter.beginCameraPreview();
     const camera = activeCamera();
     mode = 'pan';
     pinchStart = null;
     panStart = {
-      id: point.id,
-      clientX: point.clientX,
-      clientY: point.clientY,
-      scale: camera.scale,
-      translateX: camera.translateX,
-      translateY: camera.translateY,
+      id: point.id, clientX: point.clientX, clientY: point.clientY,
+      scale: camera.scale, translateX: camera.translateX, translateY: camera.translateY,
     };
   }
-
-  function pinchPoints() {
-    return [...pointers.values()].slice(0, 2);
-  }
-
+  function pinchPoints() { return [...pointers.values()].slice(0, 2); }
   function midpoint(a, b) {
     const rect = container.getBoundingClientRect();
-    return {
-      x: (a.clientX + b.clientX) / 2 - rect.left,
-      y: (a.clientY + b.clientY) / 2 - rect.top,
-    };
+    return { x: (a.clientX + b.clientX) / 2 - rect.left, y: (a.clientY + b.clientY) / 2 - rect.top };
   }
-
-  function distance(a, b) {
-    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-  }
-
+  function distance(a, b) { return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
   function beginPinch() {
     const [a, b] = pinchPoints();
     if (!a || !b) return;
     const startDistance = distance(a, b);
     if (startDistance < 1) return;
-
     adapter.beginCameraPreview();
     const camera = activeCamera();
     const center = midpoint(a, b);
@@ -137,29 +101,21 @@ function installTouchNavigation({ container, adapter, minimumScale, signal }) {
       worldY: center.y / camera.scale - camera.translateY,
     };
   }
-
   function ownAllPointers() {
     adapter.cancelInteraction();
-    for (const id of pointers.keys()) {
-      intercepted.add(id);
-      capture(id);
-    }
+    for (const id of pointers.keys()) { intercepted.add(id); capture(id); }
   }
-
   function onPointerDown(event) {
     if (event.pointerType !== 'touch') return;
     const point = pointFrom(event);
     pointers.set(event.pointerId, point);
-
     if (pointers.size >= 2) {
       preventGraphHandling(event);
       ownAllPointers();
       beginPinch();
       return;
     }
-
-    const shouldPan = adapter.tool === 'hand'
-      || !adapter.isEditableTouchTarget(event.clientX, event.clientY, event.target);
+    const shouldPan = adapter.tool === 'hand' || !adapter.isEditableTouchTarget(event.clientX, event.clientY, event.target);
     if (shouldPan) {
       preventGraphHandling(event);
       intercepted.add(event.pointerId);
@@ -171,71 +127,49 @@ function installTouchNavigation({ container, adapter, minimumScale, signal }) {
       pinchStart = null;
     }
   }
-
   function onPointerMove(event) {
     if (event.pointerType !== 'touch' || !pointers.has(event.pointerId)) return;
     pointers.set(event.pointerId, pointFrom(event));
-
     if (pointers.size >= 2 || mode === 'pinch') {
       preventGraphHandling(event);
-      if (mode !== 'pinch' || !pinchStart) {
-        ownAllPointers();
-        beginPinch();
-      }
+      if (mode !== 'pinch' || !pinchStart) { ownAllPointers(); beginPinch(); }
       const [a, b] = pinchPoints();
       if (!a || !b || !pinchStart) return;
       const nextDistance = distance(a, b);
       if (nextDistance < 1) return;
-
       const center = midpoint(a, b);
-      const scale = clamp(
-        pinchStart.scale * (nextDistance / pinchStart.distance),
-        minimumScale(),
-        MAX_SCALE,
-      );
-      adapter.previewCamera(
-        scale,
-        center.x / scale - pinchStart.worldX,
-        center.y / scale - pinchStart.worldY,
-      );
+      const scale = clamp(pinchStart.scale * (nextDistance / pinchStart.distance), minimumScale(), MAX_SCALE);
+      adapter.previewCamera(scale, center.x / scale - pinchStart.worldX, center.y / scale - pinchStart.worldY);
       showScale(scale);
       return;
     }
-
     if (!intercepted.has(event.pointerId) || mode !== 'pan') return;
     preventGraphHandling(event);
     const point = pointers.get(event.pointerId);
     if (!panStart || panStart.id !== point.id) beginPan(point);
     if (!panStart) return;
-
     adapter.previewCamera(
       panStart.scale,
       panStart.translateX + (point.clientX - panStart.clientX) / panStart.scale,
       panStart.translateY + (point.clientY - panStart.clientY) / panStart.scale,
     );
   }
-
   function onPointerEnd(event) {
     if (event.pointerType !== 'touch' || !pointers.has(event.pointerId)) return;
     const owned = intercepted.has(event.pointerId) || mode === 'pinch';
     if (owned) preventGraphHandling(event);
-
     if (event.type === 'pointercancel') {
       for (const id of pointers.keys()) release(id);
       pointers.clear();
       intercepted.clear();
       adapter.cancelCameraPreview();
       showScale(adapter.camera().scale);
-      mode = 'idle';
-      panStart = null;
-      pinchStart = null;
+      mode = 'idle'; panStart = null; pinchStart = null;
       return;
     }
-
     pointers.delete(event.pointerId);
     intercepted.delete(event.pointerId);
     release(event.pointerId);
-
     if (pointers.size >= 2) {
       ownAllPointers();
       beginPinch();
@@ -246,34 +180,23 @@ function installTouchNavigation({ container, adapter, minimumScale, signal }) {
       beginPan(remaining);
     } else if (pointers.size === 0) {
       adapter.commitCameraPreview();
-      mode = 'idle';
-      panStart = null;
-      pinchStart = null;
+      mode = 'idle'; panStart = null; pinchStart = null;
     }
   }
-
   signal.addEventListener('abort', () => {
     for (const id of pointers.keys()) release(id);
     pointers.clear();
     intercepted.clear();
     adapter.cancelCameraPreview();
   }, { once: true });
-
   const options = { capture: true, passive: false, signal };
   container.addEventListener('pointerdown', onPointerDown, options);
   container.addEventListener('pointermove', onPointerMove, options);
   container.addEventListener('pointerup', onPointerEnd, options);
   container.addEventListener('pointercancel', onPointerEnd, options);
-
-  return Object.freeze({
-    snapshot: () => ({
-      enabled: true,
-      mode,
-      pointers: pointers.size,
-      intercepted: intercepted.size,
-      preview: adapter.cameraPreviewSnapshot(),
-    }),
-  });
+  return Object.freeze({ snapshot: () => ({
+    enabled: true, mode, pointers: pointers.size, intercepted: intercepted.size, preview: adapter.cameraPreviewSnapshot(),
+  }) });
 }
 
 export async function createSemanticMapEditor(initialDomain, options = {}) {
@@ -295,6 +218,12 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   let moduleRevision = 0;
   let lastMeaningRecovery = null;
   let lastPresentationProjection = null;
+  let lastScene = null;
+  let renderQueued = false;
+  let renderFrame = 0;
+  let elementCompositionKey = null;
+  let currentTool = 'select';
+  let spacePreviousTool = null;
   const adapter = new MaxGraphAdapter(container);
 
   const documentPort = Object.freeze({
@@ -318,11 +247,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
         operations: Object.freeze(recovery.operations.map((candidate) => structuredClone(candidate))),
         validate: ({ semantic: candidate }) => {
           const configKey = patternConfigKey(currentView.pattern);
-          return validatePatternDomain(
-            candidate,
-            currentView.pattern,
-            configKey === null ? null : currentView[configKey],
-          );
+          return validatePatternDomain(candidate, currentView.pattern, configKey === null ? null : currentView[configKey]);
         },
       });
     },
@@ -330,13 +255,11 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     reload: ({ input, expectedRevision }) => Object.freeze({ input, revision: expectedRevision }),
     renderChrome: viewModel => updateControls(viewModel),
   });
-  const authorityPort = Object.freeze({
-    authorize: () => Object.freeze({
-      allowed: !readOnly,
-      code: readOnly ? 'E_READ_ONLY' : 'ALLOW',
-      reason: readOnly ? 'embedded semantic map is read-only' : 'editor mutation allowed',
-    }),
-  });
+  const authorityPort = Object.freeze({ authorize: () => Object.freeze({
+    allowed: !readOnly,
+    code: readOnly ? 'E_READ_ONLY' : 'ALLOW',
+    reason: readOnly ? 'embedded semantic map is read-only' : 'editor mutation allowed',
+  }) });
   const core = createSemanticMapEditorCore({
     semantic: initialDomain,
     layout: Object.freeze({ selection: Object.freeze({ regionIds: [], relationIds: [] }), frame: null }),
@@ -344,56 +267,39 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     ports: Object.freeze({ surface: adapter, document: documentPort, authority: authorityPort }),
   });
   let currentDomain = createSemanticMap(core.snapshot().records);
-  const legacyReadModel = Object.freeze({
-    get domain() { return createSemanticMap(core.snapshot().records); },
-    onChange(listener) { return core.subscribe(listener); },
-    draftSnapshot() { return structuredClone(core.snapshot().draft); },
-    toRecords() { return structuredClone(core.snapshot().records); },
-    toJSONL() { return recordsToJSONL(core.snapshot().records); },
-  });
-  lastPresentationProjection = projectPresentation(currentDomain, currentView);
-  const projector = new SemanticProjector(currentDomain, modules, currentView, {
-    presentationProjection: lastPresentationProjection,
-  });
+
+  function projectionInput(resolvedModules = modules) {
+    return Object.freeze({
+      view: currentView,
+      modules: resolvedModules,
+      projectPresentation,
+      presentation: Object.freeze({ camera: adapter.camera(), viewport: adapter.viewport() }),
+    });
+  }
+
+  function configureProjection(resolvedModules = modules) {
+    const snapshot = core.dispatch({ type: 'presentation.configure', projection: projectionInput(resolvedModules) });
+    lastScene = snapshot.scene;
+    lastPresentationProjection = snapshot.presentationProjection;
+    return snapshot;
+  }
 
   function fitScale(maxScale = INITIAL_SCALE) {
     const root = lastScene?.bounds ?? currentDomain.regions.get(currentDomain.meta.root).bounds;
     const availableWidth = Math.max(1, container.clientWidth - 48);
     const availableHeight = Math.max(1, container.clientHeight - 48);
-    return Math.max(0.01, Math.min(
-      maxScale,
-      availableWidth / root.width,
-      availableHeight / root.height,
-    ));
+    return Math.max(0.01, Math.min(maxScale, availableWidth / root.width, availableHeight / root.height));
   }
-
-  function minimumScale() {
-    return Math.min(MIN_SCALE, fitScale());
-  }
-
+  function minimumScale() { return Math.min(MIN_SCALE, fitScale()); }
   function wheelDeltaPixels(event) {
-    const multiplier = event.deltaMode === 1
-      ? 16
-      : event.deltaMode === 2
-        ? Math.max(1, container.clientHeight)
-        : 1;
+    const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? Math.max(1, container.clientHeight) : 1;
     return clamp(event.deltaY * multiplier, -MAX_WHEEL_DELTA, MAX_WHEEL_DELTA);
-  }
-
-  let renderQueued = false;
-  let renderFrame = 0;
-  let lastScene = null;
-  let elementCompositionKey = null;
-  let currentTool = 'select';
-  let spacePreviousTool = null;
-
-  function refreshPresentationProjection() {
-    lastPresentationProjection = projectPresentation(currentDomain, currentView);
-    projector.setPresentationProjection(lastPresentationProjection);
   }
 
   function updateControls(viewModel = core.snapshot()) {
     const { draft, selection } = viewModel;
+    if (viewModel.scene) lastScene = viewModel.scene;
+    if (Object.hasOwn(viewModel, 'presentationProjection')) lastPresentationProjection = viewModel.presentationProjection;
     undoButton.disabled = readOnly || !draft.canUndo;
     redoButton.disabled = readOnly || !draft.canRedo;
     addNodeButton.disabled = readOnly;
@@ -407,7 +313,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     draftLabel.textContent = `Draft ${draft.applied} · redo ${draft.redo}`;
     if (viewModel.display.status === 'error') {
       showToast(viewModel.display.failures.map(failure => failure.message).join(' / '), true);
-      toastRun += 1; // A current display failure does not expire on a timer.
+      toastRun += 1;
       displayErrorShown = true;
     } else if (displayErrorShown) {
       toastRun += 1;
@@ -416,40 +322,27 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     }
   }
 
-  function pruneSelection() {
-    const selection = core.snapshot().selection;
-    const relationIds = new Set(currentDomain.relations.map((relation) => relation.id));
-    const nextRegions = selection.regionIds.filter((id) => currentDomain.regions.has(id));
-    const nextRelations = selection.relationIds.filter((id) => relationIds.has(id));
-    if (
-      nextRegions.length !== selection.regionIds.length
-      || nextRelations.length !== selection.relationIds.length
-    ) {
-      core.dispatch({ type: 'selection.set', selection: { regionIds: nextRegions, relationIds: nextRelations } });
-    }
-  }
-
   function render() {
     renderFrame = 0;
     renderQueued = false;
     if (destroyed) return;
-    projector.setDomain(currentDomain);
-    const camera = adapter.camera();
-    const scene = projector.project({ scale: camera.scale, viewport: adapter.viewport() });
-    adapter.render(scene);
+    const snapshot = core.snapshot();
+    currentDomain = createSemanticMap(snapshot.records);
+    lastScene = snapshot.scene;
+    lastPresentationProjection = snapshot.presentationProjection;
     const nextElementCompositionKey = JSON.stringify(currentView.resourceComposition ?? null);
     if (elementCompositionKey !== nextElementCompositionKey) {
       renderElementResourceComposition({ document, composition: currentView.resourceComposition, strict: true });
       elementCompositionKey = nextElementCompositionKey;
     }
-    lastScene = scene;
-    pruneSelection();
-
+    const camera = adapter.camera();
     zoomLabel.value = `${Math.round(camera.scale * 100)}%`;
     zoomLabel.textContent = zoomLabel.value;
-    resolutionLabel.textContent = `resolution depth ${scene.maxDepth}`;
-    sceneLabel.textContent = `${scene.pattern} · ${scene.scenes.length} scenes · ${scene.representations.length} regions / ${scene.relations.length} relations`;
-    updateControls();
+    if (lastScene) {
+      resolutionLabel.textContent = `resolution depth ${lastScene.maxDepth}`;
+      sceneLabel.textContent = `${lastScene.pattern} · ${lastScene.scenes.length} scenes · ${lastScene.representations.length} regions / ${lastScene.relations.length} relations`;
+    }
+    updateControls(snapshot);
   }
 
   function queueRender() {
@@ -459,20 +352,21 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   async function refreshModules() {
-    if (!moduleResolver) return modules;
+    if (!moduleResolver) {
+      configureProjection(modules);
+      return modules;
+    }
     const revision = ++moduleRevision;
     try {
       const resolved = await moduleResolver.resolve(currentDomain, { ...moduleContext(), view: currentView });
       if (destroyed || revision !== moduleRevision) return modules;
       modules = resolved;
       moduleError = null;
-      projector.setModules(resolved);
-      queueRender();
+      configureProjection(resolved);
       return resolved;
     } catch (error) {
       if (destroyed || revision !== moduleRevision) return modules;
       moduleError = error;
-      projector.setModules(modules);
       showToast(error.message, true);
       queueRender();
       return null;
@@ -480,46 +374,38 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   async function setView(view, resolvedModules = null) {
-    const normalized = normalizeView(view);
-    currentView = normalized;
+    currentView = normalizeView(view);
     lastMeaningRecovery = null;
-    projector.setView(normalized);
-    refreshPresentationProjection();
     if (resolvedModules) {
       modules = resolvedModules;
       moduleError = null;
-      projector.setModules(resolvedModules);
-    } else {
+      configureProjection(resolvedModules);
+    } else if (moduleResolver) {
       const refreshed = await refreshModules();
-      if (!refreshed && moduleResolver) throw moduleError;
+      if (!refreshed) throw moduleError;
+    } else {
+      configureProjection(modules);
     }
-    render();
     resetCamera();
+    render();
     return Object.freeze({ view: currentView, modules, scene: lastScene });
   }
 
   function projectDomain(domain, view = currentView, resolvedModules = modules) {
     const normalizedView = normalizeView(view);
     const presentationProjection = projectPresentation(domain, normalizedView);
-    const candidate = new SemanticProjector(domain, resolvedModules, normalizedView, {
-      presentationProjection,
-    });
-    return candidate.project({
-      scale: adapter.camera().scale,
-      viewport: adapter.viewport(),
-    });
+    const candidate = new SemanticProjector(domain, resolvedModules, normalizedView, { presentationProjection });
+    return candidate.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
   }
 
-  adapter.setErrorHandler((error) => {
-    showToast(error.message, true);
-    queueRender();
-  });
-  disposers.push(adapter.onSelectionChange(() => updateControls()));
+  adapter.setErrorHandler((error) => { showToast(error.message, true); queueRender(); });
   disposers.push(core.subscribe(event => {
     currentDomain = createSemanticMap(event.core.records);
-    projector.setDomain(currentDomain);
-    refreshPresentationProjection();
-    queueMicrotask(() => { void refreshModules(); });
+    lastScene = event.core.scene;
+    lastPresentationProjection = event.core.presentationProjection;
+    if (event.kind === 'mutation' || event.kind === 'history' || event.kind === 'replace') {
+      queueMicrotask(() => { void refreshModules(); });
+    }
     queueRender();
     updateControls(event.core);
   }));
@@ -532,40 +418,37 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     const oldScale = camera.scale;
     const newScale = clamp(oldScale * factor, minimumScale(), MAX_SCALE);
     if (newScale === oldScale) return;
-
     const worldX = px / oldScale - camera.translateX;
     const worldY = py / oldScale - camera.translateY;
-    const translateX = px / newScale - worldX;
-    const translateY = py / newScale - worldY;
-    adapter.setCamera(newScale, translateX, translateY);
+    adapter.setCamera(newScale, px / newScale - worldX, py / newScale - worldY);
   }
-
   function setScaleAtWorld(worldX, worldY, scale) {
     const camera = adapter.camera();
     const rect = container.getBoundingClientRect();
-    const clientX = rect.left + (worldX + camera.translateX) * camera.scale;
-    const clientY = rect.top + (worldY + camera.translateY) * camera.scale;
-    zoomAt(clientX, clientY, scale / camera.scale);
+    zoomAt(
+      rect.left + (worldX + camera.translateX) * camera.scale,
+      rect.top + (worldY + camera.translateY) * camera.scale,
+      scale / camera.scale,
+    );
   }
-
   function focusAtWorld(worldX, worldY, scale) {
     const nextScale = clamp(scale, minimumScale(), MAX_SCALE);
-    const translateX = container.clientWidth / (2 * nextScale) - worldX;
-    const translateY = container.clientHeight / (2 * nextScale) - worldY;
-    adapter.setCamera(nextScale, translateX, translateY);
+    adapter.setCamera(
+      nextScale,
+      container.clientWidth / (2 * nextScale) - worldX,
+      container.clientHeight / (2 * nextScale) - worldY,
+    );
   }
-
   function focusBounds(bounds, viewportPixels = null) {
     const width = viewportPixels?.width ?? container.clientWidth;
     const height = viewportPixels?.height ?? container.clientHeight;
-    const horizontal = width / bounds.width;
-    const vertical = height / bounds.height;
-    const scale = clamp(Math.min(horizontal, vertical), minimumScale(), MAX_SCALE);
-    const translateX = container.clientWidth / (2 * scale) - (bounds.x + bounds.width / 2);
-    const translateY = container.clientHeight / (2 * scale) - (bounds.y + bounds.height / 2);
-    adapter.setCamera(scale, translateX, translateY);
+    const scale = clamp(Math.min(width / bounds.width, height / bounds.height), minimumScale(), MAX_SCALE);
+    adapter.setCamera(
+      scale,
+      container.clientWidth / (2 * scale) - (bounds.x + bounds.width / 2),
+      container.clientHeight / (2 * scale) - (bounds.y + bounds.height / 2),
+    );
   }
-
   function focusRegion(regionId, scale) {
     const representation = lastScene?.representations.find((item) => item.regionId === regionId);
     const bounds = representation?.bounds ?? currentDomain.regions.get(regionId)?.bounds;
@@ -573,21 +456,14 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     focusAtWorld(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, scale);
     return true;
   }
-
   function resetCamera(maxScale = INITIAL_SCALE) {
     const width = container.clientWidth;
     const height = container.clientHeight;
     const root = lastScene?.bounds ?? currentDomain.regions.get(currentDomain.meta.root).bounds;
     const scale = fitScale(maxScale);
-    const translateX = (width / scale - root.width) / 2 - root.x;
-    const translateY = (height / scale - root.height) / 2 - root.y;
-    adapter.setCamera(scale, translateX, translateY);
+    adapter.setCamera(scale, (width / scale - root.width) / 2 - root.x, (height / scale - root.height) / 2 - root.y);
   }
-
-  function setTool(tool) {
-    currentTool = tool;
-    adapter.setTool(tool);
-  }
+  function setTool(tool) { currentTool = tool; adapter.setTool(tool); }
 
   function newNodeBounds(parentBounds) {
     const viewport = adapter.viewport();
@@ -603,28 +479,21 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     return {
       x: maxX >= minX ? clamp(desiredX, minX, maxX) : desiredX,
       y: maxY >= minY ? clamp(desiredY, minY, maxY) : desiredY,
-      width,
-      height,
+      width, height,
     };
   }
-
   function nextCalendarDate(value) {
     const date = value ? new Date(`${value}T00:00:00.000Z`) : new Date('1970-01-01T00:00:00.000Z');
     date.setUTCDate(date.getUTCDate() + 1);
     return date.toISOString().slice(0, 10);
   }
-
   function nextTemporal(axis) {
-    const intervals = [...currentDomain.regions.values()]
-      .map((region) => region.temporal?.[axis])
-      .filter(Boolean);
+    const intervals = [...currentDomain.regions.values()].map((region) => region.temporal?.[axis]).filter(Boolean);
     if (axis === 'ordinal') {
       const start = intervals.length ? Math.max(...intervals.map((item) => item.end)) + 1 : 0;
       return Object.freeze({ start, end: start });
     }
-    const latest = intervals.length
-      ? intervals.map((item) => item.end).sort().at(-1)
-      : '1969-12-31';
+    const latest = intervals.length ? intervals.map((item) => item.end).sort().at(-1) : '1969-12-31';
     const start = nextCalendarDate(latest);
     return Object.freeze({ start, end: start });
   }
@@ -641,12 +510,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       const actors = [...currentDomain.regions.values()].filter((region) => region.kind === 'actor');
       if (currentView.seq.groupBy === 'actor' && actors.length === 0) {
         const result = core.dispatch({
-          type: 'AddRegion',
-          parentId: currentDomain.meta.root,
-          label: 'Untitled actor',
-          kind: 'actor',
-          summary: '',
-          bounds: [0, 0, 146, 60],
+          type: 'AddRegion', parentId: currentDomain.meta.root, label: 'Untitled actor', kind: 'actor', summary: '', bounds: [0, 0, 146, 60],
         });
         if (!result?.createdRegionId) return null;
         showToast('actorを追加しました');
@@ -660,10 +524,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       const result = core.dispatch({
         type: 'AddRegion',
         parentId: selected && selected.kind === 'task' ? selected.id : currentDomain.meta.root,
-        label: 'Untitled task',
-        kind: 'task',
-        summary: '',
-        bounds: [0, 0, 170, 68],
+        label: 'Untitled task', kind: 'task', summary: '', bounds: [0, 0, 170, 68],
         temporal: { actor, [currentView.seq.axis]: interval },
       });
       if (!result?.createdRegionId) return null;
@@ -671,25 +532,14 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       startEditingSelection();
       return result.createdRegionId;
     }
-
     const selectedId = core.snapshot().selection.regionIds[0] ?? null;
-    const selectedRepresentation = lastScene?.representations.find(
-      (representation) => representation.regionId === selectedId,
-    );
+    const selectedRepresentation = lastScene?.representations.find((representation) => representation.regionId === selectedId);
     let parentId = currentDomain.meta.root;
-    if (currentView.pattern !== 'graph/1' && selectedId && selectedRepresentation?.detailsVisible) {
-      parentId = selectedId;
-    } else if (currentView.pattern !== 'graph/1' && selectedId) {
-      parentId = currentDomain.regions.get(selectedId)?.parent ?? currentDomain.meta.root;
-    }
+    if (currentView.pattern !== 'graph/1' && selectedId && selectedRepresentation?.detailsVisible) parentId = selectedId;
+    else if (currentView.pattern !== 'graph/1' && selectedId) parentId = currentDomain.regions.get(selectedId)?.parent ?? currentDomain.meta.root;
     const parent = currentDomain.regions.get(parentId);
     const result = core.dispatch({
-      type: 'AddRegion',
-      parentId,
-      label: 'Untitled',
-      kind: 'concept',
-      summary: '',
-      bounds: Object.values(newNodeBounds(parent.bounds)),
+      type: 'AddRegion', parentId, label: 'Untitled', kind: 'concept', summary: '', bounds: Object.values(newNodeBounds(parent.bounds)),
     });
     if (!result?.createdRegionId) return null;
     showToast('ノードを追加しました');
@@ -697,14 +547,8 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     return result.createdRegionId;
   }
 
-  function undo() {
-    if (core.dispatch({ type: 'history.undo' })) showToast('元に戻しました');
-  }
-
-  function redo() {
-    if (core.dispatch({ type: 'history.redo' })) showToast('やり直しました');
-  }
-
+  function undo() { if (core.dispatch({ type: 'history.undo' })) showToast('元に戻しました'); }
+  function redo() { if (core.dispatch({ type: 'history.redo' })) showToast('やり直しました'); }
   function deleteSelection() {
     const selection = core.snapshot().selection;
     if (!selection.regionIds.length && !selection.relationIds.length) return null;
@@ -712,7 +556,6 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     if (result) showToast('選択を削除しました');
     return result;
   }
-
   function openRegionLink(regionId, navigate = (url) => location.assign(url), base = location.href) {
     const representation = lastScene?.representations.find((item) => item.regionId === regionId);
     const href = representation?.href ?? currentDomain.regions.get(regionId)?.href ?? null;
@@ -721,48 +564,28 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     navigate(url);
     return url;
   }
-
   function openSelectedLink() {
     const selection = core.snapshot().selection;
     if (selection.regionIds.length !== 1) return null;
     return openRegionLink(selection.regionIds[0]);
   }
 
-  const touchNavigation = installTouchNavigation({
-    container,
-    adapter,
-    minimumScale,
-    signal: lifetime.signal,
-  });
-
+  const touchNavigation = installTouchNavigation({ container, adapter, minimumScale, signal: lifetime.signal });
   container.addEventListener('wheel', (event) => {
     event.preventDefault();
-    const factor = WHEEL_ZOOM_FACTOR ** (-wheelDeltaPixels(event) / WHEEL_PIXEL_STEP);
-    zoomAt(event.clientX, event.clientY, factor);
+    zoomAt(event.clientX, event.clientY, WHEEL_ZOOM_FACTOR ** (-wheelDeltaPixels(event) / WHEEL_PIXEL_STEP));
   }, { passive: false, signal: lifetime.signal });
 
-  addNodeButton.addEventListener('click', () => {
-    try { addNode(); } catch (error) { showToast(error.message, true); }
-  }, listenerOptions);
-  undoButton.addEventListener('click', () => {
-    try { undo(); } catch (error) { showToast(error.message, true); }
-  }, listenerOptions);
-  redoButton.addEventListener('click', () => {
-    try { redo(); } catch (error) { showToast(error.message, true); }
-  }, listenerOptions);
-  deleteButton.addEventListener('click', () => {
-    try { deleteSelection(); } catch (error) { showToast(error.message, true); }
-  }, listenerOptions);
+  addNodeButton.addEventListener('click', () => { try { addNode(); } catch (error) { showToast(error.message, true); } }, listenerOptions);
+  undoButton.addEventListener('click', () => { try { undo(); } catch (error) { showToast(error.message, true); } }, listenerOptions);
+  redoButton.addEventListener('click', () => { try { redo(); } catch (error) { showToast(error.message, true); } }, listenerOptions);
+  deleteButton.addEventListener('click', () => { try { deleteSelection(); } catch (error) { showToast(error.message, true); } }, listenerOptions);
   openLinkButton?.addEventListener('click', openSelectedLink, listenerOptions);
 
   function isTextInput(event) {
     const target = event.target;
-    return target instanceof HTMLInputElement
-      || target instanceof HTMLTextAreaElement
-      || target instanceof HTMLSelectElement
-      || target?.isContentEditable;
+    return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable;
   }
-
   function startEditingSelection() {
     if (destroyed || readOnly) return false;
     const selection = core.snapshot().selection;
@@ -789,10 +612,8 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       event.preventDefault();
       event.stopPropagation();
       if (event.key === 'Escape') { close(); return; }
-      try {
-        core.dispatch({ type: 'RenameRegion', regionId, label: input.value });
-        close();
-      } catch (error) { showToast(error.message, true); }
+      try { core.dispatch({ type: 'RenameRegion', regionId, label: input.value }); close(); }
+      catch (error) { showToast(error.message, true); }
     }, listenerOptions);
     input.addEventListener('blur', () => close(false), { ...listenerOptions, once: true });
     container.append(input);
@@ -811,9 +632,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
         case 'node.edit': startEditingSelection(); break;
         case 'link.open': openSelectedLink(); break;
         case 'tool.set': setTool(command.tool); break;
-        case 'tool.hold':
-          if (spacePreviousTool === null) { spacePreviousTool = currentTool; setTool(command.tool); }
-          break;
+        case 'tool.hold': if (spacePreviousTool === null) { spacePreviousTool = currentTool; setTool(command.tool); } break;
         case 'interaction.cancel': adapter.cancelInteraction(); setTool('select'); break;
         case 'RemoveSelection': deleteSelection(); break;
         default: core.dispatch(command); break;
@@ -830,13 +649,16 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     }
   }, listenerOptions);
 
-  disposers.push(adapter.onCameraChange(queueRender));
   const resizeObserver = new ResizeObserver(() => {
     if (!lastScene) resetCamera();
-    else queueRender();
+    else {
+      core.acceptGesture({ type: 'camera.changed', presentation: { camera: adapter.camera(), viewport: adapter.viewport() } });
+      queueRender();
+    }
   });
   resizeObserver.observe(container);
 
+  configureProjection(modules);
   setTool('select');
   resetCamera();
   render();
@@ -846,75 +668,53 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     readOnly,
     get domain() { return createSemanticMap(core.snapshot().records); },
     core,
-    store: legacyReadModel,
-    projector,
-    adapter,
     thresholds: projectorThresholds,
-    snapshot: () => ({
-      camera: adapter.camera(),
-      touch: touchNavigation.snapshot(),
-      viewport: adapter.viewport(),
-      tool: currentTool,
-      selection: core.snapshot().selection,
-      draft: core.snapshot().draft,
-      domain: {
-        meta: {
-          schema: currentDomain.meta.schema,
-          root: currentDomain.meta.root,
-          title: currentDomain.meta.title,
-          geoSpec: currentDomain.meta.geoSpec ? structuredClone(currentDomain.meta.geoSpec) : null,
-        },
-        regions: [...currentDomain.regions.values()].map((region) => ({
-          id: region.id,
-          parent: region.parent,
-          label: region.label,
-          kind: region.kind,
-          order: region.order ?? null,
-          temporal: region.temporal ? structuredClone(region.temporal) : null,
-          value: region.value ?? null,
-          href: region.href ?? null,
-          set: region.set ? { ...region.set } : null,
-          bounds: { ...region.bounds },
-        })),
-        relations: currentDomain.relations.map((relation) => ({ ...relation })),
-      },
-      modules: lastScene ? { ...lastScene.modules, error: moduleError?.message ?? null } : null,
-      resourceComposition: currentView.resourceComposition ? structuredClone(currentView.resourceComposition) : null,
-      meaningRecovery: lastMeaningRecovery ? structuredClone(lastMeaningRecovery) : null,
-      presentationProjection: lastPresentationProjection ? {
-        schema: lastPresentationProjection.schema,
-        id: lastPresentationProjection.id,
-        pattern: lastPresentationProjection.pattern,
-        layout: lastPresentationProjection.layout.map((item) => ({ regionId: item.regionId, bounds: { ...item.bounds } })),
-        interactions: lastPresentationProjection.interactions.map((item) => ({
-          regionId: item.regionId, role: item.role, bounds: { ...item.bounds }, editKinds: [...item.editKinds],
-        })),
-      } : null,
-      scene: lastScene ? {
-        pattern: lastScene.pattern,
-        sceneIds: lastScene.scenes.map((item) => item.id).sort(),
-        scenePatterns: lastScene.scenes.map((item) => `${item.id}:${item.pattern}`).sort(),
-        maxDepth: lastScene.maxDepth,
-        representationIds: lastScene.representations.map((item) => item.representationId).sort(),
-        regionIds: lastScene.representations.map((item) => item.regionId).sort(),
-        readOnlyRegionIds: lastScene.representations.filter((item) => item.readOnly).map((item) => item.regionId).sort(),
-        relationEndpoints: lastScene.relations.map((item) => `${item.from}->${item.to}`).sort(),
-        setOverlay: {
-          sets: lastScene.setOverlay.sets.map((item) => ({
-            regionId: item.regionId,
-            complete: item.complete,
-            bounds: { ...item.bounds },
+    snapshot: () => {
+      const coreSnapshot = core.snapshot();
+      return {
+        camera: adapter.camera(),
+        touch: touchNavigation.snapshot(),
+        viewport: adapter.viewport(),
+        tool: currentTool,
+        selection: coreSnapshot.selection,
+        draft: coreSnapshot.draft,
+        domain: {
+          meta: {
+            schema: currentDomain.meta.schema,
+            root: currentDomain.meta.root,
+            title: currentDomain.meta.title,
+            geoSpec: currentDomain.meta.geoSpec ? structuredClone(currentDomain.meta.geoSpec) : null,
+          },
+          regions: [...currentDomain.regions.values()].map((region) => ({
+            id: region.id, parent: region.parent, label: region.label, kind: region.kind, order: region.order ?? null,
+            temporal: region.temporal ? structuredClone(region.temporal) : null,
+            value: region.value ?? null, href: region.href ?? null, set: region.set ? { ...region.set } : null, bounds: { ...region.bounds },
           })),
-          pairs: lastScene.setOverlay.pairs.map((item) => ({
-            left: item.left,
-            right: item.right,
-            topology: item.topology,
-            overlapKnown: item.overlapKnown,
-          })),
+          relations: currentDomain.relations.map((relation) => ({ ...relation })),
         },
-        detailIds: [...lastScene.detailIds],
-      } : null,
-    }),
+        modules: lastScene ? { ...lastScene.modules, error: moduleError?.message ?? null } : null,
+        resourceComposition: currentView.resourceComposition ? structuredClone(currentView.resourceComposition) : null,
+        meaningRecovery: lastMeaningRecovery ? structuredClone(lastMeaningRecovery) : null,
+        presentationProjection: coreSnapshot.presentationProjection,
+        scene: lastScene ? {
+          pattern: lastScene.pattern,
+          sceneIds: lastScene.scenes.map((item) => item.id).sort(),
+          scenePatterns: lastScene.scenes.map((item) => `${item.id}:${item.pattern}`).sort(),
+          maxDepth: lastScene.maxDepth,
+          representationIds: lastScene.representations.map((item) => item.representationId).sort(),
+          regionIds: lastScene.representations.map((item) => item.regionId).sort(),
+          readOnlyRegionIds: lastScene.representations.filter((item) => item.readOnly).map((item) => item.regionId).sort(),
+          relationEndpoints: lastScene.relations.map((item) => `${item.from}->${item.to}`).sort(),
+          setOverlay: {
+            sets: lastScene.setOverlay.sets.map((item) => ({ regionId: item.regionId, complete: item.complete, bounds: { ...item.bounds } })),
+            pairs: lastScene.setOverlay.pairs.map((item) => ({
+              left: item.left, right: item.right, topology: item.topology, overlapKnown: item.overlapKnown,
+            })),
+          },
+          detailIds: [...lastScene.detailIds],
+        } : null,
+      };
+    },
     operation: (operation) => core.dispatch(normalizeOperation(operation)),
     addNode,
     undo,
@@ -932,7 +732,10 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     refreshModules,
     setView,
     projectDomain,
-    currentScene: () => lastScene,
+    currentScene: () => core.snapshot().scene,
+    setReviewOverlay: overlay => adapter.setReviewOverlay(overlay),
+    clearReviewOverlay: () => adapter.clearReviewOverlay(),
+    reviewOverlaySnapshot: () => adapter.reviewOverlaySnapshot(),
     get view() { return currentView; },
     notify: showToast,
     showError: (message) => showToast(message, true),
