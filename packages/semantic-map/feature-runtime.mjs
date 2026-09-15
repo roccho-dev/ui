@@ -33,7 +33,12 @@ const bootstrapEnvelope = async ({ input, view, scope }) => {
 
 export const mountFeature = async ({ feature, input, root, scope = globalThis, transport }) => {
   invariant(root?.replaceChildren, 'root is required');
-  invariant(transport?.schema === 'ui-data-transport/1' && transport.fragment === 'data', '#data transport is required');
+  invariant(
+    transport?.schema === 'ui-data-transport/1'
+      && transport.fragment === 'data'
+      && typeof transport.read === 'function',
+    '#data transport is required',
+  );
   const pattern = patterns[feature?.id];
   invariant(pattern, `unsupported feature ${String(feature?.id)}`);
   const initialView = feature?.view ?? defaultViewForPattern(pattern);
@@ -41,7 +46,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
 
   const envelope = await bootstrapEnvelope({ input, view: initialView, scope });
   invariant(envelope.view.pattern === pattern, `Envelope view pattern must be ${pattern}`);
-  const moduleResolver = new ModuleResolver();
+  const moduleResolver = new ModuleResolver({ resolveSource: transport.read });
   const validateRecords = async (records, context) => {
     const domain = createSemanticMap(records);
     const modules = await moduleResolver.resolve(domain, context);
