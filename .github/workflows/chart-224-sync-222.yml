@@ -26,6 +26,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TARGET_HEAD"
+          git config user.name "roccho-sync-proof"
+          git config user.email "40359643+roccho-dev@users.noreply.github.com"
           git fetch --no-tags origin "$BASE_HEAD"
           set +e
           git merge --no-ff --no-commit "$BASE_HEAD" > "$RUNNER_TEMP/merge.log" 2>&1
