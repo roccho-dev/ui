@@ -1,0 +1,159 @@
+name: Chart 224 latest 222 sync gate v2
+
+on:
+  push:
+    branches:
+      - control/chart224-latest222-controller-260915
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: candidate/chart224-latest222-fix-260915
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Exact 3-way merge and bounded resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          ours='940de85e3dddbb60ec486f65a442c99c1660e257'
+          theirs='1cd16866870c7878c3ac80b8b402d437b1e8a044'
+          test "$(git rev-parse HEAD)" = "$ours"
+          git fetch origin archive/ui213-pre-216-260914
+          test "$(git rev-parse origin/archive/ui213-pre-216-260914)" = "$theirs"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          set +e
+          git merge --no-ff --no-commit "$theirs"
+          merge_status=$?
+          set -e
+          test "$merge_status" -ne 0
+          conflicts="$(git diff --name-only --diff-filter=U | sort)"
+          expected="$(printf '%s\n' \
+            apps/artifact-shell/publication/feature-host.mjs \
+            apps/artifact-shell/tests/prove-publication-browser.sh | sort)"
+          printf 'conflicts:\n%s\n' "$conflicts"
+          test "$conflicts" = "$expected"
+
+          # Start from latest #222 host semantics (HTTP source/resource), then restore
+          # #224's entry-relative #data codec so nested variant depth cannot matter.
+          git checkout --theirs apps/artifact-shell/publication/feature-host.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/artifact-shell/publication/feature-host.mjs')
+          s = p.read_text()
+          old = """const readData = async base => {\n  if (!base.hash) return null;\n  const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);\n  const { readUrlModule } = await import(moduleUrl.href);\n  return readUrlModule({ fragment: 'data', input: base.href });\n};"""
+          new = """const readData = async (base, entry) => {\n  if (!base.hash) return null;\n  const moduleUrl = new URL('../url-module/src/index.mjs', entry);\n  const { readUrlModule } = await import(moduleUrl.href);\n  return readUrlModule({ fragment: 'data', input: base.href });\n};"""
+          assert s.count(old) == 1
+          s = s.replace(old, new)
+          anchor = "  invariant(Array.isArray(feature.styles), 'feature styles required');\n"
+          assert s.count(anchor) == 1
+          s = s.replace(anchor, anchor + "  const entry = sameOriginUrl(feature.entry, base);\n")
+          assert s.count('  else input = await readData(base);') == 1
+          s = s.replace('  else input = await readData(base);', '  else input = await readData(base, entry);')
+          assert s.count("  const module = await import(sameOriginUrl(feature.entry, base).href);") == 1
+          s = s.replace("  const module = await import(sameOriginUrl(feature.entry, base).href);", "  const module = await import(entry.href);")
+          p.write_text(s)
+          PY
+
+          # Start from #224's Chart publication proof and add latest #222's HTTP-source proof.
+          git checkout --ours apps/artifact-shell/tests/prove-publication-browser.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/artifact-shell/tests/prove-publication-browser.sh')
+          s = p.read_text()
+          anchor = "check_feature control 15000 'id=\"tree\"' 'class=\"node\"'\n\n"
+          block = """source_output=\"${RUNNER_TEMP:-/tmp}/artifact-feature-control-source.html\"\n\"$chrome\" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom \"$base/adapters/control/index.html?source=./input.json\" > \"$source_output\"\ngrep -q 'data-status=\"pass\"' \"$source_output\"\ngrep -q 'id=\"tree\"' \"$source_output\"\ngrep -q 'class=\"node\"' \"$source_output\"\n\n"""
+          assert s.count(anchor) == 1
+          s = s.replace(anchor, anchor + block)
+          p.write_text(s)
+          PY
+
+          # Preserve strict canonical-ID admission, but make AddRegion selection race-free:
+          # synchronous projection of the newly-created region precedes caller selection.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/semantic-map/feature-runtime.mjs')
+          s = p.read_text()
+          old = "    return batch.results[0];\n  });\n  adapter.setActivationHandler"
+          new = "    const result = batch.results[0];\n    if (result?.createdRegionId) render();\n    return result;\n  });\n  adapter.setActivationHandler"
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new))
+          PY
+
+          # Auto-merge must preserve both #224 variants and latest #222 resource host copy.
+          grep -q 'view = null, label = null' apps/artifact-shell/publication/materialize-feature.mjs
+          grep -q "http-resource.mjs" apps/artifact-shell/publication/materialize-feature.mjs
+          grep -q "new URL('../url-module/src/index.mjs', entry)" apps/artifact-shell/publication/feature-host.mjs
+          grep -q 'readSource' apps/artifact-shell/publication/feature-host.mjs
+
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git commit -m 'Merge latest #222 into #224 and preserve new-region selection'
+          git show --no-patch --format='%H %P' HEAD
+
+      - name: Prove source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/check-semantic-map-migration.mjs
+          node packages/semantic-map/tests/run.mjs
+          python3 packages/semantic-map/tests/meaning_recovery_negative_controls.py
+          node apps/artifact-shell/tests/semantic-map-capability.mjs
+          node tests/check-semantic-map-legacy-source-retirement.mjs
+          node apps/artifact-shell/tests/http-resource.mjs
+          node apps/artifact-shell/tests/control-resource.mjs
+          node apps/artifact-shell/tests/publication.mjs
+          npm run build:artifact-shell-publication
+
+      - name: Prove keyboard regression in real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --user 'playwright==1.57.0'
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+          export CHROMIUM_EXECUTABLE="$chrome"
+          python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
+
+      - name: Write proof receipt
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          sha = subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
+          parents = subprocess.check_output(['git','show','-s','--format=%P','HEAD'], text=True).strip().split()
+          with open('chart224-latest222-proof.json','w') as f:
+              json.dump({
+                  'schema':'chart224-latest222-sync-proof/2',
+                  'status':'PASS',
+                  'sha':sha,
+                  'parents':parents,
+                  'latest222':'1cd16866870c7878c3ac80b8b402d437b1e8a044',
+                  'keyboardNewRegionSelection':True,
+                  'nestedChartDataUrl':True,
+                  'controlHttpSource':True,
+              }, f, indent=2)
+          PY
+
+      - name: Upload proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: chart224-latest222-sync-proof-v2
+          path: chart224-latest222-proof.json
+          if-no-files-found: error
+
+      - name: Push validated candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:candidate/chart224-latest222-fix-260915
