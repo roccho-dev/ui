@@ -18,13 +18,42 @@ jobs:
           ref: fix/retire-smap-t283
           fetch-depth: 0
           token: ${{ github.token }}
-      - name: Merge current 271
+      - name: Merge current 271 and resolve expected preview conflicts
         run: |
           set -euxo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git fetch origin feat/opt-manually-and-beautifully
-          git merge --no-edit origin/feat/opt-manually-and-beautifully
+          if ! git merge --no-edit origin/feat/opt-manually-and-beautifully; then
+            conflicts="$(git diff --name-only --diff-filter=U | sort)"
+            expected="$(printf '%s\n' 'apps/artifact-shell/generated/capability-registry.mjs' 'apps/preview/cases.jsonl' | sort)"
+            test "$conflicts" = "$expected"
+            git checkout --theirs apps/artifact-shell/generated/capability-registry.mjs
+            cat > apps/preview/cases.jsonl <<'EOF'
+{"id":"graph","label":"graph","featureModule":"packages/business-model/feature.mjs","featureId":"graph","source":"examples/presentation/presentation.jsonl"}
+{"id":"semantic/graph","label":"semantic/graph","featureModule":"packages/semantic-map/feature.mjs","featureId":"graph","source":"examples/graph/example.jsonl"}
+{"id":"map","label":"map","featureModule":"packages/semantic-map/feature.mjs","featureId":"map","source":"examples/map/example.jsonl"}
+{"id":"seq","label":"seq","featureModule":"packages/business-model/feature.mjs","featureId":"seq","source":"examples/presentation/presentation.jsonl"}
+{"id":"chart","label":"chart","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/bar-horizontal.jsonl","view":{"pattern":"chart/1","chart":{"type":"bar-horizontal/1"}}}
+{"id":"chart/bar-horizontal","label":"chart/bar-horizontal","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/bar-horizontal.jsonl","view":{"pattern":"chart/1","chart":{"type":"bar-horizontal/1"}}}
+{"id":"chart/bar-vertical","label":"chart/bar-vertical","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/bar-vertical.jsonl","view":{"pattern":"chart/1","chart":{"type":"bar-vertical/1"}}}
+{"id":"chart/line","label":"chart/line","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/line.jsonl","view":{"pattern":"chart/1","chart":{"type":"line/1"}}}
+{"id":"chart/pie","label":"chart/pie","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/pie.jsonl","view":{"pattern":"chart/1","chart":{"type":"pie/1"}}}
+{"id":"chart/donut","label":"chart/donut","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/donut.jsonl","view":{"pattern":"chart/1","chart":{"type":"donut/1"}}}
+{"id":"chart/scatter","label":"chart/scatter","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/scatter.jsonl","view":{"pattern":"chart/1","chart":{"type":"scatter/1"}}}
+{"id":"chart/heatmap","label":"chart/heatmap","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/heatmap.jsonl","view":{"pattern":"chart/1","chart":{"type":"heatmap/1"}}}
+{"id":"chart/sunburst","label":"chart/sunburst","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/sunburst.jsonl","view":{"pattern":"chart/1","chart":{"type":"sunburst/1"}}}
+{"id":"presentation","label":"presentation","featureModule":"packages/a2ui-browser/feature.mjs","featureId":"presentation","source":{"design":"examples/presentation/design.json","presentation":"examples/presentation/presentation.jsonl"}}
+{"id":"control","label":"control","featureModule":"packages/a2ui-browser/feature.mjs","featureId":"control","source":{"design":"examples/control/design.json","control":"examples/control/control.jsonl","claims":"examples/control/claims.jsonl"}}
+EOF
+            git add apps/artifact-shell/generated/capability-registry.mjs apps/preview/cases.jsonl
+            git commit --no-edit
+          fi
+          node apps/artifact-shell/scripts/build-registry.mjs
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: regenerate capability registry after #271 sync'
+          fi
           rm .github/workflows/t283-sync-current-271.yml
           git add -A
           git commit -m 'chore: retire #283 sync workflow'
