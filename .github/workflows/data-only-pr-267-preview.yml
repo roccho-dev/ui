@@ -1,0 +1,127 @@
+name: Data-only PR 267 preview
+
+on:
+  pull_request:
+    branches:
+      - deploy/data-only-pr-267-260915
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: eabaf915634bf15156ee4d16efc44bb13ae75ab6
+  CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
+  CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-267
+
+jobs:
+  deploy-proof:
+    runs-on: ubuntu-latest
+    environment: ui-deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Prove source publication contract
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/tests/feature-data-publication.mjs
+          out="$RUNNER_TEMP/artifact-shell-publication"
+          npm run build:artifact-shell-publication -- --out="$out"
+          for feature in graph map seq presentation control; do
+            test -f "$out/adapters/$feature/index.html"
+            test -f "$out/adapters/$feature/feature.json"
+            test ! -e "$out/adapters/$feature/input.json"
+          done
+          echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
+      - name: Deploy isolated preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/wrangler-pages-deploy.log"
+          npx --yes wrangler@4.112.0 pages deploy "$ARTIFACT_SHELL_PUBLICATION" --project-name="$CLOUDFLARE_PAGES_PROJECT" --branch="$CLOUDFLARE_PAGES_BRANCH" --commit-hash="$SOURCE_SHA" | tee "$log"
+          root="$(grep -oE 'https://[0-9a-f]+\.stg-artifact-runtime\.pages\.dev' "$log" | head -n1)"
+          test -n "$root"
+          echo "PROOF_ROOT=$root" >> "$GITHUB_ENV"
+          echo "STABLE_ALIAS=https://$CLOUDFLARE_PAGES_BRANCH.$CLOUDFLARE_PAGES_PROJECT.pages.dev" >> "$GITHUB_ENV"
+      - name: Install pinned Chromium proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Prove deployed #data-only contract
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import urljoin, urlparse
+          from playwright.sync_api import sync_playwright
+
+          root = os.environ['PROOF_ROOT'].rstrip('/') + '/'
+          stable = os.environ['STABLE_ALIAS'].rstrip('/') + '/'
+          features = ['graph', 'map', 'seq', 'presentation', 'control']
+          output = Path(os.environ['RUNNER_TEMP']) / 'data-only-pr-267-proof'
+          output.mkdir(parents=True, exist_ok=True)
+          events = {'pageErrors': [], 'requestFailed': []}
+          result = {'schema': 'ui.data-only-deployed-proof/1', 'sourceSha': os.environ['SOURCE_SHA'], 'immutableRoot': root, 'stableAlias': stable, 'features': {}}
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+              requests = []
+              page.on('pageerror', lambda error: events['pageErrors'].append(str(error)))
+              page.on('requestfailed', lambda req: events['requestFailed'].append({'url': req.url, 'failure': req.failure}))
+              page.on('request', lambda req: requests.append(req.url))
+
+              response = page.goto(root, wait_until='networkidle', timeout=60_000)
+              assert response and response.ok
+              hrefs = {}
+              for feature in features:
+                  href = page.locator(f'#launcher a[href^="adapters/{feature}/#data="]').get_attribute('href')
+                  assert href and '#data=' in href
+                  hrefs[feature] = href
+
+              for feature in features:
+                  bare = urljoin(root, f'adapters/{feature}/index.html')
+                  response = page.goto(bare, wait_until='networkidle', timeout=60_000)
+                  assert response and response.ok
+                  page.wait_for_selector('html[data-status="fail"]', timeout=60_000)
+                  blocked = page.locator('#fatal').inner_text()
+                  assert '#data required' in blocked
+
+                  supplied = urljoin(root, hrefs[feature])
+                  response = page.goto(supplied, wait_until='networkidle', timeout=60_000)
+                  assert response and response.ok
+                  page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
+                  result['features'][feature] = {'bare': 'BLOCKED', 'data': 'PASS', 'hrefChars': len(supplied)}
+
+              stable_response = page.goto(stable, wait_until='networkidle', timeout=60_000)
+              assert stable_response and stable_response.ok
+              for feature in features:
+                  href = page.locator(f'#launcher a[href^="adapters/{feature}/#data="]').get_attribute('href')
+                  assert href and '#data=' in href
+
+              input_requests = [url for url in requests if urlparse(url).path.endswith('/input.json')]
+              assert input_requests == []
+              assert events['pageErrors'] == []
+              assert events['requestFailed'] == []
+              result['inputJsonRequests'] = input_requests
+              result['events'] = events
+              result['status'] = 'PASS'
+              page.screenshot(path=str(output / 'stable-root.png'), full_page=True)
+              browser.close()
+
+          (output / 'receipt.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+          print(json.dumps(result, ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: data-only-pr-267-proof
+          path: ${{ runner.temp }}/data-only-pr-267-proof
+          if-no-files-found: error
