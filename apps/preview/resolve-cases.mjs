@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const previewRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(previewRoot, '../..');
 const invariant = (condition, message) => { if (!condition) throw new Error(`ui-preview-cases: ${message}`); };
+const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export const readPreviewCaseDeclarations = async () => {
   const source = await fs.readFile(path.join(previewRoot, 'cases.jsonl'), 'utf8');
@@ -16,6 +17,19 @@ export const readPreviewCaseDeclarations = async () => {
   return Object.freeze(rows.map(item => Object.freeze(item)));
 };
 
+const sourceEntries = (source, id) => {
+  if (typeof source === 'string') {
+    invariant(source.length > 0, `${id}: source required`);
+    return [[null, source]];
+  }
+  invariant(plain(source) && Object.keys(source).length > 0, `${id}: source must be a path or named paths`);
+  return Object.entries(source).map(([name, sourcePath]) => {
+    invariant(typeof name === 'string' && name.length > 0, `${id}: source name required`);
+    invariant(typeof sourcePath === 'string' && sourcePath.length > 0, `${id}: source ${name} path required`);
+    return [name, sourcePath];
+  });
+};
+
 export const resolvePreviewCases = async () => {
   const declarations = await readPreviewCaseDeclarations();
   const resolved = [];
@@ -23,13 +37,17 @@ export const resolvePreviewCases = async () => {
     invariant(typeof item.id === 'string' && item.id, 'case id required');
     invariant(typeof item.featureModule === 'string' && item.featureModule, `${item.id}: featureModule required`);
     invariant(typeof item.featureId === 'string' && item.featureId, `${item.id}: featureId required`);
-    invariant(typeof item.source === 'string' && item.source, `${item.id}: source required`);
     invariant(!Object.hasOwn(item, 'entry') && !Object.hasOwn(item, 'styles'), `${item.id}: feature runtime belongs to featureModule`);
 
+    const sources = sourceEntries(item.source, item.id);
     const featurePath = path.resolve(repoRoot, item.featureModule);
     invariant(featurePath.startsWith(`${repoRoot}${path.sep}`), `${item.id}: featureModule escapes repository`);
     await fs.access(featurePath);
-    await fs.access(path.resolve(repoRoot, item.source));
+    for (const [, sourcePath] of sources) {
+      const resolvedSource = path.resolve(repoRoot, sourcePath);
+      invariant(resolvedSource.startsWith(`${repoRoot}${path.sep}`), `${item.id}: source escapes repository`);
+      await fs.access(resolvedSource);
+    }
 
     const moduleUrl = new URL(pathToFileURL(featurePath));
     moduleUrl.searchParams.set('feature', item.featureId);
@@ -41,6 +59,7 @@ export const resolvePreviewCases = async () => {
     invariant(Array.isArray(descriptor.styles), `${item.id}: feature styles required`);
     await fs.access(path.resolve(repoRoot, descriptor.entry));
     for (const style of descriptor.styles) await fs.access(path.resolve(repoRoot, style));
+    if (descriptor.plan !== undefined) await fs.access(path.resolve(repoRoot, descriptor.plan));
 
     const feature = Object.freeze({
       ...descriptor,
@@ -48,7 +67,8 @@ export const resolvePreviewCases = async () => {
       styles: Object.freeze([...descriptor.styles]),
       ...(item.view ? { view: item.view } : {}),
     });
-    resolved.push(Object.freeze({ id: item.id, label: item.label ?? item.id, source: item.source, feature }));
+    const source = typeof item.source === 'string' ? item.source : Object.freeze({ ...item.source });
+    resolved.push(Object.freeze({ id: item.id, label: item.label ?? item.id, source, feature }));
   }
   return Object.freeze(resolved);
 };
