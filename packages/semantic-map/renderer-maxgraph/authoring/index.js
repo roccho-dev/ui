@@ -105,5 +105,4 @@ export const createSemanticAuthoring = container => {
   return adapter;
 };
 
-export { createDocumentAuthoring } from './document.js';
 export { mountActiveList } from './active-list.js';
