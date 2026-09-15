@@ -29,8 +29,12 @@ jobs:
           python3 tools/check-final-ci-consumer.py selftest --claim governance/final-ci-claim.v1.json
           python3 tools/check-final-ci-consumer.py check --claim governance/final-ci-claim.v1.json --candidate-sha "$CANDIDATE_SHA" --out "$RUNNER_TEMP/final-ci-consumer-receipt.json"
 
+      - name: Check non-authority receipt before delivery
+        run: test -s "$RUNNER_TEMP/final-ci-consumer-receipt.json"
+
       - name: Upload non-authority receipt
         uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: final-ci-consumer-receipt
           path: ${{ runner.temp }}/final-ci-consumer-receipt.json

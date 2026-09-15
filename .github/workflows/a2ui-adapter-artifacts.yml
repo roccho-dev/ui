@@ -148,49 +148,54 @@ jobs:
         env:
           GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
           GEOMAP_RUNTIME_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
-      - uses: actions/upload-artifact@v4
+      - name: Check SSG proof output before delivery
         if: ${{ always() && steps.ssg_proof_scope.outputs.run == 'true' }}
+        run: |
+          test -d "$RUNNER_TEMP/ssg-hot-refresh-viewport-artifact"
+          test -n "$(find -L "$RUNNER_TEMP/ssg-hot-refresh-viewport-artifact" -type f -print -quit)"
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && steps.ssg_proof_scope.outputs.run == 'true' }}
         with:
           name: ssg-hot-refresh-viewport-artifact
           path: ${{ runner.temp }}/ssg-hot-refresh-viewport-artifact
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: live-adapter-artifact
           path: adapter-result/live-adapter-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: purpose-adapter-artifact
           path: adapter-result/purpose-adapter-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: contract-model-atlas-artifact
           path: adapter-result/contract-model-atlas-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: repo-map-svgpanzoom-artifact
           path: adapter-result/repo-map-svgpanzoom-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: property-map-geo-artifact
           path: adapter-result/property-map-geo-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: property-map-zip-parity-artifact
           path: adapter-result/property-map-zip-parity-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: property-map-geo-runtime-hardening-artifact
           path: adapter-result/property-map-geo-runtime-hardening-artifact
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         with:
           name: adapter-artifact-index
           path: adapter-result/adapter-artifact-index.json

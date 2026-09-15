@@ -42,17 +42,26 @@ jobs:
           chmod -R u+w purpose-visualization-result
       - name: Execute runtime and capture screenshots
         run: node scripts/smoke-purpose-visualization.mjs purpose-visualization-result
+      - name: Check produced artifacts before delivery
+        run: |
+          for name in purpose-visualization-html purpose-visualization-screenshots purpose-visualization-evidence; do
+            test -d "purpose-visualization-result/$name"
+            test -n "$(find -L "purpose-visualization-result/$name" -type f -print -quit)"
+          done
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: purpose-visualization-html
           path: purpose-visualization-result/purpose-visualization-html
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: purpose-visualization-screenshots
           path: purpose-visualization-result/purpose-visualization-screenshots
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: purpose-visualization-evidence
           path: purpose-visualization-result/purpose-visualization-evidence
