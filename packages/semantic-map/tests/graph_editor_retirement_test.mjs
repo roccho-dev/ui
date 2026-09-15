@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { featureIds as a2uiFeatureIds } from '../../a2ui-browser/feature.mjs';
+import { featureIds as businessFeatureIds } from '../../business-model/feature.mjs';
+import { featureIds as semanticFeatureIds } from '../feature.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..', '..');
@@ -36,6 +39,8 @@ const retiredPaths = [
   'apps/artifact-shell/publication',
   'examples/graph-editor',
   'packages/semantic-map/renderer-maxgraph/authoring/document.js',
+  'apps/preview/cases.jsonl',
+  'apps/preview/resolve-cases.mjs',
 ];
 for (const relative of retiredPaths) assert.equal(exists(relative), false, `retired graph-editor/preview path still exists: ${relative}`);
 assert.doesNotMatch(authoring, /createDocumentAuthoring|\.\/document\.js/);
@@ -49,20 +54,14 @@ const scanLegacyStandaloneModel = relative => {
     if (entry.isDirectory()) scanLegacyStandaloneModel(child);
     else if (entry.isFile() && /\.js$/u.test(entry.name)) {
       const source = read(child);
-      if (/edge\.arrow/u.test(source) && /insertRectangle/u.test(source) && /readCells/u.test(source) && /replaceCells/u.test(source)) {
-        legacyStandaloneModels.push(child);
-      }
+      if (/edge\.arrow/u.test(source) && /insertRectangle/u.test(source) && /readCells/u.test(source) && /replaceCells/u.test(source)) legacyStandaloneModels.push(child);
     }
   }
 };
 scanLegacyStandaloneModel('packages/semantic-map/renderer-maxgraph/authoring');
 assert.deepEqual(legacyStandaloneModels, [], `legacy standalone document model was reintroduced: ${legacyStandaloneModels.join(', ')}`);
 
-const previewCases = read('apps/preview/cases.jsonl')
-  .split(/\r?\n/u)
-  .filter(Boolean)
-  .map(line => JSON.parse(line));
-const previewFeatureIds = [...new Set(previewCases.map(item => item.featureId))].sort();
+const previewFeatureIds = [...new Set([...businessFeatureIds, ...semanticFeatureIds, ...a2uiFeatureIds])].sort();
 assert.deepEqual(previewFeatureIds, ['chart', 'control', 'graph', 'map', 'presentation', 'seq']);
 
 const runtimeRoots = [
@@ -83,11 +82,12 @@ for (const relative of runtimeRoots) scan(relative);
 assert.deepEqual(runtimeReferences, [], `graph-editor runtime/preview references remain: ${runtimeReferences.join(', ')}`);
 
 console.log(JSON.stringify({
-  schema: 'graph-editor-retirement/3',
+  schema: 'graph-editor-retirement/4',
   status: 'PASS',
   migrated: Object.keys(migrated),
   retiredPaths,
   previewFeatures: previewFeatureIds,
   runtimeReferences: 0,
   legacyStandaloneModels: 0,
+  previewRegistry: false,
 }));
