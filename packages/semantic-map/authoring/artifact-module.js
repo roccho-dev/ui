@@ -25,6 +25,10 @@ function exactKeys(value, required, optional, name) {
   for (const key of Object.keys(value)) invariant(allowed.has(key), `${name}.${key} is not allowed`);
 }
 
+function regionFromSnapshot(snapshot, id) {
+  return snapshot.records.find(record => record.type === 'region' && record.id === id) ?? null;
+}
+
 export function normalizeSemanticMapModuleState(value) {
   exactKeys(value, ['schema', 'mode'], ['focusRef'], 'state');
   invariant(value.schema === SEMANTIC_MAP_MODULE_STATE_SCHEMA, `state.schema must be ${SEMANTIC_MAP_MODULE_STATE_SCHEMA}`);
@@ -73,20 +77,23 @@ export function createSemanticMapArtifactModuleBridge({ window = globalThis, emb
       invariant(Number.isSafeInteger(sequence) && sequence >= 1, 'state.sequence must be positive');
       state = normalizeSemanticMapModuleState(input);
       invariant(editor, 'editor is not attached');
+      const before = editor.core.snapshot();
       if (state.focusRef) {
-        const focusedRegion = editor.domain.regions.get(state.focusRef);
+        const focusedRegion = regionFromSnapshot(before, state.focusRef);
         invariant(focusedRegion, `focusRef is missing: ${state.focusRef}`);
-        invariant(state.focusRef !== editor.domain.meta.root && focusedRegion.temporal, 'focusRef must identify a temporal slide region');
+        invariant(state.focusRef !== before.document.root && focusedRegion.temporal, 'focusRef must identify a temporal slide region');
       }
       suppressSelection = true;
       try {
-        editor.adapter.setFocusMarker?.(state.focusRef ?? null);
         if (state.mode === 'overview') {
-          editor.adapter.setSelection({ regionIds: [], relationIds: [] });
+          editor.core.dispatch({ type: 'selection.set', selection: { regionIds: [], relationIds: [] } });
           if (typeof editor.fitOverview === 'function') editor.fitOverview();
           else editor.reset();
         } else {
-          editor.adapter.setSelection({ regionIds: [state.focusRef], relationIds: [] });
+          editor.core.dispatch({
+            type: 'selection.set',
+            selection: { regionIds: [state.focusRef], relationIds: [] },
+          });
           invariant(editor.focusRegion(state.focusRef, 1.15), `focusRef is not visible: ${state.focusRef}`);
         }
       } finally {
@@ -94,13 +101,14 @@ export function createSemanticMapArtifactModuleBridge({ window = globalThis, emb
       }
       current = state;
       metrics.applyCount += 1;
+      const after = editor.core.snapshot();
       receipt(sequence, 'PASS', {
         applyCount: metrics.applyCount,
         focusRef: state.focusRef ?? null,
-        markerRef: editor.adapter.focusMarkerSnapshot?.() ?? state.focusRef ?? null,
+        markerRef: state.focusRef ?? null,
         mode: state.mode,
         pattern: editor.snapshot().scene?.pattern ?? null,
-        selection: editor.adapter.selectionSnapshot(),
+        selection: after.selection,
       });
     } catch (error) {
       receipt(sequence, 'FAIL', null, error instanceof Error ? error.message : String(error));
@@ -131,14 +139,17 @@ export function createSemanticMapArtifactModuleBridge({ window = globalThis, emb
   window.addEventListener('message', onMessage);
 
   const attach = value => {
-    invariant(value && value.adapter && value.domain, 'editor is required');
+    invariant(value?.core && typeof value.core.snapshot === 'function' && typeof value.core.dispatch === 'function', 'editor core is required');
     invariant(!editor, 'editor is already attached');
     editor = value;
-    removeSelectionListener = editor.adapter.onSelectionChange(selection => {
-      if (suppressSelection || selection.regionIds.length !== 1) return;
+    removeSelectionListener = editor.core.subscribe(event => {
+      if (suppressSelection) return;
+      const snapshot = event.core;
+      const selection = snapshot.selection;
+      if (selection.regionIds.length !== 1 || selection.relationIds.length !== 0) return;
       const ref = selection.regionIds[0];
-      const region = editor.domain.regions.get(ref);
-      if (ref === editor.domain.meta.root || !region?.temporal) return;
+      const region = regionFromSnapshot(snapshot, ref);
+      if (ref === snapshot.document.root || !region?.temporal) return;
       if (port) emit('activate', { ref });
     });
     const queued = pending.splice(0);
