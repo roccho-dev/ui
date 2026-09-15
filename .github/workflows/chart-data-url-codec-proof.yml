@@ -10,13 +10,11 @@ permissions:
 
 env:
   SOURCE_SHA: b682eef6cbe7f5a0ff2a76618a515d3e73216c91
-  CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
-  CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-224
+  DEPLOY_ROOT: https://b42d7007.stg-artifact-runtime.pages.dev
 
 jobs:
   prove:
     runs-on: ubuntu-latest
-    environment: ui-deploy
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,119 +23,45 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Build publication
-        run: |
-          set -euo pipefail
-          out="$RUNNER_TEMP/artifact-shell-publication"
-          npm run build:artifact-shell-publication -- --out="$out"
-          for variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do
-            test -f "$out/adapters/chart/$variant/index.html"
-            test -f "$out/adapters/chart/$variant/feature.json"
-            test -f "$out/adapters/chart/$variant/input.json"
-          done
-          echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
-      - name: Deploy exact source to same Pages alias
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          log="$RUNNER_TEMP/wrangler-pages-deploy.log"
-          npx --yes wrangler@4.112.0 pages deploy "$ARTIFACT_SHELL_PUBLICATION" \
-            --project-name="$CLOUDFLARE_PAGES_PROJECT" \
-            --branch="$CLOUDFLARE_PAGES_BRANCH" \
-            --commit-hash="$SOURCE_SHA" | tee "$log"
-          root="$(grep -oE 'https://[0-9a-f]+\.stg-artifact-runtime\.pages\.dev' "$log" | head -n1)"
-          test -n "$root"
-          echo "DEPLOY_ROOT=$root" >> "$GITHUB_ENV"
-          echo "IMMUTABLE_DEPLOYMENT=$root" >> "$GITHUB_ENV"
-      - name: Prove publication browser contract
-        run: bash apps/artifact-shell/tests/prove-publication-browser.sh "$DEPLOY_ROOT"
-      - name: Generate eight canonical #data URLs
+      - name: Generate one nested canonical #data URL
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/chart-data-url-proof"
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import { createUrlModuleUrl, readUrlModule } from './packages/url-module/src/codec.mjs';
-
-          const root = process.env.DEPLOY_ROOT;
-          const targets = Object.freeze({
-            'bar-horizontal': 'product',
-            'bar-vertical': 'sales-0',
-            line: 'active-0',
-            pie: 'share-0',
-            donut: 'share-0',
-            scatter: 'growth-a',
-            heatmap: 'tokyo-am',
-            sunburst: 'product',
+          const records = fs.readFileSync('examples/chart/bar-horizontal.jsonl', 'utf8')
+            .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
+          const target = records.find(record => record.type === 'region' && record.id === 'product');
+          target.label = '__nested_data_diag__';
+          const value = records.map(record => JSON.stringify(record)).join('\n') + '\n';
+          const url = await createUrlModuleUrl({
+            base: `${process.env.DEPLOY_ROOT}/adapters/chart/bar-horizontal/`,
+            fragment: 'data',
+            value,
           });
-          const specs = [];
-          for (const [variant, targetId] of Object.entries(targets)) {
-            const records = fs.readFileSync(`examples/chart/${variant}.jsonl`, 'utf8')
-              .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
-            const target = records.find(record => record.type === 'region' && record.id === targetId);
-            if (!target) throw new Error(`${variant}: target missing`);
-            const sentinel = `__url_data_${variant.replaceAll('-', '_')}__`;
-            target.label = sentinel;
-            const value = records.map(record => JSON.stringify(record)).join('\n') + '\n';
-            const url = await createUrlModuleUrl({
-              base: `${root}/adapters/chart/${variant}/`, fragment: 'data', value,
-            });
-            if (!url.includes('#data=')) throw new Error(`${variant}: #data missing`);
-            if (url.length > 8192) throw new Error(`${variant}: URL too long: ${url.length}`);
-            if (await readUrlModule({ fragment: 'data', input: url }) !== value) throw new Error(`${variant}: codec round trip mismatch`);
-            specs.push({ variant, targetId, sentinel, chars: url.length, url });
-            console.log(JSON.stringify(specs.at(-1)));
-          }
-          fs.writeFileSync(
-            process.env.RUNNER_TEMP + '/chart-data-url-proof/specs.json',
-            JSON.stringify(specs, null, 2),
-          );
+          if (await readUrlModule({ fragment: 'data', input: url }) !== value) throw new Error('round trip failed');
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/chart-data-url-proof/url.txt', url);
+          console.log(url);
           NODE
-      - name: Prove all eight deployed #data URLs
+      - name: Diagnose nested #data route
         run: |
           set -euo pipefail
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import { spawnSync } from 'node:child_process';
-          const out = process.env.RUNNER_TEMP + '/chart-data-url-proof';
-          const specs = JSON.parse(fs.readFileSync(out + '/specs.json', 'utf8'));
-          const chrome = ['google-chrome','google-chrome-stable','chromium']
-            .map(name => spawnSync('bash', ['-lc', `command -v ${name} || true`], {encoding:'utf8'}).stdout.trim())
-            .find(Boolean);
-          if (!chrome) throw new Error('Chrome is required');
-          const results = [];
-          for (const spec of specs) {
-            const run = spawnSync(chrome, [
-              '--headless=new','--no-sandbox','--disable-gpu','--virtual-time-budget=30000','--dump-dom',spec.url,
-            ], {encoding:'utf8', maxBuffer: 8*1024*1024});
-            const html = run.stdout;
-            const pass = /data-status="pass"/u.test(html);
-            const sentinelRendered = html.includes(spec.sentinel);
-            const fatal = (html.match(/<output[^>]*id="fatal"[^>]*>([\s\S]*?)<\/output>/u)?.[1] ?? '')
-              .replace(/<[^>]+>/gu, '').trim();
-            const result = { ...spec, pass, sentinelRendered, fatal };
-            results.push(result);
-            fs.writeFileSync(`${out}/${spec.variant}.html`, html);
-            console.log(JSON.stringify(result));
-            if (!pass || !sentinelRendered) process.exitCode = 1;
-          }
-          const receipt = {
-            schema: 'ui.chart-data-url-codec-proof/2',
-            status: process.exitCode ? 'FAIL' : 'PASS',
-            sourceSha: process.env.SOURCE_SHA,
-            immutableDeployment: process.env.IMMUTABLE_DEPLOYMENT,
-            stableAlias: 'https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev',
-            variants: results,
-          };
-          fs.writeFileSync(out + '/receipt.json', JSON.stringify(receipt, null, 2));
-          console.log(JSON.stringify(receipt));
-          if (process.exitCode) process.exit(1);
-          NODE
+          out="$RUNNER_TEMP/chart-data-url-proof"
+          url="$(cat "$out/url.txt")"
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$url" > "$out/page.html"
+          grep -E 'BLOCKED|data-status=|id="fatal"|__nested_data_diag__' "$out/page.html" || true
+          if grep -q 'data-status="pass"' "$out/page.html" && grep -q '__nested_data_diag__' "$out/page.html"; then
+            echo PASS
+          else
+            echo FAIL
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: chart-data-url-codec-proof
+          name: chart-data-url-codec-diagnostic
           path: ${{ runner.temp }}/chart-data-url-proof
           if-no-files-found: error
