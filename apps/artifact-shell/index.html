@@ -7,7 +7,7 @@
   <title>UI</title>
   <style>:root{font-family:ui-sans-serif,system-ui,sans-serif;color-scheme:light dark}*{box-sizing:border-box}body{margin:0;background:Canvas;color:CanvasText}main{width:min(960px,100%);margin:auto;padding:18px}#launcher{display:flex;flex-wrap:wrap;gap:14px}#launcher a{color:inherit;text-underline-offset:3px}#status{font:600 10px/1.2 ui-monospace,monospace;position:fixed;right:8px;bottom:8px;z-index:10;padding:4px 6px;background:Canvas}#local-inputs{padding:8px}#surface:empty{display:none}#surface iframe{display:block;width:100%;min-height:100vh;border:0}#debug{display:grid;gap:8px;margin-top:12px}#request,pre{width:100%;margin:0;padding:8px;font:11px/1.4 ui-monospace,monospace}#request{min-height:120px}body[data-mode="launcher"] #status,body[data-mode="launcher"] #local-inputs,body[data-mode="launcher"] #surface,body[data-mode="launcher"] #debug,body[data-mode="invoke"] #launcher,body[data-mode="invoke"] #debug{display:none}body[data-mode="invoke"] main{width:100%;max-width:none;padding:0}body:not([data-mode]) #launcher{display:none}</style>
 </head>
-<body>
+<body data-mode="launcher">
   <main>
     <nav id="launcher" aria-label="UI examples">
       <a href="adapters/graph/">graph</a>
