@@ -1,0 +1,9 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"state-machine","title":"State machine"}
+{"type":"region","id":"state-machine","parent":null,"label":"State machine","kind":"root","bounds":[0,0,900,500],"summary":"graph/1 state proof"}
+{"type":"region","id":"initial","parent":"state-machine","label":"Initial","kind":"initial","bounds":[0,0,120,80],"summary":"initial state"}
+{"type":"region","id":"draft","parent":"state-machine","label":"Draft","kind":"state","bounds":[0,0,180,90],"summary":"draft state"}
+{"type":"region","id":"ready","parent":"state-machine","label":"Ready","kind":"state","bounds":[0,0,180,90],"summary":"ready state"}
+{"type":"region","id":"final","parent":"state-machine","label":"Final","kind":"final","bounds":[0,0,120,80],"summary":"final state"}
+{"type":"relation","id":"s1","from":"initial","to":"draft","kind":"transition","label":"create"}
+{"type":"relation","id":"s2","from":"draft","to":"ready","kind":"transition","label":"validate"}
+{"type":"relation","id":"s3","from":"ready","to":"final","kind":"transition","label":"commit"}

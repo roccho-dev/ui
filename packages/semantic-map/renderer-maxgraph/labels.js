@@ -9,7 +9,7 @@ function fontSizeForRepresentation(representation, theme) {
     : theme.vertex.fontSize;
 }
 
-function estimatedLabelWidth(label, fontSize) {
+function estimatedLineWidth(label, fontSize) {
   let units = 0;
   for (const character of String(label ?? '')) {
     if (/\s/u.test(character)) units += 0.34;
@@ -17,6 +17,10 @@ function estimatedLabelWidth(label, fontSize) {
     else units += 0.59;
   }
   return units * fontSize;
+}
+
+function estimatedLabelWidth(label, fontSize) {
+  return Math.max(0, ...String(label ?? '').split(/\r?\n/u).map(line => estimatedLineWidth(line, fontSize)));
 }
 
 function compactLabel(label) {
@@ -36,9 +40,22 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
     ? theme.vertex.boundarySpacingLeft * 2
     : fontSize;
   const availableWidth = Math.max(0, width - horizontalPadding);
-  const minimumHeight = fontSize * (representation.shape === 'boundary' ? 1.7 : 1.45);
+  const lines = label.split(/\r?\n/u);
+  const lineCount = lines.length;
+  const minimumHeight = fontSize * (representation.shape === 'boundary' ? 1.7 : Math.max(1.45, lineCount * 1.25));
+
+  if (lineCount > 1 && height < minimumHeight) {
+    return height >= fontSize * 1.45 ? lines[0] : '';
+  }
   if (height < minimumHeight) return '';
-  if (estimatedLabelWidth(label, fontSize) <= availableWidth) return label;
+
+  const estimatedWidth = estimatedLabelWidth(label, fontSize);
+  if (estimatedWidth <= availableWidth) return label;
+  if (lineCount > 1) return label;
+
+  const wrappedLines = availableWidth > 0 ? Math.ceil(estimatedWidth / availableWidth) : Number.POSITIVE_INFINITY;
+  const wrappedMinimumHeight = fontSize * Math.max(1.45, wrappedLines * 1.25);
+  if (height >= wrappedMinimumHeight) return label;
 
   const compact = compactLabel(label);
   return compact !== label && estimatedLabelWidth(compact, fontSize) <= availableWidth
@@ -62,4 +79,3 @@ export function displayedRelationLabel(relation, scale, theme, representationsBy
     ? label
     : '';
 }
-
