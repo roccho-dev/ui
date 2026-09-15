@@ -1,6 +1,7 @@
 import { SemanticDomainStore as DomainStateStore } from '../domain/domain-store.js';
 import { executeReconnectRelation, normalizeOperation } from '../domain/editor-operation.js';
 import { createSemanticMap } from '../domain/semantic-map.js';
+import { SemanticProjector } from '../projection/index.js';
 import { assertSurfaceGesture, gestureToOperation } from './commands.js';
 import {
   assertAuthorityPort,
@@ -32,6 +33,10 @@ function cloneFrame(frame) {
   return frame == null ? null : structuredClone(frame);
 }
 
+function clonePresentation(presentation) {
+  return presentation == null ? null : structuredClone(presentation);
+}
+
 function synchronous(value, name) {
   invariant(!value || typeof value.then !== 'function', `${name} must be synchronous`);
   return value;
@@ -59,6 +64,26 @@ function normalizeInputDomain(input) {
   throw new Error('editor-core: semantic input is invalid');
 }
 
+function createProjectionState(domain, input) {
+  invariant(input && typeof input === 'object', 'presentation.configure projection is required');
+  invariant(input.view && typeof input.view === 'object', 'presentation.configure view is required');
+  invariant(
+    input.projectPresentation == null || typeof input.projectPresentation === 'function',
+    'presentation.configure projectPresentation must be a function',
+  );
+  const projectPresentation = input.projectPresentation ?? (() => null);
+  const view = structuredClone(input.view);
+  const modules = input.modules ?? null;
+  const presentationProjection = projectPresentation(domain, view);
+  return Object.freeze({
+    view,
+    modules,
+    projectPresentation,
+    projector: new SemanticProjector(domain, modules, view, { presentationProjection }),
+    presentationProjection,
+  });
+}
+
 class EditorCoreState extends DomainStateStore {
   constructor({ semantic, layout = null, revision = null, ports }) {
     super(normalizeInputDomain(semantic));
@@ -76,6 +101,10 @@ class EditorCoreState extends DomainStateStore {
     this.pendingDomainEvents = [];
     this.transactionSnapshot = null;
     this.displayFailures = [];
+    this.projection = null;
+    this.presentation = null;
+    this.presentationProjection = null;
+    this.scene = null;
     this.removeSurfaceGesture = this.surface.onGesture((gesture) => this.acceptGesture(gesture));
     invariant(typeof this.removeSurfaceGesture === 'function', 'SurfacePort.onGesture must return an unsubscribe function');
     this.renderSurface();
@@ -199,13 +228,38 @@ class EditorCoreState extends DomainStateStore {
     });
   }
 
-  renderSurface(scene = undefined) {
+  configureProjection(input) {
+    const next = createProjectionState(this.domain, input);
+    this.projection = next;
+    this.presentationProjection = next.presentationProjection;
+    if (Object.hasOwn(input, 'presentation')) this.presentation = clonePresentation(input.presentation);
+    return null;
+  }
+
+  projectAcceptedScene() {
+    if (!this.projection || !this.presentation?.camera || !this.presentation?.viewport) return this.scene;
+    const { projector, modules, projectPresentation, view } = this.projection;
+    projector.setDomain(this.domain);
+    projector.setModules(modules);
+    projector.setView(view);
+    const presentationProjection = projectPresentation(this.domain, view);
+    projector.setPresentationProjection(presentationProjection);
+    this.presentationProjection = presentationProjection;
+    this.scene = projector.project({
+      scale: this.presentation.camera.scale,
+      viewport: this.presentation.viewport,
+    });
+    return this.scene;
+  }
+
+  renderSurface() {
     if (this.destroyed) return null;
+    const scene = this.projectAcceptedScene();
     return this.surface.render(Object.freeze({
-      ...(scene === undefined ? {} : { scene }),
+      ...(scene ? { scene } : {}),
       selection: this.selection,
       activeFrame: cloneFrame(this.frame),
-      presentation: null,
+      presentation: clonePresentation(this.presentation),
     }));
   }
 
@@ -253,10 +307,7 @@ class EditorCoreState extends DomainStateStore {
     };
     if (candidate.type === 'AddRegion' && !candidate.regionId) candidate.regionId = allocate('region');
     if (candidate.type === 'ConnectRegions' && !candidate.relationId) candidate.relationId = allocate('relation');
-    return Object.freeze({
-      operation: normalizeOperation(candidate),
-      nextSequence,
-    });
+    return Object.freeze({ operation: normalizeOperation(candidate), nextSequence });
   }
 
   editPlan(operation, authority) {
@@ -270,17 +321,10 @@ class EditorCoreState extends DomainStateStore {
     })), 'DocumentPort.requestEdit');
 
     if (requested?.noop === true) {
-      return Object.freeze({
-        noop: true,
-        result: requested.result ?? null,
-        operations: Object.freeze([]),
-        validate: null,
-      });
+      return Object.freeze({ noop: true, result: requested.result ?? null, operations: Object.freeze([]), validate: null });
     }
 
-    const rawOperations = Array.isArray(requested)
-      ? requested
-      : requested?.operations ?? [operation];
+    const rawOperations = Array.isArray(requested) ? requested : requested?.operations ?? [operation];
     invariant(Array.isArray(rawOperations) && rawOperations.length > 0, 'DocumentPort.requestEdit returned no operations');
     invariant(requested?.validate == null || typeof requested.validate === 'function', 'DocumentPort validate must be a function');
 
@@ -290,12 +334,7 @@ class EditorCoreState extends DomainStateStore {
       nextSequence = prepared.nextSequence;
       return prepared.operation;
     });
-    return Object.freeze({
-      noop: false,
-      operations: Object.freeze(operations),
-      nextSequence,
-      validate: requested?.validate ?? null,
-    });
+    return Object.freeze({ noop: false, operations: Object.freeze(operations), nextSequence, validate: requested?.validate ?? null });
   }
 
   commitDocument({ authority, operations, batch, beforeRevision }) {
@@ -321,6 +360,13 @@ class EditorCoreState extends DomainStateStore {
     if (command.type === 'history.redo') return this.applyHistory('redo');
     if (command.type === 'selection.set') return this.changeSelection(command.selection);
     if (command.type === 'frame.set') return this.setFrame(command.frame);
+    if (command.type === 'presentation.configure') {
+      this.transaction('presentation', null, () => {
+        this.configureProjection(command.projection);
+        return { result: null, detail: { configured: true } };
+      });
+      return this.snapshot();
+    }
     if (command.type === 'presentation.refresh') {
       this.transaction('presentation', null, () => ({ result: null, detail: { retry: true } }));
       return this.snapshot();
@@ -342,16 +388,10 @@ class EditorCoreState extends DomainStateStore {
       );
       this.idSequence = plan.nextSequence;
       const last = batch.results.at(-1) ?? null;
-      if (last?.createdRegionId) {
-        this.setSelection({ regionIds: [last.createdRegionId], relationIds: [] });
-      } else if (last?.createdRelationId) {
-        this.setSelection({ regionIds: [], relationIds: [last.createdRelationId] });
-      } else {
-        this.pruneSelection();
-      }
-      const result = batch.results.length === 1
-        ? batch.results[0]
-        : { operations: plan.operations, results: batch.results };
+      if (last?.createdRegionId) this.setSelection({ regionIds: [last.createdRegionId], relationIds: [] });
+      else if (last?.createdRelationId) this.setSelection({ regionIds: [], relationIds: [last.createdRelationId] });
+      else this.pruneSelection();
+      const result = batch.results.length === 1 ? batch.results[0] : { operations: plan.operations, results: batch.results };
       return { operations: plan.operations, batch, result, detail: { operations: plan.operations, result } };
     });
   }
@@ -362,12 +402,7 @@ class EditorCoreState extends DomainStateStore {
       const changed = direction === 'undo' ? super.undo() : super.redo();
       if (!changed) return { changed: false, result: false };
       this.pruneSelection();
-      return {
-        operations: [intent],
-        batch: { results: [{ changed: true }] },
-        result: true,
-        detail: { direction },
-      };
+      return { operations: [intent], batch: { results: [{ changed: true }] }, result: true, detail: { direction } };
     });
   }
 
@@ -379,9 +414,10 @@ class EditorCoreState extends DomainStateStore {
       case 'selection.changed':
         return this.changeSelection(gesture.selection, 'surface');
       case 'camera.changed':
-        return this.transaction('presentation', null, () => ({
-          result: null, detail: { presentation: structuredClone(gesture.presentation ?? null) },
-        }), { render: false });
+        return this.transaction('presentation', null, () => {
+          this.presentation = clonePresentation(gesture.presentation ?? null);
+          return { result: null, detail: { presentation: clonePresentation(this.presentation) } };
+        });
       case 'activation.requested':
         return this.transaction('activation', null, () => ({
           result: null, detail: { activation: structuredClone(gesture.activation ?? null) },
@@ -393,9 +429,7 @@ class EditorCoreState extends DomainStateStore {
 
   execute(input) {
     const operation = normalizeOperation(input);
-    return operation.type === 'ReconnectRelation'
-      ? executeReconnectRelation(this, operation)
-      : super.execute(operation);
+    return operation.type === 'ReconnectRelation' ? executeReconnectRelation(this, operation) : super.execute(operation);
   }
 
   replaceInput(input) {
@@ -407,9 +441,7 @@ class EditorCoreState extends DomainStateStore {
       })), 'DocumentPort.reload');
       const value = reloaded && Object.hasOwn(reloaded, 'input') ? reloaded.input : input;
       const workspace = value?.schema ? normalizeWorkspace(value) : null;
-      const domain = workspace
-        ? createSemanticMap(structuredClone(workspace.document.records))
-        : normalizeInputDomain(value);
+      const domain = workspace ? createSemanticMap(structuredClone(workspace.document.records)) : normalizeInputDomain(value);
       super.replaceDomain(domain);
       this.idSequence = initialSequence(this.domain);
       this.selection = normalizeSelection(workspace?.layout.selection ?? {});
@@ -438,9 +470,7 @@ class EditorCoreState extends DomainStateStore {
   }
 
   snapshot() {
-    return this.transactionSnapshot === null
-      ? this.readSnapshot()
-      : Object.freeze(structuredClone(this.transactionSnapshot));
+    return this.transactionSnapshot === null ? this.readSnapshot() : Object.freeze(structuredClone(this.transactionSnapshot));
   }
 
   readSnapshot() {
@@ -458,6 +488,9 @@ class EditorCoreState extends DomainStateStore {
       idSequence: this.idSequence,
       revision: this.revision,
       stateHash: this.stateHash(),
+      presentation: this.presentation,
+      presentationProjection: this.presentationProjection,
+      scene: this.scene,
       display: { status: this.displayFailures.length ? 'error' : 'ready', failures: this.displayFailures },
     }));
   }
@@ -470,9 +503,7 @@ class EditorCoreState extends DomainStateStore {
     this.transactionDepth = 0;
     this.removeSurfaceGesture?.();
     this.removeSurfaceGesture = null;
-    try { this.surface.destroy(); } finally {
-      this.coreListeners.clear();
-    }
+    try { this.surface.destroy(); } finally { this.coreListeners.clear(); }
     return true;
   }
 }
@@ -488,20 +519,12 @@ function publicCore(state) {
   });
 }
 
-export function createSemanticMapEditorCore({
-  semantic,
-  layout = null,
-  revision = null,
-  ports,
-}) {
+export function createSemanticMapEditorCore({ semantic, layout = null, revision = null, ports }) {
   return publicCore(new EditorCoreState({ semantic, layout, revision, ports }));
 }
 
 export function editorDocumentBytes(core) {
   invariant(core && typeof core.snapshot === 'function', 'EditorCore is required');
   const snapshot = core.snapshot();
-  return workspaceBytes(createWorkspace(snapshot.records, {
-    selection: snapshot.selection,
-    frame: snapshot.frame,
-  }));
+  return workspaceBytes(createWorkspace(snapshot.records, { selection: snapshot.selection, frame: snapshot.frame }));
 }
