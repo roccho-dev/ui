@@ -13,9 +13,11 @@ const transport = option('--transport', 'iframe');
 assert.equal(phase, 'p2');
 assert.equal(transport, 'iframe');
 
+const coreSource = fs.readFileSync(new URL('../../packages/semantic-map/editor-core/core.js', import.meta.url), 'utf8');
 const surfaceSource = fs.readFileSync(new URL('../../packages/semantic-map/renderer-maxgraph/surface-port.js', import.meta.url), 'utf8');
 const main = fs.readFileSync(new URL('../../packages/semantic-map/authoring/main.js', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../../packages/semantic-map/authoring/entry.js', import.meta.url), 'utf8');
+const artifactModule = fs.readFileSync(new URL('../../packages/semantic-map/authoring/artifact-module.js', import.meta.url), 'utf8');
 
 const expectedEditorCoreExports = [
   'WORKSPACE_SCHEMA',
@@ -54,13 +56,17 @@ assert.throws(
 );
 assert.throws(() => editorCore.assertAuthorityPort({}), /AuthorityPort\.authorize is required/u);
 
+assert.doesNotMatch(coreSource, /Object\.defineProperty\(api,\s*['"](?:runtime|workspace)['"]|runtimePort\s*\(/u);
+assert.match(coreSource, /dispatch:\s*\(command\).*acceptGesture:[\s\S]*replaceInput:[\s\S]*snapshot:[\s\S]*subscribe:[\s\S]*destroy:/u);
 assert.doesNotMatch(surfaceSource, /new Proxy|claimPendingEditorCore/u);
 assert.match(surfaceSource, /#inner/u);
 assert.match(surfaceSource, /#rollback/u);
 assert.match(main, /createSemanticMapEditorCore/u);
 assert.match(main, /surface:\s*adapter,\s*document:\s*documentPort,\s*authority:\s*authorityPort/u);
-assert.doesNotMatch(main, /adapter\.graph|adapter\.setOperationHandler|store\.perform|store\.execute/u);
+assert.doesNotMatch(main, /core\.runtime|core\.workspace|adapter\.graph|adapter\.setOperationHandler|store\.perform|store\.execute/u);
 assert.match(entry, /createSemanticMapEditor/u);
+assert.doesNotMatch(entry, /adapter\.setActivationHandler/u);
+assert.doesNotMatch(artifactModule, /editor\.adapter|editor\.domain/u);
 
 console.log(JSON.stringify({
   schema: 'ui-runtime-architecture/4',
@@ -70,6 +76,8 @@ console.log(JSON.stringify({
   formalPath: ['artifact-shell', 'semantic-map-runtime', 'iframe', 'EditorCore', 'MaxGraphAdapter'],
   publicOwner: 'packages/semantic-map/editor-core/index.js',
   exactPublicExports: expectedEditorCoreExports,
+  exactCoreMethods: ['dispatch', 'acceptGesture', 'replaceInput', 'snapshot', 'subscribe', 'destroy'],
+  hiddenCoreBypass: 0,
   executablePortContracts: true,
   explicitPorts: ['SurfacePort', 'DocumentPort', 'AuthorityPort'],
   duplicateOwners: 0,
