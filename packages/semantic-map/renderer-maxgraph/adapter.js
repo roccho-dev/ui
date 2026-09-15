@@ -387,6 +387,13 @@ function selectRegion(regionId) {
   this.setSelection({ regionIds: [regionId] });
 }
 
+function selectPendingRegion(regionId) {
+  if (typeof regionId !== 'string' || regionId.length === 0) throw new Error('pending regionId must be a non-empty string');
+  this.selectionRegionIds = new Set([regionId]);
+  this.selectionRelationIds.clear();
+  this.emitSelection();
+}
+
 function setFocusMarker(regionId = null) {
   if (regionId !== null && typeof regionId !== 'string') throw new Error('focus marker regionId must be a string or null');
   this.focusMarkerRegionId = regionId;
@@ -510,6 +517,7 @@ const maxGraphAdapterMethods = Object.freeze({
   selectionSnapshot,
   setSelection,
   selectRegion,
+  selectPendingRegion,
   setFocusMarker,
   focusMarkerSnapshot,
   clearSelection,
