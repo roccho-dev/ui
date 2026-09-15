@@ -15,19 +15,48 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/control',
   'packages/core-port/src',
   'packages/presentation',
+  'packages/semantic-map/authoring',
   'packages/semantic-map/domain',
   'packages/semantic-map/feature-runtime.mjs',
   'packages/semantic-map/surface-runtime.mjs',
   'packages/semantic-map/feature.css',
+  'packages/semantic-map/module-embedding',
   'packages/semantic-map/pattern',
   'packages/semantic-map/projection',
   'packages/semantic-map/protocol',
   'packages/semantic-map/renderer-maxgraph',
   'packages/semantic-map/renderer-resource-dom',
   'packages/semantic-map/resource-composition',
+  'packages/semantic-map/transport',
   'packages/semantic-map/vendor',
   'packages/url-module/src',
 ]);
+
+const materializeCanonicalSemanticApp = async ({ outputRoot, repoRoot }) => {
+  const source = await fs.readFile(path.join(repoRoot, 'packages', 'semantic-map', 'authoring', 'pages', 'app.html'), 'utf8');
+  const replacements = new Map([
+    ['../styles/styles.css', '../modules/packages/semantic-map/authoring/styles/styles.css'],
+    ['../styles/handoff.css', '../modules/packages/semantic-map/authoring/styles/handoff.css'],
+    ['../styles/review.css', '../modules/packages/semantic-map/authoring/styles/review.css'],
+    ['../styles/source.css', '../modules/packages/semantic-map/authoring/styles/source.css'],
+    ['../index.js', '../modules/packages/semantic-map/authoring/index.js'],
+    ['<!-- @INLINE_IMPORTMAP -->', ''],
+    ['<!-- @PAGE_CONFIG -->', canonicalJson({ mode: 'publication', title: 'Semantic Map' })],
+    ['<!-- @INITIAL_DOCUMENT -->', ''],
+    ['<!-- @EMBEDDED_NOTICES -->', ''],
+  ]);
+  let page = source;
+  for (const [from, to] of replacements) {
+    if (!page.includes(from)) throw new Error(`artifact-adapters: canonical semantic app marker missing: ${from}`);
+    page = page.replaceAll(from, to);
+  }
+  if (/@(?:INLINE_IMPORTMAP|PAGE_CONFIG|INITIAL_DOCUMENT|EMBEDDED_NOTICES)/u.test(page)) {
+    throw new Error('artifact-adapters: canonical semantic app has unresolved markers');
+  }
+  const app = path.join(outputRoot, 'app');
+  await fs.mkdir(app, { recursive: true });
+  await fs.writeFile(path.join(app, 'index.html'), page);
+};
 
 const variantIdPattern = /^[a-z][a-z0-9-]*$/u;
 const readSource = async (repoRoot, source) => {
@@ -52,6 +81,7 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
   for (const relative of PUBLIC_MODULE_ROOTS) {
     await fs.cp(path.join(repoRoot, relative), path.join(outputRoot, 'modules', relative), { recursive: true });
   }
+  await materializeCanonicalSemanticApp({ outputRoot, repoRoot });
   const adapterHost = await fs.readFile(path.join(appRoot, 'publication', 'adapter-host.html'));
   const featureExamples = new Map();
 

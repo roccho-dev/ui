@@ -33,6 +33,7 @@ const assertHashOnlyHost = async routeRoot => {
   const host = await fs.readFile(path.join(routeRoot, 'host.mjs'), 'utf8');
   assert.match(host, /#data required/u);
   assert.doesNotMatch(host, /input\.json|searchParams|http-resource/u);
+  assert.doesNotMatch(host, /createUrlModuleFieldsUrl|replaceRecords|toJSONL|captureFeaturePng|uiFeatureShare|createObjectURL|Canvas 2D/u);
 };
 
 assert.deepEqual(chart.variants.map(variant => variant.id), chartVariantIds, 'chart: exact eight publication variants required');
@@ -77,12 +78,29 @@ for (const adapter of adapters) {
   }
 }
 
+for (const relative of [
+  'packages/semantic-map/authoring/handoff.js',
+  'packages/semantic-map/authoring/review.js',
+  'packages/semantic-map/authoring/runtime.js',
+  'packages/semantic-map/transport/smap-delivery.js',
+]) {
+  assert.deepEqual(
+    await fs.readFile(path.join(outputRoot, 'modules', relative)),
+    await fs.readFile(path.join(repoRoot, relative)),
+    `${relative}: publication must reuse canonical bytes`,
+  );
+}
+const canonicalApp = await fs.readFile(path.join(outputRoot, 'app', 'index.html'), 'utf8');
+assert.match(canonicalApp, /\.\.\/modules\/packages\/semantic-map\/authoring\/index\.js/u);
+assert.doesNotMatch(canonicalApp, /@(?:INLINE_IMPORTMAP|PAGE_CONFIG|INITIAL_DOCUMENT|EMBEDDED_NOTICES)/u);
+
 assert.equal(variantRoutes, 8, 'exactly eight chart variant publication routes required');
 console.log(JSON.stringify({
-  schema: 'ui.feature-data-publication-proof/2',
+  schema: 'ui.feature-data-publication-proof/3',
   status: 'PASS',
   features: adapters.map(adapter => adapter.id),
   chartVariants: chartVariantIds,
   variantRoutes,
-  negativeControls: ['missing-chart-variant'],
+  canonicalSemanticHandoff: true,
+  negativeControls: ['missing-chart-variant', 'parallel-share-path'],
 }));
