@@ -12,7 +12,7 @@ import {
 import { createSmapUrl, readSmapHash } from '../transport/index.js';
 
 const records = parseSemanticMapRecords(fs.readFileSync(new URL('../examples/example.jsonl', import.meta.url), 'utf8'));
-const chartRecords = parseSemanticMapRecords(fs.readFileSync(new URL('../examples/chart.jsonl', import.meta.url), 'utf8'));
+const chartRecords = parseSemanticMapRecords(fs.readFileSync(new URL('../../../examples/chart/bar-horizontal.jsonl', import.meta.url), 'utf8'));
 assert.deepEqual(normalizeView({ pattern: 'map/1' }), { pattern: 'map/1' });
 assert.deepEqual(normalizeView({ pattern: 'seq/1', seq: { groupBy: 'actor', axis: 'ordinal' } }), {
   pattern: 'seq/1',

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -17,6 +17,17 @@ const parseArgs = input => Object.fromEntries(input.map(argument => {
   if (!argument.startsWith('--') || index < 3) throw new Error(`decision-packet-example: expected --name=value, got ${argument}`);
   return [argument.slice(2, index), argument.slice(index + 1)];
 }));
+const run = (command, args, options) => new Promise((resolve, reject) => {
+  const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', chunk => { stdout += chunk; });
+  child.stderr.on('data', chunk => { stderr += chunk; });
+  child.once('error', reject);
+  child.once('close', (status, signal) => resolve({ status, signal, stdout, stderr }));
+});
 
 export async function buildDecisionPacketExample({ inputPath, outputRoot }) {
   const packetInput = JSON.parse(await fs.readFile(inputPath, 'utf8'));
@@ -27,11 +38,12 @@ export async function buildDecisionPacketExample({ inputPath, outputRoot }) {
     const envelopePath = path.join(temporary, 'envelope.json');
     await fs.writeFile(envelopePath, `${JSON.stringify(projected.envelope, null, 2)}\n`);
     await fs.rm(outputRoot, { recursive: true, force: true });
-    const result = spawnSync(process.execPath, [semanticBuilder, `--input=${envelopePath}`, `--out=${outputRoot}`], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-    });
-    if (result.status !== 0) throw new Error(`semantic-map builder failed: ${result.stderr || result.stdout}`);
+    const result = await run(
+      process.execPath,
+      [semanticBuilder, `--input=${envelopePath}`, `--out=${outputRoot}`],
+      { cwd: repoRoot },
+    );
+    if (result.status !== 0) throw new Error(`semantic-map builder failed: ${result.stderr || result.stdout || `signal=${String(result.signal)}`}`);
     const semanticReceipt = JSON.parse(await fs.readFile(path.join(outputRoot, 'receipt.json'), 'utf8'));
     const packetBytes = Buffer.from(`${JSON.stringify(inspected.packet, null, 2)}\n`);
     const htmlBytes = await fs.readFile(path.join(outputRoot, 'index.html'));

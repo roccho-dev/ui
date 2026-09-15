@@ -1,0 +1,9 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"erd","title":"ERD"}
+{"type":"region","id":"erd","parent":null,"label":"ERD","kind":"root","bounds":[0,0,1000,600],"summary":"graph/1 ERD proof"}
+{"type":"region","id":"customer","parent":"erd","label":"Customer","kind":"entity","bounds":[0,0,220,140],"summary":"customer entity"}
+{"type":"region","id":"customer.id","parent":"customer","label":"id: UUID PK","kind":"field","bounds":[0,0,120,40],"summary":"primary key","order":0}
+{"type":"region","id":"customer.name","parent":"customer","label":"name: text","kind":"field","bounds":[0,0,120,40],"summary":"customer name","order":1}
+{"type":"region","id":"invoice","parent":"erd","label":"Invoice","kind":"entity","bounds":[0,0,220,140],"summary":"invoice entity"}
+{"type":"region","id":"invoice.id","parent":"invoice","label":"id: UUID PK","kind":"field","bounds":[0,0,120,40],"summary":"primary key","order":0}
+{"type":"region","id":"invoice.customer","parent":"invoice","label":"customer_id: UUID FK","kind":"field","bounds":[0,0,120,40],"summary":"foreign key","order":1}
+{"type":"relation","id":"e1","from":"customer","to":"invoice","kind":"relationship","label":"1 customer / 0..* invoices"}

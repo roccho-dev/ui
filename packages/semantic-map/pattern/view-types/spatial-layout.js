@@ -1,10 +1,15 @@
 import { SEMANTIC_2D_SPACE, TOPOLOGY_SPACE } from '../../domain/index.js';
+import { isGraphItemKind } from './graph/contract.js';
 
 const GRAPH_LEAF_WIDTH = 180;
+const GRAPH_STRUCTURED_LEAF_WIDTH = 320;
+const GRAPH_LONG_LABEL_MIN_CHARS = 24;
+const GRAPH_LONG_LABEL_HEIGHT = 110;
 const GRAPH_LEAF_HEIGHT = 92;
 const GRAPH_PADDING_X = 32;
 const GRAPH_PADDING_Y = 26;
 const GRAPH_HEADER = 46;
+const GRAPH_ITEM_ROW_HEIGHT = 22;
 const GRAPH_COLUMN_GAP = 76;
 const GRAPH_ROW_GAP = 30;
 
@@ -105,11 +110,15 @@ function graphRanks(domain, parentId, childIds) {
     [...adjacency].map(([id, targets]) => [id, Object.freeze([...targets].sort())]),
   );
   const components = stronglyConnectedComponents(ordered, sortedAdjacency);
+  const orderIndex = new Map(ordered.map((id, index) => [id, index]));
+  const orderedComponents = components.map((component) => Object.freeze(
+    [...component].sort((left, right) => orderIndex.get(left) - orderIndex.get(right)),
+  ));
   const componentByNode = new Map();
-  components.forEach((component, index) => component.forEach((node) => componentByNode.set(node, index)));
-  const componentKey = (index) => components[index][0];
-  const successors = new Map(components.map((_, index) => [index, new Set()]));
-  const predecessors = new Map(components.map((_, index) => [index, new Set()]));
+  orderedComponents.forEach((component, index) => component.forEach((node) => componentByNode.set(node, index)));
+  const componentKey = (index) => orderedComponents[index][0];
+  const successors = new Map(orderedComponents.map((_, index) => [index, new Set()]));
+  const predecessors = new Map(orderedComponents.map((_, index) => [index, new Set()]));
 
   for (const [from, targets] of sortedAdjacency) {
     const fromComponent = componentByNode.get(from);
@@ -121,11 +130,11 @@ function graphRanks(domain, parentId, childIds) {
     }
   }
 
-  const indegree = new Map(components.map((_, index) => [index, predecessors.get(index).size]));
-  const ready = components.map((_, index) => index)
+  const indegree = new Map(orderedComponents.map((_, index) => [index, predecessors.get(index).size]));
+  const ready = orderedComponents.map((_, index) => index)
     .filter((index) => indegree.get(index) === 0)
     .sort((a, b) => compareText(componentKey(a), componentKey(b)));
-  const ranks = new Map(components.map((_, index) => [index, 0]));
+  const ranks = new Map(orderedComponents.map((_, index) => [index, 0]));
   const topological = [];
 
   while (ready.length) {
@@ -133,7 +142,7 @@ function graphRanks(domain, parentId, childIds) {
     topological.push(current);
     const targets = [...successors.get(current)].sort((a, b) => compareText(componentKey(a), componentKey(b)));
     for (const target of targets) {
-      ranks.set(target, Math.max(ranks.get(target), ranks.get(current) + 1));
+      ranks.set(target, Math.max(ranks.get(target), ranks.get(current) + orderedComponents[current].length));
       indegree.set(target, indegree.get(target) - 1);
       if (indegree.get(target) === 0) {
         ready.push(target);
@@ -144,22 +153,33 @@ function graphRanks(domain, parentId, childIds) {
 
   const rankByNode = new Map();
   for (const componentIndex of topological) {
-    for (const node of components[componentIndex]) rankByNode.set(node, ranks.get(componentIndex));
+    const baseRank = ranks.get(componentIndex);
+    orderedComponents[componentIndex].forEach((node, offset) => rankByNode.set(node, baseRank + offset));
   }
   return rankByNode;
 }
 
-export function createGraphLayout(domain) {
+export function createGraphLayout(domain, { direction = 'LR' } = {}) {
+  if (direction !== 'LR' && direction !== 'TB') throw new Error(`graph-layout: unsupported direction ${direction}`);
   const measured = new Map();
 
   function measure(id) {
     if (measured.has(id)) return measured.get(id);
-    const childIds = orderedRegions(
+    const allChildIds = orderedRegions(
       domain,
       (domain.children.get(id) ?? []).filter((childId) => domain.regions.get(childId).kind !== 'actor'),
     );
+    const itemCount = allChildIds.filter((childId) => isGraphItemKind(domain.regions.get(childId).kind)).length;
+    const childIds = allChildIds.filter((childId) => !isGraphItemKind(domain.regions.get(childId).kind));
+    const headerHeight = GRAPH_HEADER + itemCount * GRAPH_ITEM_ROW_HEIGHT;
+    const region = domain.regions.get(id);
+    const longLabel = region.label.length >= GRAPH_LONG_LABEL_MIN_CHARS;
     if (childIds.length === 0) {
-      const leaf = Object.freeze({ width: GRAPH_LEAF_WIDTH, height: GRAPH_LEAF_HEIGHT, offsets: new Map() });
+      const leaf = Object.freeze({
+        width: itemCount > 0 || longLabel ? GRAPH_STRUCTURED_LEAF_WIDTH : GRAPH_LEAF_WIDTH,
+        height: Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y, longLabel ? GRAPH_LONG_LABEL_HEIGHT : 0),
+        offsets: new Map(),
+      });
       measured.set(id, leaf);
       return leaf;
     }
@@ -167,29 +187,56 @@ export function createGraphLayout(domain) {
     const children = new Map(childIds.map((childId) => [childId, measure(childId)]));
     const rankByNode = graphRanks(domain, id, childIds);
     const ranks = [...new Set(rankByNode.values())].sort((a, b) => a - b);
-    const columns = ranks.map((rank) => {
+    const bands = ranks.map((rank) => {
       const ids = childIds.filter((childId) => rankByNode.get(childId) === rank);
-      const width = Math.max(...ids.map((childId) => children.get(childId).width));
-      const height = ids.reduce((sum, childId) => sum + children.get(childId).height, 0)
-        + GRAPH_ROW_GAP * Math.max(0, ids.length - 1);
+      if (direction === 'LR') {
+        const width = Math.max(...ids.map((childId) => children.get(childId).width));
+        const height = ids.reduce((sum, childId) => sum + children.get(childId).height, 0)
+          + GRAPH_ROW_GAP * Math.max(0, ids.length - 1);
+        return { rank, ids, width, height };
+      }
+      const width = ids.reduce((sum, childId) => sum + children.get(childId).width, 0)
+        + GRAPH_COLUMN_GAP * Math.max(0, ids.length - 1);
+      const height = Math.max(...ids.map((childId) => children.get(childId).height));
       return { rank, ids, width, height };
     });
-    const contentWidth = columns.reduce((sum, column) => sum + column.width, 0)
-      + GRAPH_COLUMN_GAP * Math.max(0, columns.length - 1);
-    const contentHeight = Math.max(...columns.map((column) => column.height));
-    const width = Math.max(GRAPH_LEAF_WIDTH, GRAPH_PADDING_X * 2 + contentWidth);
-    const height = Math.max(GRAPH_LEAF_HEIGHT, GRAPH_HEADER + GRAPH_PADDING_Y * 2 + contentHeight);
+
     const offsets = new Map();
-    let x = GRAPH_PADDING_X;
-    for (const column of columns) {
-      let y = GRAPH_HEADER + GRAPH_PADDING_Y + (contentHeight - column.height) / 2;
-      for (const childId of column.ids) {
-        const child = children.get(childId);
-        offsets.set(childId, Object.freeze({ x: x + (column.width - child.width) / 2, y }));
-        y += child.height + GRAPH_ROW_GAP;
+    let contentWidth;
+    let contentHeight;
+
+    if (direction === 'LR') {
+      contentWidth = bands.reduce((sum, band) => sum + band.width, 0)
+        + GRAPH_COLUMN_GAP * Math.max(0, bands.length - 1);
+      contentHeight = Math.max(...bands.map((band) => band.height));
+      let x = GRAPH_PADDING_X;
+      for (const band of bands) {
+        let y = headerHeight + GRAPH_PADDING_Y + (contentHeight - band.height) / 2;
+        for (const childId of band.ids) {
+          const child = children.get(childId);
+          offsets.set(childId, Object.freeze({ x: x + (band.width - child.width) / 2, y }));
+          y += child.height + GRAPH_ROW_GAP;
+        }
+        x += band.width + GRAPH_COLUMN_GAP;
       }
-      x += column.width + GRAPH_COLUMN_GAP;
+    } else {
+      contentWidth = Math.max(...bands.map((band) => band.width));
+      contentHeight = bands.reduce((sum, band) => sum + band.height, 0)
+        + GRAPH_ROW_GAP * Math.max(0, bands.length - 1);
+      let y = headerHeight + GRAPH_PADDING_Y;
+      for (const band of bands) {
+        let x = GRAPH_PADDING_X + (contentWidth - band.width) / 2;
+        for (const childId of band.ids) {
+          const child = children.get(childId);
+          offsets.set(childId, Object.freeze({ x, y: y + (band.height - child.height) / 2 }));
+          x += child.width + GRAPH_COLUMN_GAP;
+        }
+        y += band.height + GRAPH_ROW_GAP;
+      }
     }
+
+    const width = Math.max(GRAPH_LEAF_WIDTH, GRAPH_PADDING_X * 2 + contentWidth);
+    const height = Math.max(GRAPH_LEAF_HEIGHT, headerHeight + GRAPH_PADDING_Y * 2 + contentHeight);
     const result = Object.freeze({ width, height, offsets });
     measured.set(id, result);
     return result;
@@ -221,5 +268,6 @@ export function createGraphLayout(domain) {
     rootBounds: bounds.get(rootId),
     forceExpanded: new Set(),
     geometryEditable: false,
+    direction,
   });
 }

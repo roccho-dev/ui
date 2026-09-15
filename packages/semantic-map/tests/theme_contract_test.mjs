@@ -1,18 +1,28 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { DEFAULT_THEME } from '../renderer-maxgraph/index.js';
 import { connectIcon, paletteFor, styleScaleFor } from '../renderer-maxgraph/theme.js';
 
-const adapterSource = readFileSync(new URL('../renderer-maxgraph/adapter.js', import.meta.url), 'utf8');
-assert.equal(/#[0-9a-f]{3,8}/iu.test(adapterSource), false, 'MUTATION:move-theme-literal-into-adapter');
-assert.equal(adapterSource.includes('representation.pattern'), false, 'renderer must not infer vertex visuals from Pattern');
-assert.equal(adapterSource.includes('relation.pattern'), false, 'renderer must not infer edge visuals from Pattern');
-assert.equal(adapterSource.includes('representation.shape'), true);
-assert.equal(adapterSource.includes('representation.visual'), true);
-assert.equal(adapterSource.includes('a.zIndex'), true);
-assert.equal(adapterSource.includes('relation.directed'), true);
-assert.equal(adapterSource.includes('relation.line'), true);
-assert.equal(adapterSource.includes('relation.foreground'), false, 'foreground is consumed from cell semantic ordering');
+const rendererFiles = [
+  '../renderer-maxgraph/adapter.js',
+  '../renderer-maxgraph/styles.js',
+  '../renderer-maxgraph/labels.js',
+  '../renderer-maxgraph/render-methods.js',
+];
+const rendererSource = rendererFiles
+  .map((relative) => new URL(relative, import.meta.url))
+  .filter((url) => existsSync(url))
+  .map((url) => readFileSync(url, 'utf8'))
+  .join('\n');
+assert.equal(/#[0-9a-f]{3,8}/iu.test(rendererSource), false, 'MUTATION:move-theme-literal-into-renderer');
+assert.equal(rendererSource.includes('representation.pattern'), false, 'renderer must not infer vertex visuals from Pattern');
+assert.equal(rendererSource.includes('relation.pattern'), false, 'renderer must not infer edge visuals from Pattern');
+assert.equal(rendererSource.includes('representation.shape'), true);
+assert.equal(rendererSource.includes('representation.visual'), true);
+assert.equal(rendererSource.includes('a.zIndex'), true);
+assert.equal(rendererSource.includes('relation.directed'), true);
+assert.equal(rendererSource.includes('relation.line'), true);
+assert.equal(rendererSource.includes('relation.foreground'), false, 'foreground is consumed from cell semantic ordering');
 
 assert.equal(Object.isFrozen(DEFAULT_THEME), true);
 for (const section of Object.values(DEFAULT_THEME)) assert.equal(Object.isFrozen(section), true);
@@ -30,8 +40,8 @@ assert.equal(styleScaleFor(1.7), 2);
 assert.throws(() => styleScaleFor(0), /cameraScale must be positive/u);
 assert.throws(() => styleScaleFor(Number.NaN), /cameraScale must be positive/u);
 assert.equal(DEFAULT_THEME.vertex.shadow, false);
-assert.equal(adapterSource.includes("if (height < minimumHeight) return '';"), true, 'MUTATION:restore-all-renderer-labels');
-assert.equal(adapterSource.includes('estimatedLabelWidth(label, fontSize)'), true);
+assert.equal(rendererSource.includes("if (height < minimumHeight) return '';"), true, 'MUTATION:restore-all-renderer-labels');
+assert.equal(rendererSource.includes('estimatedLabelWidth(label, fontSize)'), true);
 const icon = decodeURIComponent(connectIcon(DEFAULT_THEME));
 assert.ok(icon.includes(DEFAULT_THEME.connect.fill));
 assert.ok(icon.includes(DEFAULT_THEME.connect.stroke));

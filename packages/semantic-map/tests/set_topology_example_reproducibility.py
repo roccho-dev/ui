@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import filecmp
 import json
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -10,7 +9,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 BUILD = ROOT / "packages" / "semantic-map" / "scripts" / "build-browser-example.mjs"
 INPUT = ROOT / "examples" / "render.semantic-map.set-topology" / "input" / "envelope.json"
-EXPECTED = ROOT / "examples" / "render.semantic-map.set-topology" / "dist"
 
 
 def build(out: Path, profile: str) -> None:
@@ -31,23 +29,34 @@ def build(out: Path, profile: str) -> None:
     assert completed.returncode == 0, completed.stderr or completed.stdout
 
 
+def prove_profile(root: Path, profile: str) -> Path:
+    first = root / f"{profile}-first"
+    second = root / f"{profile}-second"
+    build(first, profile)
+    build(second, profile)
+    for name in ("index.html", "receipt.json"):
+        assert filecmp.cmp(first / name, second / name, shallow=False), f"{profile} {name} is nondeterministic"
+    receipt = json.loads((first / "receipt.json").read_text(encoding="utf-8"))
+    assert receipt["schema"] == "semantic-map-example-build/1"
+    assert receipt["status"] == "PASS"
+    html = (first / "index.html").read_text(encoding="utf-8")
+    assert '"setTopologyProof":true' in html
+    assert f'"setTopologyProjectionProfile":"{profile}"' in html
+    return first
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="semantic-map-set-topology-example-") as name:
         root = Path(name)
-        horizontal = root / "horizontal"
-        build(horizontal, "horizontal")
-        assert filecmp.cmp(horizontal / "index.html", EXPECTED / "index.html", shallow=False)
-        assert filecmp.cmp(horizontal / "receipt.json", EXPECTED / "receipt.json", shallow=False)
-        shutil.rmtree(horizontal)
-
-        vertical = root / "vertical"
-        build(vertical, "vertical")
-        assert filecmp.cmp(vertical / "index.html", EXPECTED / "vertical.html", shallow=False)
+        horizontal = prove_profile(root, "horizontal")
+        vertical = prove_profile(root, "vertical")
+        assert not filecmp.cmp(horizontal / "index.html", vertical / "index.html", shallow=False)
 
     print(json.dumps({
-        "schema": "semantic-map-set-topology-example-reproducibility/1",
+        "schema": "semantic-map-set-topology-example-reproducibility/2",
         "status": "PASS",
-        "files": 3,
+        "profiles": ["horizontal", "vertical"],
+        "checkedInDist": False,
     }))
 
 

@@ -2,7 +2,7 @@ import { SemanticDomainStore, normalizeOperation } from '../domain/index.js';
 import { SemanticProjector, projectorThresholds } from '../projection/index.js';
 import { PATTERN_SEQ, normalizeView } from '../protocol/index.js';
 import { patternCapabilities, patternConfigKey, validatePatternDomain } from '../pattern/index.js';
-import { MaxGraphAdapter } from '../renderer-maxgraph/index.js';
+import { createMaxGraphAdapter } from '../renderer-maxgraph/index.js';
 import { renderElementResourceComposition } from '../renderer-resource-dom/index.js';
 import { normalizeMeaningRecoveryResult } from './meaning-recovery.js';
 
@@ -286,7 +286,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   const projector = new SemanticProjector(store.domain, modules, currentView, {
     presentationProjection: lastPresentationProjection,
   });
-  const adapter = new MaxGraphAdapter(container);
+  const adapter = createMaxGraphAdapter(container);
 
   function fitScale(maxScale = INITIAL_SCALE) {
     const root = lastScene?.bounds ?? store.domain.regions.get(store.domain.meta.root).bounds;
@@ -603,7 +603,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
           bounds: [0, 0, 146, 60],
         });
         if (!result?.createdRegionId) return null;
-        adapter.selectRegion(result.createdRegionId);
+        adapter.selectPendingRegion(result.createdRegionId);
         showToast('actorを追加しました');
         requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
         return result.createdRegionId;
@@ -622,7 +622,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
         temporal: { actor, [currentView.seq.axis]: interval },
       });
       if (!result?.createdRegionId) return null;
-      adapter.selectRegion(result.createdRegionId);
+      adapter.selectPendingRegion(result.createdRegionId);
       showToast('seq itemを追加しました');
       requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
       return result.createdRegionId;
@@ -648,7 +648,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       bounds: Object.values(newNodeBounds(parent.bounds)),
     });
     if (!result?.createdRegionId) return null;
-    adapter.selectRegion(result.createdRegionId);
+    adapter.selectPendingRegion(result.createdRegionId);
     showToast('ノードを追加しました');
     requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
     return result.createdRegionId;

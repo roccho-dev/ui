@@ -6,7 +6,7 @@ import { createSmapUrl } from '../transport/index.js';
 
 const baseUrl = process.argv[2] ?? 'https://semantic.test/app';
 const records = parseSemanticMapRecords(
-  await fs.readFile(new URL('../examples/chart-sunburst.jsonl', import.meta.url), 'utf8'),
+  await fs.readFile(new URL('../../../examples/chart/sunburst.jsonl', import.meta.url), 'utf8'),
 );
 const log = await createDecisionLog(records, 'semantic-map:proof:sunburst-drilldown');
 
