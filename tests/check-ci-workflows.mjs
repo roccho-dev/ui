@@ -10,7 +10,7 @@ const workflowsDir = path.join(repo, ".github", "workflows");
 const byPath = value => intents.find(intent => intent.path === value);
 const byRole = value => intents.find(intent => intent.role === value);
 
-assert.equal(intents.length, 8);
+assert.equal(intents.length, 9);
 const primary = intents.find(intent => intent.kind === "ui.ciIntent.v1");
 assert.ok(primary);
 assert.deepEqual(primary.entrypoints, [".github/workflows/nix-flake-check.yml"]);
@@ -123,8 +123,23 @@ assert.equal(gestureJoin.workflow_definition, "checked_in");
 assert.equal(gestureJoin.artifact_source, "none");
 assert.equal(gestureJoin.artifact_generation, "none");
 
+const stgPreview = byRole("stg_preview_deployer");
+assert.equal(stgPreview.path, ".github/workflows/stg-ui-beauty-t271.yml");
+assert.equal(stgPreview.provider, "github-actions");
+assert.equal(stgPreview.authority, false);
+assert.deepEqual(stgPreview.dispatch, ["pull_request"]);
+assert.equal(stgPreview.provider_effect, "cloudflare-pages-preview");
+assert.deepEqual(stgPreview.naming, {
+  environment: "stg",
+  theme: "ui-beauty",
+  target_pr: 271,
+  source: "pull_request.number",
+  pattern: "stg-<theme>-t<target>-s<source>",
+  project: "stg-artifact-runtime",
+});
+
 const workflowFiles = fs.readdirSync(workflowsDir).filter((name) => name.endsWith(".yml") || name.endsWith(".yaml")).map((name) => `.github/workflows/${name}`).sort();
-assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path, finalConsumer.path, gestureJoin.path].sort());
+assert.deepEqual(workflowFiles, [...primary.entrypoints, artifact.path, adapterArtifact.path, packageValidation.path, prGovernance.path, purposeViz.path, finalConsumer.path, gestureJoin.path, stgPreview.path].sort());
 const primaryText = read(primary.entrypoints[0]);
 assert.match(primaryText, /name:\s*Nix Flake Check/);
 assert.match(primaryText, /nix flake check --print-build-logs/);
@@ -210,6 +225,17 @@ assert.match(gestureJoinText, /maxgraph-active-list-browser-proof\.py/);
 assert.match(gestureJoinText, /maxgraph-edge-authoring-browser-proof\.py/);
 assert.match(gestureJoinText, /maxgraph-edge-hit-target-browser-proof\.py/);
 assert.match(gestureJoinText, /maxgraph-keyboard-shortcuts-browser-proof\.py/);
+
+const stgPreviewText = read(stgPreview.path);
+assert.match(stgPreviewText, /name:\s*Staging preview for #271/);
+assert.match(stgPreviewText, /STG_THEME:\s*ui-beauty/);
+assert.match(stgPreviewText, /STG_TARGET_PR:\s*"271"/);
+assert.match(stgPreviewText, /SOURCE_PR:\s*\$\{\{ github\.event\.pull_request\.number \}\}/);
+assert.match(stgPreviewText, /scope="stg-\$\{STG_THEME\}-t\$\{STG_TARGET_PR\}-s\$\{SOURCE_PR\}"/);
+assert.match(stgPreviewText, /wrangler@4\.112\.0 pages deploy/);
+assert.match(stgPreviewText, /--project-name="\$CLOUDFLARE_PAGES_PROJECT"/);
+assert.match(stgPreviewText, /--branch="\$CLOUDFLARE_PAGES_BRANCH"/);
+assert.doesNotMatch(stgPreviewText, /github\.head_ref|pull_request\.head\.ref/);
 
 for (const forbidden of primary.forbiddenEntryGlobs) assert.equal(fs.existsSync(path.join(repo, forbidden)), false, `forbidden workflow exists: ${forbidden}`);
 console.log("ci-workflows-check-pass");
