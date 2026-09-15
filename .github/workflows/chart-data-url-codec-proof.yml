@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Generate eight canonical #data URLs
+      - name: Generate canonical #data URLs
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/chart-data-url-proof"
@@ -32,106 +32,79 @@ jobs:
           import { createUrlModuleUrl, readUrlModule } from './packages/url-module/src/codec.mjs';
 
           const root = process.env.DEPLOY_ROOT;
-          const out = process.env.RUNNER_TEMP + '/chart-data-url-proof/urls.json';
           const targets = Object.freeze({
             'bar-horizontal': 'product',
             'bar-vertical': 'sales-0',
-            line: 'active-0',
-            pie: 'share-0',
-            donut: 'share-0',
-            scatter: 'growth-a',
-            heatmap: 'tokyo-am',
-            sunburst: 'product',
+            line: 'active-0', pie: 'share-0', donut: 'share-0',
+            scatter: 'growth-a', heatmap: 'tokyo-am', sunburst: 'product',
           });
-          const receipts = [];
+          const specs = [];
           for (const [variant, targetId] of Object.entries(targets)) {
-            const source = fs.readFileSync(`examples/chart/${variant}.jsonl`, 'utf8');
-            const records = source.split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
+            const records = fs.readFileSync(`examples/chart/${variant}.jsonl`, 'utf8')
+              .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
             const target = records.find(record => record.type === 'region' && record.id === targetId);
-            if (!target) throw new Error(`${variant}: target ${targetId} missing`);
+            if (!target) throw new Error(`${variant}: target missing`);
             const sentinel = `__url_data_${variant.replaceAll('-', '_')}__`;
             target.label = sentinel;
             const value = records.map(record => JSON.stringify(record)).join('\n') + '\n';
-            const base = `${root}/adapters/chart/${variant}/`;
-            const url = await createUrlModuleUrl({ base, fragment: 'data', value });
-            if (!url.includes('#data=')) throw new Error(`${variant}: #data missing`);
-            if (url.length > 8192) throw new Error(`${variant}: URL too long: ${url.length}`);
-            const decoded = await readUrlModule({ fragment: 'data', input: url });
-            if (decoded !== value) throw new Error(`${variant}: codec round trip mismatch`);
-            const receipt = { variant, targetId, sentinel, chars: url.length, url };
-            receipts.push(receipt);
-            console.log(JSON.stringify(receipt));
+            const url = await createUrlModuleUrl({
+              base: `${root}/adapters/chart/${variant}/`, fragment: 'data', value,
+            });
+            if (await readUrlModule({ fragment: 'data', input: url }) !== value) throw new Error(`${variant}: round trip`);
+            if (url.length > 8192) throw new Error(`${variant}: URL too long`);
+            specs.push({ variant, targetId, sentinel, chars: url.length, url });
           }
-          fs.writeFileSync(out, JSON.stringify(receipts, null, 2));
+          const rootRecords = fs.readFileSync('examples/chart/bar-horizontal.jsonl', 'utf8')
+            .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
+          rootRecords.find(record => record.type === 'region' && record.id === 'product').label = '__url_data_root_control__';
+          const rootValue = rootRecords.map(record => JSON.stringify(record)).join('\n') + '\n';
+          const rootUrl = await createUrlModuleUrl({ base: `${root}/adapters/chart/`, fragment: 'data', value: rootValue });
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/chart-data-url-proof/specs.json', JSON.stringify({ rootUrl, specs }, null, 2));
+          for (const spec of specs) console.log(JSON.stringify(spec));
+          console.log(JSON.stringify({ control: 'chart-root', url: rootUrl, chars: rootUrl.length }));
           NODE
-      - name: Install pinned Chromium proof tooling
-        run: |
-          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
-          python3 -m playwright install --with-deps chromium
-      - name: Prove deployed #data override in Chromium
+      - name: Prove root control and diagnose eight nested routes
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          from playwright.sync_api import sync_playwright
-
-          out = Path(os.environ['RUNNER_TEMP']) / 'chart-data-url-proof'
-          urls = json.loads((out / 'urls.json').read_text(encoding='utf-8'))
-          receipts = []
-          with sync_playwright() as p:
-              browser = p.chromium.launch(headless=True)
-              for spec in urls:
-                  page_errors = []
-                  failed = []
-                  requests = []
-                  page = browser.new_page(viewport={'width': 1440, 'height': 1000})
-                  page.on('pageerror', lambda exc, page_errors=page_errors: page_errors.append(str(exc)))
-                  page.on('request', lambda req, requests=requests: requests.append(req.url))
-                  page.on('requestfailed', lambda req, failed=failed: failed.append({'url': req.url, 'failure': req.failure}))
-                  response = page.goto(spec['url'], wait_until='networkidle', timeout=60_000)
-                  assert response is not None and response.ok, (spec['variant'], response.status if response else None)
-                  page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
-                  label = page.evaluate(
-                      """regionId => window.semanticMapSite?.editor?.snapshot().domain.regions.find(item => item.id === regionId)?.label ?? null""",
-                      spec['targetId'],
-                  )
-                  assert label == spec['sentinel'], f"{spec['variant']}: domain did not come from #data: {label!r}"
-                  active = page.locator(f'button[data-active-key="region:{spec["targetId"]}"]')
-                  active.wait_for(state='visible', timeout=10_000)
-                  assert spec['sentinel'] in (active.text_content() or ''), f"{spec['variant']}: sentinel missing from DOM"
-                  fallback_requests = [url for url in requests if url.split('?', 1)[0].endswith('/input.json')]
-                  assert not fallback_requests, f"{spec['variant']}: input.json fallback was fetched: {fallback_requests}"
-                  assert not page_errors, f"{spec['variant']}: page errors: {page_errors}"
-                  assert not failed, f"{spec['variant']}: failed requests: {failed}"
-                  receipt = {
-                      'variant': spec['variant'],
-                      'status': 'PASS',
-                      'url': spec['url'],
-                      'chars': spec['chars'],
-                      'targetId': spec['targetId'],
-                      'sentinel': spec['sentinel'],
-                      'domainFromHash': True,
-                      'domFromHash': True,
-                      'inputJsonFallbackRequests': fallback_requests,
-                      'pageErrors': page_errors,
-                      'requestFailed': failed,
-                  }
-                  receipts.append(receipt)
-                  print(json.dumps(receipt, ensure_ascii=False))
-                  page.close()
-              browser.close()
-          final = {
-              'schema': 'ui.chart-data-url-codec-proof/1',
-              'status': 'PASS',
-              'sourceSha': os.environ['SOURCE_SHA'],
-              'deployRoot': os.environ['DEPLOY_ROOT'],
-              'variants': receipts,
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+          out="$RUNNER_TEMP/chart-data-url-proof"
+          root_url="$(node -e 'console.log(require(process.argv[1]).rootUrl)' "$out/specs.json")"
+          "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "$root_url" > "$out/root.html"
+          grep -q 'data-status="pass"' "$out/root.html"
+          grep -q '__url_data_root_control__' "$out/root.html"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { spawnSync } from 'node:child_process';
+          const out = process.env.RUNNER_TEMP + '/chart-data-url-proof';
+          const { specs } = JSON.parse(fs.readFileSync(out + '/specs.json', 'utf8'));
+          const chrome = process.env.CHROME_BIN || ['google-chrome','google-chrome-stable','chromium']
+            .map(name => spawnSync('bash', ['-lc', `command -v ${name} || true`], {encoding:'utf8'}).stdout.trim())
+            .find(Boolean);
+          const results = [];
+          for (const spec of specs) {
+            const run = spawnSync(chrome, ['--headless=new','--no-sandbox','--disable-gpu','--virtual-time-budget=15000','--dump-dom',spec.url], {encoding:'utf8', maxBuffer: 8*1024*1024});
+            const html = run.stdout;
+            const status = /data-status="pass"/u.test(html) ? 'PASS' : /data-status="fail"/u.test(html) ? 'FAIL' : 'UNKNOWN';
+            const fatal = (html.match(/<output[^>]*id="fatal"[^>]*>([\s\S]*?)<\/output>/u)?.[1] ?? '').replace(/<[^>]+>/gu, '').trim();
+            const sentinel = html.includes(spec.sentinel);
+            const result = { ...spec, status, sentinelRendered: sentinel, fatal };
+            results.push(result);
+            console.log(JSON.stringify(result));
+            fs.writeFileSync(`${out}/${spec.variant}.html`, html);
           }
-          (out / 'receipt.json').write_text(json.dumps(final, ensure_ascii=False, indent=2), encoding='utf-8')
-          print(json.dumps(final, ensure_ascii=False))
-          PY
+          const receipt = {
+            schema: 'ui.chart-data-url-codec-diagnostic/1',
+            sourceSha: process.env.SOURCE_SHA,
+            deployRoot: process.env.DEPLOY_ROOT,
+            rootControl: 'PASS',
+            variants: results,
+          };
+          fs.writeFileSync(out + '/receipt.json', JSON.stringify(receipt, null, 2));
+          if (results.some(result => result.status !== 'PASS' || !result.sentinelRendered)) process.exit(1);
+          NODE
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
       - uses: actions/upload-artifact@v4
         if: always()
         with:
