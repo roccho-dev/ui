@@ -27,6 +27,20 @@ const hrefFor = async item => createUrlModuleUrl({
   fragment: 'data',
   value: exampleFor(item),
 });
+const createDataTransport = scope => {
+  const create = (value, { base = scope.location.href } = {}) => createUrlModuleUrl({
+    base,
+    fragment: 'data',
+    value,
+  });
+  const read = input => readUrlModule({ fragment: 'data', input });
+  const replace = async value => {
+    const url = await create(value);
+    scope.history.replaceState(scope.history.state, '', url);
+    return url;
+  };
+  return Object.freeze({ schema: 'ui-data-transport/1', fragment: 'data', create, read, replace });
+};
 
 const renderLauncher = async () => {
   const target = document.querySelector('#cases');
@@ -44,7 +58,8 @@ const renderLauncher = async () => {
 };
 
 const renderFeature = async item => {
-  const input = await readUrlModule({ fragment: 'data', input: globalThis.location.href });
+  const transport = createDataTransport(globalThis);
+  const input = await transport.read(globalThis.location.href);
   invariant(input !== null, `${item.id}: #data required`);
   const feature = item.feature;
   for (const style of feature.styles) {
@@ -60,7 +75,7 @@ const renderFeature = async item => {
   invariant(root, 'feature root missing');
   document.body.dataset.mode = 'feature';
   document.title = `UI · ${item.label}`;
-  const mounted = await runtime.mountFeature({ feature, input, root, scope: globalThis });
+  const mounted = await runtime.mountFeature({ feature, input, root, scope: globalThis, transport });
   document.documentElement.dataset.status = 'pass';
   globalThis.uiPreviewProof = Object.freeze({ status: 'PASS', mode: 'feature', caseId: item.id, feature, mounted: mounted ?? null });
 };
