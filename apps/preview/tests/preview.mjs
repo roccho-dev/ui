@@ -50,7 +50,11 @@ assert.deepEqual(graph.feature.styles, [
 
 const index = await read('index.html');
 assert.match(index, /body data-mode="boot"/u);
-assert.doesNotMatch(index, /textarea|id="run"|request-form/u);
+assert.doesNotMatch(index, /id="request-form"|id="run"/u);
+for (const id of ['semantic-id-chip', 'handoff-fab', 'handoff-layer', 'handoff-request', 'review-layer', 'review-preview-panel', 'review-accept', 'review-reject']) {
+  assert.match(index, new RegExp(`id="${id}"`, 'u'), `missing canonical feature host control ${id}`);
+}
+assert.match(index, /img-src 'self' data: blob:/u);
 const main = await read('main.mjs');
 assert.match(main, /#data required/u);
 assert.match(main, /import\.meta\.glob/u);
@@ -62,4 +66,4 @@ assert.match(config, /__UI_PREVIEW_CASES__/u);
 const packageJson = JSON.parse(await read('package.json'));
 assert.match(packageJson.scripts.build, /vite@8\.3\.0/u);
 
-console.log(JSON.stringify({ schema: 'ui-preview-check/2', status: 'PASS', cases: cases.length, featureRuntimeSource: 'packages/**/feature.mjs' }));
+console.log(JSON.stringify({ schema: 'ui-preview-check/3', status: 'PASS', cases: cases.length, featureRuntimeSource: 'packages/**/feature.mjs', canonicalFeatureHost: true }));
