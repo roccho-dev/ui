@@ -227,7 +227,7 @@ assert.match(gestureJoinText, /maxgraph-edge-hit-target-browser-proof\.py/);
 assert.match(gestureJoinText, /maxgraph-keyboard-shortcuts-browser-proof\.py/);
 
 const stgPreviewText = read(stgPreview.path);
-assert.match(stgPreviewText, /name:\s*Staging preview for #271/);
+assert.match(stgPreviewText, /name:\s*"Staging preview for #271"/);
 assert.match(stgPreviewText, /STG_THEME:\s*ui-beauty/);
 assert.match(stgPreviewText, /STG_TARGET_PR:\s*"271"/);
 assert.match(stgPreviewText, /SOURCE_PR:\s*\$\{\{ github\.event\.pull_request\.number \}\}/);
