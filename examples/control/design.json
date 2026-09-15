@@ -4,7 +4,7 @@
   "catalogId": "urn:roccho:a2ui:catalog:control:1",
   "surfaceId": "control",
   "rootId": "root",
-  "css": "*{box-sizing:border-box}\nhtml{overflow-y:scroll}\nbody{margin:0;color:#181818;background:#fafafa;font:12px/1.35 system-ui,sans-serif}\n#feature{width:100%;padding:8px 12px 32px}\n.control-panes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;min-width:0;overflow:visible}\n.pane{min-width:0;overflow:visible}\n.pane-head{position:sticky;top:0;z-index:2;display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 7px;padding:7px 2px 6px;background:rgba(250,250,250,.96);border-bottom:1px solid #ddd}\n.pane-title{font:650 12px/1.35 system-ui,sans-serif}\n.pane-meta{color:#777;font:9px/1.45 ui-monospace,monospace}\n.tree,.children{display:grid;gap:3px}\n.children{margin:3px 0 0 14px;padding-left:10px;border-left:1px solid #d8d8d8}\n.children[hidden]{display:none}\n.node{padding:1px 0}\n.row,.properties{display:flex;align-items:baseline;gap:3px}\n.row{align-items:flex-start;min-height:22px}\n.properties{min-width:0;flex:1;flex-wrap:wrap}\n.property{padding:0 4px;border:0;border-radius:999px;background:#f2f2f2;color:#777;font:9px/1.45 ui-monospace,monospace;text-align:left}\n.property[data-variant=title]{order:-2;background:transparent;color:#181818;font:650 12px/1.35 system-ui,sans-serif}\n.property[data-key=id]{order:-1;color:#333}\n.property[data-key=state][data-value=active]{color:#1f5d31;background:#edf6ef}\n.property[data-key=state][data-value=inactive]{color:#8b3030;background:#faeeee}\n.property[data-missing=true]{background:transparent;color:#aaa;font-style:italic}\n.relation-controls{display:flex;flex:none;align-items:center;gap:3px;margin-left:auto;white-space:nowrap}\n.relation-toggle{padding:0 4px;border:0;border-radius:999px;background:#eceff3;color:#526070;font:9px/1.45 ui-monospace,monospace;cursor:pointer}\n@media(max-width:640px){#feature{padding:6px 8px}.control-panes{gap:7px}.children{margin-left:7px;padding-left:7px}.pane-meta{display:none}}",
+  "css": "*{box-sizing:border-box}\nhtml{overflow-y:scroll}\nbody{margin:0;color:#181818;background:#fafafa;font:12px/1.35 system-ui,sans-serif}\n#feature{width:100%;padding:8px 12px 32px}\n.tree-grid{min-width:0;overflow:visible}\n.grid-head,.grid-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:stretch;min-width:0}\n.grid-head{position:sticky;top:0;z-index:2;margin:0 0 7px;padding:7px 2px 6px;background:rgba(250,250,250,.96);border-bottom:1px solid #ddd}\n.grid-head-cell{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}\n.grid-title{font:650 12px/1.35 system-ui,sans-serif}\n.grid-meta{color:#777;font:9px/1.45 ui-monospace,monospace}\n.children{display:grid;gap:3px;margin:3px 0 0 14px;padding-left:10px;border-left:1px solid #d8d8d8}\n.children[hidden]{display:none}\n.node{padding:1px 0}\n.grid-row{min-height:22px}\n.grid-cell{display:flex;align-items:flex-start;gap:3px;min-width:0;min-height:100%}\n.grid-cell[data-control-column=claims]{padding-left:12px;border-left:1px solid #ececec}\n.properties{display:flex;align-items:baseline;gap:3px;min-width:0;flex:1;flex-wrap:wrap}\n.property{padding:0 4px;border:0;border-radius:999px;background:#f2f2f2;color:#777;font:9px/1.45 ui-monospace,monospace;text-align:left;max-width:100%;overflow-wrap:anywhere}\n.property[data-variant=title]{order:-2;background:transparent;color:#181818;font:650 12px/1.35 system-ui,sans-serif}\n.property[data-key=id]{order:-1;color:#333}\n.property[data-key=state][data-value=active]{color:#1f5d31;background:#edf6ef}\n.property[data-key=state][data-value=inactive]{color:#8b3030;background:#faeeee}\n.property[data-missing=true]{background:transparent;color:#aaa;font-style:italic}\n.relation-controls{display:flex;flex:none;align-items:center;gap:3px;margin-left:auto;white-space:nowrap}\n.relation-toggle{padding:0 4px;border:0;border-radius:999px;background:#eceff3;color:#526070;font:9px/1.45 ui-monospace,monospace;cursor:pointer}\n@media(max-width:640px){#feature{padding:6px 8px}.grid-head,.grid-row{gap:7px}.grid-cell[data-control-column=claims]{padding-left:7px}.children{margin-left:7px;padding-left:7px}.grid-meta{display:none}}",
   "messages": [
     {
       "version": "v0.9",
@@ -19,11 +19,60 @@
       "updateComponents": {
         "surfaceId": "control",
         "components": [
-          {"id":"root","component":"Split","children":["control-pane","claims-pane"],"className":"control-panes"},
-          {"id":"control-pane","component":"Pane","children":["control-tree"],"title":"control.jsonl","meta":"policy · UI / P","classes":{"root":"pane","header":"pane-head","title":"pane-title","meta":"pane-meta"}},
-          {"id":"control-tree","component":"Tree","sourcePath":"/control","idPath":"id","parentPath":"rel.parent","relationKindPath":"rel.kind","titlePath":"title","syncKey":"control","classes":{"root":"tree","node":"node","row":"row","properties":"properties","property":"property","children":"children","relationControls":"relation-controls","relationToggle":"relation-toggle"}},
-          {"id":"claims-pane","component":"Pane","children":["claims-tree"],"title":"claims.jsonl","meta":"D reports · rel.parent → control.id","classes":{"root":"pane","header":"pane-head","title":"pane-title","meta":"pane-meta"}},
-          {"id":"claims-tree","component":"Tree","sourcePath":"/control","idPath":"id","parentPath":"rel.parent","relationKindPath":"rel.kind","titlePath":"title","syncKey":"control","join":{"sourcePath":"/claims","foreignPath":"rel.parent","localPath":"id","as":"report","pick":"last","missing":"report:none"},"classes":{"root":"tree","node":"node","row":"row","properties":"properties","property":"property","children":"children","relationControls":"relation-controls","relationToggle":"relation-toggle"}}
+          {
+            "id": "root",
+            "component": "TreeGrid",
+            "sourcePath": "/control",
+            "idPath": "id",
+            "parentPath": "rel.parent",
+            "relationKindPath": "rel.kind",
+            "join": {"sourcePath":"/claims","foreignPath":"rel.parent","localPath":"id","as":"report"},
+            "classes": {
+              "root":"tree-grid",
+              "header":"grid-head",
+              "headerCell":"grid-head-cell",
+              "title":"grid-title",
+              "meta":"grid-meta",
+              "node":"node",
+              "row":"grid-row",
+              "cell":"grid-cell",
+              "properties":"properties",
+              "property":"property",
+              "children":"children",
+              "relationControls":"relation-controls",
+              "relationToggle":"relation-toggle"
+            },
+            "columns": [
+              {
+                "id":"control",
+                "title":"control.jsonl",
+                "meta":"policy · UI / P",
+                "fields":[
+                  {"path":"title","variant":"title","omitIfMissing":true},
+                  {"path":"id","label":"id"},
+                  {"path":"op","label":"op","omitIfMissing":true},
+                  {"path":"state","label":"state","omitIfMissing":true},
+                  {"path":"role","label":"role","omitIfMissing":true},
+                  {"path":"scope","label":"scope","omitIfMissing":true}
+                ],
+                "rest":{"exclude":["title","id","op","state","role","scope","rel","report"]}
+              },
+              {
+                "id":"claims",
+                "title":"claims.jsonl",
+                "meta":{"path":"/summary/claims","prefix":"D reports · "},
+                "fields":[
+                  {"path":"title","variant":"title","omitIfMissing":true},
+                  {"path":"id","label":"id"},
+                  {"path":"report.op","label":"op","missing":"—"},
+                  {"path":"report.state","label":"state","omitIfMissing":true},
+                  {"path":"report.by","label":"by","omitIfMissing":true},
+                  {"path":"report.at","label":"at","omitIfMissing":true}
+                ],
+                "rest":{"path":"report","exclude":["id","op","state","by","at","rel"]}
+              }
+            ]
+          }
         ]
       }
     }
