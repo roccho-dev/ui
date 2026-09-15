@@ -31,8 +31,9 @@
     "proof:artifact-shell-browser": "python3 apps/artifact-shell/tests/browser-proof.py",
     "build:artifact-shell-publication": "node apps/artifact-shell/scripts/build-publication.mjs",
     "proof:artifact-shell-publication": "node apps/artifact-shell/tests/publication-deployed-smoke.mjs",
+    "build:semantic-map-set-topology-proof": "node packages/semantic-map/scripts/build-set-topology-proof-fixture.mjs --out=examples/render.semantic-map.set-topology/dist",
     "check:semantic-map": "node packages/semantic-map/tests/run.mjs && node packages/semantic-map/tests/example_reproducibility.mjs && node apps/artifact-shell/tests/semantic-map-capability.mjs && python3 packages/semantic-map/tests/meaning_recovery_negative_controls.py",
-    "proof:semantic-map-meaning-recovery": "PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_roundtrip_browser_e2e.py && PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_projection_decoupling_browser_e2e.py && PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_meaning_recovery_browser_e2e.py",
+    "proof:semantic-map-meaning-recovery": "npm run build:semantic-map-set-topology-proof && PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_roundtrip_browser_e2e.py && PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_projection_decoupling_browser_e2e.py && PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_meaning_recovery_browser_e2e.py",
     "check:source-compiler": "node packages/source-compiler/tests/presentation.mjs && node packages/source-compiler/tests/boundary.mjs"
   },
   "exports": {
