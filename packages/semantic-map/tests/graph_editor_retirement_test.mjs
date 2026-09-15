@@ -10,6 +10,7 @@ const read = relative => fs.readFileSync(resolve(relative), 'utf8');
 const exists = relative => fs.existsSync(resolve(relative));
 
 const authoring = read('packages/semantic-map/renderer-maxgraph/authoring/index.js');
+const rendererIndex = read('packages/semantic-map/renderer-maxgraph/index.js');
 const adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');
 const semanticMain = read('packages/semantic-map/authoring/main.js');
 
@@ -33,8 +34,28 @@ const retiredPaths = [
   'packages/graph-editor',
   'apps/artifact-shell/adapters/graph-editor.mjs',
   'examples/graph-editor',
+  'packages/semantic-map/renderer-maxgraph/authoring/document.js',
 ];
 for (const relative of retiredPaths) assert.equal(exists(relative), false, `retired graph-editor path still exists: ${relative}`);
+assert.doesNotMatch(authoring, /createDocumentAuthoring|\.\/document\.js/);
+assert.doesNotMatch(rendererIndex, /createDocumentAuthoring/);
+
+const legacyStandaloneModels = [];
+const scanLegacyStandaloneModel = relative => {
+  const absolute = resolve(relative);
+  for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+    const child = path.join(relative, entry.name);
+    if (entry.isDirectory()) scanLegacyStandaloneModel(child);
+    else if (entry.isFile() && /\.js$/u.test(entry.name)) {
+      const source = read(child);
+      if (/edge\.arrow/u.test(source) && /insertRectangle/u.test(source) && /readCells/u.test(source) && /replaceCells/u.test(source)) {
+        legacyStandaloneModels.push(child);
+      }
+    }
+  }
+};
+scanLegacyStandaloneModel('packages/semantic-map/renderer-maxgraph/authoring');
+assert.deepEqual(legacyStandaloneModels, [], `legacy standalone document model was reintroduced: ${legacyStandaloneModels.join(', ')}`);
 
 const adapterFiles = fs.readdirSync(resolve('apps/artifact-shell/adapters'), { withFileTypes: true })
   .filter(entry => entry.isFile() && entry.name.endsWith('.mjs'))
@@ -61,10 +82,11 @@ for (const relative of runtimeRoots) scan(relative);
 assert.deepEqual(runtimeReferences, [], `graph-editor runtime/publication references remain: ${runtimeReferences.join(', ')}`);
 
 console.log(JSON.stringify({
-  schema: 'graph-editor-retirement/1',
+  schema: 'graph-editor-retirement/2',
   status: 'PASS',
   migrated: Object.keys(migrated),
   retiredPaths,
   publicationAdapters: adapterFiles.map(name => name.slice(0, -4)),
   runtimeReferences: 0,
+  legacyStandaloneModels: 0,
 }));
