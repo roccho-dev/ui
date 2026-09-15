@@ -1575,6 +1575,24 @@
       "target": "packages/semantic-map/renderer-maxgraph/adapter.js",
       "fromSha256": "b6af6f6997f72a651efc33a2d9f57eada081ad6c459f171c28c0ac861a92e7e8",
       "toSha256": "b314a5902023b55492e3d8f251d9945406474ed43c27b33c6d4c4b7d0b9e9f53"
+    },
+    {
+      "id": "created-region-selection-260915",
+      "target": "packages/semantic-map/authoring/main.js",
+      "fromSha256": "adfabb06dd08626dc45964f18d531dfa7e80500a569fe97744c1cb99b1c8286f",
+      "toSha256": "012f693dfafd5e27289a6d409325719e4af37cb458263556c6b48b3b28900a10",
+      "sourceCommit": "067c65d88aab44071853d63e083dbc5f8656cd2e",
+      "sourcePath": "packages/semantic-map/authoring/main.js",
+      "reason": "created-region-selection-survives-render-boundary"
+    },
+    {
+      "id": "created-region-selection-260915",
+      "target": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "fromSha256": "b314a5902023b55492e3d8f251d9945406474ed43c27b33c6d4c4b7d0b9e9f53",
+      "toSha256": "1f7a7d7e298c38f407164abe704d8e5be57fe20b9e1fdc2db91514903473730f",
+      "sourceCommit": "067c65d88aab44071853d63e083dbc5f8656cd2e",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/adapter.js",
+      "reason": "created-region-selection-survives-render-boundary"
     }
   ]
 }
