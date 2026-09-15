@@ -9,7 +9,6 @@ const cases = Object.freeze(rows.map(item => Object.freeze(item)));
 const byId = new Map(cases.map(item => [item.id, item]));
 invariant(byId.size === cases.length, 'duplicate case id');
 
-const featureModules = import.meta.glob('../../packages/**/feature.mjs', { eager: true });
 const runtimeModules = import.meta.glob([
   '../../packages/**/feature-runtime.mjs',
   '../../packages/**/*-feature-runtime.mjs',
@@ -19,13 +18,13 @@ const styleModules = import.meta.glob('../../packages/**/*.css');
 const examples = import.meta.glob('../../examples/**/*.jsonl', { eager: true, query: '?raw', import: 'default' });
 const moduleKey = path => `../../${path}`;
 
-const resolveFeature = item => {
-  const loaded = featureModules[moduleKey(item.featureModule)];
-  invariant(loaded && typeof loaded.resolveFeature === 'function', `${item.id}: feature resolver missing`);
-  const feature = loaded.resolveFeature(item.featureId);
-  invariant(feature?.id === item.featureId, `${item.id}: feature id mismatch`);
-  return Object.freeze({ ...feature, label: item.label ?? feature.label, ...(item.view ? { view: item.view } : {}) });
-};
+const featureFor = item => Object.freeze({
+  id: item.featureId,
+  label: item.label ?? item.id,
+  entry: item.entry,
+  styles: Object.freeze([...(item.styles ?? [])]),
+  ...(item.view ? { view: item.view } : {}),
+});
 const exampleFor = item => {
   const input = examples[moduleKey(item.source)];
   invariant(typeof input === 'string', `${item.id}: example missing ${item.source}`);
@@ -55,8 +54,8 @@ const renderLauncher = async () => {
 const renderFeature = async item => {
   const input = await readUrlModule({ fragment: 'data', input: globalThis.location.href });
   invariant(input !== null, `${item.id}: #data required`);
-  const feature = resolveFeature(item);
-  for (const style of feature.styles ?? []) {
+  const feature = featureFor(item);
+  for (const style of feature.styles) {
     const load = styleModules[moduleKey(style)];
     invariant(typeof load === 'function', `${item.id}: style missing ${style}`);
     await load();

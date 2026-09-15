@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const previewRoot = path.resolve(here, '..');
@@ -23,18 +23,13 @@ for (const variant of ['bar-horizontal', 'bar-vertical', 'line', 'pie', 'donut',
 
 for (const item of cases) {
   assert.equal(typeof item.id, 'string');
-  assert.equal(typeof item.featureModule, 'string');
   assert.equal(typeof item.featureId, 'string');
+  assert.equal(typeof item.entry, 'string');
+  assert.ok(Array.isArray(item.styles));
   assert.equal(typeof item.source, 'string');
   await fs.access(path.join(repoRoot, item.source));
-  const featurePath = path.join(repoRoot, item.featureModule);
-  await fs.access(featurePath);
-  const loaded = await import(`${pathToFileURL(featurePath).href}?preview-check=${encodeURIComponent(item.id)}`);
-  assert.equal(typeof loaded.resolveFeature, 'function', `${item.id}: resolveFeature required`);
-  const feature = loaded.resolveFeature(item.featureId);
-  assert.equal(feature.id, item.featureId);
-  await fs.access(path.join(repoRoot, feature.entry));
-  for (const style of feature.styles ?? []) await fs.access(path.join(repoRoot, style));
+  await fs.access(path.join(repoRoot, item.entry));
+  for (const style of item.styles) await fs.access(path.join(repoRoot, style));
   if (item.id.startsWith('chart')) {
     assert.equal(item.view?.pattern, 'chart/1');
     assert.equal(typeof item.view?.chart?.type, 'string');
