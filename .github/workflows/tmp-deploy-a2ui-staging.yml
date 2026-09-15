@@ -1,0 +1,87 @@
+name: temporary A2UI staging deploy
+
+on:
+  push:
+    branches:
+      - stg/a2ui-design-data-apps-260916
+
+permissions:
+  contents: read
+
+env:
+  CLOUDFLARE_PAGES_PROJECT: ui-runtime
+  CLOUDFLARE_PAGES_BRANCH: stg-t271-s289
+  DEPLOYED_URL: https://stg-t271-s289.ui-runtime.pages.dev
+
+jobs:
+  deploy-and-prove:
+    environment: ui-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stg/a2ui-design-data-apps-260916
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build Artifact Shell publication
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/artifact-shell-publication"
+          npm run build:artifact-shell-publication -- --out="$out"
+          echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
+      - name: Deploy exact staging tree
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.112.0 pages deploy "$ARTIFACT_SHELL_PUBLICATION" \
+            --project-name="$CLOUDFLARE_PAGES_PROJECT" \
+            --branch="$CLOUDFLARE_PAGES_BRANCH" \
+            --commit-hash="0a841fb275b47e4d4b79e7b4827e839f1a3054a1"
+          echo "$DEPLOYED_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install pinned browser proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          python3 -m playwright install --with-deps chromium
+      - name: Prove deployed Control and Presentation
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urljoin
+          from playwright.sync_api import sync_playwright
+
+          base = os.environ["DEPLOYED_URL"] + "/"
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+              page = browser.new_page(viewport={"width": 1280, "height": 900})
+              page.goto(base, wait_until="networkidle", timeout=30000)
+              control_href = page.locator("a[href*='adapters/control/#data=']").first.get_attribute("href")
+              presentation_href = page.locator("a[href*='adapters/presentation/#data=']").first.get_attribute("href")
+              assert control_href and presentation_href
+
+              page.goto(urljoin(base, control_href), wait_until="networkidle", timeout=30000)
+              page.wait_for_function("document.documentElement.dataset.status === 'pass'", timeout=30000)
+              left_root = page.locator("[data-a2ui-id='control-tree'] [data-control-id='/root'] > .row").inner_text()
+              right_root = page.locator("[data-a2ui-id='claims-tree'] [data-control-id='/root'] > .row").inner_text()
+              assert "schema: 3" in left_root and "rel:" not in left_root
+              assert "id: report.001" in right_root and "op: report" in right_root and "rel:" not in right_root
+              assert page.locator("[data-a2ui-component='Pane']").count() == 2
+
+              page.goto(urljoin(base, presentation_href), wait_until="networkidle", timeout=30000)
+              page.wait_for_function("document.documentElement.dataset.status === 'pass'", timeout=30000)
+              assert page.locator(".profiled-app").count() == 1
+              assert page.locator(".seq-mount .semantic-map-feature[data-feature='seq']").count() == 1
+              assert page.locator(".seq-mount svg").count() > 0
+              state = page.evaluate("() => uiFeatureProof.mounted.read()")
+              assert state["currentStageIndex"] == 0
+              assert state["seq"]["focusMarker"] == "act-t0-provider"
+              page.locator(".profiled-timeline button").nth(1).click()
+              page.wait_for_function("() => uiFeatureProof.mounted.read().currentStageIndex === 1")
+              state = page.evaluate("() => uiFeatureProof.mounted.read()")
+              assert state["seq"]["focusMarker"] == "act-t1-customer"
+              browser.close()
+          print('{"schema":"ui.a2ui-staging-proof/1","status":"PASS","control":"generic-properties","presentation":"stage-seq"}')
+          PY
