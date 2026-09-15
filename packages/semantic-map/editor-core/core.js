@@ -53,7 +53,7 @@ function publicError(code, reason) {
 }
 
 function normalizeInputDomain(input) {
-  if (input?.meta && input?.regions && input?.relations) return input;
+  if (input?.meta && input?.regions && input?.relations) return structuredClone(input);
   if (Array.isArray(input)) return createSemanticMap(structuredClone(input));
   if (input?.records && Array.isArray(input.records)) return createSemanticMap(structuredClone(input.records));
   throw new Error('editor-core: semantic input is invalid');
@@ -222,7 +222,7 @@ class EditorCoreState extends DomainStateStore {
     const requested = synchronous(this.documentPort.requestEdit(Object.freeze({
       intent: structuredClone(operation),
       operation: structuredClone(operation),
-      semantic: this.domain,
+      semantic: structuredClone(this.domain),
       layout: Object.freeze({ selection: this.selection, frame: cloneFrame(this.frame) }),
       revision: this.revision,
       stateHash: authority.stateHash,
@@ -261,18 +261,19 @@ class EditorCoreState extends DomainStateStore {
     const value = synchronous(this.documentPort.commit(Object.freeze({
       expectedRevision: beforeRevision,
       revision: beforeRevision,
-      semantic: this.domain,
+      semantic: structuredClone(this.domain),
       layout: Object.freeze({ selection: this.selection, frame: cloneFrame(this.frame) }),
-      operations,
-      results: batch.results,
+      operations: structuredClone(operations),
+      results: structuredClone(batch.results),
       stateHash: authority.stateHash,
     })), 'DocumentPort.commit');
-    if (value && Object.hasOwn(value, 'revision')) this.revision = value.revision;
+    if (value && Object.hasOwn(value, 'revision')) this.revision = structuredClone(value.revision);
     return value ?? null;
   }
 
   dispatch(command) {
     invariant(!this.destroyed, 'core is destroyed');
+    invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
     invariant(command && typeof command === 'object', 'command is required');
 
     if (command.type === 'history.undo') return this.applyHistory('undo');
@@ -296,8 +297,8 @@ class EditorCoreState extends DomainStateStore {
         plan.validate === null
           ? null
           : (candidate, validationBatch) => plan.validate(Object.freeze({
-            semantic: candidate.domain,
-            batch: validationBatch,
+            semantic: structuredClone(candidate.domain),
+            batch: structuredClone(validationBatch),
             revision: beforeRevision,
           })),
       );
@@ -359,6 +360,7 @@ class EditorCoreState extends DomainStateStore {
 
   acceptGesture(gesture) {
     invariant(!this.destroyed, 'core is destroyed');
+    invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
     invariant(gesture && typeof gesture === 'object', 'gesture is required');
     switch (gesture.type) {
       case 'selection.changed':
@@ -384,28 +386,42 @@ class EditorCoreState extends DomainStateStore {
 
   replaceInput(input) {
     invariant(!this.destroyed, 'core is destroyed');
-    const reloaded = synchronous(this.documentPort.reload(Object.freeze({
-      input,
-      expectedRevision: this.revision,
-    })), 'DocumentPort.reload');
-    const value = reloaded && Object.hasOwn(reloaded, 'input') ? reloaded.input : input;
-    const workspace = value?.schema ? normalizeWorkspace(value) : null;
-    const domain = workspace
-      ? createSemanticMap(structuredClone(workspace.document.records))
-      : normalizeInputDomain(value);
+    invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
     const session = this.snapshotSession();
+    const beforeRevision = this.revision;
+    let authority;
     this.beginTransaction();
     try {
+      // A full replacement is an edit, including when it originates in handoff.
+      // Authorize the accepted state before calling either document callback.
+      authority = this.authorize({ type: 'document.replace' });
+      const reloaded = synchronous(this.documentPort.reload(Object.freeze({
+        input: structuredClone(input),
+        expectedRevision: beforeRevision,
+        stateHash: authority.stateHash,
+      })), 'DocumentPort.reload');
+      const value = reloaded && Object.hasOwn(reloaded, 'input') ? reloaded.input : input;
+      const workspace = value?.schema ? normalizeWorkspace(value) : null;
+      const domain = workspace
+        ? createSemanticMap(structuredClone(workspace.document.records))
+        : normalizeInputDomain(value);
       super.replaceDomain(domain);
       this.idSequence = initialSequence(this.domain);
       this.selection = normalizeSelection(workspace?.layout.selection ?? {});
       this.frame = cloneFrame(workspace?.layout.frame ?? null);
-      if (reloaded && Object.hasOwn(reloaded, 'revision')) this.revision = reloaded.revision;
+      // Reload's revision never replaces the compare-and-swap precondition.
+      // The commit result alone advances the accepted revision.
+      this.commitDocument({
+        authority,
+        operations: Object.freeze([]),
+        batch: Object.freeze({ results: Object.freeze([]) }),
+        beforeRevision,
+      });
     } catch (error) {
       this.rollbackTransaction(session);
       throw error;
     }
-    this.finishTransaction('replace', { revision: this.revision });
+    this.finishTransaction('replace', { revision: this.revision, authority });
     return this.snapshot();
   }
 
@@ -435,7 +451,8 @@ class EditorCoreState extends DomainStateStore {
     return Object.freeze({
       selection: this.selection,
       frame: cloneFrame(this.frame),
-      draft: this.draftSnapshot(),
+      draft: Object.freeze(structuredClone(this.draftSnapshot())),
+      records: Object.freeze(structuredClone(this.toRecords())),
       document: Object.freeze({
         schema: this.domain.meta.schema,
         root: this.domain.meta.root,
@@ -467,6 +484,7 @@ class EditorCoreState extends DomainStateStore {
 
   destroy() {
     if (this.destroyed) return false;
+    invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
     this.destroyed = true;
     this.pendingDomainEvents = [];
     this.transactionDepth = 0;
