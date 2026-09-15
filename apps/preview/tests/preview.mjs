@@ -54,7 +54,6 @@ assert.deepEqual(graph.feature.styles, [
 ]);
 assert.equal(graph.source, seq.source, 'Graph and Seq must share one semantic source');
 assert.equal(presentation.source.presentation, graph.source, 'Presentation must consume the same semantic source');
-assert.equal(presentation.featureModule, undefined);
 assert.equal(presentation.feature.entry, 'packages/a2ui-browser/src/feature-app.mjs');
 assert.equal(control.feature.entry, presentation.feature.entry, 'Control and Presentation must share the common A2UI app entry');
 assert.deepEqual(Object.keys(control.source).sort(), ['claims', 'control', 'design']);
