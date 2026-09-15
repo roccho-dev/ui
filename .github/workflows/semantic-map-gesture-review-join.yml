@@ -4,7 +4,14 @@ on:
   pull_request:
     paths:
       - packages/semantic-map/**
+      - packages/business-model/**
+      - examples/shared/**
       - examples/render.semantic-map.set-topology/**
+      - apps/artifact-shell/adapters/graph.mjs
+      - apps/artifact-shell/adapters/seq.mjs
+      - apps/artifact-shell/adapters/presentation.mjs
+      - apps/artifact-shell/publication/build-adapters.mjs
+      - apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
@@ -32,6 +39,8 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
+      - name: Prove one data fragment across graph seq presentation
+        run: python3 apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
       - name: Prove actual gesture through review and fresh JSONL replay
         run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
       - name: Prove shared active list in graph map and seq

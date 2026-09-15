@@ -4,9 +4,9 @@ const sameOriginUrl = (value, base) => {
   invariant(url.origin === base.origin, `same-origin URL required: ${value}`);
   return url;
 };
-const readData = async (base, entry) => {
+const readData = async base => {
   if (!base.hash) return null;
-  const moduleUrl = new URL('../url-module/src/index.mjs', entry);
+  const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);
   const { readUrlModule } = await import(moduleUrl.href);
   return readUrlModule({ fragment: 'data', input: base.href });
 };
@@ -24,7 +24,6 @@ export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
   invariant(typeof feature.id === 'string' && feature.id, 'feature id required');
   invariant(typeof feature.entry === 'string' && feature.entry, 'feature entry required');
   invariant(Array.isArray(feature.styles), 'feature styles required');
-  const entry = sameOriginUrl(feature.entry, base);
 
   scope.document.title = feature.label || feature.id;
   for (const href of feature.styles) {
@@ -34,13 +33,9 @@ export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
     scope.document.head.append(link);
   }
 
-  let input = await readData(base, entry);
-  if (input === null) {
-    const inputResponse = await scope.fetch(new URL('./input.json', base), { cache: 'no-store', credentials: 'omit' });
-    invariant(inputResponse.ok, `input.json returned ${inputResponse.status}`);
-    input = await inputResponse.json();
-  }
-  const module = await import(entry.href);
+  const input = await readData(base);
+  invariant(input !== null, '#data required');
+  const module = await import(sameOriginUrl(feature.entry, base).href);
   invariant(typeof module.mountFeature === 'function', 'mountFeature export required');
   const mounted = await module.mountFeature({ feature, input, root, scope });
 
