@@ -111,8 +111,10 @@ assert.equal(core.runtime.snapshotSession, undefined);
 assert.deepEqual(core.snapshot().selection, { regionIds: [], relationIds: [] });
 
 const detachedDomain = core.runtime.domain;
-detachedDomain.regions.get('request').label = 'Detached mutation';
-assert.equal(region(core, 'request').label, '1 依頼', 'runtime domain must be a detached read model');
+assert.throws(() => {
+  detachedDomain.regions.get('request').label = 'Detached mutation';
+}, /read only|Cannot assign/u);
+assert.equal(region(core, 'request').label, '1 依頼', 'runtime domain must be an immutable detached read model');
 
 core.acceptGesture({
   type: 'selection.changed',
