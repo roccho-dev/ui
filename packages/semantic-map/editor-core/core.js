@@ -480,16 +480,17 @@ class EditorCoreState extends DomainStateStore {
 
   runtimePort() {
     const state = this;
+    // Temporary read-only compatibility view for legacy P2 composition code.
+    // It intentionally exposes no mutation, restore, replacement, or history capability.
     const port = {
-      get domain() { return state.domain; },
-      onChange(listener) { return state.onChange(listener); },
-      draftSnapshot() { return state.draftSnapshot(); },
-      toRecords() { return state.toRecords(); },
+      get domain() { return createSemanticMap(structuredClone(state.toRecords())); },
+      onChange(listener) {
+        invariant(typeof listener === 'function', 'runtime listener must be a function');
+        return state.subscribe((event) => listener(Object.freeze(structuredClone(event))));
+      },
+      draftSnapshot() { return structuredClone(state.snapshot().draft); },
+      toRecords() { return structuredClone(state.snapshot().records); },
       toJSONL() { return state.toJSONL(); },
-      snapshotSession() { return state.snapshotSession(); },
-      restoreSession(snapshot) { return state.restoreSession(snapshot); },
-      replaceRecords(records) { return state.replaceInput(records); },
-      clearDraft() { return DomainStateStore.prototype.clearDraft.call(state); },
     };
     return Object.freeze(port);
   }
