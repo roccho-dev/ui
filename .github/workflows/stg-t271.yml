@@ -40,22 +40,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Ensure shared Pages project
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          projects="$RUNNER_TEMP/pages-projects.json"
-          npx --yes wrangler@4.112.0 pages project list --json > "$projects"
-          if ! PROJECT="$CLOUDFLARE_PAGES_PROJECT" PROJECTS="$projects" node -e '
-            const fs = require("fs");
-            const rows = JSON.parse(fs.readFileSync(process.env.PROJECTS, "utf8"));
-            process.exit(rows.some(row => row.name === process.env.PROJECT) ? 0 : 1);
-          '; then
-            npx --yes wrangler@4.112.0 pages project create "$CLOUDFLARE_PAGES_PROJECT" --production-branch=proposals
-          fi
-
       - name: Build Artifact Shell publication
         run: |
           set -euo pipefail
