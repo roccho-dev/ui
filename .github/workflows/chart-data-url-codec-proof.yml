@@ -23,28 +23,40 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Generate pie and heatmap canonical #data URLs
+      - name: Generate eight canonical #data URLs
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/chart-data-url-proof"
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import { createUrlModuleUrl, readUrlModule } from './packages/url-module/src/codec.mjs';
-          const targets = Object.freeze({ pie: 'share-0', heatmap: 'tokyo-am' });
+          const targets = Object.freeze({
+            'bar-horizontal': 'product',
+            'bar-vertical': 'sales-0',
+            line: 'active-0',
+            pie: 'share-0',
+            donut: 'share-0',
+            scatter: 'growth-a',
+            heatmap: 'tokyo-am',
+            sunburst: 'product',
+          });
           const specs = [];
           for (const [variant, targetId] of Object.entries(targets)) {
             const records = fs.readFileSync(`examples/chart/${variant}.jsonl`, 'utf8')
               .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
             const target = records.find(record => record.type === 'region' && record.id === targetId);
             if (!target) throw new Error(`${variant}: target missing`);
-            const sentinel = `__url_data_${variant}__`;
+            const sentinel = `__url_data_${variant.replaceAll('-', '_')}__`;
             target.label = sentinel;
             const value = records.map(record => JSON.stringify(record)).join('\n') + '\n';
             const url = await createUrlModuleUrl({
               base: `${process.env.DEPLOY_ROOT}/adapters/chart/${variant}/`, fragment: 'data', value,
             });
+            if (!url.includes('#data=')) throw new Error(`${variant}: #data missing`);
+            if (url.length > 8192) throw new Error(`${variant}: URL too long: ${url.length}`);
             if (await readUrlModule({ fragment: 'data', input: url }) !== value) throw new Error(`${variant}: round trip mismatch`);
             specs.push({ variant, targetId, sentinel, chars: url.length, url });
+            console.log(JSON.stringify(specs.at(-1)));
           }
           fs.writeFileSync(process.env.RUNNER_TEMP + '/chart-data-url-proof/specs.json', JSON.stringify(specs, null, 2));
           NODE
@@ -52,7 +64,7 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
           python3 -m playwright install --with-deps chromium
-      - name: Prove pie and heatmap #data with Playwright
+      - name: Prove all eight #data URLs with Playwright
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -82,11 +94,15 @@ jobs:
                       spec['targetId'],
                   )
                   assert label == spec['sentinel'], f"{spec['variant']}: domain label {label!r}"
-                  assert spec['sentinel'] in page.locator('body').inner_text(), f"{spec['variant']}: sentinel absent from DOM"
+                  active = page.locator(f'button[data-active-key="region:{spec["targetId"]}"]')
+                  active.wait_for(state='visible', timeout=10_000)
+                  assert spec['sentinel'] in (active.text_content() or ''), f"{spec['variant']}: sentinel absent from active-list"
                   fallback = [url for url in requests if url.split('?', 1)[0].endswith('/input.json')]
                   assert not fallback, f"{spec['variant']}: fallback fetched {fallback}"
                   assert not page_errors, f"{spec['variant']}: page errors {page_errors}"
                   assert not failed, f"{spec['variant']}: request failures {failed}"
+                  screenshot = out / f"{spec['variant']}.png"
+                  page.screenshot(path=str(screenshot), full_page=True)
                   result = {
                       **spec,
                       'status': 'PASS',
@@ -95,22 +111,26 @@ jobs:
                       'inputJsonFallbackRequests': fallback,
                       'pageErrors': page_errors,
                       'requestFailed': failed,
+                      'screenshot': screenshot.name,
                   }
                   results.append(result)
                   print(json.dumps(result, ensure_ascii=False))
                   page.close()
               browser.close()
-          (out / 'receipt.json').write_text(json.dumps({
-              'schema': 'ui.chart-data-url-playwright-diagnostic/2',
+          receipt = {
+              'schema': 'ui.chart-data-url-codec-proof/3',
               'status': 'PASS',
               'sourceSha': os.environ['SOURCE_SHA'],
               'immutableDeployment': os.environ['DEPLOY_ROOT'],
+              'stableAlias': 'https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev',
               'variants': results,
-          }, ensure_ascii=False, indent=2), encoding='utf-8')
+          }
+          (out / 'receipt.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding='utf-8')
+          print(json.dumps(receipt, ensure_ascii=False))
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: chart-data-url-playwright-diagnostic
+          name: chart-data-url-codec-proof-final
           path: ${{ runner.temp }}/chart-data-url-proof
           if-no-files-found: error
