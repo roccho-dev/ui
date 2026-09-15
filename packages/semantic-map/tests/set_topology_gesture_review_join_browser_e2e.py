@@ -72,8 +72,7 @@ def wait_preview(page) -> None:
 def snapshot(page):
     return page.evaluate(
         """() => {
-          const state = semanticMapApp.snapshot();
-          return {
+          const state = typeof semanticMapApp.snapshot === 'function'\n            ? semanticMapApp.snapshot()\n            : semanticMapSite.editor.snapshot();\n          return {
             head: semanticMapRuntime.head,
             stateHash: semanticMapRuntime.stateHash,
             log: semanticMapRuntime.log,
