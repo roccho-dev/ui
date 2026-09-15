@@ -42,6 +42,7 @@ export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot,
   await fs.copyFile(path.join(hostRoot, 'feature-host.html'), path.join(root, 'index.html'));
   await fs.copyFile(path.join(hostRoot, 'feature-host.css'), path.join(root, 'host.css'));
   await fs.copyFile(path.join(hostRoot, 'feature-host.mjs'), path.join(root, 'host.mjs'));
+  await fs.copyFile(path.join(hostRoot, 'http-resource.mjs'), path.join(root, 'http-resource.mjs'));
 
   const publication = Object.freeze({
     schema: 'ui-feature-publication/1',

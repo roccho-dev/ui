@@ -26,6 +26,12 @@ check_feature() {
 check_feature presentation 30000 'class="profiled-app"' 'class="seq-svg"'
 check_feature control 15000 'id="tree"' 'class="node"'
 
+source_output="${RUNNER_TEMP:-/tmp}/artifact-feature-control-source.html"
+"$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 --dump-dom "$base/adapters/control/index.html?source=./input.json" > "$source_output"
+grep -q 'data-status="pass"' "$source_output"
+grep -q 'id="tree"' "$source_output"
+grep -q 'class="node"' "$source_output"
+
 for adapter in graph map seq; do
   output="${RUNNER_TEMP:-/tmp}/artifact-adapter-$adapter.html"
   "$chrome" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom "$base/adapters/$adapter/index.html" > "$output"
