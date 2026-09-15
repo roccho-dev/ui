@@ -4,6 +4,7 @@ import {
   TRUSTED_ARTIFACT_CAPABILITIES,
 } from "../generated/capability-registry.mjs";
 import { createArtifactShell as createArtifactShellCore } from "./shell-core.mjs";
+import { observeArtifactRequestElement } from "./request-port.mjs";
 
 export {
   artifactShellElements,
@@ -18,4 +19,12 @@ const SOURCE_REGISTRY = Object.freeze({
   runtimeBuild: ARTIFACT_SHELL_BUILD,
 });
 
-export const createArtifactShell = options => createArtifactShellCore({ ...options, registry: SOURCE_REGISTRY });
+export const createArtifactShell = async options => {
+  const observed = observeArtifactRequestElement(options.elements.request);
+  const shell = await createArtifactShellCore({
+    ...options,
+    elements: Object.freeze({ ...options.elements, request: observed.element }),
+    registry: SOURCE_REGISTRY,
+  });
+  return Object.freeze({ ...shell, query: observed.query });
+};
