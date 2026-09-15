@@ -8,8 +8,8 @@ assert.equal(await exists(new URL('packages/decisions-compiler/', repo)), false,
 assert.equal(await exists(new URL('examples/presentation/', repo)), false, 'compiled presentation examples must stay retired');
 
 const sharedExamples = await fs.readdir(new URL('examples/shared/', repo));
-assert.deepEqual(sharedExamples.sort(), ['business-model.jsonl'], 'shared runtime data must have one canonical example');
-const sharedSource = await fs.readFile(new URL('examples/shared/business-model.jsonl', repo), 'utf8');
+assert.deepEqual(sharedExamples.sort(), ['presentation.jsonl'], 'shared runtime data must have one canonical example');
+const sharedSource = await fs.readFile(new URL('examples/shared/presentation.jsonl', repo), 'utf8');
 const sharedRows = sharedSource.trim().split(/\r?\n/u).map(line => JSON.parse(line));
 const presentationRows = sharedRows.filter(row => row.type === 'presentation');
 assert.equal(presentationRows.length, 1, 'shared runtime data requires exactly one presentation record');
