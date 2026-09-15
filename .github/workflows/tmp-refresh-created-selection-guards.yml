@@ -1,0 +1,64 @@
+name: tmp refresh created selection guards
+on:
+  push:
+    branches: [tmp/created-selection-guards-260915]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/created-selection-guards-260915
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Record exact migration evolutions
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          manifest_path = Path('packages/semantic-map/migration-manifest.json')
+          manifest = json.loads(manifest_path.read_text())
+          targets = [
+              'packages/semantic-map/authoring/main.js',
+              'packages/semantic-map/renderer-maxgraph/adapter.js',
+          ]
+          by_target = {entry['target']: entry for entry in manifest['entries']}
+          for target in targets:
+              expected = by_target[target]['targetSha256']
+              for evolution in manifest.get('evolutions', []):
+                  if evolution['target'] != target:
+                      continue
+                  assert evolution['fromSha256'] == expected, (target, expected, evolution)
+                  expected = evolution['toSha256']
+              actual = hashlib.sha256(Path(target).read_bytes()).hexdigest()
+              if actual == expected:
+                  continue
+              manifest.setdefault('evolutions', []).append({
+                  'id': 'created-region-selection-260915',
+                  'target': target,
+                  'fromSha256': expected,
+                  'toSha256': actual,
+                  'sourceCommit': '067c65d88aab44071853d63e083dbc5f8656cd2e',
+                  'sourcePath': target,
+                  'reason': 'created-region-selection-survives-render-boundary',
+              })
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+          PY
+      - name: Prove migration and semantic source gates
+        run: |
+          node tests/check-semantic-map-migration.mjs
+          node packages/semantic-map/tests/run.mjs
+      - name: Regenerate canonical registry
+        run: node apps/artifact-shell/scripts/build-registry.mjs
+      - name: Commit exact guards
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- packages/semantic-map/migration-manifest.json apps/artifact-shell/generated/capability-registry.mjs; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/semantic-map/migration-manifest.json apps/artifact-shell/generated/capability-registry.mjs
+          git commit -m 'chore: record created-region selection evolution'
+          git push origin HEAD:tmp/created-selection-guards-260915
