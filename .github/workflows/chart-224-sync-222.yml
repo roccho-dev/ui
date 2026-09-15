@@ -6,49 +6,435 @@ on:
       - proof/chart-data-url-codec-260915
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   TARGET_BRANCH: sync/chart-224-with-222-260915
   TARGET_HEAD: b682eef6cbe7f5a0ff2a76618a515d3e73216c91
+  BASE_BRANCH: archive/ui213-pre-216-260914
   BASE_HEAD: f2dd463c372d18761834313183258e2c6ab31b92
+  PR224_BRANCH: feat/chart-first-class-260915
 
 jobs:
-  diagnose:
+  integrate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
-          persist-credentials: false
-      - name: Prove exact refs and run real three-way merge
+      - name: Run exact three-way merge and resolve bounded conflicts
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$TARGET_HEAD"
           git config user.name "roccho-sync-proof"
           git config user.email "40359643+roccho-dev@users.noreply.github.com"
-          git fetch --no-tags origin "$BASE_HEAD"
+          git fetch --no-tags origin "$BASE_BRANCH" "$PR224_BRANCH" "$TARGET_BRANCH"
+          test "$(git rev-parse HEAD)" = "$TARGET_HEAD"
+          test "$(git rev-parse origin/$TARGET_BRANCH)" = "$TARGET_HEAD"
+          test "$(git rev-parse origin/$PR224_BRANCH)" = "$TARGET_HEAD"
+          test "$(git rev-parse origin/$BASE_BRANCH)" = "$BASE_HEAD"
+
           set +e
           git merge --no-ff --no-commit "$BASE_HEAD" > "$RUNNER_TEMP/merge.log" 2>&1
           code=$?
           set -e
           cat "$RUNNER_TEMP/merge.log"
-          git diff --name-only --diff-filter=U | tee "$RUNNER_TEMP/conflicts.txt"
-          printf 'merge_exit=%s\n' "$code"
-          printf 'conflict_count=%s\n' "$(wc -l < "$RUNNER_TEMP/conflicts.txt")"
-          if [ "$code" -eq 0 ]; then
-            echo 'unexpected: merge is clean'
-            git merge --abort || true
-            exit 0
-          fi
-          test -s "$RUNNER_TEMP/conflicts.txt"
-          git merge --abort
+          test "$code" -eq 1
+          git diff --name-only --diff-filter=U | sort > "$RUNNER_TEMP/conflicts.txt"
+          cat "$RUNNER_TEMP/conflicts.txt"
+          cat > "$RUNNER_TEMP/expected-conflicts.txt" <<'EOF'
+          apps/artifact-shell/generated/capability-registry.mjs
+          packages/semantic-map/feature-runtime.mjs
+          packages/semantic-map/tests/authoring_boundary_test.mjs
+          EOF
+          diff -u "$RUNNER_TEMP/expected-conflicts.txt" "$RUNNER_TEMP/conflicts.txt"
+
+          git checkout --ours apps/artifact-shell/generated/capability-registry.mjs
+
+          cat > packages/semantic-map/feature-runtime.mjs <<'EOF'
+          import { createSemanticMap, parseSemanticMapRecords } from './domain/index.js';
+          import { normalizeOperation } from './domain/authoring-operation.js';
+          import { SemanticDomainStore } from './domain/authoring-store.js';
+          import { createGraphLayout, patternConfigKey, validatePatternDomain } from './pattern/index.js';
+          import { createPresentationProjection, SemanticProjector } from './projection/index.js';
+          import { defaultViewForPattern } from './protocol/index.js';
+          import { createSemanticAuthoring } from './renderer-maxgraph/authoring/index.js';
+
+          const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1', chart: 'chart/1' });
+          const GRAPH_LAYOUT_MODES = new Set(['auto', 'lr', 'tb']);
+          const GRAPH_AUTO_BREAKPOINT_PX = 720;
+          const GRAPH_MOBILE_MARGIN_PX = 24;
+          const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-feature: ${message}`); };
+          const frame = scope => new Promise(resolve => scope.requestAnimationFrame(() => resolve()));
+
+          function graphLayoutMode(scope) {
+            const mode = new URL(scope.location.href).searchParams.get('layout') ?? 'auto';
+            invariant(GRAPH_LAYOUT_MODES.has(mode), `unsupported graph layout ${mode}`);
+            return mode;
+          }
+
+          function graphDirection(mode, width) {
+            if (mode === 'auto') return width < GRAPH_AUTO_BREAKPOINT_PX ? 'TB' : 'LR';
+            return mode.toUpperCase();
+          }
+
+          function graphPresentationProjection(domain, direction) {
+            const layout = createGraphLayout(domain, { direction });
+            return createPresentationProjection({
+              id: `graph-layout-${direction.toLowerCase()}`,
+              pattern: 'graph/1',
+              layout: [...layout.bounds].map(([regionId, bounds]) => ({ regionId, bounds })),
+              interactions: [],
+            });
+          }
+
+          function graphLayoutControls(scope, onSelect) {
+            const controls = scope.document.createElement('div');
+            controls.className = 'semantic-map-layout-controls';
+            controls.setAttribute('role', 'group');
+            controls.setAttribute('aria-label', 'Graph layout');
+            const buttons = new Map();
+            for (const mode of ['auto', 'lr', 'tb']) {
+              const button = scope.document.createElement('button');
+              button.type = 'button';
+              button.className = 'semantic-map-layout-button';
+              button.dataset.layout = mode;
+              button.textContent = mode === 'auto' ? 'Auto' : mode.toUpperCase();
+              button.addEventListener('click', () => onSelect(mode));
+              controls.append(button);
+              buttons.set(mode, button);
+            }
+            return Object.freeze({ controls, buttons });
+          }
+
+          const snapshotDomain = domain => Object.freeze({
+            meta: Object.freeze({
+              schema: domain.meta.schema,
+              root: domain.meta.root,
+              title: domain.meta.title,
+            }),
+            regions: Object.freeze([...domain.regions.values()].map(region => Object.freeze({
+              id: region.id,
+              parent: region.parent,
+              label: region.label,
+              kind: region.kind,
+              bounds: Object.freeze({ ...region.bounds }),
+            }))),
+            relations: Object.freeze(domain.relations.map(relation => Object.freeze({ ...relation }))),
+          });
+
+          const prepareRuntimeOperation = (operation, store, scope) => {
+            if (operation?.type !== 'ConnectRegions' || Object.hasOwn(operation, 'relationId')) {
+              return normalizeOperation(operation);
+            }
+            invariant(typeof scope.crypto?.randomUUID === 'function', 'crypto.randomUUID is required for relation creation');
+            let relationId;
+            do relationId = `relation-${scope.crypto.randomUUID()}`;
+            while (store.relations.has(relationId));
+            return normalizeOperation({ ...operation, relationId });
+          };
+
+          export const mountFeature = async ({ feature, input, root, scope = globalThis }) => {
+            invariant(root?.replaceChildren, 'root is required');
+            invariant(typeof input === 'string', 'raw JSONL text is required');
+            const pattern = patterns[feature?.id];
+            invariant(pattern, `unsupported feature ${String(feature?.id)}`);
+
+            const records = parseSemanticMapRecords(input);
+            const store = new SemanticDomainStore(createSemanticMap(records));
+            let view = feature?.view ?? defaultViewForPattern(pattern);
+            invariant(view?.pattern === pattern, `feature view pattern must be ${pattern}`);
+            const surface = scope.document.createElement('div');
+            surface.className = 'semantic-map-feature';
+            surface.dataset.feature = feature.id;
+            const canvas = scope.document.createElement('div');
+            canvas.className = 'semantic-map-feature-canvas';
+            surface.append(canvas);
+
+            let layoutMode = feature.id === 'graph' ? graphLayoutMode(scope) : null;
+            let controls = null;
+            let buttons = null;
+            if (feature.id === 'graph') {
+              const shell = scope.document.createElement('div');
+              shell.className = 'semantic-map-feature-shell';
+              ({ controls, buttons } = graphLayoutControls(scope, (mode) => {
+                layoutMode = mode;
+                const url = new URL(scope.location.href);
+                url.searchParams.set('layout', mode);
+                scope.history.replaceState(scope.history.state, '', url);
+                renderAndFit();
+              }));
+              shell.append(controls, surface);
+              root.replaceChildren(shell);
+            } else {
+              root.replaceChildren(surface);
+            }
+            await frame(scope);
+
+            const adapter = createSemanticAuthoring(canvas);
+            let scene = null;
+            let renderQueued = false;
+            let activeDirection = feature.id === 'graph'
+              ? graphDirection(layoutMode, Math.max(1, surface.clientWidth))
+              : null;
+
+            const project = () => {
+              const presentationProjection = activeDirection
+                ? graphPresentationProjection(store.domain, activeDirection)
+                : null;
+              const projector = new SemanticProjector(store.domain, null, view, { presentationProjection });
+              return projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
+            };
+            const render = () => {
+              renderQueued = false;
+              scene = project();
+              adapter.render(scene);
+              return scene;
+            };
+            const queueRender = () => {
+              if (renderQueued) return;
+              renderQueued = true;
+              scope.requestAnimationFrame(render);
+            };
+            const updateControls = () => {
+              if (!buttons) return;
+              for (const [mode, button] of buttons) {
+                const selected = mode === layoutMode;
+                button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                button.dataset.selected = selected ? 'true' : 'false';
+              }
+            };
+
+            function renderAndFit() {
+              surface.style.removeProperty('height');
+              const width = Math.max(1, surface.clientWidth);
+              activeDirection = feature.id === 'graph' ? graphDirection(layoutMode, width) : null;
+              render();
+
+              const bounds = scene.bounds;
+              const mobileTopDown = activeDirection === 'TB' && width < GRAPH_AUTO_BREAKPOINT_PX;
+              let height = Math.max(1, surface.clientHeight);
+              let scale;
+              let translateY;
+
+              if (mobileTopDown) {
+                scale = Math.max(0.01, Math.min(1, Math.max(1, width - GRAPH_MOBILE_MARGIN_PX) / Math.max(1, bounds.width)));
+                const renderedHeight = Math.ceil(bounds.height * scale + GRAPH_MOBILE_MARGIN_PX * 2);
+                surface.style.height = `${Math.max(680, renderedHeight)}px`;
+                height = Math.max(1, surface.clientHeight);
+                translateY = GRAPH_MOBILE_MARGIN_PX / scale - bounds.y;
+              } else {
+                scale = Math.max(0.01, Math.min(
+                  1,
+                  Math.max(1, width - 48) / Math.max(1, bounds.width),
+                  Math.max(1, height - 48) / Math.max(1, bounds.height),
+                ));
+                translateY = height / (2 * scale) - (bounds.y + bounds.height / 2);
+              }
+
+              const translateX = width / (2 * scale) - (bounds.x + bounds.width / 2);
+              adapter.setCamera(scale, translateX, translateY);
+              render();
+
+              if (layoutMode) {
+                surface.dataset.layout = layoutMode;
+                surface.dataset.layoutDirection = activeDirection;
+                surface.dataset.fit = mobileTopDown ? 'width' : 'contain';
+              }
+              updateControls();
+            }
+
+            adapter.setOperationHandler(operation => {
+              const prepared = prepareRuntimeOperation(operation, store, scope);
+              const configKey = patternConfigKey(view.pattern);
+              const batch = store.performBatch([prepared], candidate => validatePatternDomain(
+                candidate.domain,
+                view.pattern,
+                configKey === null ? null : view[configKey],
+              ));
+              return batch.results[0];
+            });
+            adapter.setActivationHandler(activation => {
+              invariant(activation?.kind === 'set-view', `unsupported activation ${String(activation?.kind)}`);
+              const nextView = activation.view;
+              invariant(nextView?.pattern === pattern, `activation view pattern must be ${pattern}`);
+              const configKey = patternConfigKey(nextView.pattern);
+              validatePatternDomain(
+                store.domain,
+                nextView.pattern,
+                configKey === null ? null : nextView[configKey],
+              );
+              const previousView = view;
+              view = nextView;
+              try {
+                const nextScene = render();
+                return Object.freeze({ kind: 'set-view', pattern: nextScene.pattern });
+              } catch (error) {
+                view = previousView;
+                render();
+                throw error;
+              }
+            });
+            adapter.setErrorHandler(queueRender);
+            store.onChange(queueRender);
+            adapter.setTool('select');
+
+            renderAndFit();
+
+            if (feature.id === 'graph' && typeof scope.addEventListener === 'function') {
+              scope.addEventListener('resize', () => {
+                if (layoutMode !== 'auto') return;
+                const nextDirection = graphDirection(layoutMode, Math.max(1, surface.clientWidth));
+                if (nextDirection !== activeDirection) renderAndFit();
+              });
+            }
+
+            const editor = Object.freeze({
+              adapter,
+              store,
+              undo: () => store.undo(),
+              redo: () => store.redo(),
+              deleteSelection: () => adapter.deleteSelection(),
+              operation: operation => adapter.submitOperation(operation),
+              snapshot: () => Object.freeze({
+                domain: snapshotDomain(store.domain),
+                draft: store.draftSnapshot(),
+                scene: scene ? Object.freeze({ pattern: scene.pattern }) : null,
+                selection: adapter.selectionSnapshot(),
+              }),
+            });
+            scope.semanticMapSite = Object.freeze({ ready: true, error: null, editor });
+
+            scope.document.addEventListener('keydown', event => {
+              const target = event.target;
+              const textInput = target instanceof HTMLInputElement
+                || target instanceof HTMLTextAreaElement
+                || target instanceof HTMLSelectElement
+                || target?.isContentEditable;
+              if (textInput || event.altKey) return;
+              const modifier = event.ctrlKey || event.metaKey;
+              if (modifier && event.key.toLowerCase() === 'z') {
+                event.preventDefault();
+                if (event.shiftKey) editor.redo();
+                else editor.undo();
+                return;
+              }
+              if (modifier && event.key.toLowerCase() === 'y') {
+                event.preventDefault();
+                editor.redo();
+                return;
+              }
+              if (event.key === 'Delete' || event.key === 'Backspace') {
+                event.preventDefault();
+                editor.deleteSelection();
+              }
+            });
+
+            const svg = Boolean(canvas.querySelector('svg'));
+            invariant(svg, 'rendered SVG is missing');
+            const activeList = adapter.activeList?.snapshot?.() ?? null;
+            invariant(activeList?.visible === true && activeList.items.length > 0, 'shared authoring active-list is not hydrated');
+            return Object.freeze({
+              schema: 'semantic-map-feature-receipt/1',
+              feature: feature.id,
+              pattern: scene.pattern,
+              records: records.length,
+              svg,
+              authoring: true,
+              activeItems: activeList.items.length,
+            });
+          };
+          EOF
+
+          cat > packages/semantic-map/tests/authoring_boundary_test.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { fileURLToPath } from 'node:url';
+
+          const here = path.dirname(fileURLToPath(import.meta.url));
+          const root = path.resolve(here, '..', '..', '..');
+          const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+
+          const rendererIndex = read('packages/semantic-map/renderer-maxgraph/index.js');
+          const authoringIndex = read('packages/semantic-map/renderer-maxgraph/authoring/index.js');
+          const activeList = read('packages/semantic-map/renderer-maxgraph/authoring/active-list.js');
+          const semanticGraph = read('packages/semantic-map/renderer-maxgraph/create-semantic-graph.js');
+          const adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');
+          const styles = read('packages/semantic-map/renderer-maxgraph/styles.js');
+          const featureRuntime = read('packages/semantic-map/feature-runtime.mjs');
+
+          assert.match(rendererIndex, /createSemanticAuthoring as createMaxGraphAdapter/);
+          assert.match(authoringIndex, /createMaxGraphAdapter/);
+          assert.match(authoringIndex, /mountActiveList/);
+          assert.match(authoringIndex, /activeList/);
+          assert.match(authoringIndex, /semanticRegionId/);
+          assert.match(authoringIndex, /sourceRegionId/);
+          assert.doesNotMatch(rendererIndex, /createDocumentAuthoring/);
+          assert.doesNotMatch(authoringIndex, /createDocumentAuthoring|\.\/document\.js/);
+          assert.match(activeList, /data-maxgraph-active-list|dataset\.maxgraphActiveList/);
+          assert.match(activeList, /onActivate/);
+          assert.match(activeList, /ACTIVE_LIST_CSS/);
+          assert.match(activeList, /style\.textContent = ACTIVE_LIST_CSS/);
+          assert.doesNotMatch(activeList, /active-list\.css|new URL\(/);
+          assert.match(semanticGraph, /sourceLabel \?\? getEditingValue/);
+          assert.match(adapter, /getPlugin\('CellEditorHandler'\)/);
+          assert.match(adapter, /editingPlugin\?\.editingCell === cell/);
+          assert.match(adapter, /editingPlugin\?\.textarea\?\.isConnected/);
+          assert.match(featureRuntime, /setActivationHandler/);
+          assert.match(featureRuntime, /activation\?\.kind === 'set-view'/);
+          assert.match(featureRuntime, /view = nextView/);
+          assert.match(featureRuntime, /view = previousView/);
+          const vectorSectorStart = styles.indexOf("case 'vector-sector':");
+          const vectorSectorEnd = styles.indexOf("case 'seq-step':", vectorSectorStart);
+          assert.ok(vectorSectorStart >= 0 && vectorSectorEnd > vectorSectorStart);
+          const vectorSectorStyle = styles.slice(vectorSectorStart, vectorSectorEnd);
+          assert.doesNotMatch(vectorSectorStyle, /(?:fontSize: 0|selectable: false|editable: false|connectable: false|deletable: false)/);
+          assert.equal(fs.existsSync(path.join(root, 'packages/semantic-map/renderer-maxgraph/authoring/active-list.css')), false);
+          assert.equal(fs.existsSync(path.join(root, 'packages/semantic-map/renderer-maxgraph/authoring/document.js')), false);
+
+          console.log(JSON.stringify({
+            schema: 'semantic-map-maxgraph-authoring-boundary-test/6',
+            status: 'PASS',
+            semanticFeaturesUseAuthoringBoundary: true,
+            activeListOwnedByAuthoring: true,
+            activeListSelfContained: true,
+            documentAuthoringRetired: true,
+            chartAuthoringUsesCanonicalSourceIds: true,
+            activationUsesSharedRuntime: true,
+          }));
+          EOF
+
+          git add packages/semantic-map/feature-runtime.mjs packages/semantic-map/tests/authoring_boundary_test.mjs apps/artifact-shell/generated/capability-registry.mjs
+          test -z "$(git diff --name-only --diff-filter=U)"
+          npm run build:artifact-shell-registry
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          git diff --check
+          node packages/semantic-map/tests/authoring_boundary_test.mjs
+          node packages/semantic-map/tests/chart_test.mjs
+          node packages/semantic-map/tests/run.mjs
+          npm run check:artifact-runtime-core
+          npm run check:semantic-map-runtime
+          npm run build:artifact-shell-publication -- --out="$RUNNER_TEMP/publication"
+          for variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do
+            test -f "$RUNNER_TEMP/publication/adapters/chart/$variant/index.html"
+          done
+
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git status --short
+          git commit -m "Merge #222 into #224: preserve Chart and latest Semantic Map runtime"
+          merge_sha="$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD^1)" = "$TARGET_HEAD"
+          test "$(git rev-parse HEAD^2)" = "$BASE_HEAD"
+          git push origin "HEAD:$TARGET_BRANCH"
+          printf '%s\n' "$merge_sha" | tee "$RUNNER_TEMP/merge-sha.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: chart-224-sync-222-three-way-diagnostic
+          name: chart-224-sync-222-integration
           path: |
             ${{ runner.temp }}/merge.log
             ${{ runner.temp }}/conflicts.txt
-          if-no-files-found: error
+            ${{ runner.temp }}/merge-sha.txt
+          if-no-files-found: warn
