@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { getFeature as getA2uiFeature } from '../../a2ui-browser/feature.mjs';
+import { getFeature as getBusinessFeature } from '../../business-model/feature.mjs';
 
 const repo = new URL('../../../', import.meta.url);
 const exists = async url => fs.access(url).then(() => true, () => false);
@@ -8,6 +10,8 @@ assert.equal(await exists(new URL('packages/decisions-compiler/', repo)), false,
 assert.equal(await exists(new URL('examples/shared/', repo)), false, 'shared Presentation input directory must stay retired');
 assert.equal(await exists(new URL('apps/artifact-shell/adapters/', repo)), false, 'artifact shell must not own feature preview adapters');
 assert.equal(await exists(new URL('apps/artifact-shell/publication/', repo)), false, 'artifact shell must not own feature preview publication helpers');
+assert.equal(await exists(new URL('apps/preview/cases.jsonl', repo)), false, 'preview case registry must stay retired');
+assert.equal(await exists(new URL('apps/preview/resolve-cases.mjs', repo)), false, 'preview case resolver must stay retired');
 
 for (const path of [
   'packages/control/catalog.mjs',
@@ -45,33 +49,31 @@ assert.equal(controlDesign.schema, 'ui-a2ui-app-design/1');
 assert.equal(controlDesign.app, 'control');
 assert.equal(JSON.stringify(controlDesign).includes('"fields"'), false, 'Control Tree must project properties generically without a fields allowlist');
 
-const previewCases = (await fs.readFile(new URL('apps/preview/cases.jsonl', repo), 'utf8'))
-  .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
-const byId = id => previewCases.find(item => item.id === id);
-const graph = byId('graph');
-const seq = byId('seq');
-const presentation = byId('presentation');
-const control = byId('control');
-assert.equal(graph.source, seq.source, 'Graph and Seq must share Presentation semantic JSONL');
-assert.equal(presentation.source.presentation, graph.source, 'Presentation must reuse Graph/Seq semantic JSONL');
-assert.equal(presentation.featureModule, 'packages/a2ui-browser/feature.mjs');
-assert.equal(control.featureModule, presentation.featureModule, 'Control and Presentation must share A2UI feature descriptor');
-assert.deepEqual(Object.keys(presentation.source).sort(), ['design', 'presentation']);
-assert.deepEqual(Object.keys(control.source).sort(), ['claims', 'control', 'design']);
+const graph = getBusinessFeature('graph');
+const seq = getBusinessFeature('seq');
+const presentation = getA2uiFeature('presentation');
+const control = getA2uiFeature('control');
+assert.equal(graph.input, seq.input, 'Graph and Seq must share Presentation semantic JSONL');
+assert.equal(graph.input, 'presentation');
+assert.ok(presentation.input.includes(graph.input), 'Presentation must reuse Graph/Seq semantic JSONL');
+assert.equal(presentation.entry, 'packages/a2ui-browser/src/feature-app.mjs');
+assert.equal(control.entry, presentation.entry, 'Control and Presentation must share A2UI feature descriptor');
+assert.deepEqual([...presentation.input].sort(), ['design', 'presentation']);
+assert.deepEqual([...control.input].sort(), ['claims', 'control', 'design']);
 
-for (const id of ['graph', 'map', 'seq']) {
+for (const id of ['map']) {
   const examples = await fs.readdir(new URL(`examples/${id}/`, repo));
   assert.deepEqual(examples.sort(), ['example.jsonl'], `${id} UI example must be raw JSONL only`);
   const source = await fs.readFile(new URL(`examples/${id}/example.jsonl`, repo), 'utf8');
   const rows = source.trim().split(/\r?\n/u).map(line => JSON.parse(line));
   assert.ok(rows.length > 1, `${id} UI example must contain JSONL records`);
 }
+assert.equal(await exists(new URL('examples/graph/', repo)), false, 'Graph must reuse Presentation semantic input');
+assert.equal(await exists(new URL('examples/seq/', repo)), false, 'Seq must reuse Presentation semantic input');
 
 const previewMain = await fs.readFile(new URL('apps/preview/main.mjs', repo), 'utf8');
-for (const [name, source] of [['preview main', previewMain], ['preview cases', JSON.stringify(previewCases)]]) {
-  for (const forbidden of ['compile' + ':', 'source-compiler', 'decisions-compiler', 'business-model-semantic-jsonl']) {
-    assert.equal(source.includes(forbidden), false, `${name} must not contain ${forbidden}`);
-  }
+for (const forbidden of ['compile' + ':', 'source-compiler', 'decisions-compiler', 'business-model-semantic-jsonl']) {
+  assert.equal(previewMain.includes(forbidden), false, `preview main must not contain ${forbidden}`);
 }
 const runtimeData = await fs.readFile(new URL('packages/business-model/runtime-data.mjs', repo), 'utf8');
 assert.doesNotMatch(runtimeData, /type.*presentation|PRESENTATION_A2UI|parsePresentation/u, 'business-model runtime parser must not own Presentation A2UI fallback');
