@@ -4,11 +4,24 @@ const sameOriginUrl = (value, base) => {
   invariant(url.origin === base.origin, `same-origin URL required: ${value}`);
   return url;
 };
+const urlModule = async () => {
+  const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);
+  return import(moduleUrl.href);
+};
 const readData = async base => {
   if (!base.hash) return null;
-  const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);
-  const { readUrlModule } = await import(moduleUrl.href);
+  const { readUrlModule } = await urlModule();
   return readUrlModule({ fragment: 'data', input: base.href });
+};
+const createDataTransport = async scope => {
+  const { createUrlModuleUrl } = await urlModule();
+  const create = (value, { base = scope.location.href } = {}) => createUrlModuleUrl({ base, fragment: 'data', value });
+  const replace = async value => {
+    const url = await create(value);
+    scope.history.replaceState(scope.history.state, '', url);
+    return url;
+  };
+  return Object.freeze({ schema: 'ui-data-transport/1', fragment: 'data', create, replace });
 };
 
 export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
@@ -35,9 +48,10 @@ export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
 
   const input = await readData(base);
   invariant(input !== null, '#data required');
+  const transport = await createDataTransport(scope);
   const module = await import(sameOriginUrl(feature.entry, base).href);
   invariant(typeof module.mountFeature === 'function', 'mountFeature export required');
-  const mounted = await module.mountFeature({ feature, input, root, scope });
+  const mounted = await module.mountFeature({ feature, input, root, scope, transport });
 
   scope.document.documentElement.dataset.status = 'pass';
   scope.uiFeatureProof = Object.freeze({ feature, mounted: mounted ?? null, status: 'PASS' });
