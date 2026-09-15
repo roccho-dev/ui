@@ -1,0 +1,49 @@
+name: Chart 224 F2 diagnostic
+
+on:
+  push:
+    branches: [control/chart224-f2-diagnostic-260915]
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 940de85e3dddbb60ec486f65a442c99c1660e257
+      - name: Apply add-node ordering fix only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('packages/semantic-map/authoring/main.js'); s=p.read_text()
+          anchor="""  function addNode() {\n    setTool('select');"""
+          helper="""  function selectCreatedRegion(result) {\n    if (!result?.createdRegionId) return null;\n    render();\n    adapter.selectRegion(result.createdRegionId);\n    return result.createdRegionId;\n  }\n\n  function addNode() {\n    setTool('select');"""
+          assert s.count(anchor)==1; s=s.replace(anchor,helper)
+          pairs=[
+          ("""        if (!result?.createdRegionId) return null;\n        adapter.selectRegion(result.createdRegionId);\n        showToast('actorを追加しました');""","""        if (!selectCreatedRegion(result)) return null;\n        showToast('actorを追加しました');"""),
+          ("""      if (!result?.createdRegionId) return null;\n      adapter.selectRegion(result.createdRegionId);\n      showToast('seq itemを追加しました');""","""      if (!selectCreatedRegion(result)) return null;\n      showToast('seq itemを追加しました');"""),
+          ("""    if (!result?.createdRegionId) return null;\n    adapter.selectRegion(result.createdRegionId);\n    showToast('ノードを追加しました');""","""    if (!selectCreatedRegion(result)) return null;\n    showToast('ノードを追加しました');""")]
+          for old,new in pairs: assert s.count(old)==1; s=s.replace(old,new)
+          p.write_text(s)
+          PY
+      - name: Patch diagnostic into browser proof
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py'); s=p.read_text()
+          old='''            page.keyboard.press("F2")\n            child.locator(".mxCellEditor").wait_for(state="visible", timeout=10_000)'''
+          new='''            diag = child.evaluate("""() => {\n              const a = semanticMapSite.editor.adapter;\n              const ids = [...a.selectionSnapshot().regionIds];\n              const id = ids[0] ?? null;\n              const proxy = id ? (a.lastScene?.selectionProxies?.[id] ?? id) : null;\n              const canonical = id ? a.cellsByRegionId.get(id) : null;\n              const proxied = proxy ? a.cellsByRegionId.get(proxy) : null;\n              const summarize = cell => cell ? {\n                id: cell.id ?? null,\n                value: cell.value ?? null,\n                semantic: cell.semantic ? { ...cell.semantic } : null,\n                style: a.graph.getCurrentCellStyle(cell),\n              } : null;\n              const started = a.startEditingSelection();\n              const plugin = a.graph.getPlugin('CellEditorHandler');\n              return {\n                ids, proxy, canonical: summarize(canonical), proxied: summarize(proxied), started,\n                editingCellId: plugin?.editingCell?.id ?? null,\n                textarea: plugin?.textarea ? {\n                  tag: plugin.textarea.tagName,\n                  className: plugin.textarea.className,\n                  connected: plugin.textarea.isConnected,\n                  display: getComputedStyle(plugin.textarea).display,\n                  visibility: getComputedStyle(plugin.textarea).visibility,\n                  rect: plugin.textarea.getBoundingClientRect().toJSON(),\n                  contenteditable: plugin.textarea.getAttribute('contenteditable'),\n                } : null,\n              };\n            }""")\n            print(json.dumps({"schema":"chart224-f2-diagnostic/1","diag":diag}, ensure_ascii=False), flush=True)\n            assert False, diag'''
+          assert s.count(old)==1
+          p.write_text(s.replace(old,new))
+          PY
+      - name: Run diagnostic
+        shell: bash
+        run: |
+          python3 -m pip install --disable-pip-version-check --user 'playwright==1.57.0'
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+          export CHROMIUM_EXECUTABLE="$chrome"
+          python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
