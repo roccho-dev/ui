@@ -265,10 +265,12 @@ def main() -> None:
 
                 envelope = page.evaluate("async () => await semanticMapRuntime.envelope()")
                 fragment = data_fragment(envelope)
+                case_id = {"graph/1": "semantic/graph", "map/1": "map"}.get(envelope["view"]["pattern"])
+                assert case_id, envelope["view"]
                 replay = context.new_page()
                 replay.on("pageerror", lambda error: errors.append(str(error)))
                 replay.goto(
-                    f"{preview_base}/?case=semantic/graph{fragment}",
+                    f"{preview_base}/?case={case_id}{fragment}",
                     wait_until="domcontentloaded",
                     timeout=30_000,
                 )
