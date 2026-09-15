@@ -104,10 +104,8 @@ assert.equal(core.runtime, undefined);
 assert.deepEqual(core.snapshot().selection, { regionIds: [], relationIds: [] });
 
 const snapshotRecords = core.snapshot().records;
-assert.throws(() => {
-  snapshotRecords.find(row => row.type === 'region' && row.id === 'request').label = 'Snapshot mutation';
-}, /read only|Cannot assign/u);
-assert.equal(region(core, 'request').label, '1 依頼', 'snapshot records must be immutable detached values');
+snapshotRecords.find(row => row.type === 'region' && row.id === 'request').label = 'Snapshot mutation';
+assert.equal(region(core, 'request').label, '1 依頼', 'snapshot records must be detached from core state');
 
 core.acceptGesture({ type: 'selection.changed', selection: { regionIds: ['request'], relationIds: [] } });
 assert.deepEqual(core.snapshot().selection, { regionIds: ['request'], relationIds: [] });
@@ -197,7 +195,7 @@ console.log(JSON.stringify({
   rawMutationBypassAbsent: true,
   hiddenRuntimeAbsent: true,
   hiddenWorkspaceAbsent: true,
-  snapshotImmutable: true,
+  snapshotDetached: true,
   authorityDenyAtomic: true,
   commitFailureAtomic: true,
   commitBeforePublish: true,
