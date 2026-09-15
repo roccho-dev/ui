@@ -130,9 +130,11 @@ export class SurfacePortMaxGraphAdapter {
       if (!edge?.semantic) return;
       if (!relationId || !from || !to) { this.#rollback(); return; }
       try {
-        const result = this.#emit({ type: 'relation.reconnect', relationId, from, to });
-        if (!result) this.#rollback();
-      } catch (error) { this.#rollback(error); }
+        // Capture the candidate above, then restore the accepted mirror before
+        // calling core. A truthy no-op result is not a committed scene.
+        this.#rollback();
+        this.#emit({ type: 'relation.reconnect', relationId, from, to });
+      } catch (error) { this.#inner.errorHandler?.(error); }
     });
 
     const cameraChanged = () => {

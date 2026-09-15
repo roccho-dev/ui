@@ -170,12 +170,16 @@ for (const outcome of ['success', 'falsy', 'throw']) {
   connectionCases += 1;
 }
 let reconnectCases = 0;
-for (const outcome of ['success', 'falsy', 'throw', 'missing-endpoint']) {
+for (const outcome of ['success', 'falsy', 'throw', 'missing-endpoint', 'review', 'presentation', 'truthy']) {
   const test = harness();
+  const mirrorsAtDispatch = [];
   test.respond(gesture => {
+    mirrorsAtDispatch.push(test.inner.edgesByProjectionKey.get('r1').getTerminal(false)?.semantic?.regionId);
     assert.equal(gesture.type, 'relation.reconnect');
     if (outcome === 'throw') throw new Error('E_RECONNECT_DENY');
     if (outcome === 'falsy') return null;
+    if (outcome === 'review' || outcome === 'presentation') return { status: outcome, reason: 'meaning-unchanged' };
+    if (outcome === 'truthy') return true;
     test.surface.render({ scene: { ...scene(), relations: [{ id: 'r1', from: 'a', to: 'c' }] },
       selection: { regionIds: ['a'], relationIds: [] } });
     return { relationId: 'r1' };
@@ -184,7 +188,8 @@ for (const outcome of ['success', 'falsy', 'throw', 'missing-endpoint']) {
   physical.to = outcome === 'missing-endpoint' ? null : region('c');
   test.inner.graph.fire(events.CELL_CONNECTED, { edge: physical });
   assert.equal(test.calls.length, outcome === 'missing-endpoint' ? 0 : 1);
-  assert.equal(physical.getTerminal(false).semantic.regionId, outcome === 'success' ? 'c' : 'b');
+  assert.deepEqual(mirrorsAtDispatch, outcome === 'missing-endpoint' ? [] : ['b'], 'candidate must be restored before core is called');
+  assert.equal(physical.getTerminal(false).semantic.regionId, outcome === 'success' ? 'c' : 'b', `E_RECONNECT_NOOP_MIRROR: ${outcome}`);
   assert.deepEqual(physical.semantic.relationIds, ['r1']);
   assert.deepEqual(test.surface.selectionSnapshot(), { regionIds: ['a'], relationIds: [] });
   assert.equal(test.errors.length, outcome === 'throw' ? 1 : 0);
@@ -222,6 +227,118 @@ remounted.inner.graph.selected = [region('c')];
 remounted.inner.graph.getSelectionModel().fire(events.CHANGE);
 assert.equal(remounted.calls.length, 1);
 remounted.surface.destroy();
+// Actual core + actual SurfacePort; only physical mechanics and the scene
+// fixture below are substituted. No delayed redraw or external I/O is used.
+const { createSemanticMapEditorCore } = await import('../editor-core/index.js');
+const { createMeaningRecoveryResult } = await import('../authoring/meaning-recovery.js');
+const coreRecords = [
+  { type: 'meta', schema: 'semantic-map-state/1', root: 'map', title: 'Reconnect boundary' },
+  { type: 'region', id: 'map', parent: null, label: 'Map', kind: 'root', bounds: [0, 0, 900, 620], summary: '' },
+  ...['a', 'b', 'c'].map((id, index) => ({ type: 'region', id, parent: 'map', label: id,
+    kind: 'concept', bounds: [40 + index * 180, 60, 160, 80], summary: '' })),
+  { type: 'relation', id: 'r1', from: 'a', to: 'b', kind: 'relates', label: '' },
+];
+let coreConnectedCases = 0;
+for (const outcome of ['success', 'deny', 'validation-error', 'commit-throw', 'review', 'presentation']) {
+  const surface = new Surface({});
+  const inner = instances.at(-1);
+  const errors = [];
+  const results = [];
+  const observedMirrors = [];
+  let mode = 'setup';
+  const counts = { authorize: 0, requestEdit: 0, commitAttempts: 0, committed: 0, chrome: 0, events: 0 };
+  const recovery = ['review', 'presentation'].includes(outcome)
+    ? createMeaningRecoveryResult({ status: outcome, reason: 'unchanged-reconnect' }) : null;
+  surface.setErrorHandler(error => errors.push(error));
+  const core = createSemanticMapEditorCore({
+    semantic: coreRecords,
+    layout: { selection: { regionIds: ['a'], relationIds: [] }, frame: null },
+    revision: 'r0',
+    ports: {
+      surface: {
+        render: value => surface.render(value),
+        onGesture: handler => surface.onGesture(gesture => {
+          const result = handler(gesture);
+          results.push(structuredClone(result));
+          return result;
+        }),
+        destroy: () => surface.destroy(),
+      },
+      authority: { authorize() {
+        counts.authorize += 1;
+        if (mode !== 'setup') observedMirrors.push(inner.edgesByProjectionKey.get('r1').getTerminal(false).semantic.regionId);
+        return { allowed: mode !== 'deny', code: mode === 'deny' ? 'E_CORE_RECONNECT_DENY' : 'ALLOW' };
+      } },
+      document: {
+        requestEdit({ operation }) {
+          counts.requestEdit += 1;
+          if (mode === 'review' || mode === 'presentation') return { noop: true, result: recovery };
+          if (mode === 'validation-error') return { operations: [operation], validate() { throw new Error('E_CORE_RECONNECT_VALIDATION'); } };
+          return { operations: [operation] };
+        },
+        commit({ expectedRevision }) {
+          counts.commitAttempts += 1;
+          if (mode === 'commit-throw') throw new Error('E_CORE_RECONNECT_COMMIT');
+          counts.committed += 1;
+          return { revision: expectedRevision };
+        },
+        reload: ({ input }) => ({ input }),
+        renderChrome(value) {
+          counts.chrome += 1;
+          surface.render({ scene: { ...scene(), relations: value.records.filter(row => row.type === 'relation') },
+            selection: value.selection });
+        },
+      },
+    },
+  });
+  core.subscribe(() => { counts.events += 1; });
+  surface.render({ scene: scene(), selection: core.snapshot().selection });
+  core.dispatch({ type: 'RenameRegion', regionId: 'a', label: 'First' });
+  core.dispatch({ type: 'RenameRegion', regionId: 'a', label: 'Second' });
+  core.dispatch({ type: 'history.undo' });
+  const before = core.snapshot();
+  assert.equal(before.draft.canRedo, true);
+  for (const key of Object.keys(counts)) counts[key] = 0;
+  mode = outcome;
+  const physical = inner.edgesByProjectionKey.get('r1');
+  physical.to = region('c');
+  inner.graph.fire(events.CELL_CONNECTED, { edge: physical });
+  const after = core.snapshot();
+  assert.deepEqual(observedMirrors, ['b'], 'real authority must see the accepted physical mirror');
+  assert.equal(counts.authorize, 1);
+  assert.equal(counts.requestEdit, outcome === 'deny' ? 0 : 1);
+  assert.equal(counts.commitAttempts, ['success', 'commit-throw'].includes(outcome) ? 1 : 0);
+  assert.equal(counts.committed, outcome === 'success' ? 1 : 0);
+  assert.equal(counts.events, outcome === 'success' ? 1 : 0);
+  assert.equal(counts.chrome, outcome === 'success' ? 1 : 0);
+  assert.equal(physical.getTerminal(false).semantic.regionId, outcome === 'success' ? 'c' : 'b');
+  assert.equal(inner.lastScene.relations[0].to, physical.getTerminal(false).semantic.regionId);
+  assert.deepEqual(physical.semantic.relationIds, ['r1']);
+  assert.deepEqual(after.selection, before.selection);
+  assert.equal(after.idSequence, before.idSequence);
+  const expectedError = { deny: /E_CORE_RECONNECT_DENY/u, 'validation-error': /E_CORE_RECONNECT_VALIDATION/u,
+    'commit-throw': /E_CORE_RECONNECT_COMMIT/u }[outcome];
+  assert.equal(errors.length, expectedError ? 1 : 0);
+  if (expectedError) assert.match(errors[0].message, expectedError);
+  if (outcome === 'success') {
+    assert.equal(after.draft.applied, before.draft.applied + 1);
+    assert.equal(after.draft.canRedo, false);
+    assert.equal(after.records.find(row => row.type === 'relation').to, 'c');
+    assert.equal(core.dispatch({ type: 'history.undo' }), true);
+    assert.equal(physical.getTerminal(false).semantic.regionId, 'b');
+    assert.equal(core.dispatch({ type: 'history.redo' }), true);
+    assert.equal(physical.getTerminal(false).semantic.regionId, 'c');
+  } else {
+    assert.deepEqual(after, before, `${outcome}: document/history/selection/revision/IDs unchanged`);
+    if (recovery) assert.deepEqual(results, [recovery], 'no-op explanation must not be discarded');
+    mode = 'setup';
+    assert.equal(core.dispatch({ type: 'history.redo' }), true, 'rejected reconnect must preserve redo');
+    assert.equal(physical.getTerminal(false).semantic.regionId, 'b');
+  }
+  core.destroy();
+  coreConnectedCases += 1;
+}
+
 console.log(JSON.stringify({ schema: 'semantic-map-surface-gestures-test/1', status: 'PASS',
-  retiredPointerKinds: 3, connectionCases, reconnectCases, editorsIndependent: true, lifecycle: true,
+  retiredPointerKinds: 3, connectionCases, reconnectCases, coreConnectedCases, editorsIndependent: true, lifecycle: true,
   renderer: 'explicit mechanics fixture', formalBrowser: false }));
