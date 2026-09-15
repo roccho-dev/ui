@@ -6,6 +6,7 @@ import {
   parseSemanticMapRecords,
 } from '../domain/index.js';
 import { createWorkspace } from '../editor-core/index.js';
+import { defaultViewForPattern } from '../protocol/index.js';
 
 const records = parseSemanticMapRecords(
   fs.readFileSync(new URL('../examples/example.jsonl', import.meta.url), 'utf8'),
@@ -19,7 +20,11 @@ function surfacePort() {
     port: {
       render(value) {
         if (destroyed) return null;
-        renders.push(structuredClone({ selection: value.selection, activeFrame: value.activeFrame }));
+        renders.push(structuredClone({
+          scene: value.scene ?? null,
+          selection: value.selection,
+          activeFrame: value.activeFrame,
+        }));
         return { kind: 'fake-surface', destroyed: false };
       },
       onGesture(value) {
@@ -107,12 +112,28 @@ const snapshotRecords = core.snapshot().records;
 snapshotRecords.find(row => row.type === 'region' && row.id === 'request').label = 'Snapshot mutation';
 assert.equal(region(core, 'request').label, '1 依頼', 'snapshot records must be detached from core state');
 
+core.dispatch({
+  type: 'presentation.configure',
+  projection: {
+    view: defaultViewForPattern('graph/1'),
+    modules: null,
+    presentation: {
+      camera: { scale: 1, translateX: 0, translateY: 0 },
+      viewport: { x: 0, y: 0, width: 1200, height: 800 },
+    },
+  },
+});
+assert.equal(core.snapshot().scene.pattern, 'graph/1');
+assert.equal(first.surface.renders.at(-1).scene.pattern, 'graph/1');
+assert.deepEqual(first.surface.renders.at(-1).scene, core.snapshot().scene, 'Surface must receive the core-accepted scene');
+
 core.acceptGesture({ type: 'selection.changed', selection: { regionIds: ['request'], relationIds: [] } });
 assert.deepEqual(core.snapshot().selection, { regionIds: ['request'], relationIds: [] });
 
 const renamed = core.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Core-owned rename' });
 assert.deepEqual(renamed.regionIds, ['request']);
 assert.equal(region(core, 'request').label, 'Core-owned rename');
+assert.equal(core.snapshot().scene.representations.find(item => item.regionId === 'request').label, 'Core-owned rename');
 assert.equal(core.snapshot().draft.applied, 1);
 assert.equal(core.dispatch({ type: 'history.undo' }), true);
 assert.equal(region(core, 'request').label, '1 依頼');
@@ -196,6 +217,7 @@ console.log(JSON.stringify({
   hiddenRuntimeAbsent: true,
   hiddenWorkspaceAbsent: true,
   snapshotDetached: true,
+  coreOwnsAcceptedSceneProjection: true,
   authorityDenyAtomic: true,
   commitFailureAtomic: true,
   commitBeforePublish: true,
