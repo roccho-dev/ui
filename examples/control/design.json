@@ -26,7 +26,8 @@
             "idPath": "id",
             "parentPath": "rel.parent",
             "relationKindPath": "rel.kind",
-            "join": {"sourcePath":"/claims","foreignPath":"rel.parent","localPath":"id","as":"report"},
+            "titlePath": "title",
+            "join": {"sourcePath":"/claims","foreignPath":"rel.parent","localPath":"id"},
             "classes": {
               "root":"tree-grid",
               "header":"grid-head",
@@ -43,34 +44,8 @@
               "relationToggle":"relation-toggle"
             },
             "columns": [
-              {
-                "id":"control",
-                "title":"control.jsonl",
-                "meta":"policy · UI / P",
-                "fields":[
-                  {"path":"title","variant":"title","omitIfMissing":true},
-                  {"path":"id","label":"id"},
-                  {"path":"op","label":"op","omitIfMissing":true},
-                  {"path":"state","label":"state","omitIfMissing":true},
-                  {"path":"role","label":"role","omitIfMissing":true},
-                  {"path":"scope","label":"scope","omitIfMissing":true}
-                ],
-                "rest":{"exclude":["title","id","op","state","role","scope","rel","report"]}
-              },
-              {
-                "id":"claims",
-                "title":"claims.jsonl",
-                "meta":{"path":"/summary/claims","prefix":"D reports · "},
-                "fields":[
-                  {"path":"title","variant":"title","omitIfMissing":true},
-                  {"path":"id","label":"id"},
-                  {"path":"report.op","label":"op","missing":"—"},
-                  {"path":"report.state","label":"state","omitIfMissing":true},
-                  {"path":"report.by","label":"by","omitIfMissing":true},
-                  {"path":"report.at","label":"at","omitIfMissing":true}
-                ],
-                "rest":{"path":"report","exclude":["id","op","state","by","at","rel"]}
-              }
+              {"id":"control","title":"control.jsonl","meta":"policy · UI / P","source":"record"},
+              {"id":"claims","title":"claims.jsonl","meta":{"path":"/summary/claims","prefix":"D reports · "},"source":"join","missing":"—"}
             ]
           }
         ]
