@@ -1,0 +1,53 @@
+name: Chart 224 keyboard race proof
+
+on:
+  push:
+    branches: [control/chart224-f2-diagnostic-260915]
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 940de85e3dddbb60ec486f65a442c99c1660e257
+      - name: Apply bounded authoring race fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('packages/semantic-map/authoring/main.js'); s=p.read_text()
+          anchor="""  function addNode() {\n    setTool('select');"""
+          helper="""  function selectCreatedRegion(result) {\n    if (!result?.createdRegionId) return null;\n    render();\n    adapter.selectRegion(result.createdRegionId);\n    return result.createdRegionId;\n  }\n\n  function addNode() {\n    setTool('select');"""
+          assert s.count(anchor)==1; s=s.replace(anchor,helper)
+          pairs=[
+          ("""        if (!result?.createdRegionId) return null;\n        adapter.selectRegion(result.createdRegionId);\n        showToast('actorを追加しました');""","""        if (!selectCreatedRegion(result)) return null;\n        showToast('actorを追加しました');"""),
+          ("""      if (!result?.createdRegionId) return null;\n      adapter.selectRegion(result.createdRegionId);\n      showToast('seq itemを追加しました');""","""      if (!selectCreatedRegion(result)) return null;\n      showToast('seq itemを追加しました');"""),
+          ("""    if (!result?.createdRegionId) return null;\n    adapter.selectRegion(result.createdRegionId);\n    showToast('ノードを追加しました');""","""    if (!selectCreatedRegion(result)) return null;\n    showToast('ノードを追加しました');""")]
+          for old,new in pairs: assert s.count(old)==1; s=s.replace(old,new)
+
+          old="""  let renderQueued = false;\n  let lastScene = null;"""
+          new="""  let renderFrame = null;\n  let lastScene = null;"""
+          assert s.count(old)==1; s=s.replace(old,new)
+          old="""  function render() {\n    renderQueued = false;\n    projector.setDomain(store.domain);"""
+          new="""  function render() {\n    if (renderFrame !== null) {\n      cancelAnimationFrame(renderFrame);\n      renderFrame = null;\n    }\n    projector.setDomain(store.domain);"""
+          assert s.count(old)==1; s=s.replace(old,new)
+          old="""  function queueRender() {\n    if (renderQueued) return;\n    renderQueued = true;\n    requestAnimationFrame(render);\n  }"""
+          new="""  function queueRender() {\n    if (renderFrame !== null) return;\n    renderFrame = requestAnimationFrame(() => {\n      renderFrame = null;\n      render();\n    });\n  }"""
+          assert s.count(old)==1; s=s.replace(old,new)
+          old="""  function undo() {\n    if (store.undo()) showToast('元に戻しました');\n  }\n\n  function redo() {\n    if (store.redo()) showToast('やり直しました');\n  }"""
+          new="""  function undo() {\n    if (!store.undo()) return;\n    render();\n    showToast('元に戻しました');\n  }\n\n  function redo() {\n    if (!store.redo()) return;\n    render();\n    showToast('やり直しました');\n  }"""
+          assert s.count(old)==1; s=s.replace(old,new)
+          p.write_text(s)
+          PY
+          grep -q 'let renderFrame = null' packages/semantic-map/authoring/main.js
+          ! grep -q 'renderQueued' packages/semantic-map/authoring/main.js
+      - name: Real keyboard E2E
+        shell: bash
+        run: |
+          python3 -m pip install --disable-pip-version-check --user 'playwright==1.57.0'
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          test -n "$chrome"
+          export CHROMIUM_EXECUTABLE="$chrome"
+          python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
