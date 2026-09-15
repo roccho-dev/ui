@@ -113,11 +113,33 @@ assert.equal(finalConsumer.exception.expiry, "2026-08-31");
 
 const gestureJoin = byRole("semantic_map_gesture_review_join");
 assert.equal(gestureJoin.path, ".github/workflows/semantic-map-gesture-review-join.yml");
-assert.equal(gestureJoin.entrypoint, "node packages/semantic-map/tests/run.mjs + python3 apps/artifact-shell/tests/unified-runtime-data-browser-proof.py + PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py");
-assert.equal(gestureJoin.source, "packages/semantic-map/tests + apps/artifact-shell/tests/unified-runtime-data-browser-proof.py + packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py");
+assert.match(gestureJoin.entrypoint, /packages\/semantic-map\/tests\/run\.mjs/);
+assert.match(gestureJoin.entrypoint, /maxgraph-keyboard-shortcuts-browser-proof\.py/);
+assert.match(gestureJoin.entrypoint, /chart-publication-browser-proof\.py/);
+assert.match(gestureJoin.source, /chart-publication-browser-proof\.py/);
 assert.equal(gestureJoin.provider, "github-actions");
 assert.equal(gestureJoin.authority, false);
 assert.deepEqual(gestureJoin.dispatch, ["pull_request", "workflow_dispatch"]);
+assert.deepEqual(gestureJoin.pull_request_paths, [
+  "packages/semantic-map/**",
+  "packages/business-model/**",
+  "examples/shared/**",
+  "examples/chart/**",
+  "examples/render.semantic-map.set-topology/**",
+  "apps/artifact-shell/adapters/chart.mjs",
+  "apps/artifact-shell/adapters/graph.mjs",
+  "apps/artifact-shell/adapters/seq.mjs",
+  "apps/artifact-shell/adapters/presentation.mjs",
+  "apps/artifact-shell/publication/build-adapters.mjs",
+  "apps/artifact-shell/tests/feature-data-publication.mjs",
+  "apps/artifact-shell/tests/chart-publication-browser-proof.py",
+  "apps/artifact-shell/tests/unified-runtime-data-browser-proof.py",
+  "apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py",
+  "apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py",
+  "apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py",
+  "apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py",
+  ".github/workflows/semantic-map-gesture-review-join.yml",
+]);
 assert.equal(gestureJoin.generation_mode, "checked_in");
 assert.equal(gestureJoin.workflow_definition, "checked_in");
 assert.equal(gestureJoin.artifact_source, "none");
@@ -224,6 +246,8 @@ assert.match(gestureJoinText, /maxgraph-active-list-browser-proof\.py/);
 assert.match(gestureJoinText, /maxgraph-edge-authoring-browser-proof\.py/);
 assert.match(gestureJoinText, /maxgraph-edge-hit-target-browser-proof\.py/);
 assert.match(gestureJoinText, /maxgraph-keyboard-shortcuts-browser-proof\.py/);
+assert.match(gestureJoinText, /chart-publication-browser-proof\.py/);
+assert.match(gestureJoinText, /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
 
 const stgPreviewText = read(stgPreview.path);
 assert.match(stgPreviewText, /name:\s*"Staging preview for #271"/);
