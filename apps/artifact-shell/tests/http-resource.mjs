@@ -8,7 +8,8 @@ const rejects = async (...args) => { await assert.rejects(...args); assertions +
 
 const jsonl = '{"id":"root","rel":null}\n';
 const calls = [];
-let currentEtag = '"v1"';
+let version = 1;
+let currentEtag = `"v${version}"`;
 const fetch = async (_href, options = {}) => {
   calls.push(options);
   if ((options.method ?? 'GET') === 'GET') {
@@ -24,7 +25,8 @@ const fetch = async (_href, options = {}) => {
   equal(options.headers['If-Match'], currentEtag);
   equal(options.headers['Content-Type'], 'application/x-ndjson');
   equal(options.body, jsonl);
-  currentEtag = '"v2"';
+  version += 1;
+  currentEtag = `"v${version}"`;
   return new Response(JSON.stringify({ ok: true, etag: currentEtag }), {
     status: 200,
     headers: { 'Content-Type': 'application/json', ETag: currentEtag },
@@ -33,8 +35,10 @@ const fetch = async (_href, options = {}) => {
 const resource = createHttpResource({ fetch, href: 'http://127.0.0.1:4173/control.jsonl' });
 equal(await resource.read(), jsonl);
 equal(await resource.put(jsonl), jsonl);
-equal(calls.length, 2);
+equal(await resource.put(jsonl), jsonl);
+equal(calls.length, 3);
 equal(calls[1].method, 'PUT');
+equal(calls[2].method, 'PUT');
 
 const jsonResource = createHttpResource({
   href: 'https://example.invalid/data.json',
