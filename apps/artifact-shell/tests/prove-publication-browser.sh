@@ -34,8 +34,8 @@ done
 sentinel='__nested_chart_data_url_proof__'
 data_url="$(BROWSER_PROOF_BASE="${base%/}" BROWSER_PROOF_SENTINEL="$sentinel" node --input-type=module <<'NODE'
 import fs from 'node:fs';
-import { createUrlModuleUrl } from '../../../packages/url-module/src/codec.mjs';
-const records = fs.readFileSync('../../../examples/chart/bar-horizontal.jsonl', 'utf8')
+import { createUrlModuleUrl } from './packages/url-module/src/codec.mjs';
+const records = fs.readFileSync('./examples/chart/bar-horizontal.jsonl', 'utf8')
   .split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
 const target = records.find(record => record.type === 'region' && record.id === 'product');
 if (!target) throw new Error('bar-horizontal product fixture missing');
