@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self'; base-uri 'none'; object-src 'none'">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="./host.css">
 <title>UI feature</title>
@@ -11,6 +11,57 @@
 <body>
 <main id="feature"></main>
 <pre id="fatal" hidden role="alert"></pre>
+<button class="semantic-id-chip" hidden id="semantic-id-chip" title="Copy stable element ID" type="button"><span class="id-kind" id="semantic-id-kind">ID</span><code id="semantic-id-value"></code><span aria-hidden="true" class="id-copy">⧉</span></button>
+<button aria-controls="handoff-layer" aria-haspopup="dialog" class="handoff-fab" data-state-control disabled id="handoff-fab" type="button"><span aria-hidden="true">AI</span><span>渡す</span><b class="handoff-count" id="handoff-draft-count">0</b></button>
+
+<div class="handoff-layer" hidden id="handoff-layer" role="presentation">
+<section aria-labelledby="handoff-title" aria-modal="true" class="handoff-sheet" role="dialog">
+<div aria-hidden="true" class="handoff-grabber"></div>
+<div class="handoff-head"><div><h2 id="handoff-title">ChatGPTへ渡す</h2><p>完全な #smap URL＋依頼を先にコピーし、現在Sceneの画像は必要時だけ生成します。</p></div><button aria-label="Close" class="handoff-close" id="handoff-close" type="button">×</button></div>
+<div class="handoff-selected"><span>Target</span><code id="handoff-selected-id">current scene</code></div>
+<label for="handoff-request">変更依頼</label>
+<textarea id="handoff-request" placeholder="例: 選択中の要素を右へ移動し、名称を短くして" rows="3"></textarea>
+<div class="handoff-budget"><span class="step">1</span><strong>State URL</strong><output id="handoff-text-size">Preparing</output><span class="step">2</span><strong>Current image</strong><output id="handoff-image-size">On demand</output></div>
+<div class="handoff-copy-actions"><button class="handoff-copy-secondary" disabled id="handoff-copy-text" type="button">① URL＋依頼</button><button class="handoff-copy-secondary" disabled id="handoff-copy-image" type="button">② 画像</button></div>
+<output aria-live="polite" class="handoff-copy-status" id="handoff-copy-status">Preparing transfer…</output>
+<section aria-label="Source export" class="handoff-source">
+<div class="handoff-source-head"><strong>Source</strong><span>現在URLから正規化して出力</span></div>
+<div class="handoff-source-actions"><button class="handoff-copy-secondary" id="handoff-copy-state" type="button">State JSONL</button><button class="handoff-copy-secondary" id="handoff-copy-log" type="button">DecisionLog</button><button class="handoff-copy-secondary" id="handoff-copy-envelope" type="button">Envelope JSON</button></div>
+<output aria-live="polite" class="handoff-source-status" id="handoff-source-status">承認済みState・全履歴・共有Envelopeを選べます。</output>
+</section>
+<p class="handoff-note">Androidでclipboard履歴が1件だけなら、①を貼付後、この画面へ戻って②を使います。画像生成に失敗しても①とSourceは利用できます。</p>
+</section>
+</div>
+
+<div class="review-layer" hidden id="review-layer" role="presentation">
+<section aria-labelledby="review-title" aria-modal="true" class="review-sheet" role="dialog">
+<div aria-hidden="true" class="review-grabber"></div>
+<div class="review-head"><div><h2 id="review-title">変更を確認</h2><p>Proposalを検査し、AcceptまでDecisionLogを変更しません。</p></div><button aria-label="Close" class="review-close" id="review-close" type="button">×</button></div>
+<output class="review-source" id="review-source">Waiting for Proposal</output>
+<output class="review-delivery" data-kind="info" id="review-delivery">Delivery not planned</output>
+<output aria-live="polite" class="review-status" id="review-status">#smap URLまたはLocal DraftからProposalを受け取ります。</output>
+<div class="review-preview" hidden id="review-preview-panel">
+<div class="review-summary"><output class="review-base-label" id="review-base-label">Base</output><output class="review-delta-summary" id="review-delta-summary">No semantic delta</output></div>
+<div class="review-legend" aria-label="Proposal graph diff legend"><span data-review-status="added">＋ Added</span><span data-review-status="removed">− Removed</span><span data-review-status="changed">Δ Changed</span></div>
+<div class="review-identities">
+<div class="review-hash"><span>Base head</span><code id="review-base-head"></code></div>
+<div class="review-hash"><span>Proposal parent</span><code id="review-proposal-parent"></code></div>
+<div class="review-hash"><span>Proposal ID</span><code id="review-proposal-id"></code></div>
+<div class="review-hash"><span>Proposal digest</span><code id="review-proposal-digest"></code></div>
+<div class="review-hash"><span>Base state</span><code id="review-before-hash"></code></div>
+<div class="review-hash"><span>After state</span><code id="review-after-hash"></code></div>
+</div>
+<div class="review-rationale"><span>Reason</span><p id="review-reason">Not supplied</p></div>
+<div class="review-rationale" hidden id="review-assessment-wrap"><span>Assessment · proposal only</span><p id="review-assessment"></p></div>
+<ul class="review-source-refs" hidden id="review-source-refs"></ul>
+<ol class="review-diff" id="review-diff"></ol>
+<div class="review-urls"><div class="review-url"><span>Before URL</span><code id="review-before-url"></code></div><div class="review-url"><span>After URL</span><code id="review-after-url"></code></div></div>
+<div class="review-actions"><button class="review-primary review-accept" disabled id="review-accept" type="button">Accept</button><button class="review-secondary review-reject" disabled id="review-reject" type="button">Reject</button></div>
+<div class="review-copy-actions"><button class="review-secondary" disabled id="review-copy-before" type="button">Before URL</button><button class="review-secondary" disabled id="review-copy-after" type="button">After URL</button></div>
+</div>
+</section>
+</div>
+
 <script type="module" src="./host.mjs"></script>
 </body>
 </html>

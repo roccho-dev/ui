@@ -69,6 +69,7 @@ export const mountSemanticMapSurface = async ({
   store,
   mode = 'view',
   view: initialView = null,
+  modules = null,
 }) => {
   invariant(root?.replaceChildren, 'root is required');
   invariant(store?.domain, 'store is required');
@@ -80,6 +81,7 @@ export const mountSemanticMapSurface = async ({
   surface.className = 'semantic-map-feature';
   surface.dataset.feature = featureId;
   const canvas = document.createElement('div');
+  canvas.id = 'graph-container';
   canvas.className = 'semantic-map-feature-canvas';
   surface.append(canvas);
 
@@ -106,17 +108,19 @@ export const mountSemanticMapSurface = async ({
   const adapter = mode === 'authoring' ? createSemanticAuthoring(canvas) : createViewAdapter(canvas);
   let scene = null;
   let renderQueued = false;
+  let activeModules = modules;
   let activeDirection = featureId === 'graph'
     ? graphDirection(layoutMode, Math.max(1, surface.clientWidth))
     : null;
 
-  const project = () => {
-    const presentationProjection = activeDirection
-      ? graphPresentationProjection(store.domain, activeDirection)
+  const projectDomain = (domain, candidateView = view, resolvedModules = activeModules) => {
+    const presentationProjection = featureId === 'graph' && candidateView.pattern === 'graph/1'
+      ? graphPresentationProjection(domain, activeDirection)
       : null;
-    const projector = new SemanticProjector(store.domain, null, view, { presentationProjection });
+    const projector = new SemanticProjector(domain, resolvedModules, candidateView, { presentationProjection });
     return projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
   };
+  const project = () => projectDomain(store.domain, view, activeModules);
   const render = () => {
     renderQueued = false;
     scene = project();
@@ -127,6 +131,10 @@ export const mountSemanticMapSurface = async ({
     if (renderQueued) return;
     renderQueued = true;
     scope.requestAnimationFrame(render);
+  };
+  const setModules = next => {
+    activeModules = next;
+    return render();
   };
   const updateControls = () => {
     if (!buttons) return;
@@ -207,6 +215,7 @@ export const mountSemanticMapSurface = async ({
     canvas,
     fit: renderAndFit,
     pattern: view.pattern,
+    projectDomain,
     queueRender,
     read: () => Object.freeze({
       camera: adapter.camera(),
@@ -215,6 +224,7 @@ export const mountSemanticMapSurface = async ({
       selection: adapter.selectionSnapshot(),
     }),
     scene: () => scene,
+    setModules,
     setView,
     get view() { return view; },
   });
