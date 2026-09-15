@@ -74,6 +74,8 @@ class EditorCoreState extends DomainStateStore {
     this.destroyed = false;
     this.transactionDepth = 0;
     this.pendingDomainEvents = [];
+    this.transactionSnapshot = null;
+    this.displayFailures = [];
     this.removeSurfaceGesture = this.surface.onGesture((gesture) => this.acceptGesture(gesture));
     invariant(typeof this.removeSurfaceGesture === 'function', 'SurfacePort.onGesture must return an unsubscribe function');
     this.renderSurface();
@@ -90,6 +92,8 @@ class EditorCoreState extends DomainStateStore {
 
   beginTransaction() {
     invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
+    // This temporary value is a read projection, not a second editable store.
+    this.transactionSnapshot = this.readSnapshot();
     this.transactionDepth = 1;
     this.pendingDomainEvents = [];
   }
@@ -97,18 +101,62 @@ class EditorCoreState extends DomainStateStore {
   rollbackTransaction(session) {
     this.restoreSession(session);
     this.pendingDomainEvents = [];
+    this.transactionSnapshot = null;
     this.transactionDepth = 0;
   }
 
-  finishTransaction(kind, detail = {}) {
+  transaction(kind, intent, prepare, { render = true } = {}) {
+    invariant(!this.destroyed, 'core is destroyed');
+    invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
+    const session = this.snapshotSession();
+    const beforeRevision = structuredClone(this.revision);
+    let authority;
+    let outcome;
+    this.beginTransaction();
+    try {
+      // Hold the boundary before the first Authority/Document callback,
+      // including for ordinary edits and undo/redo, not only replacement.
+      authority = intent === null ? null : this.authorize(intent);
+      outcome = prepare(authority, beforeRevision);
+      if (outcome.changed === false) {
+        this.rollbackTransaction(session);
+        return structuredClone(outcome.result);
+      }
+      if (authority !== null) {
+        this.commitDocument({ authority, operations: outcome.operations, batch: outcome.batch, beforeRevision });
+      }
+    } catch (error) {
+      this.rollbackTransaction(session);
+      throw error;
+    }
+    // Commit is complete. Display failures must never become a rollback signal.
+    this.finishTransaction(kind, { ...outcome.detail, ...(authority === null ? {} : { authority }) }, { render });
+    return structuredClone(outcome.result);
+  }
+
+  finishTransaction(kind, detail = {}, { render = true } = {}) {
     invariant(this.transactionDepth === 1, 'mutation transaction is not active');
     const domainEvents = this.pendingDomainEvents;
     this.pendingDomainEvents = [];
-    this.transactionDepth = 0;
-    for (const event of domainEvents) super.notify(event);
-    this.renderSurface();
-    this.documentPort.renderChrome(this.snapshot());
-    this.publish(kind, detail);
+    this.transactionSnapshot = this.readSnapshot();
+    const display = (phase, callback) => {
+      this.displayFailures = this.displayFailures.filter(failure => failure.phase !== phase);
+      try { synchronous(callback(), phase); } catch (error) {
+        this.displayFailures.push({ code: 'E_EDITOR_DISPLAY', phase, message: String(error?.message ?? error) });
+      }
+      this.transactionSnapshot = this.readSnapshot();
+    };
+    try {
+      // Keep the accepted snapshot and operation lock until every observer has
+      // received this cut. No subscriber can insert another edit into the event.
+      for (const event of domainEvents) super.notify(Object.freeze(structuredClone(event)));
+      if (render) display('SurfacePort.render', () => this.renderSurface());
+      display('DocumentPort.renderChrome', () => this.documentPort.renderChrome(this.snapshot()));
+      this.publish(kind, detail, true);
+    } finally {
+      this.transactionSnapshot = null;
+      this.transactionDepth = 0;
+    }
   }
 
   stateHash() {
@@ -120,10 +168,10 @@ class EditorCoreState extends DomainStateStore {
     }))}`;
   }
 
-  publish(kind, detail = {}) {
-    if (this.destroyed || this.transactionDepth > 0) return;
+  publish(kind, detail = {}, committed = false) {
+    if (this.destroyed || (this.transactionDepth > 0 && !committed)) return;
     const event = { kind, core: this.snapshot(), ...detail };
-    for (const listener of this.coreListeners) {
+    for (const listener of [...this.coreListeners]) {
       try { listener(Object.freeze(structuredClone(event))); } catch (error) { console.error(error); }
     }
   }
@@ -170,27 +218,29 @@ class EditorCoreState extends DomainStateStore {
     return this.selection;
   }
 
-  setSelection(input, { render = true, origin = 'core' } = {}) {
-    invariant(!this.destroyed, 'core is destroyed');
+  setSelection(input) {
     const requested = normalizeSelection(input);
     const validRegions = requested.regionIds.filter((id) => this.domain.regions.has(id));
     const validRelations = requested.relationIds.filter((id) => relationIds(this.domain).has(id));
-    const next = normalizeSelection({ regionIds: validRegions, relationIds: validRelations });
-    if (sameSelection(this.selection, next)) return this.selection;
-    this.selection = next;
-    if (render && this.transactionDepth === 0) this.renderSurface();
-    this.publish('selection', { selection: next, origin });
-    return next;
+    this.selection = normalizeSelection({ regionIds: validRegions, relationIds: validRelations });
+    return this.selection;
+  }
+
+  changeSelection(input, origin = 'core') {
+    return this.transaction('selection', null, () => {
+      const previous = this.selection;
+      const next = this.setSelection(input);
+      return { changed: !sameSelection(previous, next), result: next, detail: { selection: next, origin } };
+    }, { render: origin !== 'surface' });
   }
 
   setFrame(frame) {
-    invariant(!this.destroyed, 'core is destroyed');
-    const next = cloneFrame(frame);
-    if (JSON.stringify(this.frame) === JSON.stringify(next)) return cloneFrame(this.frame);
-    this.frame = next;
-    if (this.transactionDepth === 0) this.renderSurface();
-    this.publish('frame', { frame: cloneFrame(this.frame) });
-    return cloneFrame(this.frame);
+    return this.transaction('frame', null, () => {
+      const next = cloneFrame(frame);
+      const changed = JSON.stringify(this.frame) !== JSON.stringify(next);
+      this.frame = next;
+      return { changed, result: next, detail: { frame: next } };
+    });
   }
 
   pruneSelection() {
@@ -278,21 +328,18 @@ class EditorCoreState extends DomainStateStore {
 
     if (command.type === 'history.undo') return this.applyHistory('undo');
     if (command.type === 'history.redo') return this.applyHistory('redo');
-    if (command.type === 'selection.set') return this.setSelection(command.selection);
+    if (command.type === 'selection.set') return this.changeSelection(command.selection);
     if (command.type === 'frame.set') return this.setFrame(command.frame);
+    if (command.type === 'presentation.refresh') {
+      this.transaction('presentation', null, () => ({ result: null, detail: { retry: true } }));
+      return this.snapshot();
+    }
 
     const initial = this.prepareOperation(command);
-    const authority = this.authorize(initial.operation);
-    const plan = this.editPlan(initial.operation, authority);
-    if (plan.noop) return structuredClone(plan.result);
-
-    const session = this.snapshotSession();
-    const beforeRevision = this.revision;
-    let batch;
-    let result;
-    this.beginTransaction();
-    try {
-      batch = super.performBatch(
+    return this.transaction('mutation', initial.operation, (authority, beforeRevision) => {
+      const plan = this.editPlan(initial.operation, authority);
+      if (plan.noop) return { changed: false, result: plan.result };
+      const batch = super.performBatch(
         plan.operations,
         plan.validate === null
           ? null
@@ -305,57 +352,32 @@ class EditorCoreState extends DomainStateStore {
       this.idSequence = plan.nextSequence;
       const last = batch.results.at(-1) ?? null;
       if (last?.createdRegionId) {
-        this.setSelection({ regionIds: [last.createdRegionId], relationIds: [] }, { render: false });
+        this.setSelection({ regionIds: [last.createdRegionId], relationIds: [] });
       } else if (last?.createdRelationId) {
-        this.setSelection({ regionIds: [], relationIds: [last.createdRelationId] }, { render: false });
+        this.setSelection({ regionIds: [], relationIds: [last.createdRelationId] });
       } else {
         this.pruneSelection();
       }
-      this.commitDocument({
-        authority,
-        operations: plan.operations,
-        batch,
-        beforeRevision,
-      });
-      result = batch.results.length === 1
+      const result = batch.results.length === 1
         ? batch.results[0]
-        : Object.freeze({ operations: plan.operations, results: batch.results });
-    } catch (error) {
-      this.rollbackTransaction(session);
-      throw error;
-    }
-    this.finishTransaction('mutation', { operations: plan.operations, result, authority });
-    return structuredClone(result);
+        : { operations: plan.operations, results: batch.results };
+      return { operations: plan.operations, batch, result, detail: { operations: plan.operations, result } };
+    });
   }
 
   applyHistory(direction) {
     const intent = Object.freeze({ type: direction === 'undo' ? 'history.undo' : 'history.redo' });
-    const authority = this.authorize(intent);
-    const session = this.snapshotSession();
-    const beforeRevision = this.revision;
-    let changed;
-    this.beginTransaction();
-    try {
-      changed = direction === 'undo' ? super.undo() : super.redo();
-      if (!changed) {
-        this.rollbackTransaction(session);
-        return false;
-      }
-      const operation = Object.freeze({ type: intent.type });
-      const batch = Object.freeze({ results: Object.freeze([Object.freeze({ changed: true })]) });
-      this.commitDocument({
-        authority,
-        operations: Object.freeze([operation]),
-        batch,
-        beforeRevision,
-      });
+    return this.transaction('history', intent, () => {
+      const changed = direction === 'undo' ? super.undo() : super.redo();
+      if (!changed) return { changed: false, result: false };
       this.pruneSelection();
-    } catch (error) {
-      this.rollbackTransaction(session);
-      throw error;
-    }
-    this.finishTransaction('history', { direction, authority });
-    return true;
+      return {
+        operations: [intent],
+        batch: { results: [{ changed: true }] },
+        result: true,
+        detail: { direction },
+      };
+    });
   }
 
   acceptGesture(gesture) {
@@ -365,13 +387,15 @@ class EditorCoreState extends DomainStateStore {
     switch (gesture.type) {
       case 'selection.changed':
       case 'selection-changed':
-        return this.setSelection(gesture.selection, { render: false, origin: 'surface' });
+        return this.changeSelection(gesture.selection, 'surface');
       case 'camera.changed':
-        this.publish('presentation', { presentation: structuredClone(gesture.presentation ?? null) });
-        return null;
+        return this.transaction('presentation', null, () => ({
+          result: null, detail: { presentation: structuredClone(gesture.presentation ?? null) },
+        }), { render: false });
       case 'activation.requested':
-        this.publish('activation', { activation: structuredClone(gesture.activation ?? null) });
-        return null;
+        return this.transaction('activation', null, () => ({
+          result: null, detail: { activation: structuredClone(gesture.activation ?? null) },
+        }), { render: false });
       default:
         return this.dispatch(gestureToOperation(gesture));
     }
@@ -385,16 +409,7 @@ class EditorCoreState extends DomainStateStore {
   }
 
   replaceInput(input) {
-    invariant(!this.destroyed, 'core is destroyed');
-    invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
-    const session = this.snapshotSession();
-    const beforeRevision = this.revision;
-    let authority;
-    this.beginTransaction();
-    try {
-      // A full replacement is an edit, including when it originates in handoff.
-      // Authorize the accepted state before calling either document callback.
-      authority = this.authorize({ type: 'document.replace' });
+    this.transaction('replace', { type: 'document.replace' }, (authority, beforeRevision) => {
       const reloaded = synchronous(this.documentPort.reload(Object.freeze({
         input: structuredClone(input),
         expectedRevision: beforeRevision,
@@ -409,19 +424,9 @@ class EditorCoreState extends DomainStateStore {
       this.idSequence = initialSequence(this.domain);
       this.selection = normalizeSelection(workspace?.layout.selection ?? {});
       this.frame = cloneFrame(workspace?.layout.frame ?? null);
-      // Reload's revision never replaces the compare-and-swap precondition.
-      // The commit result alone advances the accepted revision.
-      this.commitDocument({
-        authority,
-        operations: Object.freeze([]),
-        batch: Object.freeze({ results: Object.freeze([]) }),
-        beforeRevision,
-      });
-    } catch (error) {
-      this.rollbackTransaction(session);
-      throw error;
-    }
-    this.finishTransaction('replace', { revision: this.revision, authority });
+      // Only commit advances revision. Reload cannot rewrite the CAS base.
+      return { operations: [], batch: { results: [] }, result: null };
+    });
     return this.snapshot();
   }
 
@@ -448,8 +453,12 @@ class EditorCoreState extends DomainStateStore {
   }
 
   snapshot() {
-    // Renderer telemetry is delivered as a gesture, never read from a fourth
-    // SurfacePort capability. Every returned value is detached from the owner.
+    return this.transactionSnapshot === null
+      ? this.readSnapshot()
+      : Object.freeze(structuredClone(this.transactionSnapshot));
+  }
+
+  readSnapshot() {
     return Object.freeze(structuredClone({
       selection: this.selection,
       frame: this.frame,
@@ -464,6 +473,7 @@ class EditorCoreState extends DomainStateStore {
       idSequence: this.idSequence,
       revision: this.revision,
       stateHash: this.stateHash(),
+      display: { status: this.displayFailures.length ? 'error' : 'ready', failures: this.displayFailures },
     }));
   }
 
