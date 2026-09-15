@@ -1,1 +1,129 @@
 {"id":"/root","op":"document","schema":3,"state":"active","rel":null,"title":"AGENTS-derived scale example"}
+{"id":"policy","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"Policy / P boundary"}
+{"id":"policy.001","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 001"}
+{"id":"policy.002","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 002"}
+{"id":"policy.003","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 003"}
+{"id":"policy.004","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 004"}
+{"id":"policy.005","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 005"}
+{"id":"policy.006","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 006"}
+{"id":"policy.007","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 007"}
+{"id":"policy.008","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 008"}
+{"id":"policy.009","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 009"}
+{"id":"policy.010","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 010"}
+{"id":"policy.011","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 011"}
+{"id":"policy.012","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 012"}
+{"id":"policy.013","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 013"}
+{"id":"policy.014","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 014"}
+{"id":"policy.015","state":"active","rel":{"parent":"policy","kind":"details"},"title":"Policy / P boundary item 015"}
+{"id":"d","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"D operations"}
+{"id":"d.001","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 001"}
+{"id":"d.002","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 002"}
+{"id":"d.003","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 003"}
+{"id":"d.004","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 004"}
+{"id":"d.005","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 005"}
+{"id":"d.006","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 006"}
+{"id":"d.007","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 007"}
+{"id":"d.008","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 008"}
+{"id":"d.009","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 009"}
+{"id":"d.010","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 010"}
+{"id":"d.011","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 011"}
+{"id":"d.012","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 012"}
+{"id":"d.013","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 013"}
+{"id":"d.014","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 014"}
+{"id":"d.015","state":"active","rel":{"parent":"d","kind":"details"},"title":"D operations item 015"}
+{"id":"ui","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"UI work"}
+{"id":"ui.001","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 001"}
+{"id":"ui.002","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 002"}
+{"id":"ui.003","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 003"}
+{"id":"ui.004","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 004"}
+{"id":"ui.005","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 005"}
+{"id":"ui.006","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 006"}
+{"id":"ui.007","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 007"}
+{"id":"ui.008","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 008"}
+{"id":"ui.009","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 009"}
+{"id":"ui.010","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 010"}
+{"id":"ui.011","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 011"}
+{"id":"ui.012","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 012"}
+{"id":"ui.013","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 013"}
+{"id":"ui.014","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 014"}
+{"id":"ui.015","state":"active","rel":{"parent":"ui","kind":"details"},"title":"UI work item 015"}
+{"id":"ops","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"OPS work"}
+{"id":"ops.001","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 001"}
+{"id":"ops.002","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 002"}
+{"id":"ops.003","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 003"}
+{"id":"ops.004","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 004"}
+{"id":"ops.005","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 005"}
+{"id":"ops.006","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 006"}
+{"id":"ops.007","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 007"}
+{"id":"ops.008","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 008"}
+{"id":"ops.009","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 009"}
+{"id":"ops.010","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 010"}
+{"id":"ops.011","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 011"}
+{"id":"ops.012","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 012"}
+{"id":"ops.013","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 013"}
+{"id":"ops.014","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 014"}
+{"id":"ops.015","state":"active","rel":{"parent":"ops","kind":"details"},"title":"OPS work item 015"}
+{"id":"review-ui-publish","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"Review UI publish"}
+{"id":"review-ui-publish.001","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 001"}
+{"id":"review-ui-publish.002","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 002"}
+{"id":"review-ui-publish.003","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 003"}
+{"id":"review-ui-publish.004","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 004"}
+{"id":"review-ui-publish.005","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 005"}
+{"id":"review-ui-publish.006","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 006"}
+{"id":"review-ui-publish.007","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 007"}
+{"id":"review-ui-publish.008","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 008"}
+{"id":"review-ui-publish.009","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 009"}
+{"id":"review-ui-publish.010","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 010"}
+{"id":"review-ui-publish.011","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 011"}
+{"id":"review-ui-publish.012","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 012"}
+{"id":"review-ui-publish.013","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 013"}
+{"id":"review-ui-publish.014","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 014"}
+{"id":"review-ui-publish.015","state":"active","rel":{"parent":"review-ui-publish","kind":"details"},"title":"Review UI publish item 015"}
+{"id":"app","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"Application"}
+{"id":"app.001","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 001"}
+{"id":"app.002","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 002"}
+{"id":"app.003","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 003"}
+{"id":"app.004","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 004"}
+{"id":"app.005","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 005"}
+{"id":"app.006","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 006"}
+{"id":"app.007","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 007"}
+{"id":"app.008","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 008"}
+{"id":"app.009","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 009"}
+{"id":"app.010","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 010"}
+{"id":"app.011","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 011"}
+{"id":"app.012","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 012"}
+{"id":"app.013","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 013"}
+{"id":"app.014","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 014"}
+{"id":"app.015","state":"active","rel":{"parent":"app","kind":"details"},"title":"Application item 015"}
+{"id":"release","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"Release"}
+{"id":"release.001","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 001"}
+{"id":"release.002","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 002"}
+{"id":"release.003","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 003"}
+{"id":"release.004","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 004"}
+{"id":"release.005","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 005"}
+{"id":"release.006","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 006"}
+{"id":"release.007","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 007"}
+{"id":"release.008","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 008"}
+{"id":"release.009","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 009"}
+{"id":"release.010","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 010"}
+{"id":"release.011","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 011"}
+{"id":"release.012","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 012"}
+{"id":"release.013","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 013"}
+{"id":"release.014","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 014"}
+{"id":"release.015","state":"active","rel":{"parent":"release","kind":"details"},"title":"Release item 015"}
+{"id":"evidence","state":"active","rel":{"parent":"/root","kind":"contains"},"title":"Evidence / continuity"}
+{"id":"evidence.001","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 001"}
+{"id":"evidence.002","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 002"}
+{"id":"evidence.003","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 003"}
+{"id":"evidence.004","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 004"}
+{"id":"evidence.005","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 005"}
+{"id":"evidence.006","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 006"}
+{"id":"evidence.007","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 007"}
+{"id":"evidence.008","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 008"}
+{"id":"evidence.009","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 009"}
+{"id":"evidence.010","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 010"}
+{"id":"evidence.011","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 011"}
+{"id":"evidence.012","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 012"}
+{"id":"evidence.013","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 013"}
+{"id":"evidence.014","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 014"}
+{"id":"evidence.015","state":"active","rel":{"parent":"evidence","kind":"details"},"title":"Evidence / continuity item 015"}
