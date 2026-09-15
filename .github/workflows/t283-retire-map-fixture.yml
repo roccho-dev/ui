@@ -1,0 +1,55 @@
+name: T283 retire map URL fixture
+
+on:
+  push:
+    branches:
+      - fix/retire-smap-t283
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/retire-smap-t283
+          token: ${{ github.token }}
+      - name: Replace retired map fixture with canonical map state
+        run: |
+          set -euxo pipefail
+          node --input-type=module -e 'import fs from "node:fs"; import { parseSemanticMapRecords } from "./packages/semantic-map/domain/index.js"; import { createDecisionLog } from "./packages/semantic-map/protocol/index.js"; const p="apps/artifact-shell/capabilities/render-semantic-map/fixtures/map.pass.json"; const fixture=JSON.parse(fs.readFileSync(p,"utf8")); const records=parseSemanticMapRecords(fs.readFileSync("examples/map/example.jsonl","utf8")); const created=await createDecisionLog(records,"urn:uuid:00000000-0000-4000-8000-000000000002"); fixture.request.inputs[0].source.value={schema:"semantic-map-envelope/3",log:created.log,proposal:null,view:{pattern:"map/1"}}; fs.writeFileSync(p,JSON.stringify(fixture,null,2)+"\n");'
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/semantic-map/tests/transport_retirement_test.mjs')
+          s = p.read_text()
+          old = "  'apps/artifact-shell/tests',\n"
+          new = "  'apps/artifact-shell/tests',\n  'apps/artifact-shell/capabilities/render-semantic-map',\n"
+          if old not in s:
+              raise SystemExit('retirement root anchor missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Prove retirement gate
+        run: node packages/semantic-map/tests/transport_retirement_test.mjs
+      - name: Install browser proof tooling
+        run: |
+          python3 -m pip install --disable-pip-version-check --no-cache-dir 'playwright==1.57.0'
+          python3 -m playwright install --with-deps chromium
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
+          PY
+      - name: Prove active list
+        run: python3 apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
+      - name: Commit proven fix
+        run: |
+          set -euxo pipefail
+          rm .github/workflows/t283-retire-map-fixture.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'fix: retire artifact-shell semantic URL map fixture'
+          git push origin HEAD:fix/retire-smap-t283
