@@ -5,6 +5,7 @@ import {
   createSemanticMapEditorCore,
   parseSemanticMapRecords,
 } from '../domain/index.js';
+import { createWorkspace } from '../editor-core/index.js';
 
 const records = parseSemanticMapRecords(
   fs.readFileSync(new URL('../examples/example.jsonl', import.meta.url), 'utf8'),
@@ -92,13 +93,26 @@ function createHarness({ allowed = true } = {}) {
   return { authority, core, document, surface };
 }
 
+function region(core, id) {
+  return core.snapshot().records.find(row => row.type === 'region' && row.id === id) ?? null;
+}
+
 const first = createHarness();
 const { core } = first;
 
 assert.equal(core.perform, undefined);
 assert.equal(core.execute, undefined);
 assert.equal(core.setMutationPort, undefined);
+assert.equal(core.workspace, undefined);
+assert.equal(core.runtime.restoreSession, undefined);
+assert.equal(core.runtime.replaceRecords, undefined);
+assert.equal(core.runtime.clearDraft, undefined);
+assert.equal(core.runtime.snapshotSession, undefined);
 assert.deepEqual(core.snapshot().selection, { regionIds: [], relationIds: [] });
+
+const detachedDomain = core.runtime.domain;
+detachedDomain.regions.get('request').label = 'Detached mutation';
+assert.equal(region(core, 'request').label, '1 依頼', 'runtime domain must be a detached read model');
 
 core.acceptGesture({
   type: 'selection.changed',
@@ -108,12 +122,12 @@ assert.deepEqual(core.snapshot().selection, { regionIds: ['request'], relationId
 
 const renamed = core.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Core-owned rename' });
 assert.deepEqual(renamed.regionIds, ['request']);
-assert.equal(core.runtime.domain.regions.get('request').label, 'Core-owned rename');
+assert.equal(region(core, 'request').label, 'Core-owned rename');
 assert.equal(core.snapshot().draft.applied, 1);
 assert.equal(core.dispatch({ type: 'history.undo' }), true);
-assert.equal(core.runtime.domain.regions.get('request').label, '1 依頼');
+assert.equal(region(core, 'request').label, '1 依頼');
 assert.equal(core.dispatch({ type: 'history.redo' }), true);
-assert.equal(core.runtime.domain.regions.get('request').label, 'Core-owned rename');
+assert.equal(region(core, 'request').label, 'Core-owned rename');
 
 const created = core.dispatch({
   type: 'AddRegion',
@@ -139,7 +153,7 @@ assert.throws(() => core.dispatch({
 }), /E_DENIED/u);
 assert.equal(core.snapshot().idSequence, sequenceBeforeDeny);
 assert.equal(core.snapshot().draft.applied, historyBeforeDeny);
-assert.equal(core.runtime.domain.regions.has('region.core-2'), false);
+assert.equal(region(core, 'region.core-2'), null);
 
 first.authority.allowed = true;
 const retried = core.dispatch({
@@ -152,10 +166,14 @@ const retried = core.dispatch({
 });
 assert.equal(retried.createdRegionId, 'region.core-2');
 
-const workspace = core.workspace();
+const firstSnapshot = core.snapshot();
+const workspace = createWorkspace(firstSnapshot.records, {
+  selection: firstSnapshot.selection,
+  frame: firstSnapshot.frame,
+});
 const second = createHarness();
 second.core.replaceInput(workspace);
-assert.equal(second.core.runtime.domain.regions.has('region.core-2'), true);
+assert.ok(region(second.core, 'region.core-2'));
 assert.deepEqual(second.core.snapshot().selection, core.snapshot().selection);
 
 const beforeSecondSelection = second.core.snapshot().selection;
@@ -167,10 +185,9 @@ assert.deepEqual(second.core.snapshot().selection, beforeSecondSelection, 'edito
 
 const failed = createHarness();
 let coreEvents = 0;
-let domainEvents = 0;
+let runtimeEvents = 0;
 failed.core.subscribe(() => { coreEvents += 1; });
-failed.core.runtime.onChange(() => { domainEvents += 1; });
-const beforeFailedWorkspace = structuredClone(failed.core.workspace());
+failed.core.runtime.onChange(() => { runtimeEvents += 1; });
 const beforeFailedSnapshot = structuredClone(failed.core.snapshot());
 const rendersBeforeFailure = failed.surface.renders.length;
 const chromeBeforeFailure = failed.document.chrome.length;
@@ -183,13 +200,12 @@ assert.throws(() => failed.core.dispatch({
   summary: '',
   bounds: [40, 610, 150, 72],
 }), /test document commit failed/u);
-assert.deepEqual(failed.core.workspace(), beforeFailedWorkspace);
 assert.deepEqual(failed.core.snapshot(), beforeFailedSnapshot);
 assert.equal(failed.surface.renders.length, rendersBeforeFailure);
 assert.equal(failed.document.chrome.length, chromeBeforeFailure);
 assert.equal(coreEvents, 0);
-assert.equal(domainEvents, 0);
-assert.equal(failed.core.runtime.domain.regions.has('region.core-1'), false);
+assert.equal(runtimeEvents, 0);
+assert.equal(region(failed.core, 'region.core-1'), null);
 
 failed.document.setFailCommit(false);
 const afterFailure = failed.core.dispatch({
@@ -204,7 +220,7 @@ assert.equal(afterFailure.createdRegionId, 'region.core-1', 'failed commit must 
 assert.equal(failed.surface.renders.length, rendersBeforeFailure + 1);
 assert.equal(failed.document.chrome.length, chromeBeforeFailure + 1);
 assert.equal(coreEvents, 1, 'successful commit publishes one core event');
-assert.equal(domainEvents, 1, 'successful commit publishes one domain event');
+assert.equal(runtimeEvents, 1, 'read-only compatibility subscribers receive one committed event');
 
 assert.equal(core.destroy(), true);
 assert.equal(core.destroy(), false);
@@ -221,13 +237,15 @@ assert.equal(remounted.core.dispatch({
   regionId: 'request',
   label: 'Remounted',
 }).regionIds[0], 'request');
-assert.equal(remounted.core.runtime.domain.regions.get('request').label, 'Remounted');
+assert.equal(region(remounted.core, 'request').label, 'Remounted');
 
 console.log(JSON.stringify({
   schema: 'semantic-map-editor-core-test/3',
   status: 'PASS',
   publicFactory: true,
   rawMutationBypassAbsent: true,
+  readOnlyRuntimeCompatibility: true,
+  hiddenWorkspaceAbsent: true,
   authorityDenyAtomic: true,
   commitFailureAtomic: true,
   commitBeforePublish: true,
