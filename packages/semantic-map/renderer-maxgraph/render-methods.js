@@ -3,6 +3,7 @@ import { displayedRegionLabel, displayedRelationLabel } from './labels.js';
 import { appendReviewOverlay, assertReviewOverlay } from './review-overlay.js';
 import { edgeStyle, vertexStyle } from './styles.js';
 import { paletteFor, styleScaleFor } from './theme.js';
+import Point from '../vendor/maxgraph/view/geometry/Point.js';
 
 function geometryEquals(geometry, bounds) {
   return geometry
@@ -14,6 +15,24 @@ function geometryEquals(geometry, bounds) {
 
 function relationProjectionKey(relation) {
   return `${relation.relationIds.join(',')}@${relation.from}->${relation.to}:${relation.kind}`;
+}
+
+function applySelfLoopGeometry(edge, source, relation, model) {
+  if (relation.from !== relation.to) return;
+  const sourceGeometry = source.getGeometry();
+  const edgeGeometry = edge.getGeometry();
+  if (!sourceGeometry || !edgeGeometry) return;
+  const offset = Math.max(48, sourceGeometry.width * 0.3);
+  const points = [
+    new Point(sourceGeometry.x + sourceGeometry.width + offset, sourceGeometry.y + sourceGeometry.height / 2),
+    new Point(sourceGeometry.x + sourceGeometry.width + offset, sourceGeometry.y - offset),
+    new Point(sourceGeometry.x + sourceGeometry.width / 2, sourceGeometry.y - offset),
+  ];
+  const current = edgeGeometry.points ?? [];
+  if (current.length === points.length && current.every((point, index) => point.x === points[index].x && point.y === points[index].y)) return;
+  const next = edgeGeometry.clone();
+  next.points = points;
+  model.setGeometry(edge, next);
 }
 
 function renderOverlays(scene = this.lastScene) {
@@ -228,6 +247,7 @@ function render(scene) {
     this.surfaceCompositionKey = nextCompositionKey;
   }
   const graph = this.graph;
+  graph.setAllowLoops(scene.pattern === 'graph/1');
   const parent = graph.getDefaultParent();
   const desiredRegionIds = new Set(scene.representations.map((item) => item.regionId));
   const desiredEdgeKeys = new Set(scene.relations.map(relationProjectionKey));
@@ -322,6 +342,7 @@ function render(scene) {
           if (edge.value !== displayLabel) model.setValue(edge, displayLabel);
           if (edge.semanticStyleKey !== styleKey) model.setStyle(edge, style);
         }
+        applySelfLoopGeometry(edge, source, relation, model);
         edge.semanticStyleKey = styleKey;
         edge.semantic = Object.freeze({ type: 'relation', projectionKey: key, ...relation, displayLabel });
       }

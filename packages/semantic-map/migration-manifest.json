@@ -1494,6 +1494,60 @@
       "sourceCommit": "79ee25cf656c3176c088f5039c102e30822dda25",
       "sourcePath": "packages/semantic-map/renderer-maxgraph/index.js",
       "reason": "refactor: centralize maxGraph authoring boundary"
+    },
+    {
+      "id": "graph-structured-260915",
+      "target": "packages/semantic-map/domain/semantic-map.js",
+      "fromSha256": "5e6265eb2acba24bf14eb77cb476dcca4d5b40d3b74ddbb3b316aad8d262038b",
+      "toSha256": "0085dab1e03d2dfe53e3b98078931d26ca8bb10bb5e388cabfa8ab9d7b1c9311",
+      "sourceCommit": "0d42ea8f56890fdc99fc41076c6b4b969e68a900",
+      "sourcePath": "packages/semantic-map/domain/semantic-map.js",
+      "reason": "graph-structured-semantics-and-layout"
+    },
+    {
+      "id": "graph-structured-260915",
+      "target": "packages/semantic-map/pattern/view-types/graph/contract.js",
+      "fromSha256": "0ea08d7d14bddd92a423c7d0ade479d8d053a8b2a0d47022a8f6dde96c780add",
+      "toSha256": "ca3d29a4afab6cec55a3ddb51da3aee9a06102e73e761fa891512ed71e987d33",
+      "sourceCommit": "0d42ea8f56890fdc99fc41076c6b4b969e68a900",
+      "sourcePath": "packages/semantic-map/pattern/view-types/graph/contract.js",
+      "reason": "graph-structured-semantics-and-layout"
+    },
+    {
+      "id": "graph-structured-260915",
+      "target": "packages/semantic-map/pattern/view-types/graph/projection.js",
+      "fromSha256": "d46c0b9da6dbfb9ae1c6b3f1a0460b23080a088aed1fb7aad94278627ed83088",
+      "toSha256": "ac79440830d41f3de8831d193f97c06c7cf1d21b7671e0fe763537f9bbc73955",
+      "sourceCommit": "0d42ea8f56890fdc99fc41076c6b4b969e68a900",
+      "sourcePath": "packages/semantic-map/pattern/view-types/graph/projection.js",
+      "reason": "graph-structured-semantics-and-layout"
+    },
+    {
+      "id": "graph-structured-260915",
+      "target": "packages/semantic-map/pattern/view-types/spatial-layout.js",
+      "fromSha256": "81a6575815c0829ee5f6e33c1c0993da4fb4aa4a75a8e535922a89eee5e086a7",
+      "toSha256": "347771c7b44b501b03836ff183b84486815ac518cc670de08e5951019f67b862",
+      "sourceCommit": "0d42ea8f56890fdc99fc41076c6b4b969e68a900",
+      "sourcePath": "packages/semantic-map/pattern/view-types/spatial-layout.js",
+      "reason": "graph-structured-semantics-and-layout"
+    },
+    {
+      "id": "graph-structured-260915",
+      "target": "packages/semantic-map/projection/projector.js",
+      "fromSha256": "013f4eca15a2e15738c189cc9a043af5bec41841d9d1ecc13d730e4f4cd1c773",
+      "toSha256": "a4c833f96d2fcee92bda56edae2f5e9bea93e70008318d0a35190b3b7ffb22e8",
+      "sourceCommit": "0d42ea8f56890fdc99fc41076c6b4b969e68a900",
+      "sourcePath": "packages/semantic-map/projection/projector.js",
+      "reason": "graph-structured-semantics-and-layout"
+    },
+    {
+      "id": "retire-document-authoring-260915",
+      "target": "packages/semantic-map/renderer-maxgraph/index.js",
+      "fromSha256": "c6f19aeaf519e7d6dbdc45a0338712603a95dd28e388797b72b2f0ef4aaa6854",
+      "toSha256": "2a556822558d65b5fb8d00d10ed4fe36ff885467706c71bac745bf8a5210a8a4",
+      "sourceCommit": "5d7942a6677a545ad5717b77ecb29f29aa3f4775",
+      "sourcePath": "packages/semantic-map/renderer-maxgraph/index.js",
+      "reason": "refactor: retire standalone document authoring"
     }
   ]
 }

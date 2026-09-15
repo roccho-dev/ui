@@ -99,7 +99,10 @@ export const projectProfiledBusinessModelA2uiSequence = (model, plan) => {
     }
     invariant(children.length > 0, `stage ${stage.id} has no visible scene columns`);
     components.splice(3, 0, { id: "scene", component: "ProfiledBusinessModelScene", children, layout });
-    const activityRefs = model.activities.filter(activity => activity.stage === stage.id).sort((a, b) => a.recordIndex - b.recordIndex).map(activity => activity.id);
+    const activityRefs = model.activities
+      .filter(activity => activity.stage === stage.id)
+      .sort((a, b) => a.recordIndex - b.recordIndex)
+      .map(activity => activity.id);
     components.push({ id: "status", component: "ProfiledBusinessModelStatus", activityRefs });
     components.push({ id: "legend", component: "ProfiledBusinessModelLegend" });
     const dataModel = dataModelFor(model, plan, stage, stageIndex);
@@ -112,7 +115,14 @@ export const projectProfiledBusinessModelA2uiSequence = (model, plan) => {
       ],
     });
   });
-  const create = deepFreeze({ version: A2UI_MESSAGE_VERSION, createSurface: { surfaceId: PROFILED_BUSINESS_MODEL_SURFACE_ID, catalogId: PROFILED_BUSINESS_MODEL_CATALOG_ID, sendDataModel: true } });
+  const create = deepFreeze({
+    version: A2UI_MESSAGE_VERSION,
+    createSurface: {
+      surfaceId: PROFILED_BUSINESS_MODEL_SURFACE_ID,
+      catalogId: PROFILED_BUSINESS_MODEL_CATALOG_ID,
+      sendDataModel: true,
+    },
+  });
   return deepFreeze({
     schema: PROFILED_BUSINESS_MODEL_SEQUENCE_SCHEMA,
     catalogId: PROFILED_BUSINESS_MODEL_CATALOG_ID,
@@ -122,86 +132,4 @@ export const projectProfiledBusinessModelA2uiSequence = (model, plan) => {
     start: model.start,
     stages: stages.map((stage, index) => ({ ...stage, messages: index === 0 ? [create, ...stage.messages] : stage.messages })),
   });
-};
-
-export const projectProfiledBusinessModelSeqState = (model, plan) => {
-  invariant(model?.schema === BUSINESS_MODEL_SEMANTIC_STATE_SCHEMA, `model.schema must be ${BUSINESS_MODEL_SEMANTIC_STATE_SCHEMA}`);
-  invariant(plan?.schema === BUSINESS_MODEL_PRESENTATION_PLAN_SCHEMA, `plan.schema must be ${BUSINESS_MODEL_PRESENTATION_PLAN_SCHEMA}`);
-  const laneHeight = 118;
-  const laneGap = 34;
-  const top = 86;
-  const left = 230;
-  const step = 172;
-  const width = Math.max(1080, left + model.stages.length * step + 80);
-  const height = top + plan.actors.length * (laneHeight + laneGap) + 100;
-  const actorRegionId = actorId => `actor-${actorId}`;
-  const actorIndex = new Map(plan.actors.map((actor, index) => [actor.id, index]));
-  const stageIndex = new Map(model.stages.map(stage => [stage.id, stage.order]));
-  const records = [
-    { type: "meta", schema: "semantic-map-state/1", root: "business-model-seq", title: `${model.title}｜${plan.profile.label}｜主体別Seq` },
-    { type: "region", id: "business-model-seq", parent: null, label: "全体", kind: "root", bounds: [0, 0, width, height], summary: `${model.sourceSchema} + ${plan.profile.schema}から投影` },
-  ];
-  for (const [index, actor] of plan.actors.entries()) records.push({
-    type: "region",
-    id: actorRegionId(actor.id),
-    parent: "business-model-seq",
-    label: actor.label,
-    kind: "actor",
-    bounds: [20, top + index * (laneHeight + laneGap), 190, laneHeight],
-    summary: actor.detail,
-  });
-  for (const activity of [...model.activities].sort((a, b) => stageIndex.get(a.stage) - stageIndex.get(b.stage) || actorIndex.get(a.actor) - actorIndex.get(b.actor) || a.recordIndex - b.recordIndex)) {
-    const lane = actorIndex.get(activity.actor);
-    const stage = stageIndex.get(activity.stage);
-    records.push({
-      type: "region",
-      id: activity.id,
-      parent: "business-model-seq",
-      label: activity.label,
-      kind: "task",
-      bounds: [left + stage * step, top + lane * (laneHeight + laneGap) + 23, 146, 72],
-      summary: activity.summary,
-      temporal: { actor: actorRegionId(activity.actor), ordinal: { start: stage, end: stage } },
-    });
-  }
-  for (const transition of model.transitions) records.push({ type: "relation", id: transition.id, from: transition.from, to: transition.to, kind: transition.kind, label: transition.label });
-  for (const exchange of model.exchanges) records.push({ type: "relation", id: `exchange-${exchange.id}`, from: actorRegionId(exchange.from), to: actorRegionId(exchange.to), kind: exchange.kind, label: exchange.label });
-  return deepFreeze(records);
-};
-
-export const projectProfiledBusinessModelMapState = (model, plan) => {
-  invariant(model?.schema === BUSINESS_MODEL_SEMANTIC_STATE_SCHEMA, `model.schema must be ${BUSINESS_MODEL_SEMANTIC_STATE_SCHEMA}`);
-  invariant(plan?.schema === BUSINESS_MODEL_PRESENTATION_PLAN_SCHEMA, `plan.schema must be ${BUSINESS_MODEL_PRESENTATION_PLAN_SCHEMA}`);
-  const actorWidth = 280;
-  const actorGap = 150;
-  const left = 50;
-  const top = 90;
-  const actorHeights = plan.actors.map(actor => 130 + plan.nodesByActor[actor.id].reduce((sum, node) => sum + 58 + (node.items?.length ? 18 : 0), 0));
-  const height = Math.max(520, top + Math.max(...actorHeights) + 90);
-  const width = Math.max(1000, left + plan.actors.length * actorWidth + (plan.actors.length - 1) * actorGap + 70);
-  const records = [
-    { type: "meta", schema: "semantic-map-state/1", root: "business-model-map", title: `${model.title}｜${plan.profile.label}｜構造Map` },
-    { type: "region", id: "business-model-map", parent: null, label: "事業モデル", kind: "root", bounds: [0, 0, width, height], summary: `${model.sourceSchema} + ${plan.profile.schema}から投影` },
-  ];
-  for (const [actorIndex, actor] of plan.actors.entries()) {
-    const x = left + actorIndex * (actorWidth + actorGap);
-    const actorHeight = actorHeights[actorIndex];
-    records.push({ type: "region", id: actor.id, parent: "business-model-map", label: actor.label, kind: "actor", bounds: [x, top, actorWidth, actorHeight], summary: actor.detail });
-    let y = top + 70;
-    for (const node of plan.nodesByActor[actor.id]) {
-      const nodeHeight = 48 + (node.items?.length ? 18 : 0);
-      records.push({
-        type: "region",
-        id: node.id,
-        parent: actor.id,
-        label: node.label,
-        kind: node.kind,
-        bounds: [x + 18 + node.depth * 16, y, actorWidth - 36 - node.depth * 16, nodeHeight],
-        summary: node.detail ?? node.role ?? node.label,
-      });
-      y += nodeHeight + 10;
-    }
-  }
-  for (const exchange of model.exchanges) records.push({ type: "relation", id: exchange.id, from: exchange.from, to: exchange.to, kind: exchange.kind, label: exchange.label });
-  return deepFreeze(records);
 };

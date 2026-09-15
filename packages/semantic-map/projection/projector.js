@@ -354,7 +354,8 @@ export class SemanticProjector {
     };
 
     const addRelation = (node, relation, from, to) => {
-      if (!from || !to || from === to) return;
+      if (!from || !to) return;
+      if (from === to && relation.from !== relation.to) return;
       const readOnly = node.namespace !== '' || Boolean(relation.readOnly);
       const relationId = relationProjectionId(node, relation.id);
       const visual = relationVisualForPattern(node.view.pattern, relation);
@@ -383,11 +384,11 @@ export class SemanticProjector {
       }
     };
 
-    const detailsVisible = (node, region, bounds, hasChildren, force = false) => {
+    const detailsVisible = (node, region, bounds, hasChildren, force = false, thresholdPx2 = DETAIL_AREA_PX2) => {
       if (force) return true;
       if (!hasChildren) return false;
       const projectedArea = area(bounds) * scale * scale;
-      return projectedArea >= DETAIL_AREA_PX2;
+      return projectedArea >= thresholdPx2;
     };
 
     const addScene = (node, rootBounds, transform, axis = null, clipBounds = null) => {

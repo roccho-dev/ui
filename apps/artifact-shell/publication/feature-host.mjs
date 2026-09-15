@@ -33,12 +33,8 @@ export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
     scope.document.head.append(link);
   }
 
-  let input = await readData(base);
-  if (input === null) {
-    const inputResponse = await scope.fetch(new URL('./input.json', base), { cache: 'no-store', credentials: 'omit' });
-    invariant(inputResponse.ok, `input.json returned ${inputResponse.status}`);
-    input = await inputResponse.json();
-  }
+  const input = await readData(base);
+  invariant(input !== null, '#data required');
   const module = await import(sameOriginUrl(feature.entry, base).href);
   invariant(typeof module.mountFeature === 'function', 'mountFeature export required');
   const mounted = await module.mountFeature({ feature, input, root, scope });

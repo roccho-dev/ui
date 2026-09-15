@@ -16,7 +16,7 @@ const hrefFrom = (from, target) => {
   return relative.startsWith('.') ? relative : `./${relative}`;
 };
 
-export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot, root }) => {
+export const materializeFeature = async ({ adapter, outputRoot, repoRoot, root }) => {
   invariant(typeof adapter.featureModule === 'string' && adapter.featureModule, `${adapter.id} featureModule required`);
 
   const descriptorPath = inside(repoRoot, path.join(repoRoot, adapter.featureModule));
@@ -51,5 +51,4 @@ export const materializeFeature = async ({ adapter, input, outputRoot, repoRoot,
     styles: Object.freeze(styles.map(target => hrefFrom(root, target))),
   });
   await fs.writeFile(path.join(root, 'feature.json'), `${canonicalJson(publication)}\n`);
-  await fs.writeFile(path.join(root, 'input.json'), `${canonicalJson(input)}\n`);
 };

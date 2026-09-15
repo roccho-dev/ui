@@ -1,3 +1,36 @@
+.semantic-map-feature-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+}
+
+.semantic-map-layout-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #d8dee6;
+  background: #ffffff;
+}
+
+.semantic-map-layout-button {
+  min-width: 3.25rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #c5ced8;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  cursor: pointer;
+}
+
+.semantic-map-layout-button[data-selected='true'] {
+  border-color: #5b8f7b;
+  background: #e9f5ef;
+  color: #245d49;
+  font-weight: 700;
+}
+
 .semantic-map-feature {
   position: relative;
   display: block;
@@ -12,4 +45,14 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
+}
+
+@media (max-width: 720px) {
+  .semantic-map-layout-controls {
+    justify-content: center;
+  }
+
+  .semantic-map-feature {
+    min-height: 680px;
+  }
 }
