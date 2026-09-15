@@ -1,0 +1,23 @@
+name: Chart 224 baseline reproducibility control
+
+on:
+  push:
+    branches:
+      - proof/chart-data-url-codec-260915
+
+permissions:
+  contents: read
+
+env:
+  BASE_HEAD: f2dd463c372d18761834313183258e2c6ab31b92
+
+jobs:
+  baseline-repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_HEAD }}
+          persist-credentials: false
+      - name: Run exact #222 example reproducibility
+        run: node packages/semantic-map/tests/example_reproducibility.mjs
