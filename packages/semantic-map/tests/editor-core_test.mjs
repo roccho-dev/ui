@@ -100,21 +100,26 @@ function region(core, id) {
 const first = createHarness();
 const { core } = first;
 
+assert.deepEqual(Object.keys(core).sort(), [
+  'acceptGesture',
+  'destroy',
+  'dispatch',
+  'replaceInput',
+  'snapshot',
+  'subscribe',
+]);
 assert.equal(core.perform, undefined);
 assert.equal(core.execute, undefined);
 assert.equal(core.setMutationPort, undefined);
 assert.equal(core.workspace, undefined);
-assert.equal(core.runtime.restoreSession, undefined);
-assert.equal(core.runtime.replaceRecords, undefined);
-assert.equal(core.runtime.clearDraft, undefined);
-assert.equal(core.runtime.snapshotSession, undefined);
+assert.equal(core.runtime, undefined);
 assert.deepEqual(core.snapshot().selection, { regionIds: [], relationIds: [] });
 
-const detachedDomain = core.runtime.domain;
+const snapshotRecords = core.snapshot().records;
 assert.throws(() => {
-  detachedDomain.regions.get('request').label = 'Detached mutation';
+  snapshotRecords.find(row => row.type === 'region' && row.id === 'request').label = 'Snapshot mutation';
 }, /read only|Cannot assign/u);
-assert.equal(region(core, 'request').label, '1 依頼', 'runtime domain must be an immutable detached read model');
+assert.equal(region(core, 'request').label, '1 依頼', 'snapshot records must be immutable detached values');
 
 core.acceptGesture({
   type: 'selection.changed',
@@ -187,9 +192,7 @@ assert.deepEqual(second.core.snapshot().selection, beforeSecondSelection, 'edito
 
 const failed = createHarness();
 let coreEvents = 0;
-let runtimeEvents = 0;
 failed.core.subscribe(() => { coreEvents += 1; });
-failed.core.runtime.onChange(() => { runtimeEvents += 1; });
 const beforeFailedSnapshot = structuredClone(failed.core.snapshot());
 const rendersBeforeFailure = failed.surface.renders.length;
 const chromeBeforeFailure = failed.document.chrome.length;
@@ -206,7 +209,6 @@ assert.deepEqual(failed.core.snapshot(), beforeFailedSnapshot);
 assert.equal(failed.surface.renders.length, rendersBeforeFailure);
 assert.equal(failed.document.chrome.length, chromeBeforeFailure);
 assert.equal(coreEvents, 0);
-assert.equal(runtimeEvents, 0);
 assert.equal(region(failed.core, 'region.core-1'), null);
 
 failed.document.setFailCommit(false);
@@ -222,7 +224,6 @@ assert.equal(afterFailure.createdRegionId, 'region.core-1', 'failed commit must 
 assert.equal(failed.surface.renders.length, rendersBeforeFailure + 1);
 assert.equal(failed.document.chrome.length, chromeBeforeFailure + 1);
 assert.equal(coreEvents, 1, 'successful commit publishes one core event');
-assert.equal(runtimeEvents, 1, 'read-only compatibility subscribers receive one committed event');
 
 assert.equal(core.destroy(), true);
 assert.equal(core.destroy(), false);
@@ -242,12 +243,14 @@ assert.equal(remounted.core.dispatch({
 assert.equal(region(remounted.core, 'request').label, 'Remounted');
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-editor-core-test/3',
+  schema: 'semantic-map-editor-core-test/4',
   status: 'PASS',
   publicFactory: true,
+  exactPublicMethods: Object.keys(core).sort(),
   rawMutationBypassAbsent: true,
-  readOnlyRuntimeCompatibility: true,
+  hiddenRuntimeAbsent: true,
   hiddenWorkspaceAbsent: true,
+  snapshotImmutable: true,
   authorityDenyAtomic: true,
   commitFailureAtomic: true,
   commitBeforePublish: true,
