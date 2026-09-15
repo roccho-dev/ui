@@ -54,6 +54,7 @@ EOF
           if ! git diff --cached --quiet; then
             git commit -m 'chore: regenerate capability registry after #271 sync'
           fi
+          rm -f .github/t283-sync-trigger
           rm .github/workflows/t283-sync-current-271.yml
           git add -A
           git commit -m 'chore: retire #283 sync workflow'
