@@ -1,7 +1,7 @@
 const itemKey = item => `${item.kind}:${item.id}`;
 
 const ensureStyles = () => {
-  if (document.querySelector('link[data-maxgraph-active-list-style]')) return;
+  if (document.querySelector('[data-maxgraph-active-list-style]')) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = new URL('./active-list.css', import.meta.url).href;

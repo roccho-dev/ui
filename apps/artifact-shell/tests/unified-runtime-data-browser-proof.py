@@ -76,7 +76,7 @@ def main() -> None:
             ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
             cwd=publication,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             text=True,
         )
         base = f"http://127.0.0.1:{listen}"
