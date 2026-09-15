@@ -1,0 +1,78 @@
+name: T283 sync latest 271 v2
+on:
+  push:
+    branches: [fix/retire-smap-t283]
+    paths: [.t283-sync-trigger]
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/retire-smap-t283
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Merge current #271 and preserve generic data transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin feat/opt-manually-and-beautifully
+          set +e
+          git merge --no-ff --no-commit f2738d1d025eca5c9f408ebb9cd2a484e6bf5f2a
+          merge_status=$?
+          set -e
+          if [ "$merge_status" -ne 0 ]; then
+            git diff --name-only --diff-filter=U | sort > /tmp/unmerged
+            cat > /tmp/allowed <<'EOF'
+          apps/artifact-shell/generated/capability-registry.mjs
+          apps/preview/cases.jsonl
+          apps/preview/main.mjs
+          apps/preview/tests/deployed-browser-proof.py
+          EOF
+            sort -o /tmp/allowed /tmp/allowed
+            unexpected="$(comm -23 /tmp/unmerged /tmp/allowed)"
+            if [ -n "$unexpected" ]; then
+              echo "Unexpected merge conflicts:"
+              echo "$unexpected"
+              exit 1
+            fi
+            git rm -f apps/preview/cases.jsonl || true
+            for path in apps/artifact-shell/generated/capability-registry.mjs apps/preview/main.mjs apps/preview/tests/deployed-browser-proof.py; do
+              if grep -Fxq "$path" /tmp/unmerged; then
+                git checkout --theirs -- "$path"
+                git add "$path"
+              fi
+            done
+          fi
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'apps/preview/main.mjs';
+          let text = fs.readFileSync(path, 'utf8');
+          if (!text.includes("schema: 'ui-data-transport/1'")) {
+            const marker = "const renderLauncher = async () => {";
+            const transport = `const createDataTransport = scope => {\n  const create = (value, { base = scope.location.href } = {}) => createUrlModuleUrl({\n    base,\n    fragment: 'data',\n    value,\n  });\n  const read = input => readUrlModule({ fragment: 'data', input });\n  const replace = async value => {\n    const url = await create(value);\n    scope.history.replaceState(scope.history.state, '', url);\n    return url;\n  };\n  return Object.freeze({ schema: 'ui-data-transport/1', fragment: 'data', create, read, replace });\n};\n\n`;
+            if (!text.includes(marker)) throw new Error('launcher marker missing');
+            text = text.replace(marker, transport + marker);
+          }
+          const oldRead = "const renderFeature = async item => {\n  const input = await readUrlModule({ fragment: 'data', input: globalThis.location.href });";
+          const newRead = "const renderFeature = async item => {\n  const transport = createDataTransport(globalThis);\n  const input = await transport.read(globalThis.location.href);";
+          if (text.includes(oldRead)) text = text.replace(oldRead, newRead);
+          if (!text.includes(newRead)) throw new Error('renderFeature transport injection missing');
+          const oldMount = "runtime.mountFeature({ feature, input, root, scope: globalThis });";
+          const newMount = "runtime.mountFeature({ feature, input, root, scope: globalThis, transport });";
+          if (text.includes(oldMount)) text = text.replace(oldMount, newMount);
+          if (!text.includes(newMount)) throw new Error('mount transport injection missing');
+          fs.writeFileSync(path, text);
+          NODE
+          node apps/artifact-shell/scripts/build-registry.mjs
+          rm .github/workflows/t283-sync-latest-271.yml .github/workflows/t283-sync-latest-271-v2.yml .t283-sync-trigger
+          git add -A
+          git diff --cached --check
+          git commit -m "merge: sync #291 with current #271"
+          git push origin HEAD:fix/retire-smap-t283
