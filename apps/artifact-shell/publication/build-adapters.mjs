@@ -59,9 +59,18 @@ const materializeCanonicalSemanticApp = async ({ outputRoot, repoRoot }) => {
 };
 
 const variantIdPattern = /^[a-z][a-z0-9-]*$/u;
-const readSource = async (repoRoot, source) => {
+const readSourceFile = async (repoRoot, source) => {
   const sourcePath = path.join(repoRoot, source);
   return source.endsWith('.jsonl') ? fs.readFile(sourcePath, 'utf8') : JSON.parse(await fs.readFile(sourcePath, 'utf8'));
+};
+const readSource = async (repoRoot, source) => {
+  if (typeof source === 'string') return readSourceFile(repoRoot, source);
+  if (!source || Array.isArray(source) || typeof source !== 'object') throw new Error('artifact-adapters: source must be a path or named path object');
+  const entries = await Promise.all(Object.entries(source).map(async ([id, sourcePath]) => {
+    if (typeof sourcePath !== 'string' || !sourcePath) throw new Error(`artifact-adapters: source ${id} path required`);
+    return [id, await readSourceFile(repoRoot, sourcePath)];
+  }));
+  return Object.freeze(Object.fromEntries(entries));
 };
 const featureExampleHref = async ({ adapter, source }) => {
   const encoded = new URL(await createUrlModuleUrl({

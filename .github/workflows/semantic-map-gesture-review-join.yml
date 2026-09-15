@@ -46,6 +46,8 @@ jobs:
           PY
       - name: Prove one data fragment across graph seq presentation
         run: python3 apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
+      - name: Prove Control A2UI design and claims projection
+        run: python3 apps/artifact-shell/tests/control-browser-proof.py
       - name: Build ephemeral set-topology proof fixture
         run: npm run build:semantic-map-set-topology-proof
       - name: Prove actual gesture through review and fresh JSONL replay

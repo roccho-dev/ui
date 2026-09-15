@@ -1,7 +1,0 @@
-{"id":"ui","op":"document","schema":3,"state":"active","rel":null,"title":"UI capability claims"}
-{"id":"graph","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"graph"}
-{"id":"map","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"map"}
-{"id":"seq","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"seq"}
-{"id":"presentation","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"presentation"}
-{"id":"control","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"control"}
-{"id":"graph-editor","op":"feature","state":"active","rel":{"parent":"ui","kind":"contains"},"title":"graph-editor"}

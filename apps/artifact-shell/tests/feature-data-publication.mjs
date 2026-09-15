@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createUrlModuleUrl, readUrlModule } from '../../../packages/url-module/src/index.mjs';
+import { createControlCatalog } from '../../../packages/control/catalog.mjs';
+import { parseClaims, parseControl } from '../../../packages/control/src/control-graph.mjs';
 import { createAdapter as createChartAdapter } from '../adapters/chart.mjs';
 import { createAdapter as createControlAdapter } from '../adapters/control.mjs';
 import { createAdapter as createGraphAdapter } from '../adapters/graph.mjs';
@@ -18,12 +20,18 @@ const repoRoot = path.resolve(appRoot, '../..');
 const tempRoot = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'feature-data-publication-'));
 const outputRoot = path.join(tempRoot, 'publication');
 const chart = createChartAdapter();
-const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), chart, createPresentationAdapter(), createControlAdapter()];
+const controlAdapter = createControlAdapter();
+const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), chart, createPresentationAdapter(), controlAdapter];
 const chartVariantIds = Object.freeze(['bar-horizontal', 'bar-vertical', 'line', 'pie', 'donut', 'scatter', 'heatmap', 'sunburst']);
 
-const readSource = async sourcePath => sourcePath.endsWith('.jsonl')
+const readSourceFile = async sourcePath => sourcePath.endsWith('.jsonl')
   ? fs.readFile(path.join(repoRoot, sourcePath), 'utf8')
   : JSON.parse(await fs.readFile(path.join(repoRoot, sourcePath), 'utf8'));
+const readSource = async source => {
+  if (typeof source === 'string') return readSourceFile(source);
+  const entries = await Promise.all(Object.entries(source).map(async ([id, sourcePath]) => [id, await readSourceFile(sourcePath)]));
+  return Object.freeze(Object.fromEntries(entries));
+};
 const assertHashOnlyHost = async routeRoot => {
   await assert.rejects(
     () => fs.access(path.join(routeRoot, 'input.json')),
@@ -53,11 +61,11 @@ const launcher = await fs.readFile(path.join(outputRoot, 'index.html'), 'utf8');
 let variantRoutes = 0;
 
 for (const adapter of adapters) {
-  const { id, source: sourcePath } = adapter;
+  const { id, source: sourceSpec } = adapter;
   const match = launcher.match(new RegExp(`href="(adapters/${id}/#data=[^"]+)"`, 'u'));
   assert.ok(match, `${id}: explicit #data launcher link required`);
   const decoded = await readUrlModule({ fragment: 'data', input: new URL(match[1], 'https://artifact-shell.invalid/').href });
-  const source = await readSource(sourcePath);
+  const source = await readSource(sourceSpec);
   assert.deepEqual(decoded, source, `${id}: #data must preserve adapter source`);
   await assertHashOnlyHost(path.join(outputRoot, 'adapters', id));
 
@@ -77,6 +85,25 @@ for (const adapter of adapters) {
     variantRoutes += 1;
   }
 }
+
+const controlSource = await readSource(controlAdapter.source);
+const controlRecords = parseControl(controlSource.control);
+const claims = parseClaims(controlSource.claims, controlRecords);
+assert.ok(claims.length > 0 && claims.every(claim => claim.op === 'report'), 'control: claims default to D reports');
+assert.ok(claims.every(claim => controlRecords.some(record => record.id === claim.rel.parent)), 'control: claims rel.parent must resolve to control ids');
+const controlFeature = JSON.parse(await fs.readFile(path.join(outputRoot, 'adapters', 'control', 'feature.json'), 'utf8'));
+assert.deepEqual(controlFeature.styles, [], 'control: fixed design must not live in shell styles');
+const design = JSON.parse(await fs.readFile(path.join(outputRoot, 'modules', 'packages', 'control', 'design.json'), 'utf8'));
+assert.equal(design.schema, 'ui-control-a2ui-design/1');
+const controlCatalog = createControlCatalog({ id: design.catalogId });
+for (const component of design.messages.find(message => message.updateComponents).updateComponents.components) controlCatalog.validateComponent(component);
+assert.deepEqual(
+  design.messages.find(message => message.updateComponents).updateComponents.components.filter(component => component.component === 'Pane').map(component => component.title),
+  ['control.jsonl', 'claims.jsonl'],
+  'control: design.json owns both panes',
+);
+const controlRender = await fs.readFile(path.join(outputRoot, 'modules', 'packages', 'control', 'render.mjs'), 'utf8');
+assert.doesNotMatch(controlRender, /control-panes|pane-head|relation-toggle|policy · UI \/ P|D reports/u, 'control: fixed design must not leak into runtime');
 
 for (const relative of [
   'packages/semantic-map/authoring/handoff.js',
@@ -102,5 +129,6 @@ console.log(JSON.stringify({
   chartVariants: chartVariantIds,
   variantRoutes,
   canonicalSemanticHandoff: true,
+  control: { inputs: Object.keys(controlAdapter.source), claims: claims.length, design: design.schema },
   negativeControls: ['missing-chart-variant', 'parallel-share-path'],
 }));

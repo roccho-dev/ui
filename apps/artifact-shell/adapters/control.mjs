@@ -3,5 +3,8 @@ export const createAdapter = () => Object.freeze({
   id: 'control',
   kind: 'feature',
   label: 'control',
-  source: 'examples/control/example.jsonl',
+  source: Object.freeze({
+    control: 'examples/control/control.jsonl',
+    claims: 'examples/control/claims.jsonl',
+  }),
 });
