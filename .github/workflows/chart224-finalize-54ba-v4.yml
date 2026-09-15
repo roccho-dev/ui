@@ -1,0 +1,44 @@
+name: Chart 224 finalize on 54ba v4
+
+on:
+  push:
+    branches: [control/chart224-finalize-54ba-v4-260915]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/chart224-final-54ba-260915
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Load and patch pinned finalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin control/chart224-finalize-54ba-v4-260915
+          git show origin/control/chart224-finalize-54ba-v4-260915:tools/chart224-finalize-54ba.sh > "$RUNNER_TEMP/chart224-finalize.sh"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path(__import__('os').environ['RUNNER_TEMP'])/'chart224-finalize.sh'
+          s=p.read_text()
+          old="""node packages/semantic-map/scripts/regenerate_example.mjs\ngit add apps/artifact-shell/generated/capability-registry.mjs examples/render.semantic-map examples/render.semantic-map.set-topology\nif ! git diff --cached --quiet; then git commit -m 'chore: regenerate integrated projections'; fi\npython3 packages/semantic-map/tests/set_topology_example_reproducibility.py"""
+          new="""node packages/semantic-map/scripts/regenerate_example.mjs\nSET_ROOT='examples/render.semantic-map.set-topology'\nSET_TMP=\"${RUNNER_TEMP:-/tmp}/chart224-set-topology\"\nrm -rf \"$SET_TMP\"\nmkdir -p \"$SET_TMP/horizontal\" \"$SET_TMP/vertical\"\nnode packages/semantic-map/scripts/build-browser-example.mjs --input=\"$SET_ROOT/input/envelope.json\" --out=\"$SET_TMP/horizontal\" --set-topology-proof=true --projection-profile=horizontal\nnode packages/semantic-map/scripts/build-browser-example.mjs --input=\"$SET_ROOT/input/envelope.json\" --out=\"$SET_TMP/vertical\" --set-topology-proof=true --projection-profile=vertical\ncp \"$SET_TMP/horizontal/index.html\" \"$SET_ROOT/dist/index.html\"\ncp \"$SET_TMP/horizontal/receipt.json\" \"$SET_ROOT/dist/receipt.json\"\ncp \"$SET_TMP/vertical/index.html\" \"$SET_ROOT/dist/vertical.html\"\ngit add apps/artifact-shell/generated/capability-registry.mjs examples/render.semantic-map examples/render.semantic-map.set-topology\nif ! git diff --cached --quiet; then git commit -m 'chore: regenerate integrated projections'; fi\npython3 packages/semantic-map/tests/set_topology_example_reproducibility.py"""
+          if s.count(old)!=1:
+              raise SystemExit(f'canonical set-topology patch anchor count={s.count(old)}')
+          p.write_text(s.replace(old,new))
+          PY
+          chmod +x "$RUNNER_TEMP/chart224-finalize.sh"
+      - name: Finalize and prove
+        shell: bash
+        run: "$RUNNER_TEMP/chart224-finalize.sh"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chart224-final-54ba-proof-v4
+          path: chart224-final-54ba-proof.json
+          if-no-files-found: error
