@@ -11,7 +11,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[3]
-SOURCE = ROOT / "examples" / "shared" / "business-model.jsonl"
+SOURCE = ROOT / "examples" / "shared" / "presentation.jsonl"
 CHROMIUM = os.environ.get("CHROMIUM_EXECUTABLE")
 
 
