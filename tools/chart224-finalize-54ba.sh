@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OLD='940de85e3dddbb60ec486f65a442c99c1660e257'
+LATEST='54ba62740cecd1052868be2e10311eb27b64cb9e'
+CANDIDATE='candidate/chart224-final-54ba-260915'
+
+test "$(git rev-parse HEAD)" = "$OLD"
+git config user.name 'github-actions[bot]'
+git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+# 1. Preserve strict selection, but make authoring render ordering deterministic.
+python3 - <<'PY'
+from pathlib import Path
+p=Path('packages/semantic-map/authoring/main.js'); s=p.read_text()
+anchor="""  function addNode() {\n    setTool('select');"""
+helper="""  function selectCreatedRegion(result) {\n    if (!result?.createdRegionId) return null;\n    render();\n    adapter.selectRegion(result.createdRegionId);\n    return result.createdRegionId;\n  }\n\n  function addNode() {\n    setTool('select');"""
+assert s.count(anchor)==1; s=s.replace(anchor,helper)
+pairs=[
+("""        if (!result?.createdRegionId) return null;\n        adapter.selectRegion(result.createdRegionId);\n        showToast('actorを追加しました');""","""        if (!selectCreatedRegion(result)) return null;\n        showToast('actorを追加しました');"""),
+("""      if (!result?.createdRegionId) return null;\n      adapter.selectRegion(result.createdRegionId);\n      showToast('seq itemを追加しました');""","""      if (!selectCreatedRegion(result)) return null;\n      showToast('seq itemを追加しました');"""),
+("""    if (!result?.createdRegionId) return null;\n    adapter.selectRegion(result.createdRegionId);\n    showToast('ノードを追加しました');""","""    if (!selectCreatedRegion(result)) return null;\n    showToast('ノードを追加しました');""")]
+for old,new in pairs:
+    assert s.count(old)==1; s=s.replace(old,new)
+old="""  let renderQueued = false;\n  let lastScene = null;"""
+new="""  let renderFrame = null;\n  let lastScene = null;"""
+assert s.count(old)==1; s=s.replace(old,new)
+old="""  function render() {\n    renderQueued = false;\n    projector.setDomain(store.domain);"""
+new="""  function render() {\n    if (renderFrame !== null) {\n      cancelAnimationFrame(renderFrame);\n      renderFrame = null;\n    }\n    projector.setDomain(store.domain);"""
+assert s.count(old)==1; s=s.replace(old,new)
+old="""  function queueRender() {\n    if (renderQueued) return;\n    renderQueued = true;\n    requestAnimationFrame(render);\n  }"""
+new="""  function queueRender() {\n    if (renderFrame !== null) return;\n    renderFrame = requestAnimationFrame(() => {\n      renderFrame = null;\n      render();\n    });\n  }"""
+assert s.count(old)==1; s=s.replace(old,new)
+old="""  function undo() {\n    if (store.undo()) showToast('元に戻しました');\n  }\n\n  function redo() {\n    if (store.redo()) showToast('やり直しました');\n  }"""
+new="""  function undo() {\n    if (!store.undo()) return;\n    render();\n    showToast('元に戻しました');\n  }\n\n  function redo() {\n    if (!store.redo()) return;\n    render();\n    showToast('やり直しました');\n  }"""
+assert s.count(old)==1; s=s.replace(old,new)
+p.write_text(s)
+PY
+git add packages/semantic-map/authoring/main.js
+git commit -m 'fix: preserve keyboard authoring under strict selection'
+FIX_SHA="$(git rev-parse HEAD)"
+export FIX_SHA
+node --input-type=module <<'NODE'
+import fs from 'node:fs'; import crypto from 'node:crypto';
+const path='packages/semantic-map/migration-manifest.json'; const m=JSON.parse(fs.readFileSync(path,'utf8'));
+const target='packages/semantic-map/authoring/main.js';
+const prior=(m.evolutions??[]).filter(x=>x.target===target).at(-1);
+const entry=(m.entries??[]).find(x=>x.target===target);
+const from=prior?.toSha256 ?? entry?.targetSha256;
+if(!from) throw new Error('authoring/main is not migration tracked');
+const to=crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
+m.evolutions.push({id:'chart-keyboard-strict-selection-260915/1',target,fromSha256:from,toSha256:to,sourceCommit:process.env.FIX_SHA,sourcePath:target,reason:'synchronous-confirmed-region-selection-and-cancelable-render-queue'});
+fs.writeFileSync(path,JSON.stringify(m,null,2)+'\n');
+NODE
+node tests/check-semantic-map-migration.mjs
+git add packages/semantic-map/migration-manifest.json
+git commit -m 'chore: admit keyboard selection evolution'
+
+# 2. True 3-way merge of exact current #222.
+git fetch origin archive/ui213-pre-216-260914
+test "$(git rev-parse origin/archive/ui213-pre-216-260914)" = "$LATEST"
+set +e
+git merge --no-ff --no-commit "$LATEST"
+status=$?
+set -e
+test "$status" -ne 0
+conflicts="$(git diff --name-only --diff-filter=U | sort)"
+expected="$(printf '%s\n' \
+  apps/artifact-shell/generated/capability-registry.mjs \
+  apps/artifact-shell/publication/feature-host.mjs \
+  apps/artifact-shell/tests/prove-publication-browser.sh \
+  examples/render.semantic-map.set-topology/dist/index.html \
+  examples/render.semantic-map.set-topology/dist/receipt.json \
+  examples/render.semantic-map.set-topology/dist/vertical.html \
+  packages/semantic-map/feature-runtime.mjs | sort)"
+printf 'conflicts:\n%s\n' "$conflicts"
+test "$conflicts" = "$expected"
+
+# Generated outputs: temporary latest side, then canonical regenerate below.
+git checkout --theirs apps/artifact-shell/generated/capability-registry.mjs
+git checkout --theirs examples/render.semantic-map.set-topology/dist/index.html
+git checkout --theirs examples/render.semantic-map.set-topology/dist/receipt.json
+git checkout --theirs examples/render.semantic-map.set-topology/dist/vertical.html
+# Latest unified runtime split is authoritative at merge point.
+git checkout --theirs packages/semantic-map/feature-runtime.mjs
+# Latest HTTP-source semantics + depth-independent #data codec.
+git checkout --theirs apps/artifact-shell/publication/feature-host.mjs
+python3 - <<'PY'
+from pathlib import Path
+p=Path('apps/artifact-shell/publication/feature-host.mjs'); s=p.read_text()
+old="""const readData = async base => {\n  if (!base.hash) return null;\n  const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);\n  const { readUrlModule } = await import(moduleUrl.href);\n  return readUrlModule({ fragment: 'data', input: base.href });\n};"""
+new="""const readData = async (base, entry) => {\n  if (!base.hash) return null;\n  const moduleUrl = new URL('../url-module/src/index.mjs', entry);\n  const { readUrlModule } = await import(moduleUrl.href);\n  return readUrlModule({ fragment: 'data', input: base.href });\n};"""
+assert s.count(old)==1; s=s.replace(old,new)
+anchor="  invariant(Array.isArray(feature.styles), 'feature styles required');\n"
+assert s.count(anchor)==1; s=s.replace(anchor,anchor+"  const entry = sameOriginUrl(feature.entry, base);\n")
+assert s.count('  else input = await readData(base);')==1; s=s.replace('  else input = await readData(base);','  else input = await readData(base, entry);')
+assert s.count("  const module = await import(sameOriginUrl(feature.entry, base).href);")==1; s=s.replace("  const module = await import(sameOriginUrl(feature.entry, base).href);","  const module = await import(entry.href);")
+p.write_text(s)
+PY
+# Latest invocation publication proof + Chart direct/nested proof.
+git checkout --theirs apps/artifact-shell/tests/prove-publication-browser.sh
+python3 - <<'PY'
+from pathlib import Path
+p=Path('apps/artifact-shell/tests/prove-publication-browser.sh'); s=p.read_text()
+assert s.count('for adapter in graph map seq presentation control;')==1
+s=s.replace('for adapter in graph map seq presentation control;','for adapter in graph map seq chart presentation control;')
+assert s.count('output="${RUNNER_TEMP:-/tmp}/artifact-feature-$name.html"')==1
+s=s.replace('output="${RUNNER_TEMP:-/tmp}/artifact-feature-$name.html"','output="${RUNNER_TEMP:-/tmp}/artifact-feature-${name//\\//-}.html"')
+anchor="check_feature control 15000 'id=\"tree\"' 'class=\"node\"'\n\n"
+chart="""check_feature chart 30000 '<svg'\nfor variant in bar-horizontal bar-vertical line pie donut scatter heatmap sunburst; do\n  check_feature \"chart/$variant\" 30000 '<svg'\ndone\n\nsentinel='__nested_chart_data_url_proof__'\ndata_url=\"$(BROWSER_PROOF_BASE=\"${base%/}\" BROWSER_PROOF_SENTINEL=\"$sentinel\" node --input-type=module <<'NODE'\nimport fs from 'node:fs';\nimport { createUrlModuleUrl } from './packages/url-module/src/codec.mjs';\nconst records=fs.readFileSync('./examples/chart/bar-horizontal.jsonl','utf8').split(/\\r?\\n/u).filter(Boolean).map(JSON.parse);\nconst target=records.find(r=>r.type==='region'&&r.id==='product'); if(!target) throw new Error('fixture missing');\ntarget.label=process.env.BROWSER_PROOF_SENTINEL;\nconst value=records.map(JSON.stringify).join('\\n')+'\\n';\nconsole.log(await createUrlModuleUrl({base:`${process.env.BROWSER_PROOF_BASE}/adapters/chart/bar-horizontal/`,fragment:'data',value}));\nNODE\n)\"\ndata_output=\"${RUNNER_TEMP:-/tmp}/artifact-feature-chart-data.html\"\n\"$chrome\" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=30000 --dump-dom \"$data_url\" > \"$data_output\"\ngrep -q 'data-status=\"pass\"' \"$data_output\"\ngrep -q \"$sentinel\" \"$data_output\"\n\n"""
+assert s.count(anchor)==1; s=s.replace(anchor,anchor+chart)
+old="printf '%s\\n' '{\"schema\":\"ui.adapter-browser-proof/8\",\"status\":\"PASS\",\"directFeatures\":[\"presentation\",\"control\"],\"invocationAdapters\":[\"graph\",\"map\",\"seq\"],\"host\":\"generic\"}'"
+new="printf '%s\\n' '{\"schema\":\"ui.adapter-browser-proof/11\",\"status\":\"PASS\",\"directFeatures\":[\"chart\",\"presentation\",\"control\"],\"invocationAdapters\":[\"graph\",\"map\",\"seq\"],\"chartVariants\":[\"bar-horizontal\",\"bar-vertical\",\"line\",\"pie\",\"donut\",\"scatter\",\"heatmap\",\"sunburst\"],\"nestedChartDataUrl\":true,\"controlSource\":true,\"host\":\"generic\"}'"
+assert s.count(old)==1; p.write_text(s.replace(old,new))
+PY
+git add -A
+test -z "$(git diff --name-only --diff-filter=U)"
+git commit -m 'Merge latest #222 unified runtime into #224'
+MERGE_SHA="$(git rev-parse HEAD)"
+printf 'merge=%s parents=%s\n' "$MERGE_SHA" "$(git show -s --format=%P HEAD)"
+
+# 3. Carry Chart as a generic view preset/activation through latest surface-runtime.
+python3 - <<'PY'
+from pathlib import Path
+p=Path('packages/semantic-map/surface-runtime.mjs'); s=p.read_text()
+old="""  store,\n  mode = 'view',\n}) => {"""; new="""  store,\n  mode = 'view',\n  view: initialView = null,\n}) => {"""
+assert s.count(old)==1; s=s.replace(old,new)
+old="  const view = defaultViewForPattern(pattern);"; new="  let view = initialView ?? defaultViewForPattern(pattern);\n  invariant(view?.pattern === pattern, `view pattern must be ${pattern}`);"
+assert s.count(old)==1; s=s.replace(old,new)
+anchor="""  const queueRender = () => {\n    if (renderQueued) return;\n    renderQueued = true;\n    scope.requestAnimationFrame(render);\n  };\n"""
+addition=anchor+"""  const setView = nextView => {\n    invariant(nextView?.pattern === pattern, `view pattern must be ${pattern}`);\n    const previousView = view;\n    view = nextView;\n    try { return render(); } catch (error) { view = previousView; render(); throw error; }\n  };\n"""
+assert s.count(anchor)==1; s=s.replace(anchor,addition)
+old="""    scene: () => scene,\n    view,\n  });"""; new="""    scene: () => scene,\n    setView,\n    get view() { return view; },\n  });"""
+assert s.count(old)==1; p.write_text(s.replace(old,new))
+
+p=Path('packages/semantic-map/feature-runtime.mjs'); s=p.read_text()
+old="const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1' });"; new="const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1', chart: 'chart/1' });"
+assert s.count(old)==1; s=s.replace(old,new)
+old="""    store,\n  });\n  const { adapter, canvas, view } = surface;"""; new="""    store,\n    view: feature?.view ?? null,\n  });\n  const { adapter, canvas } = surface;"""
+assert s.count(old)==1; s=s.replace(old,new)
+old="""    const configKey = patternConfigKey(view.pattern);\n    const batch = store.performBatch([prepared], candidate => validatePatternDomain(\n      candidate.domain,\n      view.pattern,\n      configKey === null ? null : view[configKey],\n    ));"""
+new="""    const currentView = surface.view;\n    const configKey = patternConfigKey(currentView.pattern);\n    const batch = store.performBatch([prepared], candidate => validatePatternDomain(\n      candidate.domain,\n      currentView.pattern,\n      configKey === null ? null : currentView[configKey],\n    ));"""
+assert s.count(old)==1; s=s.replace(old,new)
+anchor="""  });\n  adapter.setErrorHandler(surface.queueRender);"""
+addition="""  });\n  adapter.setActivationHandler(activation => {\n    invariant(activation?.kind === 'set-view', `unsupported activation ${String(activation?.kind)}`);\n    const nextView = activation.view;\n    invariant(nextView?.pattern === pattern, `activation view pattern must be ${pattern}`);\n    const configKey = patternConfigKey(nextView.pattern);\n    validatePatternDomain(store.domain, nextView.pattern, configKey === null ? null : nextView[configKey]);\n    const nextScene = surface.setView(nextView);\n    return Object.freeze({ kind: 'set-view', pattern: nextScene.pattern });\n  });\n  adapter.setErrorHandler(surface.queueRender);"""
+assert s.count(anchor)==1; p.write_text(s.replace(anchor,addition))
+PY
+git add packages/semantic-map/feature-runtime.mjs packages/semantic-map/surface-runtime.mjs
+git commit -m 'feat: carry Chart through unified surface runtime'
+RUNTIME_SHA="$(git rev-parse HEAD)"
+export RUNTIME_SHA
+# Only tracked migration targets get evolutions. feature-runtime is currently expected untracked.
+node --input-type=module <<'NODE'
+import fs from 'node:fs'; import crypto from 'node:crypto';
+const path='packages/semantic-map/migration-manifest.json'; const m=JSON.parse(fs.readFileSync(path,'utf8'));
+const target='packages/semantic-map/feature-runtime.mjs'; const prior=(m.evolutions??[]).filter(x=>x.target===target).at(-1); const entry=(m.entries??[]).find(x=>x.target===target); const from=prior?.toSha256 ?? entry?.targetSha256 ?? null;
+if(from){ const to=crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex'); m.evolutions.push({id:'chart-unified-surface-runtime-260915/1',target,fromSha256:from,toSha256:to,sourceCommit:process.env.RUNTIME_SHA,sourcePath:target,reason:'carry-chart-view-presets-and-set-view-activation-through-unified-surface-runtime'}); fs.writeFileSync(path,JSON.stringify(m,null,2)+'\n'); }
+else console.log(`migration target not tracked: ${target}`);
+NODE
+node tests/check-semantic-map-migration.mjs
+git add packages/semantic-map/migration-manifest.json
+if ! git diff --cached --quiet; then git commit -m 'chore: admit Chart unified-runtime evolution'; fi
+
+# 4. Canonical generated projections only.
+node apps/artifact-shell/scripts/build-registry.mjs
+node apps/artifact-shell/scripts/build-registry.mjs --check
+node packages/semantic-map/scripts/regenerate_example.mjs
+git add apps/artifact-shell/generated/capability-registry.mjs examples/render.semantic-map examples/render.semantic-map.set-topology
+if ! git diff --cached --quiet; then git commit -m 'chore: regenerate integrated projections'; fi
+python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
+
+# 5. Deterministic source gates.
+node tests/check-semantic-map-migration.mjs
+node packages/semantic-map/tests/run.mjs
+python3 packages/semantic-map/tests/meaning_recovery_negative_controls.py
+node apps/artifact-shell/tests/semantic-map-capability.mjs
+node tests/check-semantic-map-legacy-source-retirement.mjs
+node apps/artifact-shell/tests/http-resource.mjs
+node apps/artifact-shell/tests/control-resource.mjs
+node apps/artifact-shell/tests/publication.mjs
+npm run check:artifact-runtime-core
+node packages/source-compiler/tests/boundary.mjs
+node packages/source-compiler/tests/presentation.mjs
+PUB="${RUNNER_TEMP:-/tmp}/chart224-final-publication"
+rm -rf "$PUB"
+node apps/artifact-shell/scripts/build-publication.mjs --out="$PUB"
+
+# 6. Real browser source proofs.
+python3 -m pip install --disable-pip-version-check --user 'playwright==1.57.0'
+CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+test -n "$CHROME"
+export CHROMIUM_EXECUTABLE="$CHROME"
+python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
+python3 apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
+python3 -m http.server 8765 --bind 127.0.0.1 --directory "$PUB" >/tmp/chart224-final-http.log 2>&1 &
+server=$!
+trap 'kill $server 2>/dev/null || true' EXIT
+sleep 1
+apps/artifact-shell/tests/prove-publication-browser.sh http://127.0.0.1:8765
+kill "$server" 2>/dev/null || true
+trap - EXIT
+
+# 7. Exact latest ancestry and push only after every gate passed.
+git merge-base --is-ancestor "$LATEST" HEAD
+test "$(git rev-list --count HEAD.."$LATEST")" = 0
+FINAL_SHA="$(git rev-parse HEAD)"
+printf '{"schema":"chart224-final-54ba-proof/2","status":"PASS","sha":"%s","latest222":"%s","behind":0,"keyboard":true,"unifiedRuntime":true,"chartVariants":8,"nestedChartDataUrl":true,"controlHttpSource":true,"migrationIntegrity":true,"canonicalProjection":true}\n' "$FINAL_SHA" "$LATEST" > chart224-final-54ba-proof.json
+git push origin HEAD:"$CANDIDATE"
+echo "FINAL_CANDIDATE=$FINAL_SHA"
