@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import subprocess
+import tempfile
+import time
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
 
@@ -14,22 +17,79 @@ HTML = ROOT / "examples" / "render.semantic-map.set-topology" / "dist" / "index.
 CHROMIUM = os.environ.get("CHROMIUM_EXECUTABLE", "/usr/bin/chromium")
 
 
+def free_port() -> int:
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    value = sock.getsockname()[1]
+    sock.close()
+    return value
+
+
+def build_preview(output: Path) -> None:
+    completed = subprocess.run(
+        ["npm", "--prefix", "apps/preview", "run", "build", "--", f"--outDir={output}"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def data_fragment(envelope: dict[str, object]) -> str:
+    code = """
+import { createUrlModuleUrl } from './packages/url-module/src/index.mjs';
+let text = '';
+for await (const chunk of process.stdin) text += chunk;
+const value = JSON.parse(text);
+const href = await createUrlModuleUrl({ base: 'https://semantic-replay.invalid/', fragment: 'data', value });
+process.stdout.write(new URL(href).hash);
+"""
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", code],
+        cwd=ROOT,
+        input=json.dumps(envelope, ensure_ascii=False),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    fragment = result.stdout.strip()
+    assert fragment.startswith("#data="), fragment
+    return fragment
+
+
+def wait_preview(page) -> None:
+    page.wait_for_function(
+        "globalThis.uiPreviewProof?.status === 'PASS' || globalThis.uiPreviewProof?.status === 'FAIL'",
+        timeout=30_000,
+    )
+    proof = page.evaluate("() => globalThis.uiPreviewProof")
+    assert proof["status"] == "PASS", proof
+    page.wait_for_function("globalThis.semanticMapRuntime?.ready === true", timeout=30_000)
+    page.wait_for_function("globalThis.semanticMapReview?.ready === true", timeout=30_000)
+
+
 def snapshot(page):
     return page.evaluate(
-        """() => ({
-          head: semanticMapRuntime.head,
-          stateHash: semanticMapRuntime.stateHash,
-          log: semanticMapRuntime.log,
-          draft: semanticMapRuntime.draftOperations(),
-          topology: semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology ?? null,
-          rawBounds: Object.fromEntries(
-            semanticMapApp.snapshot().domain.regions
-              .filter((item) => item.kind === 'set')
-              .map((item) => [item.id, item.bounds])
-          ),
-          overlay: semanticMapApp.adapter.reviewOverlaySnapshot(),
-          pending: Boolean(semanticMapReview.pending()),
-        })"""
+        """() => {
+          const state = semanticMapApp.snapshot();
+          return {
+            head: semanticMapRuntime.head,
+            stateHash: semanticMapRuntime.stateHash,
+            log: semanticMapRuntime.log,
+            records: structuredClone(semanticMapRuntime.records),
+            view: structuredClone(semanticMapRuntime.view),
+            draft: semanticMapRuntime.draftOperations(),
+            topology: state.scene?.setOverlay?.pairs?.[0]?.topology ?? null,
+            rawBounds: Object.fromEntries(
+              state.domain.regions
+                .filter((item) => item.kind === 'set')
+                .map((item) => [item.id, item.bounds])
+            ),
+            overlay: semanticMapApp.adapter.reviewOverlaySnapshot(),
+            pending: Boolean(semanticMapReview.pending()),
+          };
+        }"""
     )
 
 
@@ -117,90 +177,120 @@ def assert_review(review, base):
 
 def main() -> None:
     errors: list[str] = []
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            executable_path=CHROMIUM,
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
+    with tempfile.TemporaryDirectory(prefix="semantic-map-gesture-replay-") as temporary_name:
+        preview = Path(temporary_name) / "preview"
+        build_preview(preview)
+        listen = free_port()
+        server = subprocess.Popen(
+            ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
+            cwd=preview,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
         )
-        context = browser.new_context(viewport={"width": 1180, "height": 820})
-        page = load_app(context, HTML, errors)
-        page.wait_for_function("semanticMapSite.setTopologyProof === true")
-        page.wait_for_function(
-            "semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'disjoint'"
-        )
-        base = snapshot(page)
-        base_lines = len(base["log"].strip().splitlines())
+        preview_base = f"http://127.0.0.1:{listen}"
+        try:
+            time.sleep(0.4)
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(
+                    executable_path=CHROMIUM,
+                    headless=True,
+                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                )
+                context = browser.new_context(viewport={"width": 1180, "height": 820})
+                page = load_app(context, HTML, errors)
+                page.wait_for_function("semanticMapSite.setTopologyProof === true")
+                page.wait_for_function(
+                    "semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'disjoint'"
+                )
+                base = snapshot(page)
+                base_lines = len(base["log"].strip().splitlines())
 
-        move_to_overlap(page)
-        reject_review = open_review(
-            page,
-            "Review the semantic topology recovered from an actual maxGraph gesture.",
-        )
-        assert_review(reject_review, base)
-        rejected = page.evaluate(
-            """async () => {
-              const before = semanticMapRuntime.log.split('\\n').filter(Boolean).length;
-              const result = await semanticMapReview.rejectPending();
-              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-              return {
-                result,
-                before,
-                after: semanticMapRuntime.log.split('\\n').filter(Boolean).length,
-              };
-            }"""
-        )
-        page.wait_for_function("semanticMapRuntime.draftCount() === 0")
-        page.wait_for_function(
-            "semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'disjoint'"
-        )
-        after_reject = snapshot(page)
-        assert rejected == {"result": True, "before": base_lines, "after": base_lines}
-        assert after_reject == base
+                move_to_overlap(page)
+                reject_review = open_review(
+                    page,
+                    "Review the semantic topology recovered from an actual maxGraph gesture.",
+                )
+                assert_review(reject_review, base)
+                rejected = page.evaluate(
+                    """async () => {
+                      const before = semanticMapRuntime.log.split('\\n').filter(Boolean).length;
+                      const result = await semanticMapReview.rejectPending();
+                      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                      return {
+                        result,
+                        before,
+                        after: semanticMapRuntime.log.split('\\n').filter(Boolean).length,
+                      };
+                    }"""
+                )
+                page.wait_for_function("semanticMapRuntime.draftCount() === 0")
+                page.wait_for_function(
+                    "semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'disjoint'"
+                )
+                after_reject = snapshot(page)
+                assert rejected == {"result": True, "before": base_lines, "after": base_lines}
+                assert after_reject == base
 
-        move_to_overlap(page)
-        accept_review = open_review(
-            page,
-            "Accept the semantic topology recovered from an actual maxGraph gesture.",
-        )
-        assert_review(accept_review, base)
-        accepted = page.evaluate(
-            """async () => {
-              const before = semanticMapRuntime.log.split('\\n').filter(Boolean).length;
-              const result = await semanticMapReview.acceptPending();
-              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-              return {
-                decisionId: result.decisionId,
-                stateHash: result.stateHash,
-                url: result.url,
-                before,
-                after: semanticMapRuntime.log.split('\\n').filter(Boolean).length,
-              };
-            }"""
-        )
-        current = snapshot(page)
-        assert accepted["before"] == base_lines and accepted["after"] == base_lines + 1
-        assert current["head"] == accepted["decisionId"]
-        assert current["stateHash"] == accepted["stateHash"]
-        assert current["topology"] == "partial-overlap"
-        assert current["rawBounds"] == base["rawBounds"]
-        assert current["draft"] == []
-        assert current["overlay"] == {"active": False, "overlay": None}
-        assert current["pending"] is False
+                move_to_overlap(page)
+                accept_review = open_review(
+                    page,
+                    "Accept the semantic topology recovered from an actual maxGraph gesture.",
+                )
+                assert_review(accept_review, base)
+                accepted = page.evaluate(
+                    """async () => {
+                      const before = semanticMapRuntime.log.split('\\n').filter(Boolean).length;
+                      const result = await semanticMapReview.acceptPending();
+                      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                      return {
+                        decisionId: result.decisionId,
+                        stateHash: result.stateHash,
+                        url: result.url,
+                        before,
+                        after: semanticMapRuntime.log.split('\\n').filter(Boolean).length,
+                      };
+                    }"""
+                )
+                current = snapshot(page)
+                assert accepted["before"] == base_lines and accepted["after"] == base_lines + 1
+                assert current["head"] == accepted["decisionId"]
+                assert current["stateHash"] == accepted["stateHash"]
+                assert current["topology"] == "partial-overlap"
+                assert current["rawBounds"] == base["rawBounds"]
+                assert current["draft"] == []
+                assert current["overlay"] == {"active": False, "overlay": None}
+                assert current["pending"] is False
+                assert accepted["url"] == ""
 
-        replay = load_app(context, HTML, errors, fragment="#" + urlsplit(accepted["url"]).fragment)
-        replay.wait_for_function(
-            "semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'partial-overlap'"
-        )
-        replay_state = snapshot(replay)
-        assert replay_state["head"] == current["head"]
-        assert replay_state["stateHash"] == current["stateHash"]
-        assert replay_state["log"] == current["log"]
-        assert replay_state["rawBounds"] == current["rawBounds"]
-        assert replay_state["draft"] == []
-        assert replay_state["overlay"] == {"active": False, "overlay": None}
-        assert replay_state["pending"] is False
-        browser.close()
+                envelope = page.evaluate("async () => await semanticMapRuntime.envelope()")
+                fragment = data_fragment(envelope)
+                replay = context.new_page()
+                replay.on("pageerror", lambda error: errors.append(str(error)))
+                replay.goto(
+                    f"{preview_base}/?case=graph{fragment}",
+                    wait_until="domcontentloaded",
+                    timeout=30_000,
+                )
+                wait_preview(replay)
+                replay_state = snapshot(replay)
+                assert replay_state["head"] == current["head"]
+                assert replay_state["stateHash"] == current["stateHash"]
+                assert replay_state["log"] == current["log"]
+                assert replay_state["records"] == current["records"]
+                assert replay_state["view"] == current["view"]
+                assert replay_state["rawBounds"] == current["rawBounds"]
+                assert replay_state["draft"] == []
+                assert replay_state["overlay"] == {"active": False, "overlay": None}
+                assert replay_state["pending"] is False
+                assert replay.url.endswith(fragment), replay.url
+                browser.close()
+        finally:
+            server.terminate()
+            try:
+                server.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                server.kill()
 
     assert not errors, errors
     print(json.dumps({
@@ -211,6 +301,8 @@ def main() -> None:
         "rejectDecisionAppendCount": 0,
         "acceptDecisionAppendCount": 1,
         "freshJsonlReplay": True,
+        "freshDataReplay": True,
+        "replayHost": "apps/preview",
         "reviewOverlayAuthority": False,
     }, sort_keys=True))
 
