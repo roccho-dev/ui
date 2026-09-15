@@ -28,6 +28,15 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/url-module/src',
 ]);
 
+const featureExampleHref = async ({ adapter, source }) => {
+  const encoded = new URL(await createUrlModuleUrl({
+    base: `https://artifact-shell.invalid/adapters/${adapter.id}/`,
+    fragment: 'data',
+    value: source,
+  }));
+  return `adapters/${adapter.id}/${encoded.hash}`;
+};
+
 export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
   const adapters = [createGraphAdapter(), createMapAdapter(), createSeqAdapter(), createPresentationAdapter(), createControlAdapter()];
   if (new Set(adapters.map(adapter => adapter.id)).size !== adapters.length) throw new Error('artifact-adapters: duplicate id');
@@ -38,6 +47,7 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     await fs.cp(path.join(repoRoot, relative), path.join(outputRoot, 'modules', relative), { recursive: true });
   }
   const adapterHost = await fs.readFile(path.join(appRoot, 'publication', 'adapter-host.html'));
+  const featureExamples = new Map();
 
   for (const adapter of adapters) {
     const sourcePath = path.join(repoRoot, adapter.source);
@@ -46,7 +56,8 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     await fs.mkdir(root, { recursive: true });
 
     if (adapter.kind === 'feature') {
-      await materializeFeature({ adapter, input: source, outputRoot, repoRoot, root });
+      featureExamples.set(adapter.id, await featureExampleHref({ adapter, source }));
+      await materializeFeature({ adapter, outputRoot, repoRoot, root });
       continue;
     }
     if (adapter.kind !== 'invocation') throw new Error(`artifact-adapters: ${adapter.id} unsupported kind ${adapter.kind}`);
@@ -56,6 +67,15 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     await fs.writeFile(path.join(root, 'adapter.json'), `${canonicalJson(published)}\n`);
     await fs.writeFile(path.join(root, 'index.html'), adapterHost);
   }
+
+  const launcherPath = path.join(outputRoot, 'index.html');
+  let launcher = await fs.readFile(launcherPath, 'utf8');
+  for (const [id, href] of featureExamples) {
+    const marker = `href="adapters/${id}/"`;
+    if (!launcher.includes(marker)) throw new Error(`artifact-adapters: launcher link missing for ${id}`);
+    launcher = launcher.replace(marker, `href="${href}"`);
+  }
+  await fs.writeFile(launcherPath, launcher);
 
   return Object.freeze(adapters.map(adapter => adapter.id));
 };
