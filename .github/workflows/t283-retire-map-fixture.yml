@@ -47,6 +47,7 @@ jobs:
       - name: Commit proven fix
         run: |
           set -euxo pipefail
+          rm -f .github/t283-map-fixture-trigger
           rm .github/workflows/t283-retire-map-fixture.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
