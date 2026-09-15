@@ -268,7 +268,7 @@ def main() -> None:
                 replay = context.new_page()
                 replay.on("pageerror", lambda error: errors.append(str(error)))
                 replay.goto(
-                    f"{preview_base}/?case=graph{fragment}",
+                    f"{preview_base}/?case=semantic/graph{fragment}",
                     wait_until="domcontentloaded",
                     timeout=30_000,
                 )

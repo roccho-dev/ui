@@ -1,4 +1,5 @@
 {"id":"graph","label":"graph","featureModule":"packages/business-model/feature.mjs","featureId":"graph","source":"examples/shared/business-model.jsonl"}
+{"id":"semantic/graph","label":"semantic/graph","featureModule":"packages/semantic-map/feature.mjs","featureId":"graph","source":"examples/graph/example.jsonl"}
 {"id":"map","label":"map","featureModule":"packages/semantic-map/feature.mjs","featureId":"map","source":"examples/map/example.jsonl"}
 {"id":"seq","label":"seq","featureModule":"packages/business-model/feature.mjs","featureId":"seq","source":"examples/shared/business-model.jsonl"}
 {"id":"chart","label":"chart","featureModule":"packages/semantic-map/feature.mjs","featureId":"chart","source":"examples/chart/bar-horizontal.jsonl","view":{"pattern":"chart/1","chart":{"type":"bar-horizontal/1"}}}
