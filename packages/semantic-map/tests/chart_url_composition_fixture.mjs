@@ -22,7 +22,7 @@ async function child(definition) {
   return Object.freeze({
     id: definition.id,
     title: definition.title,
-    source: definition.source.replace('../examples/', 'examples/'),
+    source: definition.source.replace('../../../examples/', 'examples/'),
     records: state,
     view,
     url,
@@ -37,7 +37,7 @@ const children = await Promise.all([
   child({
     id: 'sales',
     title: '月次売上',
-    source: '../examples/chart-composition/sales.jsonl',
+    source: '../../../examples/chart/bar-vertical.jsonl',
     layers: ['bar-vertical/1'],
     expectedMarks: 4,
     expectedLineRelations: 0,
@@ -45,7 +45,7 @@ const children = await Promise.all([
   child({
     id: 'active',
     title: '利用者推移',
-    source: '../examples/chart-composition/active.jsonl',
+    source: '../../../examples/chart/line.jsonl',
     layers: ['line/1'],
     expectedMarks: 4,
     expectedLineRelations: 3,
@@ -53,7 +53,7 @@ const children = await Promise.all([
   child({
     id: 'share',
     title: '構成比',
-    source: '../examples/chart-composition/share.jsonl',
+    source: '../../../examples/chart/pie.jsonl',
     layers: ['pie/1', 'donut/1'],
     expectedMarks: 8,
     expectedLineRelations: 0,

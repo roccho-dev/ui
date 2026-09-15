@@ -6,11 +6,15 @@ on:
       - packages/semantic-map/**
       - packages/business-model/**
       - examples/shared/**
+      - examples/chart/**
       - examples/render.semantic-map.set-topology/**
+      - apps/artifact-shell/adapters/chart.mjs
       - apps/artifact-shell/adapters/graph.mjs
       - apps/artifact-shell/adapters/seq.mjs
       - apps/artifact-shell/adapters/presentation.mjs
       - apps/artifact-shell/publication/build-adapters.mjs
+      - apps/artifact-shell/tests/feature-data-publication.mjs
+      - apps/artifact-shell/tests/chart-publication-browser-proof.py
       - apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py
@@ -25,6 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Prove semantic source gates
         run: node packages/semantic-map/tests/run.mjs
@@ -41,6 +46,8 @@ jobs:
           PY
       - name: Prove one data fragment across graph seq presentation
         run: python3 apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
+      - name: Build ephemeral set-topology proof fixture
+        run: npm run build:semantic-map-set-topology-proof
       - name: Prove actual gesture through review and fresh JSONL replay
         run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py
       - name: Prove shared active list in graph map and seq
@@ -51,3 +58,5 @@ jobs:
         run: python3 apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
       - name: Prove keyboard authoring shortcuts
         run: python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
+      - name: Prove chart publication authoring across all variants
+        run: python3 apps/artifact-shell/tests/chart-publication-browser-proof.py

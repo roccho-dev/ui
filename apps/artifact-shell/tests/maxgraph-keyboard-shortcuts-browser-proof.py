@@ -65,6 +65,32 @@ def focus_canvas(child) -> None:
     assert child.evaluate("() => document.activeElement === document.querySelector('#graph-container')") is True
 
 
+def wait_rendered_region(child, region_id: str, message: str) -> None:
+    poll(
+        lambda: child.evaluate(
+            """id => Boolean(semanticMapSite.editor.adapter.lastScene?.representations.some(
+              item => (item.sourceRegionId ?? item.regionId) === id
+            ))""",
+            region_id,
+        ),
+        lambda rendered: rendered is True,
+        message,
+    )
+
+
+def select_rendered_region(child, region_id: str) -> None:
+    wait_rendered_region(child, region_id, "domain restored before rendered scene contained the region")
+    child.evaluate("id => semanticMapSite.editor.adapter.setSelection({ regionIds: [id], relationIds: [] })", region_id)
+    poll(
+        lambda: child.evaluate(
+            "id => semanticMapSite.editor.adapter.selectionSnapshot().regionIds.includes(id)",
+            region_id,
+        ),
+        lambda selected: selected is True,
+        "rendered region was not selectable",
+    )
+
+
 def main() -> None:
     server = None
     if REMOTE_BASE:
@@ -157,8 +183,12 @@ def main() -> None:
                 "Ctrl+Y did not redo add",
             )
 
+            # History mutates the domain before the queued render commits lastScene.
+            # Selection is intentionally strict against lastScene, so wait for the
+            # rendered representation instead of racing setSelection against redraw.
+            select_rendered_region(child, created_id)
+
             # F2/Enter open maxGraph label editing; Escape cancels it.
-            child.evaluate("id => semanticMapSite.editor.adapter.setSelection({ regionIds: [id], relationIds: [] })", created_id)
             focus_canvas(child)
             page.keyboard.press("F2")
             child.locator(".mxCellEditor").wait_for(state="visible", timeout=10_000)
@@ -171,7 +201,7 @@ def main() -> None:
             poll(lambda: child.locator(".mxCellEditor").count(), lambda count: count == 0, "Escape did not close Enter editor")
 
             # Arrow and Shift+Arrow update semantic geometry in map/1.
-            child.evaluate("id => semanticMapSite.editor.adapter.setSelection({ regionIds: [id], relationIds: [] })", created_id)
+            select_rendered_region(child, created_id)
             focus_canvas(child)
             before = child.evaluate("id => ({ ...semanticMapSite.editor.store.domain.regions.get(id).bounds })", created_id)
             page.keyboard.press("ArrowRight")
@@ -200,7 +230,7 @@ def main() -> None:
                 lambda present: present is True,
                 "undo did not restore deleted region",
             )
-            child.evaluate("id => semanticMapSite.editor.adapter.setSelection({ regionIds: [id], relationIds: [] })", created_id)
+            select_rendered_region(child, created_id)
             focus_canvas(child)
             page.keyboard.press("Backspace")
             poll(
@@ -220,10 +250,11 @@ def main() -> None:
             browser.close()
 
         print(json.dumps({
-            "schema": "maxgraph-keyboard-shortcuts-browser-proof/1",
+            "schema": "maxgraph-keyboard-shortcuts-browser-proof/2",
             "status": "PASS",
             "pattern": "map/1",
             "focusableCanvas": True,
+            "historyRenderBarrier": True,
             "toolShortcuts": ["V", "H", "Space", "Escape"],
             "editShortcuts": ["N", "Enter", "F2", "Delete", "Backspace", "Arrow", "Shift+Arrow"],
             "historyShortcuts": ["Ctrl+Z", "Ctrl+Y"],

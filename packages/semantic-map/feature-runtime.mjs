@@ -4,7 +4,7 @@ import { SemanticDomainStore } from './domain/authoring-store.js';
 import { patternConfigKey, validatePatternDomain } from './pattern/index.js';
 import { mountSemanticMapSurface } from './surface-runtime.mjs';
 
-const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1' });
+const patterns = Object.freeze({ graph: 'graph/1', map: 'map/1', seq: 'seq/1', chart: 'chart/1' });
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-feature: ${message}`); };
 
 const snapshotDomain = domain => Object.freeze({
@@ -49,11 +49,13 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
     root,
     scope,
     store,
+    view: feature?.view ?? null,
   });
-  const { adapter, canvas, view } = surface;
+  const { adapter, canvas } = surface;
 
   adapter.setOperationHandler(operation => {
     const prepared = prepareRuntimeOperation(operation, store, scope);
+    const view = surface.view;
     const configKey = patternConfigKey(view.pattern);
     const batch = store.performBatch([prepared], candidate => validatePatternDomain(
       candidate.domain,
@@ -61,6 +63,14 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis })
       configKey === null ? null : view[configKey],
     ));
     return batch.results[0];
+  });
+  adapter.setActivationHandler(activation => {
+    invariant(activation?.kind === 'set-view', `unsupported activation ${String(activation?.kind)}`);
+    const nextView = activation.view;
+    invariant(nextView?.pattern === pattern, `activation view pattern must be ${pattern}`);
+    const configKey = patternConfigKey(nextView.pattern);
+    validatePatternDomain(store.domain, nextView.pattern, configKey === null ? null : nextView[configKey]);
+    return surface.setView(nextView);
   });
   adapter.setErrorHandler(surface.queueRender);
   adapter.setTool('select');

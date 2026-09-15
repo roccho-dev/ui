@@ -68,11 +68,13 @@ export const mountSemanticMapSurface = async ({
   scope = globalThis,
   store,
   mode = 'view',
+  view: initialView = null,
 }) => {
   invariant(root?.replaceChildren, 'root is required');
   invariant(store?.domain, 'store is required');
   invariant(['authoring', 'view'].includes(mode), `unsupported mode ${String(mode)}`);
-  const view = defaultViewForPattern(pattern);
+  let view = initialView ?? defaultViewForPattern(pattern);
+  invariant(view?.pattern === pattern, `view pattern must be ${pattern}`);
   const document = root.ownerDocument;
   const surface = document.createElement('div');
   surface.className = 'semantic-map-feature';
@@ -175,6 +177,20 @@ export const mountSemanticMapSurface = async ({
     return scene;
   }
 
+  const setView = nextView => {
+    invariant(nextView?.pattern === pattern, `view pattern must be ${pattern}`);
+    const previousView = view;
+    view = nextView;
+    try {
+      const nextScene = render();
+      return Object.freeze({ kind: 'set-view', pattern: nextScene.pattern });
+    } catch (error) {
+      view = previousView;
+      render();
+      throw error;
+    }
+  };
+
   store.onChange?.(queueRender);
   renderAndFit();
 
@@ -199,6 +215,7 @@ export const mountSemanticMapSurface = async ({
       selection: adapter.selectionSnapshot(),
     }),
     scene: () => scene,
-    view,
+    setView,
+    get view() { return view; },
   });
 };

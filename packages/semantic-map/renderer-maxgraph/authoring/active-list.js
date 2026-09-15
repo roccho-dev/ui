@@ -32,14 +32,18 @@ const ensureStyles = () => {
 };
 
 const normalizeItems = scene => {
-  const regions = (scene?.representations ?? [])
-    .filter(item => !item.isRoot && !item.isGuide && !item.moduleNamespace)
-    .map(item => Object.freeze({
+  const regions = new Map();
+  for (const item of scene?.representations ?? []) {
+    if (item.isRoot || item.isGuide || item.moduleNamespace) continue;
+    const id = item.sourceRegionId ?? item.regionId;
+    const label = item.sourceLabel || item.label || id;
+    if (!regions.has(id)) regions.set(id, Object.freeze({
       kind: 'region',
-      id: item.regionId,
-      label: item.label || item.regionId,
-      description: `${item.label || item.regionId} — ${item.kind || item.mode || 'region'}`,
+      id,
+      label,
+      description: `${label} — ${item.kind || item.mode || 'region'}`,
     }));
+  }
   const relations = (scene?.relations ?? [])
     .filter(item => item.sceneId === 'root' && item.relationIds?.length === 1)
     .map(item => Object.freeze({
@@ -48,7 +52,7 @@ const normalizeItems = scene => {
       label: item.label || item.relationIds[0],
       description: `${item.label || item.relationIds[0]} — ${item.kind || 'relation'}`,
     }));
-  return Object.freeze([...regions, ...relations]);
+  return Object.freeze([...regions.values(), ...relations]);
 };
 
 export const mountActiveList = ({ host, onActivate }) => {

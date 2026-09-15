@@ -16,7 +16,7 @@ const hrefFrom = (from, target) => {
   return relative.startsWith('.') ? relative : `./${relative}`;
 };
 
-export const materializeFeature = async ({ adapter, outputRoot, repoRoot, root }) => {
+export const materializeFeature = async ({ adapter, outputRoot, repoRoot, root, view = null, label = null }) => {
   invariant(typeof adapter.featureModule === 'string' && adapter.featureModule, `${adapter.id} featureModule required`);
 
   const descriptorPath = inside(repoRoot, path.join(repoRoot, adapter.featureModule));
@@ -25,10 +25,13 @@ export const materializeFeature = async ({ adapter, outputRoot, repoRoot, root }
   invariant(feature?.id === adapter.id, `${adapter.id} feature descriptor mismatch`);
   invariant(typeof feature.entry === 'string' && feature.entry, `${adapter.id} entry required`);
   invariant(Array.isArray(feature.styles), `${adapter.id} styles required`);
+  if (view !== null) invariant(view && typeof view === 'object' && !Array.isArray(view), `${adapter.id} view must be an object`);
 
   const modulesRoot = path.join(outputRoot, 'modules');
   const entry = inside(modulesRoot, path.join(modulesRoot, feature.entry));
+  const urlModule = inside(modulesRoot, path.join(modulesRoot, 'packages', 'url-module', 'src', 'index.mjs'));
   await fs.access(entry);
+  await fs.access(urlModule);
   const styles = [];
   for (const relative of feature.styles) {
     invariant(typeof relative === 'string' && relative, `${adapter.id} style path required`);
@@ -41,14 +44,21 @@ export const materializeFeature = async ({ adapter, outputRoot, repoRoot, root }
   const hostRoot = path.join(repoRoot, 'apps', 'artifact-shell', 'publication');
   await fs.copyFile(path.join(hostRoot, 'feature-host.html'), path.join(root, 'index.html'));
   await fs.copyFile(path.join(hostRoot, 'feature-host.css'), path.join(root, 'host.css'));
-  await fs.copyFile(path.join(hostRoot, 'feature-host.mjs'), path.join(root, 'host.mjs'));
+  const hostSource = await fs.readFile(path.join(hostRoot, 'feature-host.mjs'), 'utf8');
+  const canonicalUrlModuleHref = '../../modules/packages/url-module/src/index.mjs';
+  invariant(hostSource.includes(canonicalUrlModuleHref), 'feature host URL-module import marker required');
+  await fs.writeFile(
+    path.join(root, 'host.mjs'),
+    hostSource.replace(canonicalUrlModuleHref, hrefFrom(root, urlModule)),
+  );
 
   const publication = Object.freeze({
     schema: 'ui-feature-publication/1',
     id: feature.id,
-    label: feature.label ?? adapter.label,
+    label: label ?? feature.label ?? adapter.label,
     entry: hrefFrom(root, entry),
     styles: Object.freeze(styles.map(target => hrefFrom(root, target))),
+    ...(view === null ? {} : { view }),
   });
   await fs.writeFile(path.join(root, 'feature.json'), `${canonicalJson(publication)}\n`);
 };

@@ -61,7 +61,7 @@ const adapterFiles = fs.readdirSync(resolve('apps/artifact-shell/adapters'), { w
   .filter(entry => entry.isFile() && entry.name.endsWith('.mjs'))
   .map(entry => entry.name)
   .sort();
-assert.deepEqual(adapterFiles, ['control.mjs', 'graph.mjs', 'map.mjs', 'presentation.mjs', 'seq.mjs']);
+assert.deepEqual(adapterFiles, ['chart.mjs', 'control.mjs', 'graph.mjs', 'map.mjs', 'presentation.mjs', 'seq.mjs']);
 
 const runtimeRoots = [
   'apps/artifact-shell/adapters',

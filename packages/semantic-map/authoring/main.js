@@ -603,7 +603,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
           bounds: [0, 0, 146, 60],
         });
         if (!result?.createdRegionId) return null;
-        adapter.selectRegion(result.createdRegionId);
+        adapter.selectPendingRegion(result.createdRegionId);
         showToast('actorを追加しました');
         requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
         return result.createdRegionId;
@@ -622,7 +622,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
         temporal: { actor, [currentView.seq.axis]: interval },
       });
       if (!result?.createdRegionId) return null;
-      adapter.selectRegion(result.createdRegionId);
+      adapter.selectPendingRegion(result.createdRegionId);
       showToast('seq itemを追加しました');
       requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
       return result.createdRegionId;
@@ -648,7 +648,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
       bounds: Object.values(newNodeBounds(parent.bounds)),
     });
     if (!result?.createdRegionId) return null;
-    adapter.selectRegion(result.createdRegionId);
+    adapter.selectPendingRegion(result.createdRegionId);
     showToast('ノードを追加しました');
     requestAnimationFrame(() => requestAnimationFrame(() => adapter.startEditingSelection()));
     return result.createdRegionId;

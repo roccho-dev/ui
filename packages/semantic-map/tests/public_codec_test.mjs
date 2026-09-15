@@ -239,7 +239,7 @@ await assert.rejects(
   published.createEnvelope(sourceLog.log, null, { pattern: source.CHART_PATTERN }),
   /View.chart is required/u,
 );
-const chartRecords = readFileSync(new URL('../examples/chart.jsonl', import.meta.url), 'utf8')
+const chartRecords = readFileSync(new URL('../../../examples/chart/bar-horizontal.jsonl', import.meta.url), 'utf8')
   .split(/\r?\n/u)
   .filter(Boolean)
   .map(line => JSON.parse(line));

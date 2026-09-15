@@ -47,6 +47,19 @@ jobs:
       - name: Run semantic map runtime checks
         run: npm run check:semantic-map-runtime
 
+  semantic-map-example-reproducibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Rebuild semantic map example from source
+        run: npm run check:semantic-map-reproducibility
+
   decision-packet-runtime-checks:
     runs-on: ubuntu-latest
     steps:
@@ -60,8 +73,21 @@ jobs:
       - name: Run decision packet runtime checks
         run: npm run check:decision-packet-runtime
 
+  decision-packet-example-reproducibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Rebuild decision packet example from source
+        run: npm run check:decision-packet-reproducibility
+
   semantic-browser-proof:
-    needs: [ui-base-checks, artifact-runtime-core, semantic-map-runtime-checks, decision-packet-runtime-checks]
+    needs: [ui-base-checks, artifact-runtime-core, semantic-map-runtime-checks, semantic-map-example-reproducibility, decision-packet-runtime-checks, decision-packet-example-reproducibility]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +113,7 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
-      - name: Prove migrated semantic-map in Chromium
+      - name: Prove semantic-map and decision-packet in Chromium
         run: |
           python3 packages/semantic-map/tests/browser_example.py
           npm run proof:semantic-map-meaning-recovery
@@ -96,7 +122,7 @@ jobs:
           python3 apps/artifact-shell/tests/decision-packet-browser-proof.py
 
   ssg-hot-refresh-proof:
-    needs: [ui-base-checks, artifact-runtime-core, semantic-map-runtime-checks, decision-packet-runtime-checks]
+    needs: [ui-base-checks, artifact-runtime-core, semantic-map-runtime-checks, semantic-map-example-reproducibility, decision-packet-runtime-checks, decision-packet-example-reproducibility]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -208,7 +234,7 @@ jobs:
           if-no-files-found: error
 
   adapter-artifacts:
-    needs: [ui-base-checks, artifact-runtime-core, semantic-map-runtime-checks, decision-packet-runtime-checks]
+    needs: [ui-base-checks, artifact-runtime-core, semantic-map-runtime-checks, semantic-map-example-reproducibility, decision-packet-runtime-checks, decision-packet-example-reproducibility]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

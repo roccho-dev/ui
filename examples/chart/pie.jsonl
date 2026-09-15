@@ -1,0 +1,6 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"share-root","title":"構成比"}
+{"type":"region","id":"share-root","parent":null,"label":"構成比","kind":"root","bounds":[0,0,1000,320],"summary":"独立したpie＋donut chart URL"}
+{"type":"region","id":"share-0","parent":"share-root","label":"製品A","kind":"chart-item","bounds":[0,0,170,70],"summary":"製品A: 45","order":0,"value":45}
+{"type":"region","id":"share-1","parent":"share-root","label":"製品B","kind":"chart-item","bounds":[0,0,170,70],"summary":"製品B: 30","order":1,"value":30}
+{"type":"region","id":"share-2","parent":"share-root","label":"製品C","kind":"chart-item","bounds":[0,0,170,70],"summary":"製品C: 15","order":2,"value":15}
+{"type":"region","id":"share-3","parent":"share-root","label":"その他","kind":"chart-item","bounds":[0,0,170,70],"summary":"その他: 10","order":3,"value":10}

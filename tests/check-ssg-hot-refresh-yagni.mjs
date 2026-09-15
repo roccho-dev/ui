@@ -113,11 +113,13 @@ for (const unrelatedPath of [
   assert.equal(relevantPattern.test(unrelatedPath), false, `heavy proof must skip unrelated path ${unrelatedPath}`);
 }
 assert.equal(packageJson.scripts.check, "npm run check:base && npm run check:artifact-runtime");
-assert.equal(packageJson.scripts["check:artifact-runtime"], "npm run check:artifact-runtime-core && npm run check:semantic-map-runtime && npm run check:decision-packet-runtime");
+assert.equal(packageJson.scripts["check:artifact-runtime"], "npm run check:artifact-runtime-core && npm run check:semantic-map-runtime && npm run check:semantic-map-reproducibility && npm run check:decision-packet-runtime && npm run check:decision-packet-reproducibility");
 assert.match(workflow, /- name: Run bounded base UI checks\n\s+run: npm run check:base/);
 assert.match(workflow, /- name: Run artifact runtime core checks\n\s+run: npm run check:artifact-runtime-core/);
 assert.match(workflow, /- name: Run semantic map runtime checks\n\s+run: npm run check:semantic-map-runtime/);
+assert.match(workflow, /- name: Rebuild semantic map example from source\n\s+run: npm run check:semantic-map-reproducibility/);
 assert.match(workflow, /- name: Run decision packet runtime checks\n\s+run: npm run check:decision-packet-runtime/);
+assert.match(workflow, /- name: Rebuild decision packet example from source\n\s+run: npm run check:decision-packet-reproducibility/);
 assert.doesNotMatch(workflow, /run: npm run check\s*$/m);
 assert.match(workflow, /- name: Select heavy SSG server proof scope/);
 assert.match(workflow, /id:\s*ssg_proof_scope/);

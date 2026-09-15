@@ -7,7 +7,7 @@ Given an exact input, this repository must make four facts discoverable without 
 1. which capability accepts the input;
 2. which exact source engine renders it;
 3. which typed events or receipts it may emit;
-4. which checked-in input and generated example output demonstrate the contract.
+4. which checked-in input and fresh generated example output demonstrate the contract.
 
 `ui` does not own accepted business state, queue rows, production ledgers, deployment authority, or runtime admission.
 
@@ -43,7 +43,7 @@ This table lists only capabilities that exist on the current branch. Planned or 
 | Thin capability-to-package adapter | `apps/artifact-shell/capabilities/<slug>/engine.mjs` |
 | Positive and destructive contract inputs | `apps/artifact-shell/capabilities/<slug>/fixtures/**` |
 | Generated shell registry | `apps/artifact-shell/generated/**` |
-| Reviewable input/output examples | `examples/<capability-id>/{input,dist}/**` |
+| Reviewable example inputs | `examples/<capability-id>/input/**` |
 | Core package | `packages/core-port/src/**` |
 | A2UI adapter artifact producer | `packages/a2ui-adapter-artifacts/**` |
 | UI package claims | `packages/ui-claims/**` |
@@ -71,22 +71,17 @@ It contains no domain-name switch and no domain semantics. Reusable implementati
 
 See `apps/artifact-shell/README.md` for the executable boundary.
 
-## Generated example dist
+## Generated example output
 
-Generated output may be committed when it is an explicit, reviewable example under:
+Generated example output is ephemeral. It is not checked in and is never an active source or build input.
 
-```text
-examples/<capability-id>/dist/**
-```
+- exact checked-in `input/**` and current source are the only example inputs;
+- tests build output into temporary directories from those inputs;
+- reproducibility is proven by rebuilding the same input and comparing fresh outputs;
+- browser proofs consume fresh/current runtime output rather than tracked generated HTML;
+- CI, Release, Pages, screenshots, receipts, and other generated artifacts remain non-authoritative evidence.
 
-An example `dist` is non-authoritative and must satisfy all of the following:
-
-- it is generated from the adjacent checked-in `input/**` and current source;
-- it is never consumed as source or as a build input;
-- CI rebuilds it in a temporary directory and compares the result;
-- production publication still belongs to Actions, Release, Pages, or another deployment owner.
-
-Generated previews and receipts outside an explicit example remain build evidence rather than repository authority.
+This keeps stale generated output from creating a false Green while preserving third-party reproducibility from source plus input.
 
 ## Naming
 
