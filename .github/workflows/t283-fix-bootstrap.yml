@@ -41,13 +41,22 @@ jobs:
           set -euxo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('packages/semantic-map/tests/browser_example.py')
-          s = p.read_text()
+
+          browser = Path('packages/semantic-map/tests/browser_example.py')
+          text = browser.read_text()
           old = 'assert handoff["text"] and "#smap=" in handoff["url"]'
           new = 'assert handoff["text"] and "#data=" in handoff["url"]'
-          if old not in s:
+          if old not in text:
               raise SystemExit('expected retired browser assertion not found')
-          p.write_text(s.replace(old, new, 1))
+          browser.write_text(text.replace(old, new, 1))
+
+          retirement = Path('packages/semantic-map/tests/transport_retirement_test.mjs')
+          text = retirement.read_text()
+          old = "  'apps/artifact-shell/publication',"
+          new = "  'apps/preview',"
+          if old not in text:
+              raise SystemExit('expected retired publication scan root not found')
+          retirement.write_text(text.replace(old, new, 1))
           PY
           node apps/artifact-shell/scripts/build-registry.mjs
       - name: Targeted checks
