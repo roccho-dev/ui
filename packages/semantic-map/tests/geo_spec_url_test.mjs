@@ -15,7 +15,7 @@ function metaFrom(source) {
   return meta;
 }
 
-const pointRecords = records('../examples/geo-example.jsonl');
+const pointRecords = records('../examples/geo-child.jsonl');
 const pointMeta = metaFrom(pointRecords);
 assert.deepEqual(pointMeta.geoSpec.bbox, [138.3682, 34.9631, 138.3944, 34.9792]);
 assert.deepEqual(
