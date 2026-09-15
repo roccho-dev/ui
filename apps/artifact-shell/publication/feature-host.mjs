@@ -14,14 +14,15 @@ const readData = async base => {
   return readUrlModule({ fragment: 'data', input: base.href });
 };
 const createDataTransport = async scope => {
-  const { createUrlModuleUrl } = await urlModule();
+  const { createUrlModuleUrl, readUrlModule } = await urlModule();
   const create = (value, { base = scope.location.href } = {}) => createUrlModuleUrl({ base, fragment: 'data', value });
+  const read = input => readUrlModule({ fragment: 'data', input });
   const replace = async value => {
     const url = await create(value);
     scope.history.replaceState(scope.history.state, '', url);
     return url;
   };
-  return Object.freeze({ schema: 'ui-data-transport/1', fragment: 'data', create, replace });
+  return Object.freeze({ schema: 'ui-data-transport/1', fragment: 'data', create, read, replace });
 };
 
 export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
