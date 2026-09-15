@@ -1,5 +1,5 @@
 import { createSemanticMap, parseSemanticMapRecords } from '../domain/index.js';
-import { createDecisionLog, createEnvelope, defaultViewForPattern, normalizeView } from '../protocol/index.js';
+import { createDecisionLog, createEnvelope, defaultViewForPattern, inspectEnvelope, normalizeView } from '../protocol/index.js';
 import { ModuleResolver } from '../module-embedding/index.js';
 import { compileTwoSetTopologyPresentation, validateSceneGraph } from '../projection/index.js';
 import { DecisionRuntime } from './runtime.js';
@@ -7,6 +7,7 @@ import { nextFrame, readJson } from './shared.js';
 import { createSemanticMapArtifactModuleBridge } from './artifact-module.js';
 import { translateSetTopologyOperation } from './set-topology-bridge.js';
 
+const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';
 const pageConfig = readJson('semantic-page-config');
 const artifactModuleBridge = createSemanticMapArtifactModuleBridge({ window: globalThis, embedded: pageConfig.mode === 'embedded' });
 if (artifactModuleBridge.embedded) document.documentElement.dataset.artifactModule = 'true';
@@ -33,7 +34,32 @@ async function applyView(editor, view) {
   }
   if (frame.select?.length) { editor.adapter.setSelection({ regionIds: [...frame.select], relationIds: [] }); await nextFrame(1); }
 }
+
+function embeddedEnvelope(timeoutMs = 15_000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      globalThis.removeEventListener('message', onMessage);
+      reject(new Error('embedded Envelope input timed out'));
+    }, timeoutMs);
+    async function onMessage(event) {
+      if (event.source !== globalThis.parent) return;
+      if (event.origin !== globalThis.location.origin) return;
+      if (event.data?.schema !== EMBED_INPUT_SCHEMA) return;
+      clearTimeout(timer);
+      globalThis.removeEventListener('message', onMessage);
+      try {
+        const inspection = await inspectEnvelope(event.data.envelope);
+        resolve(inspection.envelope);
+      } catch (error) {
+        reject(error);
+      }
+    }
+    globalThis.addEventListener('message', onMessage);
+  });
+}
+
 async function bootstrapEnvelope(config) {
+  if (config.mode === 'embedded') return embeddedEnvelope();
   const initialText = document.getElementById('semantic-initial-state')?.textContent ?? '';
   const initialRecords = parseSemanticMapRecords(initialText);
   const mapId = config.mapId || `urn:uuid:${crypto.randomUUID()}`;
