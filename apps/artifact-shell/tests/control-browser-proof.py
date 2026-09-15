@@ -37,6 +37,15 @@ def prove_control_page(page: Page) -> dict[str, object]:
     left_nodes = left.locator(".node").count()
     right_nodes = right.locator(".node").count()
     assert left_nodes == right_nodes == EXPECTED_NODES
+
+    root = left.locator("[data-control-id='/root'] > .row").inner_text()
+    assert "schema: 3" in root, "property outside the former fixed fields must project automatically"
+    assert "rel:" not in root, "rel is structural and must not project as a property"
+    root_report = right.locator("[data-control-id='/root'] > .row").inner_text()
+    assert "id: report.001" in root_report, "joined report id must project without a fields allowlist"
+    assert "op: report" in root_report
+    assert "rel:" not in root_report, "joined rel is structural and must not project as a property"
+
     final_report = right.locator("[data-control-id='evidence.015'] > .row").inner_text()
     assert "op: report" in final_report
     assert "state: active" in final_report
@@ -55,7 +64,7 @@ def prove_control_page(page: Page) -> dict[str, object]:
         "els => els.map(el => el.hidden)",
     )
     assert hidden == [True, True]
-    return {"left": left_nodes, "right": right_nodes, "total": left_nodes + right_nodes}
+    return {"left": left_nodes, "right": right_nodes, "total": left_nodes + right_nodes, "genericProperties": True}
 
 
 def deployed_control_url(page: Page, pr_number: int) -> str:
@@ -130,11 +139,12 @@ def main() -> None:
             server.wait(timeout=5)
 
     print(json.dumps({
-        "schema": "ui.control-browser-proof/2",
+        "schema": "ui.control-browser-proof/3",
         "status": "PASS",
         "panes": 2,
         "nodesPerPane": EXPECTED_NODES,
         "renderedNodes": local["total"],
+        "genericProperties": local["genericProperties"],
         "scrollOwners": 1,
         "claims": "report",
         "deployed": deployed,
