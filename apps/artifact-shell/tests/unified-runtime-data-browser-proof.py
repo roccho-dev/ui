@@ -55,21 +55,6 @@ def wait_for_proof(page, runtime: str) -> dict[str, object]:
     raise AssertionError(f"{runtime}: feature proof did not settle: {last!r}")
 
 
-def wait_for_semantic_app(page) -> dict[str, object]:
-    deadline = time.monotonic() + 30
-    last = None
-    while time.monotonic() < deadline:
-        last = page.evaluate("""() => globalThis.semanticMapSite
-          ? { ready: semanticMapSite.ready === true, error: semanticMapSite.error ?? null, route: semanticMapSite.route ?? null }
-          : null""")
-        if isinstance(last, dict) and last.get("ready") is True:
-            return last
-        if isinstance(last, dict) and last.get("error"):
-            raise AssertionError(f"semantic app failed: {last}")
-        time.sleep(0.05)
-    raise AssertionError(f"semantic app did not settle: {last!r}")
-
-
 def main() -> None:
     fragment = encoded_hash()
     source_bytes = SOURCE.read_bytes()
@@ -138,9 +123,8 @@ def main() -> None:
                             draftCount: semanticMapRuntime.draftCount(),
                           };
                         }""")
-                        assert clean["url"].startswith(f"{base}/app#smap="), clean
-                        assert "#data=" not in clean["url"] and "state=" not in clean["url"], clean
-                        assert clean["text"].startswith("SEMANTIC-MAP/2\n"), clean
+                        assert clean["url"].startswith(f"{base}/adapters/graph/index.html#data="), clean
+                        assert clean["text"].startswith("SEMANTIC-DATA/1\n"), clean
                         assert clean["imageType"] == "image/png" and clean["imageBytes"] > 1000, clean
                         assert clean["draftCount"] == 0, clean
 
@@ -149,7 +133,7 @@ def main() -> None:
                           return regions.find((item) => item.parent !== null)?.id ?? null;
                         }""")
                         assert target, "graph handoff proof needs one editable region"
-                        shared_label = "canonical-smap-handoff-proof"
+                        shared_label = "canonical-data-handoff-proof"
                         base_identity = page.evaluate("() => ({ head: semanticMapRuntime.head, stateHash: semanticMapRuntime.stateHash, log: semanticMapRuntime.log })")
                         page.evaluate(
                             "([regionId, label]) => semanticMapSite.editor.operation({ type: 'RenameRegion', regionId, label })",
@@ -196,17 +180,16 @@ def main() -> None:
                         assert accepted["draftCount"] == 0, accepted
                         assert accepted["head"] != base_identity["head"], accepted
                         assert accepted["stateHash"] != base_identity["stateHash"], accepted
-                        assert accepted["reviewUrl"].startswith(f"{base}/app#smap="), accepted
-                        assert accepted["url"].startswith(f"{base}/app#smap="), accepted
-                        assert "#data=" not in accepted["url"] and "state=" not in accepted["url"], accepted
+                        assert accepted["reviewUrl"].startswith(f"{base}/adapters/graph/index.html#data="), accepted
+                        assert accepted["url"].startswith(f"{base}/adapters/graph/index.html#data="), accepted
                         assert accepted["imageType"] == "image/png" and accepted["imageBytes"] > 1000, accepted
 
                         fresh = context.new_page()
                         fresh.on("pageerror", lambda error: errors.append(str(error)))
                         fresh.on("request", lambda request: requests.append(request.url))
                         fresh.goto(accepted["url"], wait_until="domcontentloaded", timeout=30_000)
-                        fresh_site = wait_for_semantic_app(fresh)
-                        assert fresh_site["route"] == "app", fresh_site
+                        fresh_proof = wait_for_proof(fresh, "graph-reopen")
+                        assert fresh_proof["mounted"]["pattern"] == "graph/1", fresh_proof
                         recovered = fresh.evaluate(
                             "([regionId]) => ({ label: semanticMapSite.editor.store.domain.regions.get(regionId)?.label ?? null, head: semanticMapRuntime.head, stateHash: semanticMapRuntime.stateHash, draftCount: semanticMapRuntime.draftCount(), pattern: semanticMapRuntime.view.pattern })",
                             [target],
@@ -215,18 +198,18 @@ def main() -> None:
                         assert recovered["pattern"] == "graph/1", recovered
                         assert recovered["head"] == accepted["head"] and recovered["stateHash"] == accepted["stateHash"], recovered
                         assert recovered["draftCount"] == 0, recovered
-                        assert fresh.url.startswith(f"{base}/app#smap="), fresh.url
+                        assert fresh.url.startswith(f"{base}/adapters/graph/index.html#data="), fresh.url
                         fresh.close()
                         handoff_proof = {
                             "schema": "semantic-map-handoff/2",
-                            "canonicalRoute": "/app",
+                            "canonicalFragment": "#data",
+                            "sameFeatureRoute": True,
                             "draftBlockedUntilReview": True,
                             "acceptedStateRecovered": True,
                             "headRecovered": True,
                             "stateHashRecovered": True,
                             "imageType": accepted["imageType"],
                             "imageBytes": accepted["imageBytes"],
-                            "parallelStateFragment": False,
                         }
                     elif runtime == "seq":
                         assert mounted["pattern"] == "seq/1", mounted
@@ -262,7 +245,7 @@ def main() -> None:
                 assert unexpected == [], unexpected
                 browser.close()
             print(json.dumps({
-                "schema": "unified-runtime-data-browser-proof/5",
+                "schema": "unified-runtime-data-browser-proof/6",
                 "status": "PASS",
                 "source": str(SOURCE.relative_to(ROOT)),
                 "sourceBytes": len(source_bytes),
