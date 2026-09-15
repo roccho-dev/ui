@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
-import {
-  createSemanticMap,
-} from '../domain/index.js';
+import { createSemanticMap } from '../domain/index.js';
 import {
   MAX_MODULE_DEPTH,
   MAX_MODULE_REGIONS,
@@ -17,7 +15,6 @@ import {
   createDecisionLog,
   createEnvelope,
 } from '../protocol/index.js';
-import { createSmapUrl } from '../transport/index.js';
 
 function region(id, parent, label, bounds, extra = {}) {
   return {
@@ -32,26 +29,25 @@ function region(id, parent, label, bounds, extra = {}) {
     ...(extra.mount ? { mount: extra.mount } : {}),
   };
 }
-
-function meta(root, title) {
-  return { type: 'meta', schema: 'semantic-map-state/1', root, title };
-}
+function meta(root, title) { return { type: 'meta', schema: 'semantic-map-state/1', root, title }; }
 
 const VIEWS = Object.freeze({
   [MAP_PATTERN]: Object.freeze({ pattern: MAP_PATTERN }),
   [GRAPH_PATTERN]: Object.freeze({ pattern: GRAPH_PATTERN }),
-  [SEQ_PATTERN]: Object.freeze({
-    pattern: SEQ_PATTERN,
-    seq: Object.freeze({ axis: 'ordinal', groupBy: 'actor' }),
-  }),
+  [SEQ_PATTERN]: Object.freeze({ pattern: SEQ_PATTERN, seq: Object.freeze({ axis: 'ordinal', groupBy: 'actor' }) }),
 });
-
-async function smap(records, mapId, view, proposal = null) {
+const sources = new Map();
+async function moduleSource(records, mapId, view, proposal = null, key = `module:${mapId}`) {
   const log = await createDecisionLog(records, mapId);
   const envelope = await createEnvelope(log.log, proposal, view);
-  const absolute = await createSmapUrl(envelope, 'https://example.test/app');
-  return Object.freeze({ ...log, absolute, relative: `/app${new URL(absolute).hash}`, view });
+  sources.set(key, envelope);
+  return Object.freeze({ ...log, envelope, key, view });
 }
+const resolveSource = async key => {
+  assert.ok(sources.has(key), `unknown module source: ${key}`);
+  return sources.get(key);
+};
+const resolver = options => new ModuleResolver({ ...options, resolveSource });
 
 function childRecords(pattern) {
   if (pattern === MAP_PATTERN) {
@@ -76,12 +72,8 @@ function childRecords(pattern) {
     meta('child-root', 'Seq child'),
     region('child-root', null, 'Seq child', [0, 0, 620, 380], { kind: 'root' }),
     region('child-actor', 'child-root', 'Agent', [20, 40, 120, 70], { kind: 'actor' }),
-    region('child-a', 'child-root', 'Child A', [180, 120, 150, 80], {
-      kind: 'task', temporal: { actor: 'child-actor', ordinal: { start: 0, end: 0 } },
-    }),
-    region('child-b', 'child-root', 'Child B', [380, 120, 150, 80], {
-      kind: 'task', temporal: { actor: 'child-actor', ordinal: { start: 1, end: 1 } },
-    }),
+    region('child-a', 'child-root', 'Child A', [180, 120, 150, 80], { kind: 'task', temporal: { actor: 'child-actor', ordinal: { start: 0, end: 0 } } }),
+    region('child-b', 'child-root', 'Child B', [380, 120, 150, 80], { kind: 'task', temporal: { actor: 'child-actor', ordinal: { start: 1, end: 1 } } }),
     { type: 'relation', id: 'child-r', from: 'child-a', to: 'child-b', kind: 'message', label: '' },
   ];
 }
@@ -94,7 +86,7 @@ function parentRecords(pattern, src) {
       region('group', 'root', 'Group', [70, 80, 380, 300], { kind: 'group' }),
       region('hidden', 'group', 'Hidden child', [100, 140, 130, 90]),
       region('outside', 'root', 'Outside', [700, 180, 180, 100]),
-      region('portal', 'root', 'URL portal', [470, 350, 400, 300], { kind: 'module', mount: { src } }),
+      region('portal', 'root', 'Module portal', [470, 350, 400, 300], { kind: 'module', mount: { src } }),
       { type: 'relation', id: 'hidden-outside', from: 'hidden', to: 'outside', kind: 'flows', label: '' },
       { type: 'relation', id: 'portal-outside', from: 'portal', to: 'outside', kind: 'opens', label: '' },
     ];
@@ -103,7 +95,7 @@ function parentRecords(pattern, src) {
     return [
       meta('root', 'Graph parent'),
       region('root', null, 'Graph parent', [0, 0, 900, 560], { kind: 'root' }),
-      region('portal', 'root', 'URL portal', [120, 180, 260, 130], { kind: 'process', mount: { src } }),
+      region('portal', 'root', 'Module portal', [120, 180, 260, 130], { kind: 'process', mount: { src } }),
       region('outside', 'root', 'Outside', [560, 180, 220, 130], { kind: 'output' }),
       { type: 'relation', id: 'portal-outside', from: 'portal', to: 'outside', kind: 'flows', label: '' },
     ];
@@ -112,41 +104,33 @@ function parentRecords(pattern, src) {
     meta('root', 'Seq parent'),
     region('root', null, 'Seq parent', [0, 0, 900, 560], { kind: 'root' }),
     region('actor', 'root', 'Human', [20, 40, 120, 70], { kind: 'actor' }),
-    region('portal', 'root', 'URL portal', [190, 150, 220, 90], {
-      kind: 'task', mount: { src }, temporal: { actor: 'actor', ordinal: { start: 0, end: 1 } },
-    }),
-    region('outside', 'root', 'Outside', [520, 150, 220, 90], {
-      kind: 'task', temporal: { actor: 'actor', ordinal: { start: 2, end: 2 } },
-    }),
+    region('portal', 'root', 'Module portal', [190, 150, 220, 90], { kind: 'task', mount: { src }, temporal: { actor: 'actor', ordinal: { start: 0, end: 1 } } }),
+    region('outside', 'root', 'Outside', [520, 150, 220, 90], { kind: 'task', temporal: { actor: 'actor', ordinal: { start: 2, end: 2 } } }),
     { type: 'relation', id: 'portal-outside', from: 'portal', to: 'outside', kind: 'message', label: '' },
   ];
 }
 
 const children = new Map();
 for (const pattern of [MAP_PATTERN, GRAPH_PATTERN, SEQ_PATTERN]) {
-  children.set(pattern, await smap(childRecords(pattern), `semantic-map:child:${pattern}`, VIEWS[pattern]));
+  children.set(pattern, await moduleSource(childRecords(pattern), `semantic-map:child:${pattern}`, VIEWS[pattern]));
 }
 
 const primaryChild = children.get(SEQ_PATTERN);
-const records = parentRecords(MAP_PATTERN, primaryChild.relative);
+const records = parentRecords(MAP_PATTERN, primaryChild.key);
 const domain = createSemanticMap(records);
-const resolver = new ModuleResolver();
+const moduleResolver = resolver();
 await assert.rejects(
-  resolver.resolve(domain, { mapId: 'semantic-map:parent', head: 'parent-head' }),
+  moduleResolver.resolve(domain, { mapId: 'semantic-map:parent', head: 'parent-head' }),
   /View must be an object/u,
 );
-const modules = await resolver.resolve(domain, {
-  mapId: 'semantic-map:parent',
-  head: 'parent-head',
-  view: VIEWS[MAP_PATTERN],
-});
+const modules = await moduleResolver.resolve(domain, { mapId: 'semantic-map:parent', head: 'parent-head', view: VIEWS[MAP_PATTERN] });
 assert.equal(modules.moduleCount, 1);
 assert.equal(modules.maxDepth, 1);
 assert.equal(modules.root.view.pattern, MAP_PATTERN);
 assert.equal(modules.root.mounts.get('portal').view.pattern, SEQ_PATTERN, 'MUTATION:pattern-matrix');
 
-const inspectedFirst = await resolver.inspectSource(primaryChild.relative);
-const inspectedSecond = await resolver.inspectSource(primaryChild.relative);
+const inspectedFirst = await moduleResolver.inspectSource(primaryChild.key);
+const inspectedSecond = await moduleResolver.inspectSource(primaryChild.key);
 assert.equal(inspectedSecond, inspectedFirst, 'MUTATION:mount-source-cache');
 
 const projector = new SemanticProjector(domain, modules, VIEWS[MAP_PATTERN]);
@@ -156,83 +140,57 @@ const viewport = { x: 0, y: 0, width: 1000, height: 700 };
 const low = projector.project({ scale: 0.5, viewport });
 const high = projector.project({ scale: 5, viewport });
 assert.equal(projector.planForNode(childNode), cachedPlan, 'MUTATION:projection-plan-cache');
-
-const lowPortal = low.representations.find((item) => item.regionId === 'portal');
-const highPortal = high.representations.find((item) => item.regionId === 'portal');
+const lowPortal = low.representations.find(item => item.regionId === 'portal');
+const highPortal = high.representations.find(item => item.regionId === 'portal');
 assert.ok(lowPortal && highPortal);
 assert.equal(lowPortal.representationId, highPortal.representationId, 'MUTATION:stable-host-representation');
 assert.equal(lowPortal.shape, highPortal.shape, 'MUTATION:stable-host-representation');
 assert.deepEqual(lowPortal.bounds, highPortal.bounds, 'MUTATION:stable-host-representation');
 assert.equal(lowPortal.detailsVisible, false, 'MUTATION:expand-mounted-detail-at-all-zooms');
 assert.equal(highPortal.detailsVisible, true, 'MUTATION:expand-mounted-detail-at-all-zooms');
-assert.ok(!low.representations.some((item) => item.regionId.startsWith('@mount/portal/')));
-assert.ok(high.representations.some((item) => item.regionId.startsWith('@mount/portal/')));
-assert.ok(high.representations.filter((item) => item.regionId.startsWith('@mount/portal/')).every((item) => item.readOnly));
-assert.ok(high.relations.filter((item) => item.sceneId !== 'root').every((item) => item.readOnly));
+assert.ok(!low.representations.some(item => item.regionId.startsWith('@mount/portal/')));
+assert.ok(high.representations.some(item => item.regionId.startsWith('@mount/portal/')));
+assert.ok(high.representations.filter(item => item.regionId.startsWith('@mount/portal/')).every(item => item.readOnly));
+assert.ok(high.relations.filter(item => item.sceneId !== 'root').every(item => item.readOnly));
 
-const lowHiddenRelation = low.relations.find((item) => item.relationIds.includes('hidden-outside'));
+const lowHiddenRelation = low.relations.find(item => item.relationIds.includes('hidden-outside'));
 assert.equal(lowHiddenRelation, undefined, 'MUTATION:exact-relation-endpoints');
 assert.equal(low.selectionProxies.hidden, null, 'MUTATION:exact-relation-endpoints');
-const highHiddenRelation = high.relations.find((item) => item.relationIds.includes('hidden-outside'));
+const highHiddenRelation = high.relations.find(item => item.relationIds.includes('hidden-outside'));
 assert.ok(highHiddenRelation, 'MUTATION:exact-relation-endpoints');
 assert.equal(highHiddenRelation.from, 'hidden', 'MUTATION:exact-relation-endpoints');
 assert.equal(highHiddenRelation.to, 'outside', 'MUTATION:exact-relation-endpoints');
 
-const edgePan = projector.project({
-  scale: 5,
-  viewport: { x: 866, y: 350, width: 500, height: 400 },
-});
+const edgePan = projector.project({ scale: 5, viewport: { x: 866, y: 350, width: 500, height: 400 } });
 assert.ok(edgePan.detailIds.includes('portal'), 'MUTATION:pan-stable-detail');
-assert.equal(
-  edgePan.representations.find((item) => item.regionId === 'portal').representationId,
-  lowPortal.representationId,
-  'MUTATION:stable-host-representation',
-);
+assert.equal(edgePan.representations.find(item => item.regionId === 'portal').representationId, lowPortal.representationId, 'MUTATION:stable-host-representation');
 
 await assert.rejects(
-  resolver.resolve(domain, { mapId: primaryChild.mapId, head: primaryChild.head, view: VIEWS[MAP_PATTERN] }),
+  moduleResolver.resolve(domain, { mapId: primaryChild.mapId, head: primaryChild.head, view: VIEWS[MAP_PATTERN] }),
   /module cycle at portal/u,
 );
 
-const proposal = await createDecision(primaryChild.head, [
-  { type: 'RenameRegion', regionId: 'child-a', label: 'Unaccepted' },
-], primaryChild.records);
+const proposal = await createDecision(primaryChild.head, [{ type: 'RenameRegion', regionId: 'child-a', label: 'Unaccepted' }], primaryChild.records);
 const proposalEnvelope = await createEnvelope(primaryChild.log, proposal.decision, VIEWS[SEQ_PATTERN]);
-const proposalAbsolute = await createSmapUrl(proposalEnvelope, 'https://example.test/app');
-const proposalUrl = { relative: `/app${new URL(proposalAbsolute).hash}` };
-const proposalDomain = createSemanticMap(parentRecords(MAP_PATTERN, proposalUrl.relative));
+const proposalKey = 'module:proposal';
+sources.set(proposalKey, proposalEnvelope);
+const proposalDomain = createSemanticMap(parentRecords(MAP_PATTERN, proposalKey));
 await assert.rejects(
-  new ModuleResolver().resolve(proposalDomain, { mapId: 'semantic-map:proposal-parent', head: 'head', view: VIEWS[MAP_PATTERN] }),
+  resolver().resolve(proposalDomain, { mapId: 'semantic-map:proposal-parent', head: 'head', view: VIEWS[MAP_PATTERN] }),
   /must not contain a Proposal/u,
 );
 
-const framed = await smap(
-  childRecords(MAP_PATTERN),
-  'semantic-map:framed-child',
-  { pattern: MAP_PATTERN, frame: { focus: 'child-a', scale: 1.5 } },
-);
+const framed = await moduleSource(childRecords(MAP_PATTERN), 'semantic-map:framed-child', { pattern: MAP_PATTERN, frame: { focus: 'child-a', scale: 1.5 } });
 await assert.rejects(
-  new ModuleResolver().resolve(
-    createSemanticMap(parentRecords(MAP_PATTERN, framed.relative)),
-    { mapId: 'semantic-map:framed-parent', head: 'head', view: VIEWS[MAP_PATTERN] },
-  ),
+  resolver().resolve(createSemanticMap(parentRecords(MAP_PATTERN, framed.key)), { mapId: 'semantic-map:framed-parent', head: 'head', view: VIEWS[MAP_PATTERN] }),
   /View may contain only Pattern configuration/u,
 );
 
-await assert.rejects(
-  new ModuleResolver({ maxDepth: 0 }).resolve(domain, { mapId: 'semantic-map:parent', head: 'head', view: VIEWS[MAP_PATTERN] }),
-  /mount depth exceeds 0/u,
-);
-await assert.rejects(
-  new ModuleResolver({ maxModules: 0 }).resolve(domain, { mapId: 'semantic-map:parent', head: 'head', view: VIEWS[MAP_PATTERN] }),
-  /mounted module count exceeds 0/u,
-);
-await assert.rejects(
-  new ModuleResolver({ maxRegions: 3 }).resolve(domain, { mapId: 'semantic-map:parent', head: 'head', view: VIEWS[MAP_PATTERN] }),
-  /mounted region count exceeds 3/u,
-);
+await assert.rejects(resolver({ maxDepth: 0 }).resolve(domain, { mapId: 'semantic-map:parent', head: 'head', view: VIEWS[MAP_PATTERN] }), /mount depth exceeds 0/u);
+await assert.rejects(resolver({ maxModules: 0 }).resolve(domain, { mapId: 'semantic-map:parent', head: 'head', view: VIEWS[MAP_PATTERN] }), /mounted module count exceeds 0/u);
+await assert.rejects(resolver({ maxRegions: 3 }).resolve(domain, { mapId: 'semantic-map:parent', head: 'head', view: VIEWS[MAP_PATTERN] }), /mounted region count exceeds 3/u);
 
-const clippingChild = await smap([
+const clippingChild = await moduleSource([
   meta('clip-root', 'Clip child'),
   region('clip-root', null, 'Clip child', [0, 0, 100, 100], { kind: 'root' }),
   region('inside', 'clip-root', 'Inside', [10, 10, 30, 30]),
@@ -242,22 +200,15 @@ const clippingChild = await smap([
 const clippingDomain = createSemanticMap([
   meta('clip-parent', 'Clip parent'),
   region('clip-parent', null, 'Clip parent', [0, 0, 700, 500], { kind: 'root' }),
-  region('clip-portal', 'clip-parent', 'Clip host', [120, 90, 320, 260], {
-    kind: 'module', mount: { src: clippingChild.relative },
-  }),
+  region('clip-portal', 'clip-parent', 'Clip host', [120, 90, 320, 260], { kind: 'module', mount: { src: clippingChild.key } }),
 ]);
-const clippingModules = await new ModuleResolver().resolve(clippingDomain, {
-  mapId: 'semantic-map:clip-parent', head: 'head', view: VIEWS[MAP_PATTERN],
-});
-const clippingScene = new SemanticProjector(clippingDomain, clippingModules, VIEWS[MAP_PATTERN]).project({
-  scale: 10,
-  viewport: { x: -100, y: -100, width: 1000, height: 800 },
-});
-const clippingHost = clippingScene.representations.find((item) => item.regionId === 'clip-portal').bounds;
-const clippingMounted = clippingScene.representations.filter((item) => item.regionId.startsWith('@mount/clip-portal/'));
-assert.ok(clippingMounted.some((item) => item.sourceRegionId === 'inside'));
-assert.ok(clippingMounted.some((item) => item.sourceRegionId === 'partial'));
-assert.equal(clippingMounted.some((item) => item.sourceRegionId === 'outside'), false, 'MUTATION:portal-host-clipping');
+const clippingModules = await resolver().resolve(clippingDomain, { mapId: 'semantic-map:clip-parent', head: 'head', view: VIEWS[MAP_PATTERN] });
+const clippingScene = new SemanticProjector(clippingDomain, clippingModules, VIEWS[MAP_PATTERN]).project({ scale: 10, viewport: { x: -100, y: -100, width: 1000, height: 800 } });
+const clippingHost = clippingScene.representations.find(item => item.regionId === 'clip-portal').bounds;
+const clippingMounted = clippingScene.representations.filter(item => item.regionId.startsWith('@mount/clip-portal/'));
+assert.ok(clippingMounted.some(item => item.sourceRegionId === 'inside'));
+assert.ok(clippingMounted.some(item => item.sourceRegionId === 'partial'));
+assert.equal(clippingMounted.some(item => item.sourceRegionId === 'outside'), false, 'MUTATION:portal-host-clipping');
 for (const item of clippingMounted) {
   assert.ok(item.bounds.x >= clippingHost.x - 1e-9, 'MUTATION:portal-host-clipping');
   assert.ok(item.bounds.y >= clippingHost.y - 1e-9, 'MUTATION:portal-host-clipping');
@@ -269,34 +220,37 @@ const patternMatrix = [];
 for (const rootPattern of [MAP_PATTERN, GRAPH_PATTERN, SEQ_PATTERN]) {
   for (const childPattern of [MAP_PATTERN, GRAPH_PATTERN, SEQ_PATTERN]) {
     const child = children.get(childPattern);
-    const matrixDomain = createSemanticMap(parentRecords(rootPattern, child.relative));
-    const matrixModules = await new ModuleResolver().resolve(matrixDomain, {
+    const matrixDomain = createSemanticMap(parentRecords(rootPattern, child.key));
+    const matrixModules = await resolver().resolve(matrixDomain, {
       mapId: `semantic-map:matrix:${rootPattern}:${childPattern}`,
       head: 'head',
       view: VIEWS[rootPattern],
     });
-    const scene = new SemanticProjector(matrixDomain, matrixModules, VIEWS[rootPattern]).project({
-      scale: 20,
-      viewport: { x: -1000, y: -1000, width: 4000, height: 3000 },
-    });
-    assert.equal(scene.scenes.find((item) => item.id === 'root').pattern, rootPattern, 'MUTATION:pattern-matrix');
-    const mounted = scene.scenes.find((item) => item.id !== 'root');
+    const scene = new SemanticProjector(matrixDomain, matrixModules, VIEWS[rootPattern]).project({ scale: 20, viewport: { x: -1000, y: -1000, width: 4000, height: 3000 } });
+    assert.equal(scene.scenes.find(item => item.id === 'root').pattern, rootPattern, 'MUTATION:pattern-matrix');
+    const mounted = scene.scenes.find(item => item.id !== 'root');
     assert.ok(mounted, 'MUTATION:pattern-matrix');
     assert.equal(mounted.pattern, childPattern, 'MUTATION:pattern-matrix');
-    assert.ok(scene.representations.filter((item) => item.sceneId === mounted.id).every((item) => item.readOnly));
+    assert.ok(scene.representations.filter(item => item.sceneId === mounted.id).every(item => item.readOnly));
     patternMatrix.push(`${rootPattern}>${childPattern}`);
   }
 }
 assert.equal(patternMatrix.length, 9, 'MUTATION:pattern-matrix');
 
-const invalidDomain = createSemanticMap(parentRecords(MAP_PATTERN, '/app#smap=not-gzip'));
+const invalidKey = 'module:invalid';
+sources.set(invalidKey, { invalid: true });
+const invalidDomain = createSemanticMap(parentRecords(MAP_PATTERN, invalidKey));
 await assert.rejects(
-  new ModuleResolver().resolve(invalidDomain, { mapId: 'semantic-map:invalid', head: 'head', view: VIEWS[MAP_PATTERN] }),
-  /invalid gzip payload/u,
+  resolver().resolve(invalidDomain, { mapId: 'semantic-map:invalid', head: 'head', view: VIEWS[MAP_PATTERN] }),
+  /Envelope\.schema is required/u,
+);
+await assert.rejects(
+  new ModuleResolver().resolve(domain, { mapId: 'semantic-map:no-resolver', head: 'head', view: VIEWS[MAP_PATTERN] }),
+  /module source resolver is required/u,
 );
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-module-embedding-test/4',
+  schema: 'semantic-map-module-embedding-test/5',
   pass: true,
   status: 'PASS',
   skipped: false,
@@ -314,5 +268,6 @@ console.log(JSON.stringify({
   implicitFallback: false,
   portalHostClipping: clippingMounted.length,
   patternMatrix,
-  safetyLimits: ['cycle', 'proposal', 'view', 'depth', 'modules', 'regions', 'invalid-token'],
+  sourcePort: true,
+  safetyLimits: ['cycle', 'proposal', 'view', 'depth', 'modules', 'regions', 'invalid-envelope', 'missing-resolver'],
 }, null, 2));

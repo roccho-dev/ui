@@ -50,7 +50,6 @@ for (const relative of [
   '../domain/index.js',
   '../pattern/index.js',
   '../protocol/index.js',
-  '../transport/index.js',
   '../projection/index.js',
 ]) {
   const source = readFileSync(new URL(relative, import.meta.url), 'utf8');
@@ -58,7 +57,7 @@ for (const relative of [
 }
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-theme-contract-test/1',
+  schema: 'semantic-map-theme-contract-test/2',
   pass: true,
   status: 'PASS',
   skipped: false,

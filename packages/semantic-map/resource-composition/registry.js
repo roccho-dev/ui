@@ -61,21 +61,9 @@ const normalizeTitledView = (input, name) => {
   return Object.freeze({ title: text(value.title, `${name}.title`, { max: 240 }) });
 };
 
-const validateSemanticMapSource = (source, name) => {
-  const parsed = new URL(source.href, 'https://semantic-map.invalid/app');
-  invariant(
-    /^#smap=[A-Za-z0-9_-]+$/u.test(parsed.hash),
-    `${name}.href must contain exactly one #smap token`,
-  );
-};
-
 const CONTRACTS = Object.freeze({
   'image/1': Object.freeze({ normalizeView: normalizeImageView, provenanceRequired: true }),
-  'semantic-map-envelope/3': Object.freeze({
-    normalizeView: normalizeTitledView,
-    provenanceRequired: false,
-    validateSource: validateSemanticMapSource,
-  }),
+  'semantic-map-envelope/3': Object.freeze({ normalizeView: normalizeTitledView, provenanceRequired: false }),
   'document/1': Object.freeze({ normalizeView: normalizeTitledView, provenanceRequired: false }),
   'video/1': Object.freeze({ normalizeView: normalizeVideoView, provenanceRequired: true }),
 });
@@ -128,20 +116,11 @@ const policyFor = (resource, placement, name) => {
 export const normalizeResourceComposition = (input) => {
   const value = plainObject(input, 'resourceComposition');
   exactKeys(value, ['schema', 'resources', 'placements'], [], 'resourceComposition');
-  invariant(
-    value.schema === RESOURCE_COMPOSITION_SCHEMA,
-    `schema ${value.schema} is not ${RESOURCE_COMPOSITION_SCHEMA}`,
-  );
+  invariant(value.schema === RESOURCE_COMPOSITION_SCHEMA, `schema ${value.schema} is not ${RESOURCE_COMPOSITION_SCHEMA}`);
   invariant(Array.isArray(value.resources), 'resourceComposition.resources must be an array');
   invariant(Array.isArray(value.placements), 'resourceComposition.placements must be an array');
-  invariant(
-    value.resources.length > 0 && value.resources.length <= MAX_RESOURCES,
-    `resource count must be 1..${MAX_RESOURCES}`,
-  );
-  invariant(
-    value.placements.length > 0 && value.placements.length <= MAX_PLACEMENTS,
-    `placement count must be 1..${MAX_PLACEMENTS}`,
-  );
+  invariant(value.resources.length > 0 && value.resources.length <= MAX_RESOURCES, `resource count must be 1..${MAX_RESOURCES}`);
+  invariant(value.placements.length > 0 && value.placements.length <= MAX_PLACEMENTS, `placement count must be 1..${MAX_PLACEMENTS}`);
 
   const resources = value.resources.map(normalizeResourceShape);
   uniqueBy(resources, item => item.id, 'duplicate resource id');
@@ -149,11 +128,7 @@ export const normalizeResourceComposition = (input) => {
   for (const resource of resources) {
     const definition = CONTRACTS[resource.contract];
     invariant(definition, `resource ${resource.id} contract is unsupported: ${resource.contract}`);
-    definition.validateSource?.(resource.source, `resource ${resource.id}.source`);
-    invariant(
-      !definition.provenanceRequired || resource.provenanceRef,
-      `resource ${resource.id} requires provenanceRef`,
-    );
+    invariant(!definition.provenanceRequired || resource.provenanceRef, `resource ${resource.id} requires provenanceRef`);
   }
 
   const resourceIndex = new Map(resources.map(resource => [resource.id, resource]));
@@ -168,9 +143,7 @@ export const normalizeResourceComposition = (input) => {
       target: policy.target,
       policy,
     });
-    if (shape.action) {
-      invariant(policy.action === shape.action.kind, `placement ${shape.id} does not allow ${shape.action.kind}`);
-    }
+    if (shape.action) invariant(policy.action === shape.action.kind, `placement ${shape.id} does not allow ${shape.action.kind}`);
     return Object.freeze({
       id: shape.id,
       resourceRef: shape.resourceRef,
@@ -199,11 +172,7 @@ export const resolveResourceEntries = (input) => {
   const resources = new Map(normalized.resources.map(resource => [resource.id, resource]));
   return Object.freeze(normalized.placements.map(placement => {
     const resource = resources.get(placement.resourceRef);
-    return Object.freeze({
-      placement,
-      resource,
-      policy: policyFor(resource, placement, `placement ${placement.id}`),
-    });
+    return Object.freeze({ resource, placement, policy: policyFor(resource, placement, `placement ${placement.id}`) });
   }));
 };
 
@@ -229,11 +198,7 @@ export const projectResourceComposition = (input, options = {}) => {
   invariant(placements.length > 0, 'resourceComposition has no remaining placements');
   const resourceIds = new Set(placements.map(placement => placement.resourceRef));
   const resources = normalized.resources.filter(resource => resourceIds.has(resource.id));
-  return normalizeResourceComposition({
-    schema: RESOURCE_COMPOSITION_SCHEMA,
-    resources,
-    placements,
-  });
+  return normalizeResourceComposition({ schema: RESOURCE_COMPOSITION_SCHEMA, resources, placements });
 };
 
 export const resourceRegistryManifest = () => {
@@ -247,9 +212,7 @@ export const resourceRegistryManifest = () => {
     schema: 'typed-resource-registry/1',
     contracts: Object.freeze([...RESOURCE_CONTRACTS]),
     sourceTypes: Object.freeze(['url']),
-    placements: Object.freeze(Object.fromEntries(
-      Object.entries(placements).map(([contract, values]) => [contract, Object.freeze(values)]),
-    )),
+    placements: Object.freeze(Object.fromEntries(Object.entries(placements).map(([contract, values]) => [contract, Object.freeze(values)]))),
     serialized: Object.freeze(['resources', 'placements']),
     runtimeOwned: Object.freeze(['adapter', 'boundary', 'target-catalog']),
     integrity: Object.freeze({
@@ -257,9 +220,6 @@ export const resourceRegistryManifest = () => {
       owner: 'verified-reference-adapter',
       reason: 'typed-resource-composition/1 has no byte-owning adapter that can enforce it',
     }),
-    export: Object.freeze({
-      sceneImage: 'same-origin-image-only',
-      externalComposition: 'url-share-only',
-    }),
+    export: Object.freeze({ sceneImage: 'same-origin-image-only', externalComposition: 'url-share-only' }),
   });
 };

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { canonicalJson, createUrlModuleUrl } from '../../../packages/url-module/src/index.mjs';
+import { createUrlModuleUrl } from '../../../packages/url-module/src/index.mjs';
 import { createAdapter as createChartAdapter } from '../adapters/chart.mjs';
 import { createAdapter as createControlAdapter } from '../adapters/control.mjs';
 import { createAdapter as createGraphAdapter } from '../adapters/graph.mjs';
@@ -27,36 +27,9 @@ const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/semantic-map/renderer-maxgraph',
   'packages/semantic-map/renderer-resource-dom',
   'packages/semantic-map/resource-composition',
-  'packages/semantic-map/transport',
   'packages/semantic-map/vendor',
   'packages/url-module/src',
 ]);
-
-const materializeCanonicalSemanticApp = async ({ outputRoot, repoRoot }) => {
-  const source = await fs.readFile(path.join(repoRoot, 'packages', 'semantic-map', 'authoring', 'pages', 'app.html'), 'utf8');
-  const replacements = new Map([
-    ['../styles/styles.css', '../modules/packages/semantic-map/authoring/styles/styles.css'],
-    ['../styles/handoff.css', '../modules/packages/semantic-map/authoring/styles/handoff.css'],
-    ['../styles/review.css', '../modules/packages/semantic-map/authoring/styles/review.css'],
-    ['../styles/source.css', '../modules/packages/semantic-map/authoring/styles/source.css'],
-    ['../index.js', '../modules/packages/semantic-map/authoring/index.js'],
-    ['<!-- @INLINE_IMPORTMAP -->', ''],
-    ['<!-- @PAGE_CONFIG -->', canonicalJson({ mode: 'publication', title: 'Semantic Map' })],
-    ['<!-- @INITIAL_DOCUMENT -->', ''],
-    ['<!-- @EMBEDDED_NOTICES -->', ''],
-  ]);
-  let page = source;
-  for (const [from, to] of replacements) {
-    if (!page.includes(from)) throw new Error(`artifact-adapters: canonical semantic app marker missing: ${from}`);
-    page = page.replaceAll(from, to);
-  }
-  if (/@(?:INLINE_IMPORTMAP|PAGE_CONFIG|INITIAL_DOCUMENT|EMBEDDED_NOTICES)/u.test(page)) {
-    throw new Error('artifact-adapters: canonical semantic app has unresolved markers');
-  }
-  const app = path.join(outputRoot, 'app');
-  await fs.mkdir(app, { recursive: true });
-  await fs.writeFile(path.join(app, 'index.html'), page);
-};
 
 const variantIdPattern = /^[a-z][a-z0-9-]*$/u;
 const readSource = async (repoRoot, source) => {
@@ -64,11 +37,7 @@ const readSource = async (repoRoot, source) => {
   return source.endsWith('.jsonl') ? fs.readFile(sourcePath, 'utf8') : JSON.parse(await fs.readFile(sourcePath, 'utf8'));
 };
 const featureExampleHref = async ({ adapter, source }) => {
-  const encoded = new URL(await createUrlModuleUrl({
-    base: `https://artifact-shell.invalid/adapters/${adapter.id}/`,
-    fragment: 'data',
-    value: source,
-  }));
+  const encoded = new URL(await createUrlModuleUrl({ base: `https://artifact-shell.invalid/adapters/${adapter.id}/`, fragment: 'data', value: source }));
   return `adapters/${adapter.id}/${encoded.hash}`;
 };
 
@@ -81,7 +50,6 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
   for (const relative of PUBLIC_MODULE_ROOTS) {
     await fs.cp(path.join(repoRoot, relative), path.join(outputRoot, 'modules', relative), { recursive: true });
   }
-  await materializeCanonicalSemanticApp({ outputRoot, repoRoot });
   const adapterHost = await fs.readFile(path.join(appRoot, 'publication', 'adapter-host.html'));
   const featureExamples = new Map();
 
@@ -100,14 +68,7 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
         if (!variantIdPattern.test(variant.id)) throw new Error(`artifact-adapters: ${adapter.id} invalid variant id ${String(variant.id)}`);
         if (typeof variant.source !== 'string' || !variant.source) throw new Error(`artifact-adapters: ${adapter.id}/${variant.id} source required`);
         await fs.access(path.join(repoRoot, variant.source));
-        await materializeFeature({
-          adapter,
-          outputRoot,
-          repoRoot,
-          root: path.join(root, variant.id),
-          view: variant.view,
-          label: `${adapter.label}/${variant.id}`,
-        });
+        await materializeFeature({ adapter, outputRoot, repoRoot, root: path.join(root, variant.id), view: variant.view, label: `${adapter.label}/${variant.id}` });
       }
       continue;
     }
@@ -115,7 +76,7 @@ export const buildAdapters = async ({ appRoot, outputRoot, repoRoot }) => {
     if (source?.schema !== 'artifact-invocation/2') throw new Error(`artifact-adapters: ${adapter.id} example must be artifact-invocation/2`);
     const encoded = new URL(await createUrlModuleUrl({ base: 'https://artifact-shell.invalid/index.html', fragment: 'invoke', value: source }));
     const published = Object.freeze({ href: `../../index.html${encoded.hash}`, id: adapter.id, kind: 'invocation', label: adapter.label, schema: 'ui-adapter/1' });
-    await fs.writeFile(path.join(root, 'adapter.json'), `${canonicalJson(published)}\n`);
+    await fs.writeFile(path.join(root, 'adapter.json'), `${JSON.stringify(published)}\n`);
     await fs.writeFile(path.join(root, 'index.html'), adapterHost);
   }
 
