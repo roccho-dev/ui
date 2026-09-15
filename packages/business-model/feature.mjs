@@ -7,7 +7,6 @@ const semanticStyles = Object.freeze([
 const descriptors = Object.freeze({
   graph: Object.freeze({ entry: 'packages/business-model/semantic-feature-runtime.mjs', styles: semanticStyles }),
   seq: Object.freeze({ entry: 'packages/business-model/semantic-feature-runtime.mjs', styles: semanticStyles }),
-  presentation: Object.freeze({ entry: 'packages/business-model/presentation-feature-runtime.mjs', styles: Object.freeze(['packages/presentation/styles.css', 'packages/semantic-map/feature.css']) }),
 });
 const descriptor = descriptors[id];
 if (!descriptor) throw new Error(`business-model-feature: unsupported feature ${String(id)}`);
