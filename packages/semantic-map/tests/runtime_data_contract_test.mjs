@@ -2,9 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createAdapter as createGraphAdapter } from '../../../apps/artifact-shell/adapters/graph.mjs';
-import { createAdapter as createPresentationAdapter } from '../../../apps/artifact-shell/adapters/presentation.mjs';
-import { createAdapter as createSeqAdapter } from '../../../apps/artifact-shell/adapters/seq.mjs';
 import { compileBusinessModelPresentationPayload } from '../../business-model/presentation.mjs';
 import { parseBusinessModelRuntimeJsonl } from '../../business-model/runtime-data.mjs';
 import { projectBusinessModelSemanticMapRecords } from '../../business-model/semantic-map.mjs';
@@ -14,11 +11,16 @@ import { defaultViewForPattern } from '../protocol/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
-const adapters = [createGraphAdapter(), createSeqAdapter(), createPresentationAdapter()];
-const sources = new Set(adapters.map(adapter => adapter.source));
-assert.equal(sources.size, 1);
-assert.equal(new Set(adapters.map(adapter => adapter.featureModule)).size, 1);
-const source = adapters[0].source;
+const previewCases = (await fs.readFile(path.join(repoRoot, 'apps/preview/cases.jsonl'), 'utf8'))
+  .split(/\r?\n/u)
+  .filter(Boolean)
+  .map(line => JSON.parse(line));
+const runtimeIds = ['graph', 'seq', 'presentation'];
+const cases = runtimeIds.map(id => previewCases.find(item => item.id === id));
+assert.equal(cases.every(Boolean), true, 'preview must declare graph, seq and presentation');
+const sources = new Set(cases.map(item => item.source));
+assert.equal(sources.size, 1, 'graph, seq and presentation must share one runtime-data source');
+const source = cases[0].source;
 const input = await fs.readFile(path.join(repoRoot, source), 'utf8');
 const runtimeData = parseBusinessModelRuntimeJsonl(input);
 assert.equal(runtimeData.schema, 'business-model-runtime-data/1');
@@ -51,11 +53,11 @@ assert.deepEqual(
 );
 
 console.log(JSON.stringify({
-  schema: 'unified-runtime-data-contract-test/1',
+  schema: 'unified-runtime-data-contract-test/2',
   status: 'PASS',
   source,
   sourceId: runtimeData.model.id,
-  runtimes: adapters.map(adapter => adapter.id),
+  runtimes: runtimeIds,
   semanticRecords: records.length,
   stages: presentation.sequence.stages.length,
   compiledViewData: false,

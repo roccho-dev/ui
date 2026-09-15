@@ -8,14 +8,7 @@ on:
       - examples/shared/**
       - examples/chart/**
       - examples/render.semantic-map.set-topology/**
-      - apps/artifact-shell/adapters/chart.mjs
-      - apps/artifact-shell/adapters/graph.mjs
-      - apps/artifact-shell/adapters/seq.mjs
-      - apps/artifact-shell/adapters/presentation.mjs
-      - apps/artifact-shell/publication/build-adapters.mjs
-      - apps/artifact-shell/tests/feature-data-publication.mjs
-      - apps/artifact-shell/tests/chart-publication-browser-proof.py
-      - apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
+      - apps/preview/**
       - apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-edge-authoring-browser-proof.py
       - apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
@@ -33,6 +26,8 @@ jobs:
           persist-credentials: false
       - name: Prove semantic source gates
         run: node packages/semantic-map/tests/run.mjs
+      - name: Check preview cases
+        run: npm --prefix apps/preview run check
       - name: Install pinned browser proof tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
@@ -45,7 +40,7 @@ jobs:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
       - name: Prove one data fragment across graph seq presentation
-        run: python3 apps/artifact-shell/tests/unified-runtime-data-browser-proof.py
+        run: python3 apps/preview/tests/unified-runtime-data-browser-proof.py
       - name: Build ephemeral set-topology proof fixture
         run: npm run build:semantic-map-set-topology-proof
       - name: Prove actual gesture through review and fresh JSONL replay
@@ -58,5 +53,5 @@ jobs:
         run: python3 apps/artifact-shell/tests/maxgraph-edge-hit-target-browser-proof.py
       - name: Prove keyboard authoring shortcuts
         run: python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
-      - name: Prove chart publication authoring across all variants
-        run: python3 apps/artifact-shell/tests/chart-publication-browser-proof.py
+      - name: Prove chart preview authoring across all variants
+        run: python3 apps/preview/tests/chart-browser-proof.py

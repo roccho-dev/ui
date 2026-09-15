@@ -32,11 +32,12 @@ for (const [capability, present] of Object.entries(migrated)) assert.equal(prese
 
 const retiredPaths = [
   'packages/graph-editor',
-  'apps/artifact-shell/adapters/graph-editor.mjs',
+  'apps/artifact-shell/adapters',
+  'apps/artifact-shell/publication',
   'examples/graph-editor',
   'packages/semantic-map/renderer-maxgraph/authoring/document.js',
 ];
-for (const relative of retiredPaths) assert.equal(exists(relative), false, `retired graph-editor path still exists: ${relative}`);
+for (const relative of retiredPaths) assert.equal(exists(relative), false, `retired graph-editor/preview path still exists: ${relative}`);
 assert.doesNotMatch(authoring, /createDocumentAuthoring|\.\/document\.js/);
 assert.doesNotMatch(rendererIndex, /createDocumentAuthoring/);
 
@@ -57,17 +58,17 @@ const scanLegacyStandaloneModel = relative => {
 scanLegacyStandaloneModel('packages/semantic-map/renderer-maxgraph/authoring');
 assert.deepEqual(legacyStandaloneModels, [], `legacy standalone document model was reintroduced: ${legacyStandaloneModels.join(', ')}`);
 
-const adapterFiles = fs.readdirSync(resolve('apps/artifact-shell/adapters'), { withFileTypes: true })
-  .filter(entry => entry.isFile() && entry.name.endsWith('.mjs'))
-  .map(entry => entry.name)
-  .sort();
-assert.deepEqual(adapterFiles, ['chart.mjs', 'control.mjs', 'graph.mjs', 'map.mjs', 'presentation.mjs', 'seq.mjs']);
+const previewCases = read('apps/preview/cases.jsonl')
+  .split(/\r?\n/u)
+  .filter(Boolean)
+  .map(line => JSON.parse(line));
+const previewFeatureIds = [...new Set(previewCases.map(item => item.featureId))].sort();
+assert.deepEqual(previewFeatureIds, ['chart', 'control', 'graph', 'map', 'presentation', 'seq']);
 
 const runtimeRoots = [
-  'apps/artifact-shell/adapters',
-  'apps/artifact-shell/publication',
   'apps/artifact-shell/scripts',
   'apps/artifact-shell/src',
+  'apps/preview',
 ];
 const runtimeReferences = [];
 const scan = relative => {
@@ -75,18 +76,18 @@ const scan = relative => {
   for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
     const child = path.join(relative, entry.name);
     if (entry.isDirectory()) scan(child);
-    else if (entry.isFile() && /\.(?:css|html|js|json|mjs|sh)$/u.test(entry.name) && /graph-editor/u.test(read(child))) runtimeReferences.push(child);
+    else if (entry.isFile() && /\.(?:css|html|js|json|jsonl|mjs|sh)$/u.test(entry.name) && /graph-editor/u.test(read(child))) runtimeReferences.push(child);
   }
 };
 for (const relative of runtimeRoots) scan(relative);
-assert.deepEqual(runtimeReferences, [], `graph-editor runtime/publication references remain: ${runtimeReferences.join(', ')}`);
+assert.deepEqual(runtimeReferences, [], `graph-editor runtime/preview references remain: ${runtimeReferences.join(', ')}`);
 
 console.log(JSON.stringify({
-  schema: 'graph-editor-retirement/2',
+  schema: 'graph-editor-retirement/3',
   status: 'PASS',
   migrated: Object.keys(migrated),
   retiredPaths,
-  publicationAdapters: adapterFiles.map(name => name.slice(0, -4)),
+  previewFeatures: previewFeatureIds,
   runtimeReferences: 0,
   legacyStandaloneModels: 0,
 }));
