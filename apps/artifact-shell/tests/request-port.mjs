@@ -9,6 +9,8 @@ const requestB = Object.freeze({ schema: "artifact-invocation/2", id: "b", input
 const element = { value: "" };
 const observed = observeArtifactRequestElement(element);
 
+deepEqual(observed.query(), null);
+
 observed.element.value = JSON.stringify(requestA);
 deepEqual(observed.query(), requestA);
 
