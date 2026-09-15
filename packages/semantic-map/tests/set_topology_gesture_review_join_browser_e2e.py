@@ -60,13 +60,13 @@ process.stdout.write(new URL(href).hash);
 
 def wait_preview(page) -> None:
     page.wait_for_function(
-        "globalThis.uiPreviewProof?.status === 'PASS' || globalThis.uiPreviewProof?.status === 'FAIL'",
+        "() => globalThis.uiPreviewProof?.status === 'PASS' || globalThis.uiPreviewProof?.status === 'FAIL'",
         timeout=30_000,
     )
     proof = page.evaluate("() => globalThis.uiPreviewProof")
     assert proof["status"] == "PASS", proof
-    page.wait_for_function("globalThis.semanticMapRuntime?.ready === true", timeout=30_000)
-    page.wait_for_function("globalThis.semanticMapReview?.ready === true", timeout=30_000)
+    page.wait_for_function("() => globalThis.semanticMapRuntime?.ready === true", timeout=30_000)
+    page.wait_for_function("() => globalThis.semanticMapReview?.ready === true", timeout=30_000)
 
 
 def snapshot(page):
