@@ -77,7 +77,11 @@ jobs:
           chart_results=[]
 
           def wait_label(page,rid,label):
-              page.wait_for_function("args => window.semanticMapSite?.editor?.snapshot().domain.regions.find(r=>r.id===args.id)?.label===args.label", {'id':rid,'label':label}, timeout=30000)
+              page.wait_for_function(
+                  "args => window.semanticMapSite?.editor?.snapshot().domain.regions.find(r=>r.id===args.id)?.label===args.label",
+                  arg={'id':rid,'label':label},
+                  timeout=30000,
+              )
 
           with sync_playwright() as p:
               browser=p.chromium.launch(headless=True)
