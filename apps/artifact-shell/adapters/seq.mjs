@@ -1,7 +1,7 @@
 export const createAdapter = () => Object.freeze({
-  featureModule: 'packages/semantic-map/feature.mjs',
+  featureModule: 'packages/business-model/feature.mjs',
   id: 'seq',
   kind: 'feature',
   label: 'seq',
-  source: 'examples/seq/example.jsonl',
+  source: 'examples/shared/business-model.jsonl',
 });

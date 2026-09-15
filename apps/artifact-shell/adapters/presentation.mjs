@@ -1,7 +1,7 @@
 export const createAdapter = () => Object.freeze({
-  featureModule: 'packages/presentation/feature.mjs',
+  featureModule: 'packages/business-model/feature.mjs',
   id: 'presentation',
   kind: 'feature',
   label: 'presentation',
-  source: 'examples/presentation/example.json',
+  source: 'examples/shared/business-model.jsonl',
 });

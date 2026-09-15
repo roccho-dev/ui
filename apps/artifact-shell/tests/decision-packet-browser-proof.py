@@ -25,13 +25,34 @@ def port() -> int:
     return value
 
 
+def wait_js(frame, expression: str, timeout: int = 30_000) -> None:
+    deadline = time.monotonic() + timeout / 1000
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            if frame.evaluate(f"() => Boolean({expression})"):
+                return
+        except Exception as error:
+            last_error = error
+        time.sleep(0.05)
+    suffix = f": {last_error}" if last_error else ""
+    raise AssertionError(f"timed out waiting for {expression}{suffix}")
+
+
+def submit_request(page, request: dict[str, object], expected_state: str) -> None:
+    payload = json.dumps(request, ensure_ascii=False)
+    page.locator("#request").evaluate("(element, value) => { element.value = value; }", payload)
+    page.locator("#run").evaluate("element => element.click()")
+    page.locator(f"#status[data-state='{expected_state}']").wait_for(state="attached", timeout=30_000)
+
+
 def main() -> None:
     listen = port()
     server = subprocess.Popen(
         ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
         cwd=ROOT,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
         text=True,
     )
     errors: list[str] = []
@@ -50,12 +71,10 @@ def main() -> None:
             page.on("request", lambda request: requests.append(request.url))
             base = f"http://127.0.0.1:{listen}"
             page.goto(f"{base}/apps/artifact-shell/index.html", wait_until="networkidle", timeout=30_000)
-            page.locator("#status[data-state='idle']").wait_for(timeout=30_000)
+            wait_js(page, "document.querySelector('#status')?.textContent === 'Paste an artifact-invocation/2 request'")
 
             current = fixture("public.pass.json")
-            page.locator("#request").fill(json.dumps(current["request"], ensure_ascii=False))
-            page.locator("#run").click()
-            page.locator("#status[data-state='pass']").wait_for(timeout=30_000)
+            submit_request(page, current["request"], "pass")
             result = json.loads(page.locator("#result").inner_text())
             assert result["status"] == "PASS"
             assert [item["contract"] for item in result["outputs"]] == ["decision-packet-render-receipt/1"]
@@ -87,9 +106,7 @@ def main() -> None:
 
             for name in ("private.destructive.json", "malformed.destructive.json", "tampered.destructive.json"):
                 broken = fixture(name)
-                page.locator("#request").fill(json.dumps(broken["request"], ensure_ascii=False))
-                page.locator("#run").click()
-                page.locator("#status[data-state='fail']").wait_for(timeout=30_000)
+                submit_request(page, broken["request"], "fail")
                 failed = json.loads(page.locator("#result").inner_text())
                 assert failed["status"] == "FAIL" and failed["outputs"] == []
 

@@ -7,9 +7,9 @@
   },
   "output": {
     "path": "dist/index.html",
-    "bytes": 2540561,
-    "sha256": "sha256:f5aeb3b8834460764fe9d51d0b7561dde0262409e8fe418d6551b46e1bddc355"
+    "bytes": 2528593,
+    "sha256": "sha256:8a155a2aa77af90e1b9e6f7ab0d7649e3ff5cade79f6a921aa9b0a738d228c15"
   },
-  "modules": 207,
+  "modules": 206,
   "pattern": "map/1"
 }

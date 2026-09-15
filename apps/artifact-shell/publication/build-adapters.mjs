@@ -10,11 +10,13 @@ import { materializeFeature } from './materialize-feature.mjs';
 
 const PUBLIC_MODULE_ROOTS = Object.freeze([
   'packages/a2ui-browser/src',
+  'packages/business-model',
   'packages/control',
   'packages/core-port/src',
   'packages/presentation',
   'packages/semantic-map/domain',
   'packages/semantic-map/feature-runtime.mjs',
+  'packages/semantic-map/surface-runtime.mjs',
   'packages/semantic-map/feature.css',
   'packages/semantic-map/pattern',
   'packages/semantic-map/projection',
