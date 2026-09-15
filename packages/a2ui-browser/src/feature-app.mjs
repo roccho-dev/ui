@@ -26,13 +26,21 @@ const injectCss = ({ design, document }) => {
   document.head.append(style);
 };
 
+const resolvePlanModule = async ({ feature, scope }) => {
+  invariant(typeof feature?.plan === 'string' && feature.plan, 'feature.plan required');
+  if (feature.planModule !== undefined) {
+    invariant(feature.planModule && typeof feature.planModule.createFeaturePlan === 'function', 'feature.planModule createFeaturePlan export required');
+    return feature.planModule;
+  }
+  const planUrl = new URL(feature.plan, scope.location.href);
+  invariant(planUrl.origin === scope.location.origin, 'feature.plan must be same-origin');
+  return import(planUrl.href);
+};
+
 export const mountFeature = async ({ feature, input, root, scope = globalThis }) => {
   invariant(plain(input), 'input object required');
   const design = validateDesign(input.design, feature?.id);
-  invariant(typeof feature?.plan === 'string' && feature.plan, 'feature.plan required');
-  const planUrl = new URL(feature.plan, scope.location.href);
-  invariant(planUrl.origin === scope.location.origin, 'feature.plan must be same-origin');
-  const module = await import(planUrl.href);
+  const module = await resolvePlanModule({ feature, scope });
   invariant(typeof module.createFeaturePlan === 'function', 'plan createFeaturePlan export required');
 
   const document = root.ownerDocument;
