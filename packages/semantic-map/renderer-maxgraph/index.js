@@ -1,2 +1,1 @@
-export { MaxGraphAdapter } from './adapter.js';
-export { DEFAULT_THEME } from './theme.js';
+export { SurfacePortMaxGraphAdapter, SurfacePortMaxGraphAdapter as MaxGraphAdapter } from './surface-port.js';

@@ -1,10 +1,42 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { SemanticDomainStore, createSemanticMap, parseSemanticMapRecords } from '../domain/index.js';
+import { createSemanticMap, parseSemanticMapRecords } from '../domain/index.js';
+import { createSemanticMapEditorCore } from '../editor-core/index.js';
 import { createDecision, createDecisionLog, createEnvelope } from '../protocol/index.js';
 import { DecisionRuntime } from '../authoring/runtime.js';
 
 const records = parseSemanticMapRecords(fs.readFileSync(new URL('../examples/example.jsonl', import.meta.url), 'utf8'));
+
+// Use the actual public editor and its explicit Ports. A raw store with
+// perform/restoreSession is not an alternate runtime mutation path.
+const editors = [];
+function createEditor(semantic, control = {}) {
+  const core = createSemanticMapEditorCore({
+    semantic,
+    revision: 'runtime-r0',
+    ports: {
+      surface: { render() {}, onGesture() { return () => {}; }, destroy() {} },
+      authority: { authorize: () => ({ allowed: control.denied !== true, code: 'E_RUNTIME_EDIT_DENIED', reason: 'runtime test' }) },
+      document: {
+        requestEdit: ({ operation }) => ({ operations: [operation] }),
+        reload: request => {
+          control.reloads = (control.reloads ?? 0) + 1;
+          return { input: request.input };
+        },
+        commit: request => {
+          control.commits = (control.commits ?? 0) + 1;
+          if (control.failReplacement && request.operations.length === 0) throw new Error('synthetic document commit failure');
+          return { revision: request.expectedRevision };
+        },
+        renderChrome() {},
+      },
+    },
+  });
+  editors.push(core);
+  return core;
+}
+const region = (core, id) => core.snapshot().records.find(row => row.type === 'region' && row.id === id);
+const recordsText = core => `${core.snapshot().records.map(row => JSON.stringify(row)).join('\n')}\n`;
 
 function deterministicNoise(length, seed) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -75,15 +107,15 @@ const runtime = await DecisionRuntime.create(envelope, {
   replaceUrl: (url) => replacements.push(url),
   validateRecords,
 });
-const store = new SemanticDomainStore(createSemanticMap(runtime.records));
-runtime.attachStore(store);
+const core = createEditor(runtime.records);
+runtime.attachCore(core);
 assert.equal(runtime.ready, true);
 assert.equal(typeof runtime.setView, 'undefined', 'obsolete API alias must not exist');
 const canonical = await runtime.canonicalize();
 assert.equal(replacements.at(-1), canonical);
 assert.match(canonical, /\/app#smap=/u);
 
-store.perform({ type: 'RenameRegion', regionId: 'request', label: 'Runtime draft' });
+core.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Runtime draft' });
 assert.equal(runtime.draftCount(), 1);
 const proposal = await runtime.createDraftProposal();
 const proposalUrl = await runtime.proposalUrl(proposal);
@@ -93,18 +125,18 @@ const accepted = await runtime.accept(proposal);
 assert.notEqual(runtime.head, oldHead);
 assert.equal(accepted.decisionId, runtime.head);
 assert.equal(runtime.draftCount(), 0);
-assert.equal(store.domain.regions.get('request').label, 'Runtime draft');
+assert.equal(region(core, 'request').label, 'Runtime draft');
 assert.equal(runtime.proposal, null);
 
 const graphChange = await runtime.changeView({ pattern: 'graph/1' });
 assert.equal(runtime.view.pattern, 'graph/1');
 assert.equal(graphChange.head, runtime.head, 'View change must not change semantic Head');
-store.perform({ type: 'RenameRegion', regionId: 'request', label: 'second draft' });
+core.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'second draft' });
 await assert.rejects(runtime.changeView({ pattern: 'map/1' }), /Local Draft is active/u);
 const rejectedUrl = await runtime.reject({ local: true });
 assert.match(rejectedUrl, /#smap=/u);
 assert.equal(runtime.draftCount(), 0);
-assert.equal(store.domain.regions.get('request').label, 'Runtime draft');
+assert.equal(region(core, 'request').label, 'Runtime draft');
 
 const rollbackReplacements = [];
 const rollbackRuntime = await DecisionRuntime.create(
@@ -115,24 +147,19 @@ const rollbackRuntime = await DecisionRuntime.create(
     validateRecords,
   },
 );
-const rollbackStore = new SemanticDomainStore(createSemanticMap(rollbackRuntime.records));
-rollbackRuntime.attachStore(rollbackStore);
-rollbackStore.perform({ type: 'RenameRegion', regionId: 'request', label: 'rollback draft' });
+const rollbackControl = {};
+const rollbackCore = createEditor(rollbackRuntime.records, rollbackControl);
+rollbackRuntime.attachCore(rollbackCore);
+rollbackCore.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'rollback draft' });
 const rollbackProposal = await rollbackRuntime.createDraftProposal();
-const originalReplaceRecords = rollbackStore.replaceRecords.bind(rollbackStore);
-let replaceCalls = 0;
-rollbackStore.replaceRecords = (nextRecords, options) => {
-  replaceCalls += 1;
-  if (replaceCalls === 1) throw new Error('synthetic store replacement failure');
-  return originalReplaceRecords(nextRecords, options);
-};
+rollbackControl.failReplacement = true;
 const rollbackHead = rollbackRuntime.head;
 const rollbackLog = rollbackRuntime.log;
-const rollbackState = rollbackStore.toJSONL();
-await assert.rejects(rollbackRuntime.accept(rollbackProposal), /synthetic store replacement failure/u);
+const rollbackState = recordsText(rollbackCore);
+await assert.rejects(rollbackRuntime.accept(rollbackProposal), /synthetic document commit failure/u);
 assert.equal(rollbackRuntime.head, rollbackHead);
 assert.equal(rollbackRuntime.log, rollbackLog);
-assert.equal(rollbackStore.toJSONL(), rollbackState);
+assert.equal(recordsText(rollbackCore), rollbackState);
 assert.equal(rollbackReplacements.at(-1), 'https://example.test/app#accepted', 'MUTATION:remove-accept-url-rollback');
 
 const largeLog = await createDecisionLog(oversizedRecords(), 'urn:test:runtime-large');
@@ -146,9 +173,9 @@ const blockedRuntime = await DecisionRuntime.create(largeEnvelope, {
   replaceUrl: (url) => blockedReplacements.push(url),
   validateRecords,
 });
-const blockedStore = new SemanticDomainStore(createSemanticMap(blockedRuntime.records));
-blockedRuntime.attachStore(blockedStore);
-blockedStore.perform({ type: 'RenameRegion', regionId: 'request', label: 'Publisher required' });
+const blockedCore = createEditor(blockedRuntime.records);
+blockedRuntime.attachCore(blockedCore);
+blockedCore.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Publisher required' });
 const blockedProposal = await blockedRuntime.createDraftProposal();
 const blockedPlan = await blockedRuntime.preflightAccept(blockedProposal);
 assert.equal(blockedPlan.delivery.mode, 'reference');
@@ -167,7 +194,7 @@ assert.equal(blockedReplacements.length, 0, 'blocked publication must not replac
 const blockedRejectedUrl = await blockedRuntime.reject({ local: true });
 assert.equal(blockedRejectedUrl, referenceBase, 'MUTATION:local-reject-zero-write Local Reject must retain the accepted reference URL');
 assert.equal(blockedRuntime.draftCount(), 0);
-assert.equal(blockedStore.domain.regions.get('request').label, records.find((item) => item.id === 'request').label);
+assert.equal(region(blockedCore, 'request').label, records.find((item) => item.id === 'request').label);
 assert.equal(blockedReplacements.length, 0, 'MUTATION:local-reject-zero-write Local Reject must not publish or replace the accepted URL');
 
 const publishRequests = [];
@@ -182,9 +209,9 @@ const publishedRuntime = await DecisionRuntime.create(largeEnvelope, {
     return publisherReceipt(request);
   }),
 });
-const publishedStore = new SemanticDomainStore(createSemanticMap(publishedRuntime.records));
-publishedRuntime.attachStore(publishedStore);
-publishedStore.perform({ type: 'RenameRegion', regionId: 'request', label: 'Published continuation' });
+const publishedCore = createEditor(publishedRuntime.records);
+publishedRuntime.attachCore(publishedCore);
+publishedCore.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Published continuation' });
 const publishedProposal = await publishedRuntime.createDraftProposal();
 const publishedPlan = await publishedRuntime.preflightAccept(publishedProposal);
 assert.equal(publishedPlan.delivery.mode, 'reference');
@@ -212,7 +239,7 @@ assert.equal(publishedAccepted.delivery.receipt.stored, true);
 assert.equal(publishedAccepted.url, publishedPlan.delivery.plannedUrl);
 assert.match(publishedAccepted.url, /#smap-ref=/u);
 assert.equal(publishedRuntime.draftCount(), 0);
-assert.equal(publishedStore.domain.regions.get('request').label, 'Published continuation');
+assert.equal(region(publishedCore, 'request').label, 'Published continuation');
 
 let failedPublishCalls = 0;
 const failedRuntime = await DecisionRuntime.create(largeEnvelope, {
@@ -225,9 +252,9 @@ const failedRuntime = await DecisionRuntime.create(largeEnvelope, {
     throw new Error('synthetic publisher failure');
   }),
 });
-const failedStore = new SemanticDomainStore(createSemanticMap(failedRuntime.records));
-failedRuntime.attachStore(failedStore);
-failedStore.perform({ type: 'RenameRegion', regionId: 'request', label: 'Failed publication draft' });
+const failedCore = createEditor(failedRuntime.records);
+failedRuntime.attachCore(failedCore);
+failedCore.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Failed publication draft' });
 const failedProposal = await failedRuntime.createDraftProposal();
 const failedPlan = await failedRuntime.preflightAccept(failedProposal);
 const failedHead = failedRuntime.head;
@@ -238,11 +265,11 @@ await assert.rejects(
 assert.equal(failedPublishCalls, 1);
 assert.equal(failedRuntime.head, failedHead);
 assert.equal(failedRuntime.draftCount(), 1);
-assert.equal(failedStore.domain.regions.get('request').label, 'Failed publication draft');
+assert.equal(region(failedCore, 'request').label, 'Failed publication draft');
 
 const stalePublishRequests = [];
 const staleReplacements = [];
-let staleStore = null;
+let staleCore = null;
 const staleRuntime = await DecisionRuntime.create(largeEnvelope, {
   baseUrl: () => referenceBase,
   replaceUrl: (url) => staleReplacements.push(url),
@@ -250,13 +277,13 @@ const staleRuntime = await DecisionRuntime.create(largeEnvelope, {
   artifactEndpoint: publisherEndpoint,
   publisherPort: publisherPort(async (request) => {
     stalePublishRequests.push(request);
-    staleStore.perform({ type: 'RenameRegion', regionId: 'request', label: 'Concurrent draft during publish' });
+    staleCore.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Concurrent draft during publish' });
     return publisherReceipt(request);
   }),
 });
-staleStore = new SemanticDomainStore(createSemanticMap(staleRuntime.records));
-staleRuntime.attachStore(staleStore);
-staleStore.perform({ type: 'RenameRegion', regionId: 'request', label: 'Planned before publish' });
+staleCore = createEditor(staleRuntime.records);
+staleRuntime.attachCore(staleCore);
+staleCore.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Planned before publish' });
 const staleProposal = await staleRuntime.createDraftProposal();
 const stalePlan = await staleRuntime.preflightAccept(staleProposal);
 const staleHead = staleRuntime.head;
@@ -269,7 +296,7 @@ assert.equal(stalePublishRequests.length, 1);
 assert.equal(staleRuntime.head, staleHead);
 assert.equal(staleReplacements.length, 0);
 assert.equal(staleRuntime.draftCount(), 2);
-assert.equal(staleStore.domain.regions.get('request').label, 'Concurrent draft during publish');
+assert.equal(region(staleCore, 'request').label, 'Concurrent draft during publish');
 
 const viewPublishRequests = [];
 const viewReplacements = [];
@@ -283,7 +310,7 @@ const viewRuntime = await DecisionRuntime.create(largeEnvelope, {
     return publisherReceipt(request);
   }),
 });
-viewRuntime.attachStore(new SemanticDomainStore(createSemanticMap(viewRuntime.records)));
+viewRuntime.attachCore(createEditor(viewRuntime.records));
 const viewHead = viewRuntime.head;
 const viewLog = viewRuntime.log;
 const viewPlan = await viewRuntime.preflightView({ pattern: 'graph/1' });
@@ -320,7 +347,7 @@ const rejectionRuntime = await DecisionRuntime.create(proposalEnvelope, {
     return publisherReceipt(request);
   }),
 });
-rejectionRuntime.attachStore(new SemanticDomainStore(createSemanticMap(rejectionRuntime.records)));
+rejectionRuntime.attachCore(createEditor(rejectionRuntime.records));
 const rejectionHead = rejectionRuntime.head;
 const rejectionLog = rejectionRuntime.log;
 const rejectionPlan = await rejectionRuntime.preflightReject({ local: false });
@@ -341,14 +368,61 @@ assert.equal(rejectionRuntime.proposal, null);
 assert.equal(rejectionRuntime.head, rejectionHead);
 assert.equal(rejectionRuntime.log, rejectionLog, 'Reject must not alter DecisionLog');
 
+let authorityFailures = 0;
+for (const action of ['accept', 'reject']) {
+  const urls = [];
+  const control = {};
+  const guarded = await DecisionRuntime.create(envelope, {
+    baseUrl: () => urls.at(-1) ?? 'https://example.test/app#accepted',
+    replaceUrl: url => urls.push(url),
+    validateRecords,
+  });
+  const editor = createEditor(guarded.records, control);
+  guarded.attachCore(editor);
+  assert.equal(Object.hasOwn(guarded, 'store'), false, 'runtime must not expose a mutable store');
+  assert.equal(Object.hasOwn(guarded, 'core'), false, 'runtime keeps its editor reference private');
+  assert.equal(typeof guarded.attachStore, 'undefined', 'legacy store attachment must not remain');
+  assert.throws(() => guarded.attachCore(editor), /core is already attached/u);
+  editor.dispatch({ type: 'RenameRegion', regionId: 'request', label: 'Authority-protected draft' });
+  const proposal = await guarded.createDraftProposal();
+  const editorBefore = structuredClone(editor.snapshot());
+  const runtimeBefore = structuredClone(guarded.snapshot());
+  const urlBefore = guarded.currentUrl();
+  const events = [];
+  editor.subscribe(event => events.push(event));
+  control.reloads = 0;
+  control.commits = 0;
+  control.denied = true;
+  await assert.rejects(
+    action === 'accept' ? guarded.accept(proposal) : guarded.reject({ local: true }),
+    error => error.code === 'E_RUNTIME_EDIT_DENIED',
+  );
+  assert.deepEqual(editor.snapshot(), editorBefore, `${action}: core state/history/IDs/revision`);
+  assert.deepEqual(guarded.snapshot(), runtimeBefore, `${action}: accepted decision log`);
+  assert.equal(guarded.currentUrl(), urlBefore, `${action}: URL rollback`);
+  assert.equal(control.reloads, 0, `${action}: deny must precede reload`);
+  assert.equal(control.commits, 0, `${action}: deny must precede commit`);
+  assert.equal(events.length, 0, `${action}: rejected replacement must not publish`);
+  control.denied = false;
+  assert.equal(editor.dispatch({ type: 'history.undo' }), true, `${action}: history remains usable`);
+  authorityFailures += 1;
+}
+const unbound = await DecisionRuntime.create(envelope, { baseUrl: () => 'https://example.test/app', replaceUrl() {} });
+assert.throws(() => unbound.attachCore({ toRecords() { return records; } }), /EditorCore.dispatch is required/u, 'raw store is not an EditorCore');
+assert.equal(unbound.draftCount(), 0);
+for (const editor of editors) editor.destroy();
+
 console.log(JSON.stringify({
-  schema: 'semantic-map-runtime-test/3',
+  schema: 'semantic-map-runtime-test/4',
   pass: true,
   status: 'PASS',
   skipped: false,
   complete: true,
   errors: [],
   exactAppend: true,
+  coreOnlyDocumentMutation: true,
+  authorityFailures,
+  publicStoreAbsent: true,
   viewIsNonSemantic: true,
   localRejectRestored: true,
   failedAcceptRolledBack: true,

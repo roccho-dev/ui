@@ -37,7 +37,7 @@ jobs:
           nix flake check --print-build-logs --no-write-lock-file 2>&1 | tee "$RUNNER_TEMP/ui-nix-flake-check.log"
 
       - name: Upload flake check log
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v4
         with:
           name: ui-nix-flake-check-log
@@ -49,6 +49,7 @@ jobs:
 
       - name: Upload gov package output
         uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: ui-gov-package-output
           path: result-gov-package-output/
