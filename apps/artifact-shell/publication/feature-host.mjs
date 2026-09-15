@@ -4,19 +4,9 @@ const sameOriginUrl = (value, base) => {
   invariant(url.origin === base.origin, `same-origin URL required: ${value}`);
   return url;
 };
-const publicationModuleUrl = relative => {
-  const url = new URL(import.meta.url);
-  const marker = '/adapters/';
-  const index = url.pathname.indexOf(marker);
-  invariant(index >= 0, 'host must be published under adapters/');
-  url.pathname = `${url.pathname.slice(0, index + 1)}modules/${relative}`;
-  url.search = '';
-  url.hash = '';
-  return url;
-};
 const readData = async base => {
   if (!base.hash) return null;
-  const moduleUrl = publicationModuleUrl('packages/url-module/src/index.mjs');
+  const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);
   const { readUrlModule } = await import(moduleUrl.href);
   return readUrlModule({ fragment: 'data', input: base.href });
 };
