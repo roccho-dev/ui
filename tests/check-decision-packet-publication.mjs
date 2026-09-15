@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,21 +32,24 @@ assert.equal(engine.includes('<style'), false);
 assert.equal(engine.includes('<html'), false);
 assert.ok(engine.split('\n').length < 45, 'capability engine is not thin');
 
-const exampleRoot = path.join(root, 'examples', 'render.decision-packet');
-const input = await fs.readFile(path.join(exampleRoot, 'input', 'decision-packet.json'));
-const agent = await fs.readFile(path.join(exampleRoot, 'dist', 'agent.json'));
-assert.deepEqual(agent, input, 'human and agent examples must identify the same packet bytes');
-const receipt = JSON.parse(await fs.readFile(path.join(exampleRoot, 'dist', 'receipt.json'), 'utf8'));
-assert.equal(receipt.generatedArtifactsAreAuthority, false);
-assert.equal(receipt.packet.digest, JSON.parse(input).packet_digest);
+const inputPath = path.join(root, 'examples', 'render.decision-packet', 'input', 'decision-packet.json');
+const packet = JSON.parse(await fs.readFile(inputPath, 'utf8'));
+assert.equal(packet.schema, 'decision-packet/1');
+assert.equal(packet.authority, false);
+assert.equal(packet.privacy_class, 'public');
+assert.match(packet.packet_digest, /^sha256:[0-9a-f]{64}$/u);
+await assert.rejects(
+  fs.access(path.join(root, 'examples', 'render.decision-packet', 'dist')),
+  undefined,
+  'generated decision-packet dist must not be a checked-in publication input',
+);
 
-const manifest = (await fs.readFile(path.join(exampleRoot, 'dist', 'MANIFEST.sha256'), 'utf8')).trim().split('\n');
-for (const line of manifest) {
-  const [digest, file] = line.split('  ');
-  const bytes = await fs.readFile(path.join(exampleRoot, 'dist', file));
-  assert.equal(createHash('sha256').update(bytes).digest('hex'), digest, file);
-}
 const readme = await fs.readFile(path.join(root, 'README.md'), 'utf8');
 assert.equal(readme.includes('`render.decision-packet@1`'), true);
 assert.equal(readme.includes('`render.semantic-map@1`'), true);
-console.log(JSON.stringify({ schema: 'decision-packet-publication-boundary/1', status: 'PASS', packageFiles: packageFiles.length, manifestFiles: manifest.length }));
+console.log(JSON.stringify({
+  schema: 'decision-packet-publication-boundary/2',
+  status: 'PASS',
+  packageFiles: packageFiles.length,
+  checkedInGeneratedOutputs: false,
+}));
