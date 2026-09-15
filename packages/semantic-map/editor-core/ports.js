@@ -33,7 +33,7 @@ export function sameSelection(left, right) {
 }
 
 export function assertSurfacePort(surface) {
-  for (const name of ['render', 'onGesture', 'snapshot', 'destroy']) {
+  for (const name of ['render', 'onGesture', 'destroy']) {
     method(surface, name, 'SurfacePort');
   }
   return surface;

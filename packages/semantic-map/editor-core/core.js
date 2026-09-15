@@ -69,7 +69,7 @@ class EditorCoreState extends DomainStateStore {
     this.coreListeners = new Set();
     this.selection = normalizeSelection(layout?.selection ?? {});
     this.frame = cloneFrame(layout?.frame ?? null);
-    this.revision = revision ?? null;
+    this.revision = structuredClone(revision ?? null);
     this.idSequence = initialSequence(this.domain);
     this.destroyed = false;
     this.transactionDepth = 0;
@@ -122,9 +122,9 @@ class EditorCoreState extends DomainStateStore {
 
   publish(kind, detail = {}) {
     if (this.destroyed || this.transactionDepth > 0) return;
-    const event = Object.freeze({ kind, core: this.snapshot(), ...detail });
+    const event = { kind, core: this.snapshot(), ...detail };
     for (const listener of this.coreListeners) {
-      try { listener(event); } catch (error) { console.error(error); }
+      try { listener(Object.freeze(structuredClone(event))); } catch (error) { console.error(error); }
     }
   }
 
@@ -186,11 +186,11 @@ class EditorCoreState extends DomainStateStore {
   setFrame(frame) {
     invariant(!this.destroyed, 'core is destroyed');
     const next = cloneFrame(frame);
-    if (JSON.stringify(this.frame) === JSON.stringify(next)) return this.frame;
+    if (JSON.stringify(this.frame) === JSON.stringify(next)) return cloneFrame(this.frame);
     this.frame = next;
     if (this.transactionDepth === 0) this.renderSurface();
     this.publish('frame', { frame: cloneFrame(this.frame) });
-    return this.frame;
+    return cloneFrame(this.frame);
   }
 
   pruneSelection() {
@@ -284,7 +284,7 @@ class EditorCoreState extends DomainStateStore {
     const initial = this.prepareOperation(command);
     const authority = this.authorize(initial.operation);
     const plan = this.editPlan(initial.operation, authority);
-    if (plan.noop) return plan.result;
+    if (plan.noop) return structuredClone(plan.result);
 
     const session = this.snapshotSession();
     const beforeRevision = this.revision;
@@ -325,7 +325,7 @@ class EditorCoreState extends DomainStateStore {
       throw error;
     }
     this.finishTransaction('mutation', { operations: plan.operations, result, authority });
-    return result;
+    return structuredClone(result);
   }
 
   applyHistory(direction) {
@@ -448,22 +448,23 @@ class EditorCoreState extends DomainStateStore {
   }
 
   snapshot() {
-    return Object.freeze({
+    // Renderer telemetry is delivered as a gesture, never read from a fourth
+    // SurfacePort capability. Every returned value is detached from the owner.
+    return Object.freeze(structuredClone({
       selection: this.selection,
-      frame: cloneFrame(this.frame),
-      draft: Object.freeze(structuredClone(this.draftSnapshot())),
-      records: Object.freeze(structuredClone(this.toRecords())),
-      document: Object.freeze({
+      frame: this.frame,
+      draft: this.draftSnapshot(),
+      records: this.toRecords(),
+      document: {
         schema: this.domain.meta.schema,
         root: this.domain.meta.root,
         regions: this.domain.regions.size,
         relations: this.domain.relations.length,
-      }),
+      },
       idSequence: this.idSequence,
       revision: this.revision,
       stateHash: this.stateHash(),
-      surface: this.surface.snapshot(),
-    });
+    }));
   }
 
   runtimePort() {
