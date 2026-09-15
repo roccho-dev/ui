@@ -1,6 +1,6 @@
 import { canonicalJson, inspectEnvelope } from './protocol/index.js';
-import { assertUrlWithinLimit, encodeEnvelopeToken, SMAP_FRAGMENT } from './transport/index.js';
 
+const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-package: ${message}`); };
 const waitForReady = (frame, timeoutMs = 15000) => new Promise((resolve, reject) => {
   const started = performance.now();
@@ -50,7 +50,7 @@ export const createEnvelopeInputBridge = ({ initialEnvelope, inputAction, site }
     const task = pending.then(flush);
     pending = task.catch((error) => {
       lastError = String(error?.message ?? error);
-      site.editor?.showError?.(`共有URLを更新できません: ${lastError}`);
+      site.editor?.showError?.(`共有入力を更新できません: ${lastError}`);
       return null;
     });
     return task;
@@ -78,8 +78,14 @@ export async function executeArtifactPackage({ document, input, inputAction = nu
   frame.setAttribute('allow', 'clipboard-read; clipboard-write');
   frame.style.cssText = 'display:block;width:100%;height:min(78vh,900px);min-height:560px;border:0;border-radius:12px;background:#f8fafb;pointer-events:none;';
   const frameUrl = new URL('./authoring/pages/embed.html', import.meta.url);
-  frameUrl.hash = `${SMAP_FRAGMENT}=${await encodeEnvelopeToken(inspection.envelope)}`;
-  frame.src = assertUrlWithinLimit(frameUrl.href);
+  const targetOrigin = frameUrl.origin;
+  frame.addEventListener('load', () => {
+    frame.contentWindow?.postMessage(
+      Object.freeze({ schema: EMBED_INPUT_SCHEMA, envelope: structuredClone(inspection.envelope) }),
+      targetOrigin,
+    );
+  }, { once: true });
+  frame.src = frameUrl.href;
   surfaceMount.replaceChildren(frame);
   const site = await waitForReady(frame);
   let bridge = null;
@@ -105,6 +111,6 @@ export async function executeArtifactPackage({ document, input, inputAction = nu
       mode: bridge ? 'parent-invocation' : 'read-only',
       schema: 'semantic-map-input-bridge-receipt/1',
     }),
-    source: Object.freeze({ contract: 'semantic-map-envelope/3', mode: 'inline-child' }),
+    source: Object.freeze({ contract: 'semantic-map-envelope/3', mode: 'embedded-message' }),
   });
 }
