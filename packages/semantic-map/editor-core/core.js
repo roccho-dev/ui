@@ -92,7 +92,6 @@ class EditorCoreState extends DomainStateStore {
 
   beginTransaction() {
     invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
-    // This temporary value is a read projection, not a second editable store.
     this.transactionSnapshot = this.readSnapshot();
     this.transactionDepth = 1;
     this.pendingDomainEvents = [];
@@ -114,8 +113,6 @@ class EditorCoreState extends DomainStateStore {
     let outcome;
     this.beginTransaction();
     try {
-      // Hold the boundary before the first Authority/Document callback,
-      // including for ordinary edits and undo/redo, not only replacement.
       authority = intent === null ? null : this.authorize(intent);
       outcome = prepare(authority, beforeRevision);
       if (outcome.changed === false) {
@@ -129,7 +126,6 @@ class EditorCoreState extends DomainStateStore {
       this.rollbackTransaction(session);
       throw error;
     }
-    // Commit is complete. Display failures must never become a rollback signal.
     this.finishTransaction(kind, { ...outcome.detail, ...(authority === null ? {} : { authority }) }, { render });
     return structuredClone(outcome.result);
   }
@@ -141,7 +137,6 @@ class EditorCoreState extends DomainStateStore {
     this.transactionSnapshot = this.readSnapshot();
     const display = (phase, callback) => {
       this.displayFailures = this.displayFailures.filter(failure => failure.phase !== phase);
-      // The retry receives the current attempt, not a stale failure projection.
       this.transactionSnapshot = this.readSnapshot();
       try { synchronous(callback(), phase); } catch (error) {
         this.displayFailures.push({ code: 'E_EDITOR_DISPLAY', phase, message: String(error?.message ?? error) });
@@ -149,8 +144,6 @@ class EditorCoreState extends DomainStateStore {
       this.transactionSnapshot = this.readSnapshot();
     };
     try {
-      // Keep the accepted snapshot and operation lock until every observer has
-      // received this cut. No subscriber can insert another edit into the event.
       for (const event of domainEvents) super.notify(Object.freeze(structuredClone(event)));
       if (render) display('SurfacePort.render', () => this.renderSurface());
       display('DocumentPort.renderChrome', () => this.documentPort.renderChrome(this.snapshot()));
@@ -214,10 +207,6 @@ class EditorCoreState extends DomainStateStore {
       activeFrame: cloneFrame(this.frame),
       presentation: null,
     }));
-  }
-
-  selectionSnapshot() {
-    return this.selection;
   }
 
   setSelection(input) {
@@ -425,7 +414,6 @@ class EditorCoreState extends DomainStateStore {
       this.idSequence = initialSequence(this.domain);
       this.selection = normalizeSelection(workspace?.layout.selection ?? {});
       this.frame = cloneFrame(workspace?.layout.frame ?? null);
-      // Only commit advances revision. Reload cannot rewrite the CAS base.
       return { operations: [], batch: { results: [] }, result: null };
     });
     return this.snapshot();
@@ -474,23 +462,6 @@ class EditorCoreState extends DomainStateStore {
     }));
   }
 
-  runtimePort() {
-    const state = this;
-    // Temporary read-only compatibility view for legacy P2 composition code.
-    // It intentionally exposes no mutation, restore, replacement, or history capability.
-    const port = {
-      get domain() { return createSemanticMap(structuredClone(state.toRecords())); },
-      onChange(listener) {
-        invariant(typeof listener === 'function', 'runtime listener must be a function');
-        return state.subscribe((event) => listener(Object.freeze(structuredClone(event))));
-      },
-      draftSnapshot() { return structuredClone(state.snapshot().draft); },
-      toRecords() { return structuredClone(state.snapshot().records); },
-      toJSONL() { return state.toJSONL(); },
-    };
-    return Object.freeze(port);
-  }
-
   destroy() {
     if (this.destroyed) return false;
     invariant(this.transactionDepth === 0, 'nested mutation transaction is not allowed');
@@ -507,21 +478,14 @@ class EditorCoreState extends DomainStateStore {
 }
 
 function publicCore(state) {
-  const api = {
+  return Object.freeze({
     dispatch: (command) => state.dispatch(command),
     acceptGesture: (gesture) => state.acceptGesture(gesture),
     replaceInput: (input) => state.replaceInput(input),
     snapshot: () => state.snapshot(),
     subscribe: (listener) => state.subscribe(listener),
     destroy: () => state.destroy(),
-  };
-  Object.defineProperty(api, 'runtime', {
-    value: state.runtimePort(),
-    enumerable: false,
-    writable: false,
-    configurable: false,
   });
-  return Object.freeze(api);
 }
 
 export function createSemanticMapEditorCore({
