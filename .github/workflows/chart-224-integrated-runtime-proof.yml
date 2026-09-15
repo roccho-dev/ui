@@ -83,6 +83,13 @@ jobs:
                   timeout=30000,
               )
 
+          def wait_active_label(page,rid,label):
+              page.wait_for_function(
+                  """args => document.querySelector(`button[data-active-key="region:${args.id}"]`)?.textContent?.includes(args.label) === true""",
+                  arg={'id':rid,'label':label},
+                  timeout=30000,
+              )
+
           with sync_playwright() as p:
               browser=p.chromium.launch(headless=True)
               for name in publication:
@@ -116,7 +123,7 @@ jobs:
                   assert not fallback,(spec['variant'],fallback)
                   active=page.locator(f"button[data-active-key='region:{spec['targetId']}']")
                   active.wait_for(state='visible',timeout=30000)
-                  assert spec['sentinel'] in (active.text_content() or '')
+                  wait_active_label(page,spec['targetId'],spec['sentinel'])
                   active.click()
                   assert page.evaluate('window.semanticMapSite.editor.adapter.startEditingSelection()') is True
                   assert page.evaluate("""() => { const p=window.semanticMapSite.editor.adapter.graph.getPlugin('CellEditorHandler'); if(!p?.textarea?.isConnected||p.editingCell==null)return false; p.textarea.dataset.proof='editor'; return true; }""") is True
@@ -124,18 +131,24 @@ jobs:
                   editor.wait_for(state='visible',timeout=10000)
                   editor.fill(spec['edited']); editor.press('Enter')
                   wait_label(page,spec['targetId'],spec['edited'])
-                  assert spec['edited'] in (active.text_content() or '')
-                  page.keyboard.press('Control+z'); wait_label(page,spec['targetId'],spec['sentinel'])
-                  page.keyboard.press('Control+y'); wait_label(page,spec['targetId'],spec['edited'])
-                  page.keyboard.press('Control+z'); wait_label(page,spec['targetId'],spec['sentinel'])
+                  wait_active_label(page,spec['targetId'],spec['edited'])
+                  page.keyboard.press('Control+z')
+                  wait_label(page,spec['targetId'],spec['sentinel'])
+                  wait_active_label(page,spec['targetId'],spec['sentinel'])
+                  page.keyboard.press('Control+y')
+                  wait_label(page,spec['targetId'],spec['edited'])
+                  wait_active_label(page,spec['targetId'],spec['edited'])
+                  page.keyboard.press('Control+z')
+                  wait_label(page,spec['targetId'],spec['sentinel'])
+                  wait_active_label(page,spec['targetId'],spec['sentinel'])
                   assert not errs,(spec['variant'],errs)
                   assert not failed,(spec['variant'],failed)
                   page.screenshot(path=str(root/'screenshots'/f"{spec['variant']}.png"),full_page=True)
-                  chart_results.append({'variant':spec['variant'],'status':'PASS','url':spec['url'],'chars':spec['chars'],'domainFromHash':True,'activeListFromHash':True,'inputJsonFallbackRequests':fallback,'inlineEdit':True,'undo':True,'redo':True,'finalRestore':True,'pageErrors':errs,'requestFailed':failed})
+                  chart_results.append({'variant':spec['variant'],'status':'PASS','url':spec['url'],'chars':spec['chars'],'domainFromHash':True,'activeListFromHash':True,'inputJsonFallbackRequests':fallback,'inlineEdit':True,'domainRerender':True,'activeListRerender':True,'undo':True,'redo':True,'finalRestore':True,'pageErrors':errs,'requestFailed':failed})
                   page.close()
               browser.close()
 
-          receipt={'schema':'ui.chart-integrated-runtime-proof/1','status':'PASS','sourceSha':os.environ['SOURCE_SHA'],'immutableDeployment':os.environ['DEPLOY_ROOT'],'publication':publication_results,'chartVariants':chart_results}
+          receipt={'schema':'ui.chart-integrated-runtime-proof/2','status':'PASS','sourceSha':os.environ['SOURCE_SHA'],'immutableDeployment':os.environ['DEPLOY_ROOT'],'publication':publication_results,'chartVariants':chart_results}
           (root/'receipt.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2))
           print(json.dumps(receipt,ensure_ascii=False))
           PY
