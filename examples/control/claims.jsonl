@@ -1,6 +1,1 @@
-{"id":"report:graph:1","op":"report","state":"active","by":"d","at":"2026-09-16T03:24:00+09:00","rel":{"parent":"graph","kind":"reports"}}
-{"id":"report:map:1","op":"report","state":"active","by":"d","at":"2026-09-16T03:24:00+09:00","rel":{"parent":"map","kind":"reports"}}
-{"id":"report:seq:1","op":"report","state":"active","by":"d","at":"2026-09-16T03:24:00+09:00","rel":{"parent":"seq","kind":"reports"}}
-{"id":"report:chart:1","op":"report","state":"active","by":"d","at":"2026-09-16T03:24:00+09:00","rel":{"parent":"chart","kind":"reports"}}
-{"id":"report:presentation:1","op":"report","state":"active","by":"d","at":"2026-09-16T03:24:00+09:00","rel":{"parent":"presentation","kind":"reports"}}
-{"id":"report:control:1","op":"report","state":"active","by":"d","at":"2026-09-16T03:24:00+09:00","rel":{"parent":"control","kind":"reports"}}
+{"id":"report.001","op":"report","state":"active","by":"d","rel":{"parent":"/root","kind":"reports"}}
