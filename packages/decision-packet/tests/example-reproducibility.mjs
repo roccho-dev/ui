@@ -17,6 +17,10 @@ async function snapshot(root) {
   return result;
 }
 
+const heartbeat = setInterval(() => {
+  console.log(JSON.stringify({ schema: 'ci-heartbeat/1', task: 'decision-packet-example-reproducibility', status: 'RUNNING' }));
+}, 15_000);
+
 try {
   const first = path.join(temporary, 'first');
   const second = path.join(temporary, 'second');
@@ -26,5 +30,6 @@ try {
   assert.deepEqual(await snapshot(first), await snapshot(expectedRoot));
   console.log(JSON.stringify({ schema: 'decision-packet-example-reproducibility/1', status: 'PASS', files: Object.keys(await snapshot(first)).length }));
 } finally {
+  clearInterval(heartbeat);
   await fs.rm(temporary, { recursive: true, force: true });
 }

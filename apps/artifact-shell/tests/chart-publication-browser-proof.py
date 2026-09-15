@@ -92,6 +92,14 @@ def replace_region_label(source: Path, region_id: str, label: str, output: Path)
     )
 
 
+def assert_feature_pass(page, variant_id: str, errors: list[str], phase: str) -> None:
+    proof = page.evaluate("() => globalThis.uiFeatureProof ?? null")
+    fatal = page.locator("#fatal").text_content()
+    assert proof and proof.get("status") == "PASS", (
+        f"{variant_id} {phase}: feature host failed: proof={proof!r}; fatal={fatal!r}; pageErrors={errors!r}"
+    )
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="chart-publication-browser-") as temporary_name:
         temporary = Path(temporary_name)
@@ -135,7 +143,7 @@ def main() -> None:
                         lambda status: status in {"PASS", "FAIL"},
                         f"{variant_id}: feature host did not settle",
                     )
-                    assert page.evaluate("() => uiFeatureProof.status") == "PASS"
+                    assert_feature_pass(page, variant_id, errors, "initial")
                     assert page.evaluate("() => semanticMapSite.ready") is True
                     assert page.evaluate("() => semanticMapSite.editor.snapshot().scene.pattern") == "chart/1"
                     assert page.evaluate("() => uiFeatureProof.feature.view.chart.type") == chart_type
@@ -155,7 +163,6 @@ def main() -> None:
                     )
                     assert isinstance(original_label, str) and original_label
 
-                    # Negative control: label editing must not start without a semantic selection.
                     missing_selection_blocked = page.evaluate(
                         """() => {
                           const adapter = semanticMapSite.editor.adapter;
@@ -217,7 +224,7 @@ def main() -> None:
                         lambda status: status in {"PASS", "FAIL"},
                         f"{variant_id}: updated #data did not settle",
                     )
-                    assert page.evaluate("() => uiFeatureProof.status") == "PASS"
+                    assert_feature_pass(page, variant_id, errors, "updated-data")
                     assert page.evaluate(
                         "id => semanticMapSite.editor.store.domain.regions.get(id).label",
                         editable_id,
@@ -236,8 +243,6 @@ def main() -> None:
                         "updatedDataReload": True,
                     })
 
-                # Negative control: removing a required route descriptor in the built publication
-                # must fail closed at the same feature host used by the positive proof.
                 assert first_url is not None
                 feature_json = publication / "adapters" / "chart" / "bar-horizontal" / "feature.json"
                 hidden = feature_json.with_suffix(".json.negative-control")
