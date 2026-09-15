@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-status="boot">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; object-src 'none'">
+  <title>UI preview</title>
+  <style>
+    :root{font-family:ui-sans-serif,system-ui,sans-serif;color-scheme:light dark}
+    *{box-sizing:border-box}body{margin:0;background:Canvas;color:CanvasText}
+    main{min-height:100vh}#launcher{width:min(960px,100%);margin:auto;padding:24px}
+    #cases{display:flex;flex-wrap:wrap;gap:14px}#cases a{color:inherit;text-underline-offset:3px}
+    #feature{min-height:100vh}#fatal{margin:16px;padding:12px;white-space:pre-wrap}
+    body[data-mode="boot"] #launcher,body[data-mode="boot"] #feature,body[data-mode="launcher"] #feature,body[data-mode="feature"] #launcher{display:none}
+  </style>
+</head>
+<body data-mode="boot">
+  <main>
+    <nav id="launcher" aria-label="UI feature examples"><h1>UI preview</h1><div id="cases"></div></nav>
+    <section id="feature" aria-label="UI feature"></section>
+    <pre id="fatal" hidden role="alert"></pre>
+  </main>
+  <script type="module" src="./main.mjs"></script>
+</body>
+</html>

@@ -40,12 +40,15 @@ jobs:
         with:
           node-version: 24
 
-      - name: Build Artifact Shell publication
+      - name: Check UI preview
+        run: npm --prefix apps/preview run check
+
+      - name: Build UI preview
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/artifact-shell-publication"
-          npm run build:artifact-shell-publication -- --out="$out"
-          echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
+          out="$RUNNER_TEMP/ui-preview"
+          npm --prefix apps/preview run build -- --outDir="$out"
+          echo "UI_PREVIEW=$out" >> "$GITHUB_ENV"
 
       - name: Deploy staging preview
         env:
@@ -54,7 +57,7 @@ jobs:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.112.0 pages deploy "$ARTIFACT_SHELL_PUBLICATION" \
+          npx --yes wrangler@4.112.0 pages deploy "$UI_PREVIEW" \
             --project-name="$CLOUDFLARE_PAGES_PROJECT" \
             --branch="$CLOUDFLARE_PAGES_BRANCH" \
             --commit-hash="$SOURCE_SHA"
