@@ -47,12 +47,15 @@ export const parseClaims = (text, controlRecords) => {
     requireControl(!Object.hasOwn(value.rel, 'child'), `claims L${line}: rel.child prohibited`)
     requireControl(typeof value.state === 'string' && value.state, `claims L${line}: state required`)
     requireControl(typeof value.by === 'string' && value.by, `claims L${line}: by required`)
-    if (Object.hasOwn(value, 'at')) requireControl(typeof value.at === 'string' && value.at, `claims L${line}: at invalid`)
+    requireControl(typeof value.at === 'string' && value.at, `claims L${line}: at required`)
   })
   const ids = new Set()
+  const parents = new Set()
   for (const claim of claims) {
     requireControl(!ids.has(claim.id), `claims L${claim.line}: duplicate id ${claim.id}`)
+    requireControl(!parents.has(claim.rel.parent), `claims L${claim.line}: duplicate control ${claim.rel.parent}`)
     ids.add(claim.id)
+    parents.add(claim.rel.parent)
   }
   return claims
 }
