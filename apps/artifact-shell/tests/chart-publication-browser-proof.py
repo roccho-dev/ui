@@ -229,10 +229,20 @@ def main() -> None:
                         "id => semanticMapSite.editor.store.domain.regions.get(id).label",
                         editable_id,
                     ) == updated_label
-                    assert page.evaluate(
-                        "label => document.body.textContent.includes(label)",
-                        updated_label,
-                    ) is True, f"{variant_id}: updated #data label was not rendered"
+                    rendered_reload = page.evaluate(
+                        """([id, label]) => {
+                          const adapter = semanticMapSite.editor.adapter;
+                          const representation = adapter.lastScene.representations.find(candidate =>
+                            (candidate.sourceRegionId ?? candidate.regionId) === id
+                          );
+                          if (!representation || representation.sourceLabel !== label) return false;
+                          const cell = adapter.cellsByRegionId.get(representation.regionId);
+                          if (!cell || cell.semantic?.sourceLabel !== label) return false;
+                          return adapter.graph.getDataModel().contains(cell);
+                        }""",
+                        [editable_id, updated_label],
+                    )
+                    assert rendered_reload is True, f"{variant_id}: updated #data did not reach rendered maxGraph cell"
 
                     receipts.append({
                         "variant": variant_id,
