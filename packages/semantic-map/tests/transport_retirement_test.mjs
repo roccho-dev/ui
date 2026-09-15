@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const roots = [
   'packages/semantic-map',
-  'apps/artifact-shell/publication',
+  'apps/preview',
   'apps/artifact-shell/tests',
 ];
 const self = 'packages/semantic-map/tests/transport_retirement_test.mjs';

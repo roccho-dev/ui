@@ -29,7 +29,7 @@
   <div class="handoff-layer" hidden id="handoff-layer" role="presentation">
     <section aria-labelledby="handoff-title" aria-modal="true" class="handoff-sheet" role="dialog">
       <div aria-hidden="true" class="handoff-grabber"></div>
-      <div class="handoff-head"><div><h2 id="handoff-title">ChatGPTへ渡す</h2><p>完全な #smap URL＋依頼を先にコピーし、現在Sceneの画像は必要時だけ生成します。</p></div><button aria-label="Close" class="handoff-close" id="handoff-close" type="button">×</button></div>
+      <div class="handoff-head"><div><h2 id="handoff-title">ChatGPTへ渡す</h2><p>完全な #data URL＋依頼を先にコピーし、現在Sceneの画像は必要時だけ生成します。</p></div><button aria-label="Close" class="handoff-close" id="handoff-close" type="button">×</button></div>
       <div class="handoff-selected"><span>Target</span><code id="handoff-selected-id">current scene</code></div>
       <label for="handoff-request">変更依頼</label>
       <textarea id="handoff-request" placeholder="例: 選択中の要素を右へ移動し、名称を短くして" rows="3"></textarea>
@@ -51,7 +51,7 @@
       <div class="review-head"><div><h2 id="review-title">変更を確認</h2><p>Proposalを検査し、AcceptまでDecisionLogを変更しません。</p></div><button aria-label="Close" class="review-close" id="review-close" type="button">×</button></div>
       <output class="review-source" id="review-source">Waiting for Proposal</output>
       <output class="review-delivery" data-kind="info" id="review-delivery">Delivery not planned</output>
-      <output aria-live="polite" class="review-status" id="review-status">#smap URLまたはLocal DraftからProposalを受け取ります。</output>
+      <output aria-live="polite" class="review-status" id="review-status">#data URLまたはLocal DraftからProposalを受け取ります。</output>
       <div class="review-preview" hidden id="review-preview-panel">
         <div class="review-summary"><output class="review-base-label" id="review-base-label">Base</output><output class="review-delta-summary" id="review-delta-summary">No semantic delta</output></div>
         <div class="review-legend" aria-label="Proposal graph diff legend"><span data-review-status="added">＋ Added</span><span data-review-status="removed">− Removed</span><span data-review-status="changed">Δ Changed</span></div>
