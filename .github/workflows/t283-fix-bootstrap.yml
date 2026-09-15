@@ -57,6 +57,13 @@ jobs:
           if old not in text:
               raise SystemExit('expected retired publication scan root not found')
           retirement.write_text(text.replace(old, new, 1))
+
+          preview = Path('apps/preview/index.html')
+          text = preview.read_text()
+          expected = text.count('#smap')
+          if expected != 2:
+              raise SystemExit(f'expected exactly 2 retired preview #smap mentions, found {expected}')
+          preview.write_text(text.replace('#smap', '#data'))
           PY
           node apps/artifact-shell/scripts/build-registry.mjs
       - name: Targeted checks
