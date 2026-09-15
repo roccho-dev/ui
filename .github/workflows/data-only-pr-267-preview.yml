@@ -69,58 +69,78 @@ jobs:
           output.mkdir(parents=True, exist_ok=True)
           receipt = output / 'receipt.json'
           events = {'pageErrors': [], 'requestFailed': []}
+          requests = []
           result = {'schema': 'ui.data-only-deployed-proof/1', 'status': 'RUNNING', 'sourceSha': os.environ['SOURCE_SHA'], 'immutableRoot': root, 'stableAlias': stable, 'features': {}}
           receipt.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+
+          def attach(page):
+              page.on('pageerror', lambda error: events['pageErrors'].append(str(error)))
+              page.on('requestfailed', lambda req: events['requestFailed'].append({'url': req.url, 'failure': req.failure}))
+              page.on('request', lambda req: requests.append(req.url))
 
           try:
               with sync_playwright() as p:
                   browser = p.chromium.launch(headless=True)
-                  page = browser.new_page(viewport={'width': 1440, 'height': 1000})
-                  requests = []
-                  page.on('pageerror', lambda error: events['pageErrors'].append(str(error)))
-                  page.on('requestfailed', lambda req: events['requestFailed'].append({'url': req.url, 'failure': req.failure}))
-                  page.on('request', lambda req: requests.append(req.url))
-
-                  response = page.goto(root, wait_until='networkidle', timeout=60_000)
+                  context = browser.new_context(viewport={'width': 1440, 'height': 1000})
+                  launcher = context.new_page()
+                  attach(launcher)
+                  response = launcher.goto(root, wait_until='networkidle', timeout=60_000)
                   assert response and response.ok
                   hrefs = {}
                   for feature in features:
-                      href = page.locator(f'#launcher a[href^="adapters/{feature}/#data="]').get_attribute('href')
+                      href = launcher.locator(f'#launcher a[href^="adapters/{feature}/#data="]').get_attribute('href')
                       assert href and '#data=' in href
                       hrefs[feature] = href
+                  launcher.close()
 
                   for feature in features:
-                      bare = urljoin(root, f'adapters/{feature}/index.html')
-                      response = page.goto(bare, wait_until='networkidle', timeout=60_000)
+                      result['current'] = {'feature': feature, 'phase': 'bare'}
+                      bare_page = context.new_page()
+                      attach(bare_page)
+                      response = bare_page.goto(urljoin(root, f'adapters/{feature}/'), wait_until='networkidle', timeout=60_000)
                       assert response and response.ok
-                      page.wait_for_selector('html[data-status="fail"]', timeout=60_000)
-                      blocked = page.locator('#fatal').inner_text()
+                      bare_page.wait_for_selector('html[data-status="fail"]', timeout=60_000)
+                      blocked = bare_page.locator('#fatal').inner_text()
                       assert '#data required' in blocked
+                      bare_page.close()
 
+                      result['current'] = {'feature': feature, 'phase': 'data'}
+                      data_page = context.new_page()
+                      attach(data_page)
                       supplied = urljoin(root, hrefs[feature])
-                      response = page.goto(supplied, wait_until='networkidle', timeout=60_000)
-                      if response is not None:
-                          assert response.ok
-                      page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
+                      response = data_page.goto(supplied, wait_until='networkidle', timeout=60_000)
+                      assert response and response.ok
+                      data_page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
                       result['features'][feature] = {'bare': 'BLOCKED', 'data': 'PASS', 'hrefChars': len(supplied)}
+                      data_page.close()
 
-                  stable_response = page.goto(stable, wait_until='networkidle', timeout=60_000)
+                  result['current'] = {'phase': 'stable-alias'}
+                  stable_page = context.new_page()
+                  attach(stable_page)
+                  stable_response = stable_page.goto(stable, wait_until='networkidle', timeout=60_000)
                   assert stable_response and stable_response.ok
                   for feature in features:
-                      href = page.locator(f'#launcher a[href^="adapters/{feature}/#data="]').get_attribute('href')
+                      href = stable_page.locator(f'#launcher a[href^="adapters/{feature}/#data="]').get_attribute('href')
                       assert href and '#data=' in href
+                  stable_page.screenshot(path=str(output / 'stable-root.png'), full_page=True)
+                  stable_page.close()
 
                   input_requests = [url for url in requests if urlparse(url).path.endswith('/input.json')]
                   assert input_requests == []
                   assert events['pageErrors'] == []
                   assert events['requestFailed'] == []
+                  result.pop('current', None)
                   result['inputJsonRequests'] = input_requests
                   result['events'] = events
                   result['status'] = 'PASS'
-                  page.screenshot(path=str(output / 'stable-root.png'), full_page=True)
                   browser.close()
+          except Exception as error:
+              result['status'] = 'FAIL'
+              result['error'] = repr(error)
+              raise
           finally:
               result['events'] = events
+              result['inputJsonRequests'] = [url for url in requests if urlparse(url).path.endswith('/input.json')]
               receipt.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
               print(json.dumps(result, ensure_ascii=False))
           PY
