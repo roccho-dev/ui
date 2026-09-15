@@ -1,5 +1,3 @@
-import { createHttpResource } from './http-resource.mjs';
-
 const invariant = (condition, message) => { if (!condition) throw new Error(`ui-feature-host: ${message}`); };
 const sameOriginUrl = (value, base) => {
   const url = new URL(value, base);
@@ -11,15 +9,6 @@ const readData = async base => {
   const moduleUrl = new URL('../../modules/packages/url-module/src/index.mjs', import.meta.url);
   const { readUrlModule } = await import(moduleUrl.href);
   return readUrlModule({ fragment: 'data', input: base.href });
-};
-const readSource = async ({ base, scope }) => {
-  if (!base.searchParams.has('source')) return null;
-  invariant(!base.hash, 'source and #data are mutually exclusive');
-  const source = base.searchParams.get('source');
-  invariant(source, 'source URL required');
-  const href = sameOriginUrl(source, base).href;
-  const resource = createHttpResource({ fetch: scope.fetch.bind(scope), href });
-  return Object.freeze({ input: await resource.read(), resource });
 };
 
 export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
@@ -44,19 +33,11 @@ export const bootFeatureHost = async ({ scope = globalThis } = {}) => {
     scope.document.head.append(link);
   }
 
-  const sourced = await readSource({ base, scope });
-  const resource = sourced?.resource ?? null;
-  let input;
-  if (sourced) input = sourced.input;
-  else input = await readData(base);
-  if (!sourced && input === null) {
-    const inputResponse = await scope.fetch(new URL('./input.json', base), { cache: 'no-store', credentials: 'omit' });
-    invariant(inputResponse.ok, `input.json returned ${inputResponse.status}`);
-    input = await inputResponse.json();
-  }
+  const input = await readData(base);
+  invariant(input !== null, '#data required');
   const module = await import(sameOriginUrl(feature.entry, base).href);
   invariant(typeof module.mountFeature === 'function', 'mountFeature export required');
-  const mounted = await module.mountFeature({ feature, input, resource, root, scope });
+  const mounted = await module.mountFeature({ feature, input, root, scope });
 
   scope.document.documentElement.dataset.status = 'pass';
   scope.uiFeatureProof = Object.freeze({ feature, mounted: mounted ?? null, status: 'PASS' });
