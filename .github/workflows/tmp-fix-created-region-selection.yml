@@ -1,0 +1,72 @@
+name: tmp fix created region selection
+
+on:
+  push:
+    branches:
+      - tmp/keyboard-created-selection-260915
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-prove:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/keyboard-created-selection-260915
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch one selection lifecycle seam
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          adapter = Path('packages/semantic-map/renderer-maxgraph/adapter.js')
+          text = adapter.read_text()
+          old = """function selectRegion(regionId) {
+            this.setSelection({ regionIds: [regionId] });
+          }
+          """
+          new = """function selectRegion(regionId) {
+            this.setSelection({ regionIds: [regionId] });
+          }
+
+          function selectPendingRegion(regionId) {
+            if (typeof regionId !== 'string' || regionId.length === 0) throw new Error('pending regionId must be a non-empty string');
+            this.selectionRegionIds = new Set([regionId]);
+            this.selectionRelationIds.clear();
+            this.emitSelection();
+          }
+          """
+          if 'function selectPendingRegion(regionId)' not in text:
+              assert text.count(old) == 1, 'selectRegion seam changed'
+              text = text.replace(old, new)
+              methods_old = "  selectRegion,\n  setFocusMarker,"
+              assert text.count(methods_old) == 1, 'adapter methods seam changed'
+              text = text.replace(methods_old, "  selectRegion,\n  selectPendingRegion,\n  setFocusMarker,")
+              adapter.write_text(text)
+
+          main = Path('packages/semantic-map/authoring/main.js')
+          text = main.read_text()
+          old_call = 'adapter.selectRegion(result.createdRegionId);'
+          if old_call in text:
+              assert text.count(old_call) == 3, 'created-region selection call count changed'
+              text = text.replace(old_call, 'adapter.selectPendingRegion(result.createdRegionId);')
+              main.write_text(text)
+          PY
+      - name: Prove semantic source suite
+        run: node packages/semantic-map/tests/run.mjs
+      - name: Commit exact patch
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- packages/semantic-map/renderer-maxgraph/adapter.js packages/semantic-map/authoring/main.js; then
+            echo 'patch already applied'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/semantic-map/renderer-maxgraph/adapter.js packages/semantic-map/authoring/main.js
+          git commit -m 'fix: preserve created region selection across render'
+          git push origin HEAD:tmp/keyboard-created-selection-260915
