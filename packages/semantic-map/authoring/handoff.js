@@ -156,7 +156,6 @@ async function svgToPng(svg) {
   }
 }
 
-
 async function install() {
   const app = await waitForApp();
   const runtime = await waitFor('semanticMapRuntime');
@@ -190,7 +189,7 @@ async function install() {
   let tapStart = null;
   let imageGenerationCount = 0;
 
-  const relationById = (id) => app.store.domain.relations.find((item) => item.id === id) ?? null;
+  const relationById = (id) => app.domain.relations.find((item) => item.id === id) ?? null;
 
   function setTarget(target) {
     lastTarget = target ? Object.freeze({ ...target }) : null;
@@ -209,10 +208,10 @@ async function install() {
   }
 
   function targetFromSelection() {
-    const selection = app.adapter.selectionSnapshot();
+    const selection = app.core.snapshot().selection;
     if (selection.regionIds.length === 1 && selection.relationIds.length === 0) {
       const id = selection.regionIds[0];
-      return { kind: 'region', id, label: app.store.domain.regions.get(id)?.label ?? id };
+      return { kind: 'region', id, label: app.domain.regions.get(id)?.label ?? id };
     }
     if (selection.relationIds.length === 1 && selection.regionIds.length === 0) {
       const id = selection.relationIds[0];
@@ -222,10 +221,10 @@ async function install() {
   }
 
   function targetAt(clientX, clientY) {
-    const scene = app.adapter.lastScene;
+    const scene = app.currentScene();
     if (!scene) return null;
     const rect = container.getBoundingClientRect();
-    const camera = app.adapter.camera();
+    const camera = app.snapshot().camera;
     const worldX = (clientX - rect.left) / camera.scale - camera.translateX;
     const worldY = (clientY - rect.top) / camera.scale - camera.translateY;
     const matches = scene.representations.filter((item) => (
@@ -243,11 +242,11 @@ async function install() {
     eventCount.textContent = String(runtime.draftCount());
   }
 
-  app.adapter.onSelectionChange(() => {
+  app.core.subscribe(() => {
     const target = targetFromSelection();
     if (target) setTarget(target);
+    updateEventCount();
   });
-  app.store.onChange(updateEventCount);
   runtime.onChange(updateEventCount);
   updateEventCount();
 
@@ -267,7 +266,7 @@ async function install() {
   container.addEventListener('pointercancel', () => { tapStart = null; }, { capture: true, passive: true });
 
   function selectedTargets() {
-    const selection = app.adapter.selectionSnapshot();
+    const selection = app.core.snapshot().selection;
     const targets = [
       ...selection.regionIds.map((id) => ({ kind: 'region', id })),
       ...selection.relationIds.map((id) => ({ kind: 'relation', id })),
@@ -277,8 +276,8 @@ async function install() {
   }
 
   function currentView() {
-    const selection = app.adapter.selectionSnapshot();
-    const viewport = app.adapter.viewport();
+    const selection = app.core.snapshot().selection;
+    const viewport = app.snapshot().viewport;
     const rounded = (value) => Number(value.toFixed(6));
     const frame = {
       bbox: [rounded(viewport.x), rounded(viewport.y), rounded(viewport.width), rounded(viewport.height)],
@@ -329,8 +328,8 @@ async function install() {
   }
 
   function manifestFor({ stateUrl, selected, request }) {
-    const scene = app.adapter.lastScene;
-    const camera = app.adapter.camera();
+    const scene = app.currentScene();
+    const camera = app.snapshot().camera;
     return Object.freeze({
       type: 'handoff',
       schema: SCHEMA,
