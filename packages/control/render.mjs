@@ -7,7 +7,7 @@ const element = (document, tag, text = null, className = '') => {
   return node;
 };
 
-export const mountFeature = async ({ input, root, scope = globalThis }) => {
+export const mountFeature = async ({ input, resource = null, root, scope = globalThis }) => {
   if (typeof input !== 'string' || !input.trim()) throw new Error('control: non-empty JSONL input required');
   const document = root.ownerDocument;
   const tree = element(document, 'div', null, 'tree');
@@ -136,10 +136,11 @@ export const mountFeature = async ({ input, root, scope = globalThis }) => {
     if (saving) throw new Error('save in progress');
     setSaving(true);
     try {
+      if (resource) await resource.put(candidate);
       source = candidate.endsWith('\n') ? candidate : `${candidate}\n`;
       graph = nextGraph;
       renderTree();
-      showStatus('saved');
+      showStatus(resource ? 'saved' : 'edited');
     } finally {
       setSaving(false);
     }
