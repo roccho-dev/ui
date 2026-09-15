@@ -47,7 +47,9 @@ const descriptor = async (root, target) => {
 };
 const copyFile = async (source, target) => { await fs.mkdir(path.dirname(target), { recursive: true }); await fs.writeFile(target, await fs.readFile(source)); };
 const selfContainedEsm = source => !/\bimport\s*(?:\(|["'{*])/u.test(source) && !/\bexport\s+[^;\n]*\sfrom\s*["']/u.test(source);
-const publicationEntrySource = kernelId => `import { setArtifactShellMode } from "./mode.mjs";
+const publicationEntrySource = kernelId => `import { registerArtifactWebMcp } from "./adapters/webmcp/index.mjs";
+import { observeArtifactRequestElement } from "./request-port.mjs";
+import { setArtifactShellMode } from "./mode.mjs";
 import { artifactShellElements, createArtifactShell } from "./kernel/${kernelId}/apps/artifact-shell/src/shell-core.mjs";
 
 setArtifactShellMode();
@@ -79,7 +81,23 @@ export const bootPublishedArtifactShell = async ({ scope = globalThis } = {}) =>
     });
   }));
   const elements = artifactShellElements(scope.document);
-  return createArtifactShell({ elements, registry: { baseUrl: catalogUrl.href, manifests, runtimeBuild: catalog.kernel }, scope });
+  const observed = observeArtifactRequestElement(elements.request);
+  const shell = await createArtifactShell({
+    elements: Object.freeze({ ...elements, request: observed.element }),
+    registry: { baseUrl: catalogUrl.href, manifests, runtimeBuild: catalog.kernel },
+    scope,
+  });
+  const port = Object.freeze({
+    query: observed.query,
+    render: shell.execute,
+    applyAction: shell.applyAction,
+  });
+  try {
+    scope.artifactShellWebMcp = await registerArtifactWebMcp({ document: scope.document, port });
+  } catch (error) {
+    scope.artifactShellWebMcp = Object.freeze({ available: false, error: String(error.message) });
+  }
+  return shell;
 };
 if (globalThis.location?.protocol === "http:" || globalThis.location?.protocol === "https:") {
   bootPublishedArtifactShell().catch(error => {
@@ -106,13 +124,10 @@ export const assertPublicationOutsideSources = async (target, { repoRoot, capabi
 
 export const buildArtifactShellPublication = async ({ capabilitiesRoot, outputRoot, repoRoot }) => {
   invariant(typeof outputRoot === "string" && outputRoot.length > 0, "outputRoot is required");
-  // Resolve the existing parent, not the leaf: even a dangling leaf symlink must
-  // be rejected by the exclusive mkdir. Outputs must not enter either input tree.
   const requestedOutput = path.resolve(outputRoot);
   const parent = await fs.realpath(path.dirname(requestedOutput));
   outputRoot = path.join(parent, path.basename(requestedOutput));
   await assertPublicationOutsideSources(outputRoot, { repoRoot, capabilitiesRoot });
-  // The parent must already exist. No replacement, cleanup, or recursive delete.
   await fs.mkdir(outputRoot);
   const appRoot = path.join(repoRoot, "apps", "artifact-shell");
   const registryOutput = path.join(appRoot, "generated", "capability-registry.mjs");
@@ -188,6 +203,8 @@ export const buildArtifactShellPublication = async ({ capabilitiesRoot, outputRo
   const catalog = Object.freeze({ capabilities: Object.freeze(entries), kernel, schema: ARTIFACT_CAPABILITY_CATALOG_SCHEMA });
   await writeJson(path.join(outputRoot, "catalog.json"), catalog);
   await copyFile(path.join(appRoot, "mode.mjs"), path.join(outputRoot, "mode.mjs"));
+  await copyFile(path.join(appRoot, "src", "request-port.mjs"), path.join(outputRoot, "request-port.mjs"));
+  await copyFile(path.join(repoRoot, "adapters", "webmcp", "index.mjs"), path.join(outputRoot, "adapters", "webmcp", "index.mjs"));
   await fs.writeFile(path.join(outputRoot, "entry.mjs"), publicationEntrySource(kernelId));
   await fs.writeFile(path.join(outputRoot, "index.html"), publicationIndexHtml(await fs.readFile(path.join(appRoot, "index.html"), "utf8")));
   const adapters = await buildAdapters({ appRoot, outputRoot, repoRoot });
