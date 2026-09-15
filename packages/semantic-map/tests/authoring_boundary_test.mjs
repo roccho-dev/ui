@@ -14,6 +14,7 @@ const semanticGraph = read('packages/semantic-map/renderer-maxgraph/create-seman
 const adapter = read('packages/semantic-map/renderer-maxgraph/adapter.js');
 const styles = read('packages/semantic-map/renderer-maxgraph/styles.js');
 const featureRuntime = read('packages/semantic-map/feature-runtime.mjs');
+const surfaceRuntime = read('packages/semantic-map/surface-runtime.mjs');
 
 assert.match(rendererIndex, /createSemanticAuthoring as createMaxGraphAdapter/);
 assert.match(authoringIndex, /createMaxGraphAdapter/);
@@ -27,8 +28,9 @@ assert.match(adapter, /editingPlugin\?\.editingCell === cell/);
 assert.match(adapter, /editingPlugin\?\.textarea\?\.isConnected/);
 assert.match(featureRuntime, /setActivationHandler/);
 assert.match(featureRuntime, /activation\?\.kind === 'set-view'/);
-assert.match(featureRuntime, /view = nextView/);
-assert.match(featureRuntime, /view = previousView/);
+assert.match(featureRuntime, /surface\.setView\(nextView\)/);
+assert.match(surfaceRuntime, /view = nextView/);
+assert.match(surfaceRuntime, /view = previousView/);
 const vectorSectorStart = styles.indexOf("case 'vector-sector':");
 const vectorSectorEnd = styles.indexOf("case 'seq-step':", vectorSectorStart);
 assert.ok(vectorSectorStart >= 0 && vectorSectorEnd > vectorSectorStart);
