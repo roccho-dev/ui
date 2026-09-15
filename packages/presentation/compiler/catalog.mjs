@@ -1,4 +1,0 @@
-export {
-  PROFILED_BUSINESS_MODEL_CATALOG_ID,
-  PROFILED_BUSINESS_MODEL_SURFACE_ID,
-} from '../contracts.mjs';
