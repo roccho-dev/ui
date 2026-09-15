@@ -161,13 +161,28 @@ jobs:
           node packages/semantic-map/tests/run.mjs
           npm run check:artifact-runtime-core
 
+      - name: Refresh tracked set-topology projection
+        run: |
+          set -euo pipefail
+          dist="examples/render.semantic-map.set-topology/dist"
+          input="examples/render.semantic-map.set-topology/input/envelope.json"
+          node packages/semantic-map/scripts/build-browser-example.mjs \
+            --input="$input" --out="$dist" \
+            --set-topology-proof=true --projection-profile=horizontal
+          vertical="$RUNNER_TEMP/set-topology-vertical"
+          node packages/semantic-map/scripts/build-browser-example.mjs \
+            --input="$input" --out="$vertical" \
+            --set-topology-proof=true --projection-profile=vertical
+          cp "$vertical/index.html" "$dist/vertical.html"
+          git add "$dist/index.html" "$dist/receipt.json" "$dist/vertical.html"
+          python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
+
       - name: Remaining semantic runtime gates excluding baseline shutdown control
         run: |
           set -euo pipefail
           node tests/check-semantic-map-migration.mjs
           node packages/semantic-map/tests/run.mjs
           python3 packages/semantic-map/tests/meaning_recovery_negative_controls.py
-          python3 packages/semantic-map/tests/set_topology_example_reproducibility.py
           node apps/artifact-shell/tests/semantic-map-capability.mjs
           node tests/check-semantic-map-legacy-source-retirement.mjs
 
