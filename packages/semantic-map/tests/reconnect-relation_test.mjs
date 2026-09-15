@@ -11,6 +11,10 @@ const records = [
   { type: 'relation', id: 'r1', from: 'a', to: 'b', kind: 'relates', label: '' },
 ];
 
+function relation(core, id = 'r1') {
+  return core.snapshot().records.find(row => row.type === 'relation' && row.id === id) ?? null;
+}
+
 function harness() {
   let gesture = null;
   let allowed = true;
@@ -59,23 +63,23 @@ function harness() {
 const proof = harness();
 const result = proof.emit({ type: 'relation.reconnect', relationId: 'r1', from: 'a', to: 'c' });
 assert.equal(result.reconnectedRelationId, 'r1');
-assert.deepEqual(proof.core.runtime.domain.relations[0], {
-  id: 'r1', from: 'a', to: 'c', kind: 'relates', label: '',
+assert.deepEqual(relation(proof.core), {
+  type: 'relation', id: 'r1', from: 'a', to: 'c', kind: 'relates', label: '',
 });
 assert.equal(proof.core.snapshot().draft.applied, 1, 'reconnect must be one history entry');
 assert.deepEqual(proof.core.snapshot().selection, { regionIds: [], relationIds: ['r1'] });
 
 assert.equal(proof.core.dispatch({ type: 'history.undo' }), true);
-assert.deepEqual(proof.core.runtime.domain.relations[0], {
-  id: 'r1', from: 'a', to: 'b', kind: 'relates', label: '',
+assert.deepEqual(relation(proof.core), {
+  type: 'relation', id: 'r1', from: 'a', to: 'b', kind: 'relates', label: '',
 });
 assert.equal(proof.core.dispatch({ type: 'history.redo' }), true);
-assert.deepEqual(proof.core.runtime.domain.relations[0], {
-  id: 'r1', from: 'a', to: 'c', kind: 'relates', label: '',
+assert.deepEqual(relation(proof.core), {
+  type: 'relation', id: 'r1', from: 'a', to: 'c', kind: 'relates', label: '',
 });
 
 const beforeDeny = {
-  records: proof.core.runtime.toRecords(),
+  records: proof.core.snapshot().records,
   draft: proof.core.snapshot().draft,
   selection: proof.core.snapshot().selection,
   sequence: proof.core.snapshot().idSequence,
@@ -85,7 +89,7 @@ assert.throws(
   () => proof.emit({ type: 'relation.reconnect', relationId: 'r1', from: 'c', to: 'b' }),
   /E_DENIED/u,
 );
-assert.deepEqual(proof.core.runtime.toRecords(), beforeDeny.records);
+assert.deepEqual(proof.core.snapshot().records, beforeDeny.records);
 assert.deepEqual(proof.core.snapshot().draft, beforeDeny.draft);
 assert.deepEqual(proof.core.snapshot().selection, beforeDeny.selection);
 assert.equal(proof.core.snapshot().idSequence, beforeDeny.sequence);
@@ -94,7 +98,7 @@ const equality = harness();
 const equalityOperation = { type: 'ReconnectRelation', relationId: 'r1', from: 'c', to: 'b' };
 const equalityResult = equality.core.dispatch(equalityOperation);
 const reduced = reduceOperations(records, [equalityOperation]);
-assert.deepEqual(reduced.records, equality.core.runtime.toRecords());
+assert.deepEqual(reduced.records, equality.core.snapshot().records);
 assert.deepEqual(reduced.entries[0].operation, equalityOperation);
 assert.deepEqual(reduced.entries[0].result, equalityResult);
 assert.equal(reduced.entries.length, 1);
@@ -114,4 +118,5 @@ console.log(JSON.stringify({
   denyAtomic: true,
   singleSemanticOwner: true,
   reducerCoreEquality: true,
+  runtimeBypassAbsent: true,
 }));
