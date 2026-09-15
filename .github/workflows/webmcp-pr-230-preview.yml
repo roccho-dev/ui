@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  SOURCE_SHA: f93e5df88a4ca85becdd38a6bf3cb88ffdfd91e7
+  SOURCE_SHA: f3bdbfd6713d87c8f0ba0bde7aa55fdc961f807c
   CLOUDFLARE_PAGES_PROJECT: stg-artifact-runtime
   CLOUDFLARE_PAGES_BRANCH: ui-deploy-pr-230
   PREVIEW_URL: https://ui-deploy-pr-230.stg-artifact-runtime.pages.dev/
@@ -32,7 +32,9 @@ jobs:
           out="$RUNNER_TEMP/artifact-shell-publication"
           npm run build:artifact-shell-publication -- --out="$out"
           test -f "$out/adapters/webmcp/index.mjs"
+          test -f "$out/request-port.mjs"
           grep -q 'registerArtifactWebMcp' "$out/entry.mjs"
+          grep -q 'query: observed.query' "$out/entry.mjs"
           echo "ARTIFACT_SHELL_PUBLICATION=$out" >> "$GITHUB_ENV"
       - name: Deploy Cloudflare Pages preview
         env:
@@ -122,6 +124,14 @@ jobs:
               assert before == request, {'query': before, 'request': request}
               assert '0' in page.locator('#surface').inner_text()
 
+              page.evaluate("""request => {
+                const draft = structuredClone(request);
+                draft.id = 'unsaved-dom-only';
+                document.querySelector('#request').value = JSON.stringify(draft);
+              }""", request)
+              after_unsaved_dom = execute(page, 'artifact_query', {})
+              assert after_unsaved_dom == request, {'query': after_unsaved_dom, 'request': request}
+
               action_result = execute(page, 'artifact_apply_action', {'detail': action})
               assert action_result is not None, action_result
               page.wait_for_function("() => document.querySelector('#surface')?.innerText?.includes('1')", timeout=30_000)
@@ -133,7 +143,7 @@ jobs:
               page.screenshot(path=str(screenshot), full_page=True)
 
               proof = {
-                  'schema': 'ui.webmcp-deployed-proof/1',
+                  'schema': 'ui.webmcp-deployed-proof/2',
                   'status': 'PASS',
                   'sourceSha': source_sha,
                   'url': url,
@@ -142,6 +152,7 @@ jobs:
                   'tools': names,
                   'renderStatus': render_result['result']['status'],
                   'queryMatchesHumanRequest': before == request,
+                  'unsavedDomIgnored': after_unsaved_dom == request,
                   'semanticActionCount': count,
                   'humanProjectionContainsCount': '1' in human_text,
                   'screenshot': str(screenshot),
