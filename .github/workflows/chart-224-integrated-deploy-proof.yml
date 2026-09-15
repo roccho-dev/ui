@@ -35,7 +35,7 @@ jobs:
       - name: Deploy exact source to same Pages alias
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/wrangler-pages-deploy.log"
@@ -127,19 +127,16 @@ jobs:
                   page.on('pageerror', lambda exc, bag=page_errors: bag.append(str(exc)))
                   page.on('request', lambda req, bag=requests: bag.append(req.url))
                   page.on('requestfailed', lambda req, bag=failed: bag.append({'url': req.url, 'failure': req.failure}))
-
                   response = page.goto(spec['url'], wait_until='domcontentloaded', timeout=30_000)
                   assert response is not None and response.ok, f"{spec['variant']}: HTTP failure"
                   page.wait_for_selector('html[data-status="pass"]', timeout=60_000)
                   assert domain_label(page, spec['targetId']) == spec['sentinel'], f"{spec['variant']}: domain not sourced from #data"
                   fallback = [url for url in requests if url.split('?', 1)[0].endswith('/input.json')]
                   assert not fallback, f"{spec['variant']}: input.json fallback fetched {fallback}"
-
                   active = page.locator(f'button[data-active-key="region:{spec["targetId"]}"]')
                   active.wait_for(state='visible', timeout=30_000)
                   assert spec['sentinel'] in (active.text_content() or ''), f"{spec['variant']}: active-list not sourced from #data"
                   active.click()
-
                   started = page.evaluate("window.semanticMapSite.editor.adapter.startEditingSelection()")
                   assert started is True, f"{spec['variant']}: real inline editor did not start"
                   connected = page.evaluate("""() => {
@@ -156,7 +153,6 @@ jobs:
                   wait_label(page, spec['targetId'], spec['edited'])
                   active.wait_for(state='visible', timeout=10_000)
                   assert spec['edited'] in (active.text_content() or ''), f"{spec['variant']}: edited label not rerendered"
-
                   page.keyboard.press('Control+z')
                   wait_label(page, spec['targetId'], spec['sentinel'])
                   assert spec['sentinel'] in (active.text_content() or ''), f"{spec['variant']}: undo DOM mismatch"
@@ -165,39 +161,24 @@ jobs:
                   assert spec['edited'] in (active.text_content() or ''), f"{spec['variant']}: redo DOM mismatch"
                   page.keyboard.press('Control+z')
                   wait_label(page, spec['targetId'], spec['sentinel'])
-
                   assert not page_errors, f"{spec['variant']}: page errors {page_errors}"
                   assert not failed, f"{spec['variant']}: failed requests {failed}"
                   screenshot = root / 'screenshots' / f"{spec['variant']}.png"
                   page.screenshot(path=str(screenshot), full_page=True)
                   result = {
-                      'variant': spec['variant'],
-                      'status': 'PASS',
-                      'url': spec['url'],
-                      'chars': spec['chars'],
-                      'targetId': spec['targetId'],
-                      'domainFromHash': True,
-                      'activeListFromHash': True,
-                      'inputJsonFallbackRequests': fallback,
-                      'inlineEdit': True,
-                      'undo': True,
-                      'redo': True,
-                      'finalRestore': True,
-                      'pageErrors': page_errors,
-                      'requestFailed': failed,
+                      'variant': spec['variant'], 'status': 'PASS', 'url': spec['url'], 'chars': spec['chars'],
+                      'targetId': spec['targetId'], 'domainFromHash': True, 'activeListFromHash': True,
+                      'inputJsonFallbackRequests': fallback, 'inlineEdit': True, 'undo': True, 'redo': True,
+                      'finalRestore': True, 'pageErrors': page_errors, 'requestFailed': failed,
                   }
                   results.append(result)
                   print(json.dumps(result, ensure_ascii=False))
                   page.close()
               browser.close()
-
           final = {
-              'schema': 'ui.chart-integrated-deployed-proof/1',
-              'status': 'PASS',
-              'sourceSha': os.environ['SOURCE_SHA'],
-              'immutableDeployment': os.environ['IMMUTABLE_DEPLOYMENT'],
-              'stableAlias': 'https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev',
-              'variants': results,
+              'schema': 'ui.chart-integrated-deployed-proof/1', 'status': 'PASS',
+              'sourceSha': os.environ['SOURCE_SHA'], 'immutableDeployment': os.environ['IMMUTABLE_DEPLOYMENT'],
+              'stableAlias': 'https://ui-deploy-pr-224.stg-artifact-runtime.pages.dev', 'variants': results,
           }
           (root / 'receipt.json').write_text(json.dumps(final, ensure_ascii=False, indent=2), encoding='utf-8')
           print(json.dumps(final, ensure_ascii=False))
