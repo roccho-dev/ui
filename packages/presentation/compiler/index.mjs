@@ -16,12 +16,5 @@ export {
 export {
   PROFILED_BUSINESS_MODEL_SEQUENCE_SCHEMA,
   projectProfiledBusinessModelA2uiSequence,
-  projectProfiledBusinessModelMapState,
-  projectProfiledBusinessModelSeqState,
 } from './projectors.mjs';
 export { validateProfiledBusinessModelSequence } from './sequence.mjs';
-export {
-  BUSINESS_MODEL_PROJECTION_COVERAGE_SCHEMA,
-  assertBusinessModelProjectionCoverage,
-  createBusinessModelProjectionCoverage,
-} from './coverage.mjs';

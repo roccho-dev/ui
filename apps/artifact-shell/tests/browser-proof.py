@@ -40,6 +40,13 @@ def wait_js(frame, expression: str, timeout: int = 30_000) -> None:
     raise AssertionError(f"timed out waiting for {expression}{suffix}")
 
 
+def submit_request(page, request: dict[str, object], expected_state: str) -> None:
+    payload = json.dumps(request, ensure_ascii=False)
+    page.locator("#request").evaluate("(element, value) => { element.value = value; }", payload)
+    page.locator("#run").evaluate("element => element.click()")
+    page.locator(f"#status[data-state='{expected_state}']").wait_for(state="attached", timeout=30_000)
+
+
 def child_frame(locator):
     handle = locator.element_handle()
     assert handle is not None
@@ -54,7 +61,7 @@ def main() -> None:
         ["python3", "-m", "http.server", str(listen), "--bind", "127.0.0.1"],
         cwd=ROOT,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
         text=True,
     )
     errors: list[str] = []
@@ -73,7 +80,7 @@ def main() -> None:
             page.on("request", lambda request: requests.append(request.url))
             base = f"http://127.0.0.1:{listen}"
             page.goto(f"{base}/apps/artifact-shell/index.html", wait_until="networkidle", timeout=30_000)
-            page.locator("#status[data-state='idle']").wait_for(timeout=30_000)
+            wait_js(page, "document.querySelector('#status')?.textContent === 'Paste an artifact-invocation/2 request'")
 
             patterns: list[str] = []
             bidirectional: dict[str, object] | None = None
@@ -84,9 +91,7 @@ def main() -> None:
                 ("chart.pass.json", "chart/1"),
             ):
                 current = fixture(name)
-                page.locator("#request").fill(json.dumps(current["request"], ensure_ascii=False))
-                page.locator("#run").click()
-                page.locator("#status[data-state='pass']").wait_for(timeout=30_000)
+                submit_request(page, current["request"], "pass")
                 result = json.loads(page.locator("#result").inner_text())
                 assert result["status"] == "PASS"
                 assert [item["contract"] for item in result["outputs"]] == ["semantic-map-render-receipt/1"]
@@ -179,7 +184,7 @@ def main() -> None:
                     fresh.on("pageerror", lambda error: errors.append(str(error)))
                     fresh.on("request", lambda request: requests.append(request.url))
                     fresh.goto(shared_url, wait_until="networkidle", timeout=30_000)
-                    fresh.locator("#status[data-state='pass']").wait_for(timeout=30_000)
+                    fresh.locator("#status[data-state='pass']").wait_for(state="attached", timeout=30_000)
                     fresh_frame_element = fresh.locator("#surface iframe[data-package='semantic-map']")
                     fresh_frame_element.wait_for(state="attached", timeout=30_000)
                     fresh_child = child_frame(fresh_frame_element)
@@ -198,9 +203,7 @@ def main() -> None:
             immutable_value = immutable["request"]["inputs"][0]["source"]["value"]
             canonical = json.dumps(immutable_value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
             immutable["request"]["inputs"][0]["digest"] = f"sha256:{hashlib.sha256(canonical).hexdigest()}"
-            page.locator("#request").fill(json.dumps(immutable["request"], ensure_ascii=False))
-            page.locator("#run").click()
-            page.locator("#status[data-state='pass']").wait_for(timeout=30_000)
+            submit_request(page, immutable["request"], "pass")
             immutable_result = json.loads(page.locator("#result").inner_text())
             assert immutable_result["outputs"][0]["value"]["inputBridge"] == {
                 "enabled": False,
@@ -236,9 +239,7 @@ def main() -> None:
 
             for name in ("schema.destructive.json", "tampered.destructive.json"):
                 current = fixture(name)
-                page.locator("#request").fill(json.dumps(current["request"], ensure_ascii=False))
-                page.locator("#run").click()
-                page.locator("#status[data-state='fail']").wait_for(timeout=30_000)
+                submit_request(page, current["request"], "fail")
                 result = json.loads(page.locator("#result").inner_text())
                 assert result["status"] == "FAIL" and result["outputs"] == []
 

@@ -23,7 +23,7 @@ check_feature() {
   for pattern in "$@"; do grep -q "$pattern" "$output"; done
 }
 
-check_feature presentation 30000 'class="profiled-app"' 'class="seq-svg"'
+check_feature presentation 30000 'class="profiled-app"' 'data-feature="seq"' '<svg'
 check_feature control 15000 'id="tree"' 'class="node"'
 
 source_output="${RUNNER_TEMP:-/tmp}/artifact-feature-control-source.html"
