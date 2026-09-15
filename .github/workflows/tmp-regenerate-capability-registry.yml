@@ -1,0 +1,34 @@
+name: tmp regenerate capability registry
+
+on:
+  push:
+    branches:
+      - tmp/chart-registry-260915
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/chart-registry-260915
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Regenerate canonical registry
+        run: node apps/artifact-shell/scripts/build-registry.mjs
+      - name: Commit exact generated projection
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- apps/artifact-shell/generated/capability-registry.mjs; then
+            echo 'registry already current'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/artifact-shell/generated/capability-registry.mjs
+          git commit -m 'chore: regenerate capability registry'
+          git push origin HEAD:tmp/chart-registry-260915
