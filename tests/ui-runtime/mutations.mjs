@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const required = [
   ['packages/semantic-map/tests/editor-core_test.mjs'],
+  ['packages/semantic-map/tests/replace-input_test.mjs'],
   ['packages/semantic-map/tests/reconnect-relation_test.mjs'],
   ['packages/semantic-map/tests/adapter-port_test.mjs'],
 ];
