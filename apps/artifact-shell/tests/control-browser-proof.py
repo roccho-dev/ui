@@ -64,11 +64,11 @@ def main() -> None:
 
                 left = page.locator("[data-a2ui-id='control-tree']")
                 right = page.locator("[data-a2ui-id='claims-tree']")
-                assert left.locator(".node").count() == right.locator(".node").count() == 7
-                chart_report = right.locator("[data-control-id='chart'] > .row").inner_text()
-                assert "op: report" in chart_report
-                assert "state: active" in chart_report
-                assert "by: d" in chart_report
+                assert left.locator(".node").count() == right.locator(".node").count() == 129
+                final_report = right.locator("[data-control-id='evidence.015'] > .row").inner_text()
+                assert "op: report" in final_report
+                assert "state: active" in final_report
+                assert "by: d" in final_report
 
                 overflows = page.eval_on_selector_all(
                     ".pane,.tree,.children",
@@ -79,7 +79,7 @@ def main() -> None:
                 toggle = left.locator("[data-control-id='ui'] > .row .relation-toggle")
                 toggle.click()
                 hidden = page.eval_on_selector_all(
-                    "[data-control-id='ui'] > [data-control-relation='contains']",
+                    "[data-control-id='ui'] > [data-control-relation='details']",
                     "els => els.map(el => el.hidden)",
                 )
                 assert hidden == [True, True]
@@ -90,7 +90,7 @@ def main() -> None:
             server.terminate()
             server.wait(timeout=5)
 
-    print('{"schema":"ui.control-browser-proof/1","status":"PASS","panes":2,"scrollOwners":1,"claims":"report"}')
+    print('{"schema":"ui.control-browser-proof/1","status":"PASS","panes":2,"nodesPerPane":129,"renderedNodes":258,"scrollOwners":1,"claims":"report"}')
 
 
 if __name__ == "__main__":
