@@ -7,6 +7,19 @@ assert.equal(await exists(new URL('packages/comptime/', repo)), false, 'packages
 assert.equal(await exists(new URL('packages/decisions-compiler/', repo)), false, 'misleading decisions-compiler package must stay retired');
 assert.equal(await exists(new URL('examples/shared/', repo)), false, 'shared Presentation input directory must stay retired');
 
+for (const path of [
+  'packages/control/catalog.mjs',
+  'packages/control/design.json',
+  'packages/control/feature.mjs',
+  'packages/control/render.mjs',
+  'packages/presentation/feature.mjs',
+  'packages/presentation/render.mjs',
+  'packages/presentation/render/catalog.mjs',
+  'packages/presentation/styles.css',
+  'packages/business-model/presentation-feature-runtime.mjs',
+  'packages/business-model/presentation.mjs',
+]) assert.equal(await exists(new URL(path, repo)), false, `${path} must stay retired`);
+
 const presentationExamples = await fs.readdir(new URL('examples/presentation/', repo));
 assert.deepEqual(presentationExamples.sort(), ['design.json', 'presentation.jsonl'], 'Presentation input must be design.json + presentation.jsonl');
 const presentationSource = await fs.readFile(new URL('examples/presentation/presentation.jsonl', repo), 'utf8');
@@ -42,6 +55,9 @@ const controlAdapter = await fs.readFile(new URL('apps/artifact-shell/adapters/c
 const presentationAdapter = await fs.readFile(new URL('apps/artifact-shell/adapters/presentation.mjs', repo), 'utf8');
 assert.match(controlAdapter, /packages\/a2ui-browser\/feature\.mjs/u, 'Control must use common A2UI feature entry');
 assert.match(presentationAdapter, /packages\/a2ui-browser\/feature\.mjs/u, 'Presentation must use common A2UI feature entry');
+
+const runtimeData = await fs.readFile(new URL('packages/business-model/runtime-data.mjs', repo), 'utf8');
+assert.doesNotMatch(runtimeData, /type.*presentation|PRESENTATION_A2UI|parsePresentation/u, 'business-model runtime parser must not own Presentation A2UI fallback');
 
 const publication = await fs.readFile(new URL('apps/artifact-shell/publication/build-adapters.mjs', repo), 'utf8');
 for (const forbidden of ['adapter.compile', 'source-compiler', 'decisions-compiler', 'business-model-semantic-jsonl']) {
