@@ -1,0 +1,32 @@
+name: Chart 224 54ba conflict probe
+
+on:
+  push:
+    branches: [control/chart224-final-54ba-260915]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candidate/chart224-final-54ba-260915
+          fetch-depth: 0
+      - name: Probe real 3-way conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '940de85e3dddbb60ec486f65a442c99c1660e257'
+          git fetch origin archive/ui213-pre-216-260914
+          test "$(git rev-parse origin/archive/ui213-pre-216-260914)" = '54ba62740cecd1052868be2e10311eb27b64cb9e'
+          git config user.name probe
+          git config user.email probe@example.invalid
+          set +e
+          git merge --no-ff --no-commit 54ba62740cecd1052868be2e10311eb27b64cb9e
+          status=$?
+          set -e
+          echo "merge_status=$status"
+          echo '--- conflict files ---'
+          git diff --name-only --diff-filter=U | sort
+          test "$status" -ne 0
+          exit 1
