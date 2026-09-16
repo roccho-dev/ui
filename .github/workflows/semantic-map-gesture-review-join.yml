@@ -26,5 +26,9 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
+      - name: Prove migrated semantic browser from current source
+        run: python3 packages/semantic-map/tests/browser_example.py
+      - name: Prove artifact shell iframe from current source
+        run: python3 apps/artifact-shell/tests/browser-proof.py
       - name: Prove actual gesture through review and fresh JSONL replay
         run: PYTHONPATH=packages/semantic-map/tests python3 packages/semantic-map/tests/set_topology_gesture_review_join_browser_e2e.py

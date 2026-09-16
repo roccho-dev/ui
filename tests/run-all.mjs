@@ -30,4 +30,8 @@ import "./check-connectability.mjs";
 import "./check-semantic-map-ownership.mjs";
 import "./check-pr-governance.mjs";
 import "./check-ci-workflows.mjs";
+import "./check-ci-upload-boundary.mjs";
+import "./ui-runtime/architecture.mjs";
+import "./ui-runtime/mutations.mjs";
+
 console.log("ui-all-checks-pass");

@@ -50,7 +50,7 @@ async function applyView(editor, view) {
     if (editor.focusRegion(frame.focus, frame.scale)) await nextFrame(2);
   }
   if (frame.select?.length) {
-    editor.adapter.setSelection({ regionIds: [...frame.select], relationIds: [] });
+    editor.core.dispatch({ type: 'selection.set', selection: { regionIds: [...frame.select], relationIds: [] } });
     await nextFrame(1);
   }
 }
@@ -126,7 +126,7 @@ async function commitViewChange(runtime, editor, view, action = 'Pattern変更')
   } catch (error) {
     syncPatternControls(previous);
     try {
-      const modules = await globalThis.semanticMapModuleResolver.resolve(editor.store.domain, {
+      const modules = await globalThis.semanticMapModuleResolver.resolve(createSemanticMap(editor.core.snapshot().records), {
         mapId: runtime.mapId,
         head: runtime.head,
         view: previous,
@@ -226,12 +226,18 @@ async function start() {
     initialModules,
     readOnly: artifactModuleBridge.embedded,
   });
-  runtime.attachStore(editor.store);
+  runtime.attachCore(editor.core);
   artifactModuleBridge.attach(editor);
   if (!artifactModuleBridge.embedded) {
-    editor.adapter.setActivationHandler(async (activation) => {
-      if (activation?.kind !== 'set-view') throw new Error(`unsupported activation: ${activation?.kind ?? '<missing>'}`);
-      await commitViewChange(runtime, editor, activation.view, 'Chart drilldown');
+    editor.core.subscribe(event => {
+      if (event.kind !== 'activation') return;
+      const activation = event.activation;
+      if (activation?.kind !== 'set-view') {
+        editor.notify(`unsupported activation: ${activation?.kind ?? '<missing>'}`, true);
+        return;
+      }
+      void commitViewChange(runtime, editor, activation.view, 'Chart drilldown')
+        .catch(error => editor.notify(error.message, true));
     });
   }
   await applyView(editor, runtime.view);

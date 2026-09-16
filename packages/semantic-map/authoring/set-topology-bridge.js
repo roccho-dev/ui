@@ -1,5 +1,5 @@
+import { SemanticDomainStore } from '../domain/domain-store.js';
 import {
-  SemanticDomainStore,
   classifySetBounds,
   classifySetBoundsNeighborhood,
   deriveSetSemantics,
@@ -177,107 +177,54 @@ function rejection(reason, evidence = null) {
 
 export function recoverSetTopologyOperation(operation, context, options = {}) {
   if (operation.type !== 'MoveRegions') return directMeaningCandidate([operation]);
-
-  const { domain, presentationProjection, view } = context ?? {};
-  invariant(domain, 'semantic domain is required');
-  if (view?.pattern !== 'map/1') return rejection('unsupported-pattern', { pattern: view?.pattern ?? null });
-  if (!presentationProjection) return rejection('interaction-projection-missing');
-  if (presentationProjection.pattern !== view.pattern) {
-    return rejection('interaction-projection-pattern-mismatch', {
-      pattern: view.pattern,
-      projectionPattern: presentationProjection.pattern,
-    });
-  }
-  if (!Array.isArray(operation.regionIds) || operation.regionIds.length !== 1) {
-    return rejection('unsupported-multi-region-move', { regionIds: operation.regionIds ?? null });
-  }
-
-  const semantics = deriveSetSemantics(domain);
-  if (semantics.sets.length !== 2 || semantics.pairs.length !== 1) {
-    return rejection('unsupported-set-cardinality', {
-      sets: semantics.sets.length,
-      pairs: semantics.pairs.length,
-    });
-  }
-
-  const semanticSetIds = semantics.sets.map((set) => set.id).sort();
-  if (JSON.stringify(sortedSetTargetIds(presentationProjection)) !== JSON.stringify(semanticSetIds)) {
-    return rejection('interaction-projection-set-mismatch', {
-      semanticSetIds,
-      interactionSetIds: sortedSetTargetIds(presentationProjection),
-    });
-  }
-
-  const movedId = operation.regionIds[0];
-  if (domain.regions.get(movedId)?.kind !== 'set') {
-    return rejection('moved-region-is-not-set', { movedId });
-  }
-  const otherId = semanticSetIds.find((setId) => setId !== movedId) ?? null;
-  if (!otherId) return rejection('other-set-missing', { movedId });
-
-  const movedTarget = interactionTargetFor(
-    presentationProjection,
-    movedId,
-    SET_TOPOLOGY_EDIT_KIND,
-  );
-  const otherTarget = interactionTargetFor(
-    presentationProjection,
-    otherId,
-    SET_TOPOLOGY_EDIT_KIND,
-  );
-  if (movedTarget?.role !== 'set' || otherTarget?.role !== 'set') {
-    return rejection('interaction-target-unavailable', { movedId, otherId });
-  }
-
-  const nextBounds = {
-    x: movedTarget.bounds.x + operation.dx,
-    y: movedTarget.bounds.y + operation.dy,
-    width: movedTarget.bounds.width,
-    height: movedTarget.bounds.height,
+  const projection = context.presentationProjection;
+  if (!projection || !String(projection.id).startsWith('set-topology/')) return directMeaningCandidate([operation]);
+  const movedId = operation.regionIds?.length === 1 ? operation.regionIds[0] : null;
+  if (!movedId) return rejection('set topology edit requires exactly one moved set');
+  const targetIds = sortedSetTargetIds(projection);
+  if (!targetIds.includes(movedId)) return rejection(`set topology target is not editable: ${movedId}`);
+  const otherIds = targetIds.filter((id) => id !== movedId);
+  if (otherIds.length !== 1) return rejection('set topology edit requires exactly two editable sets');
+  const otherId = otherIds[0];
+  const source = interactionTargetFor(projection, movedId, SET_TOPOLOGY_EDIT_KIND);
+  const other = interactionTargetFor(projection, otherId, SET_TOPOLOGY_EDIT_KIND);
+  if (!source || !other) return rejection('set topology interaction targets are incomplete');
+  const dx = Number(operation.dx ?? 0);
+  const dy = Number(operation.dy ?? 0);
+  const movedBounds = {
+    x: source.bounds.x + dx,
+    y: source.bounds.y + dy,
+    width: source.bounds.width,
+    height: source.bounds.height,
   };
-  const presentationScale = context.presentationScale ?? 1;
-  invariant(
-    typeof presentationScale === 'number' && Number.isFinite(presentationScale) && presentationScale > 0,
-    'presentation scale must be positive',
-  );
-  const screenTolerance = options.screenTolerance ?? SET_TOPOLOGY_SCREEN_TOLERANCE;
-  invariant(
-    typeof screenTolerance === 'number' && Number.isFinite(screenTolerance) && screenTolerance >= 0,
-    'screen tolerance must be non-negative',
-  );
-  const positionTolerance = options.positionTolerance ?? screenTolerance / presentationScale;
-  const neighborhood = classifySetBoundsNeighborhood(nextBounds, otherTarget.bounds, {
-    positionTolerance,
-    epsilon: 0,
+  const scale = Number(context.presentationScale ?? 1);
+  const tolerance = Math.max(0, Number(options.screenTolerance ?? SET_TOPOLOGY_SCREEN_TOLERANCE)) / Math.max(scale, 0.000001);
+  const neighborhood = classifySetBoundsNeighborhood(movedBounds, other.bounds, { tolerance });
+  const profile = projectionProfile(projection);
+  const candidates = neighborhood.map((topology) => candidateForTopology(context.domain, movedId, otherId, topology, profile));
+  const evaluation = evaluateMeaningRecovery(candidates, {
+    distinctBy: candidate => candidate.meaning,
+    viable: candidate => candidate.roundtrip && candidate.preserves,
   });
-  const currentTopology = topologyRelativeTo(semantics.pairs[0], movedId, otherId);
-  const profile = projectionProfile(presentationProjection);
-  const changedTopologies = neighborhood.possible.filter((topology) => topology !== currentTopology);
-  const candidates = changedTopologies.map((topology) => (
-    candidateForTopology(domain, movedId, otherId, topology, profile)
-  ));
-
-  return evaluateMeaningRecovery({
-    declared: true,
-    identified: true,
-    currentMeaning: currentTopology,
-    observedMeaning: neighborhood.exact,
-    possibleMeanings: neighborhood.possible,
-    candidates,
+  if (evaluation.status === 'reject') {
+    return rejection('drag does not map to exactly one stable set meaning', {
+      candidates,
+      viableMeanings: evaluation.viable.map((candidate) => candidate.meaning),
+    });
+  }
+  const accepted = evaluation.candidate;
+  return createMeaningRecoveryResult({
+    status: 'candidate',
+    reason: 'visual set gesture recovered to semantic set topology',
+    operations: accepted.operations,
     evidence: {
-      profile,
-      movedId,
-      otherId,
-      nextBounds,
-      presentationScale,
-      screenTolerance,
-      positionTolerance,
-      stable: neighborhood.stable,
-      samples: neighborhood.samples,
+      meaning: accepted.meaning,
+      toleranceWorld: tolerance,
+      candidates,
     },
   });
 }
 
-export function translateSetTopologyOperation(operation, context) {
-  return recoverSetTopologyOperation(operation, context);
+export function translateSetTopologyOperation(operation, context, options = {}) {
+  return recoverSetTopologyOperation(operation, context, options);
 }

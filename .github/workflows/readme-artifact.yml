@@ -38,6 +38,7 @@ jobs:
 
       - name: Upload README artifact packet
         uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: ui-readme-artifact
           path: |

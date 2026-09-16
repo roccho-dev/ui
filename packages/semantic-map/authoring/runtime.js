@@ -1,5 +1,6 @@
 import { appendDecision, createDecision, createEnvelope, inspectEnvelope, normalizeView, verifyDecisionLog } from '../protocol/index.js';
 import { normalizeOperation } from '../domain/index.js';
+import { createWorkspace } from '../editor-core/index.js';
 import { createInlineSmapUrl } from '../transport/index.js';
 import {
   CONTINUATION_RESULT_SCHEMA,
@@ -34,7 +35,13 @@ function assertRealized(preflight, delivery) {
   invariant(delivery.artifactUrl === preflight.delivery.artifactUrl, 'continuation artifact URL differs from preflight');
 }
 
+function documentWorkspace(core, records) {
+  const snapshot = core.snapshot();
+  return createWorkspace(records, { selection: snapshot.selection, frame: snapshot.frame });
+}
+
 export class DecisionRuntime {
+  #core = null;
   static async create(envelope, options = {}) {
     const inspection = await inspectEnvelope(envelope);
     if (options.validateRecords) {
@@ -63,7 +70,6 @@ export class DecisionRuntime {
     this.records = inspection.base.records;
     this.proposal = inspection.envelope.proposal;
     this.view = inspection.envelope.view;
-    this.store = null;
     this.listeners = new Set();
     this.replaceUrl = options.replaceUrl ?? defaultReplaceUrl;
     this.baseUrl = options.baseUrl ?? (() => location.href);
@@ -74,10 +80,12 @@ export class DecisionRuntime {
     });
   }
 
-  attachStore(store) {
-    invariant(!this.store, 'store is already attached');
-    invariant(store && typeof store.toRecords === 'function', 'store is required');
-    this.store = store;
+  attachCore(core) {
+    invariant(!this.#core, 'core is already attached');
+    for (const name of ['dispatch', 'acceptGesture', 'replaceInput', 'snapshot', 'subscribe', 'destroy']) {
+      invariant(core && typeof core[name] === 'function', `EditorCore.${name} is required`);
+    }
+    this.#core = core;
     return this;
   }
 
@@ -116,8 +124,8 @@ export class DecisionRuntime {
   }
 
   draftOperations() {
-    if (!this.store) return Object.freeze([]);
-    return this.store.draftSnapshot().operations;
+    if (!this.#core) return Object.freeze([]);
+    return this.#core.snapshot().draft.operations;
   }
 
   draftCount() {
@@ -138,11 +146,11 @@ export class DecisionRuntime {
   }
 
   async createDraftProposal() {
-    invariant(this.store, 'store is not attached');
+    invariant(this.#core, 'core is not attached');
     const operations = this.draftOperations();
     invariant(operations.length > 0, 'there is no draft');
     const created = await createDecision(this.head, operations, this.records);
-    const current = this.store.toRecords();
+    const current = this.#core.snapshot().records;
     invariant(JSON.stringify(current) === JSON.stringify(created.records), 'draft State does not match its Operations');
     await this.validateRecords?.(created.records, { mapId: this.mapId, head: this.head, view: this.view });
     return created.decision;
@@ -252,7 +260,7 @@ export class DecisionRuntime {
   }
 
   async accept(proposal, options = {}) {
-    invariant(this.store, 'store is not attached');
+    invariant(this.#core, 'core is not attached');
     const draft = this.draftOperations();
     if (draft.length) {
       invariant(sameOperations(draft, proposal.operations), 'another draft is active');
@@ -274,12 +282,11 @@ export class DecisionRuntime {
       stateHash: this.stateHash,
       proposal: this.proposal,
       view: this.view,
-      storeSession: this.store.snapshotSession(),
     });
 
     try {
       this.replaceUrl(delivery.url);
-      this.store.replaceRecords(preflight.appended.records);
+      this.#core.replaceInput(documentWorkspace(this.#core, preflight.appended.records));
       this.log = preflight.appended.log;
       this.head = preflight.appended.head;
       this.records = preflight.appended.records;
@@ -288,7 +295,6 @@ export class DecisionRuntime {
       this.view = preflight.view;
     } catch (error) {
       try { this.replaceUrl(previous.url); } catch (_) { /* best effort rollback */ }
-      try { this.store.restoreSession(previous.storeSession); } catch (_) { /* best effort rollback */ }
       this.log = previous.log;
       this.head = previous.head;
       this.records = previous.records;
@@ -309,7 +315,7 @@ export class DecisionRuntime {
   }
 
   async preflightReject({ local = false, view = this.view, base = this.baseUrl() } = {}) {
-    invariant(this.store, 'store is not attached');
+    invariant(this.#core, 'core is not attached');
     if (local) {
       invariant(this.draftCount() > 0, 'there is no Local Draft to reject');
       return Object.freeze({
@@ -340,7 +346,7 @@ export class DecisionRuntime {
   }
 
   async reject(options = {}) {
-    invariant(this.store, 'store is not attached');
+    invariant(this.#core, 'core is not attached');
     const preflight = await this.preflightReject(options);
     assertExpectedDigest(options.expectedDigest, preflight.delivery);
     const delivery = await this.realizeContinuation(preflight.delivery, {
@@ -354,16 +360,14 @@ export class DecisionRuntime {
       url: this.currentUrl(),
       proposal: this.proposal,
       view: this.view,
-      storeSession: this.store.snapshotSession(),
     });
     try {
       if (delivery.mode !== 'existing') this.replaceUrl(delivery.url);
-      if (preflight.local) this.store.replaceRecords(this.records);
+      if (preflight.local) this.#core.replaceInput(documentWorkspace(this.#core, this.records));
       this.proposal = null;
       this.view = preflight.view;
     } catch (error) {
       try { if (delivery.mode !== 'existing') this.replaceUrl(previous.url); } catch (_) { /* best effort rollback */ }
-      try { this.store.restoreSession(previous.storeSession); } catch (_) { /* best effort rollback */ }
       this.proposal = previous.proposal;
       this.view = previous.view;
       throw error;

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { SemanticDomainStore, createSemanticMap } from '../domain/index.js';
+import { createSemanticMapEditorCore } from '../editor-core/index.js';
 import { createDecision, createDecisionLog, createEnvelope } from '../protocol/index.js';
 import { PUBLISH_RECEIPT_SCHEMA, publishSmapReference } from '../transport/index.js';
 import { DecisionRuntime } from '../authoring/runtime.js';
@@ -138,7 +138,20 @@ const runtime = await DecisionRuntime.create(oversizedEnvelope, {
   artifactEndpoint: storePort.endpoint,
   publisherPort: port,
 });
-runtime.attachStore(new SemanticDomainStore(createSemanticMap(runtime.records)));
+const core = createSemanticMapEditorCore({
+  semantic: runtime.records,
+  ports: {
+    surface: { render() {}, onGesture() { return () => {}; }, destroy() {} },
+    authority: { authorize: () => ({ allowed: true, code: 'ALLOW', reason: 'publisher fixture' }) },
+    document: {
+      requestEdit: ({ operation }) => ({ operations: [operation] }),
+      reload: ({ input }) => ({ input }),
+      commit: ({ expectedRevision }) => ({ revision: expectedRevision }),
+      renderChrome() {},
+    },
+  },
+});
+runtime.attachCore(core);
 const proposal = await createDecision(runtime.head, [{
   type: 'RenameRegion',
   regionId: 'root',
@@ -152,6 +165,7 @@ await assert.rejects(
 );
 assert.equal(requestCount, requestsBeforeUnconfirmedAccept);
 assert.equal(runtime.head, created.head);
+core.destroy();
 
 console.log(JSON.stringify({
   schema: 'semantic-map-publisher-port-test/1',
