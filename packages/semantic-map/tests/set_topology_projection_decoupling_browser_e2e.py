@@ -65,6 +65,8 @@ def accept(page):
         """async () => {
           const proposal=await semanticMapRuntime.createDraftProposal();
           const accepted=await semanticMapRuntime.accept(proposal);
+          const envelope=await semanticMapRuntime.envelope();
+          const url=await semanticMapDataTransport.create(envelope);
           await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
           const decision=JSON.parse(accepted.log.trimEnd().split('\\n').at(-1));
           return {
@@ -74,7 +76,7 @@ def accept(page):
               decisionId:accepted.decisionId,
               stateHash:accepted.stateHash,
               log:accepted.log,
-              url:accepted.url,
+              url,
             },
           };
         }"""
@@ -170,6 +172,7 @@ def main() -> None:
         assert accepted_horizontal_state["sets"] != accepted_vertical_state["sets"]
 
         fragment = "#" + urlsplit(accepted_horizontal["accepted"]["url"]).fragment
+        assert fragment.startswith("#data=")
         replay_horizontal = load_app(context, ROOT / "examples" / "render.semantic-map.set-topology" / "dist" / "index.html", errors, fragment=fragment)
         replay_vertical = load_app(context, ROOT / "examples" / "render.semantic-map.set-topology" / "dist" / "vertical.html", errors, fragment=fragment)
         for page in (replay_horizontal, replay_vertical):
