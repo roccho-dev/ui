@@ -5,8 +5,11 @@ on:
     paths:
       - packages/semantic-map/**
       - packages/business-model/**
+      - packages/a2ui-browser/**
+      - packages/control/**
       - examples/shared/**
       - examples/chart/**
+      - examples/control/**
       - examples/render.semantic-map.set-topology/**
       - apps/preview/**
       - apps/artifact-shell/tests/maxgraph-active-list-browser-proof.py
@@ -41,6 +44,8 @@ jobs:
           PY
       - name: Prove one data fragment across graph seq presentation
         run: python3 apps/preview/tests/unified-runtime-data-browser-proof.py
+      - name: Prove Control one-grid alignment
+        run: python3 apps/preview/tests/control-browser-proof.py
       - name: Build ephemeral set-topology proof fixture
         run: npm run build:semantic-map-set-topology-proof
       - name: Prove actual gesture through review and fresh JSONL replay
