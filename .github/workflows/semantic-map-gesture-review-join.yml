@@ -9,39 +9,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  registry-repair:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        chunk: [0, 1, 2, 3, 4, 5]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Emit one canonical registry chunk
-        env:
-          CHUNK: ${{ matrix.chunk }}
-        run: |
-          node --input-type=module - <<'NODE'
-          import { createHash } from 'node:crypto';
-          import { buildRegistry } from './apps/artifact-shell/scripts/build-registry.mjs';
-          const result = await buildRegistry({
-            capabilitiesRoot: new URL('./apps/artifact-shell/capabilities/', import.meta.url).pathname,
-            check: false,
-            output: new URL('./apps/artifact-shell/generated/capability-registry.mjs', import.meta.url).pathname,
-            write: false,
-          });
-          const bytes = Buffer.from(result.source, 'utf8');
-          const value = bytes.toString('base64');
-          const width = 12000;
-          const chunks = Array.from({ length: Math.ceil(value.length / width) }, (_, index) => value.slice(index * width, (index + 1) * width));
-          if (chunks.length !== 6) throw new Error(`unexpected chunk count ${chunks.length}`);
-          const header = Buffer.from(`blob ${bytes.length}\0`);
-          console.log(`UI207_REGISTRY_BYTES=${bytes.length}`);
-          console.log(`UI207_REGISTRY_GIT_BLOB=${createHash('sha1').update(header).update(bytes).digest('hex')}`);
-          const index = Number(process.env.CHUNK);
-          console.log(`UI207_REGISTRY_${String(index + 1).padStart(2, '0')}=${chunks[index]}`);
-          NODE
   gesture-review-join:
     runs-on: ubuntu-latest
     steps:
