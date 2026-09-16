@@ -153,6 +153,7 @@ async function start() {
     });
   }
   await applyView(editor, runtime.view);
+  if (!artifactModuleBridge.embedded) await nextFrame(2);
   const changePattern = artifactModuleBridge.embedded ? null : installPatternControls(runtime, editor);
   if (!artifactModuleBridge.embedded) {
     enableEditorControls(); syncPatternControls(runtime.view);
