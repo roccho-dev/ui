@@ -1,5 +1,6 @@
 import { appendDecision, createDecision, createEnvelope, inspectEnvelope, normalizeView, verifyDecisionLog } from '../protocol/index.js';
 import { normalizeOperation } from '../domain/index.js';
+import { createWorkspace } from '../editor-core/index.js';
 import { createInlineSmapUrl } from '../transport/index.js';
 import {
   CONTINUATION_RESULT_SCHEMA,
@@ -32,6 +33,11 @@ function assertRealized(preflight, delivery) {
   invariant(delivery.digest === preflight.delivery.digest, 'continuation digest differs from preflight');
   invariant(delivery.url === preflight.delivery.plannedUrl, 'continuation URL differs from preflight');
   invariant(delivery.artifactUrl === preflight.delivery.artifactUrl, 'continuation artifact URL differs from preflight');
+}
+
+function documentWorkspace(core, records) {
+  const snapshot = core.snapshot();
+  return createWorkspace(records, { selection: snapshot.selection, frame: snapshot.frame });
 }
 
 export class DecisionRuntime {
@@ -114,7 +120,7 @@ export class DecisionRuntime {
   }
 
   artifactEndpoint() {
-    return this.continuation.artifactEndpoint;
+    return this.continuation.artifactEndpoint();
   }
 
   draftOperations() {
@@ -280,7 +286,7 @@ export class DecisionRuntime {
 
     try {
       this.replaceUrl(delivery.url);
-      this.#core.replaceInput(preflight.appended.records);
+      this.#core.replaceInput(documentWorkspace(this.#core, preflight.appended.records));
       this.log = preflight.appended.log;
       this.head = preflight.appended.head;
       this.records = preflight.appended.records;
@@ -357,7 +363,7 @@ export class DecisionRuntime {
     });
     try {
       if (delivery.mode !== 'existing') this.replaceUrl(delivery.url);
-      if (preflight.local) this.#core.replaceInput(this.records);
+      if (preflight.local) this.#core.replaceInput(documentWorkspace(this.#core, this.records));
       this.proposal = null;
       this.view = preflight.view;
     } catch (error) {
