@@ -189,22 +189,10 @@ export class SurfacePortMaxGraphAdapter {
     finally { this.#mirroringSelection = false; }
   }
 
-  setSelection(selection) {
-    const accepted = this.#emit({ type: 'selection.changed', selection: normalizeSelection(selection) });
-    invariant(accepted && typeof accepted === 'object', 'selection was not accepted');
-    this.#mirrorSelection(accepted);
-    return structuredClone(this.#selection);
-  }
-
   selectionSnapshot() { return structuredClone(this.#selection); }
-  selectRegion(regionId) { return this.setSelection({ regionIds: [regionId], relationIds: [] }); }
-  clearSelection() { return this.setSelection({ regionIds: [], relationIds: [] }); }
 
-  // These legacy presentation consumers are migrated separately in this same
-  // P2; this is not yet the final three-method public SurfacePort closure.
-  get lastScene() { return this.#inner.lastScene; }
-  get cellsByRegionId() { return new Map(this.#inner.cellsByRegionId); }
-  get edgesByProjectionKey() { return new Map(this.#inner.edgesByProjectionKey); }
+  // Composition-private presentation mechanics. Semantic selection, scene,
+  // cells and relations are observable only through EditorCore snapshots.
   get tool() { return this.#inner.tool; }
   camera() { return this.#inner.camera(); }
   viewport() { return this.#inner.viewport(); }
@@ -224,7 +212,6 @@ export class SurfacePortMaxGraphAdapter {
   cancelInteraction(...args) { return this.#inner.cancelInteraction(...args); }
   setTool(...args) { return this.#inner.setTool(...args); }
   setErrorHandler(...args) { return this.#inner.setErrorHandler(...args); }
-  onSelectionChange(...args) { return this.#inner.onSelectionChange(...args); }
   setActivationHandler(...args) { return this.#inner.setActivationHandler(...args); }
   setFocusMarker(...args) { return this.#inner.setFocusMarker(...args); }
   focusMarkerSnapshot(...args) { return this.#inner.focusMarkerSnapshot(...args); }

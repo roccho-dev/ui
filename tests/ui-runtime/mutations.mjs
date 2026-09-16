@@ -11,6 +11,7 @@ const required = [
   ['packages/semantic-map/tests/publisher_port_test.mjs'],
   ['packages/semantic-map/tests/reconnect-relation_test.mjs'],
   ['packages/semantic-map/tests/adapter-port_test.mjs'],
+  ['packages/semantic-map/tests/surface-public-boundary_test.mjs'],
 ];
 const results = [];
 for (const args of required) {
