@@ -17,6 +17,7 @@ const coreSource = fs.readFileSync(new URL('../../packages/semantic-map/editor-c
 const surfaceSource = fs.readFileSync(new URL('../../packages/semantic-map/renderer-maxgraph/surface-port.js', import.meta.url), 'utf8');
 const main = fs.readFileSync(new URL('../../packages/semantic-map/authoring/main.js', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../../packages/semantic-map/authoring/entry.js', import.meta.url), 'utf8');
+const review = fs.readFileSync(new URL('../../packages/semantic-map/authoring/review.js', import.meta.url), 'utf8');
 const artifactModule = fs.readFileSync(new URL('../../packages/semantic-map/authoring/artifact-module.js', import.meta.url), 'utf8');
 
 const expectedEditorCoreExports = [
@@ -66,6 +67,7 @@ assert.match(main, /surface:\s*adapter,\s*document:\s*documentPort,\s*authority:
 assert.doesNotMatch(main, /core\.runtime|core\.workspace|adapter\.graph|adapter\.setOperationHandler|store\.perform|store\.execute/u);
 assert.match(entry, /createSemanticMapEditor/u);
 assert.doesNotMatch(entry, /adapter\.setActivationHandler/u);
+assert.doesNotMatch(review, /app\.adapter|app\.store|core\.runtime|core\.workspace/u);
 assert.doesNotMatch(artifactModule, /editor\.adapter|editor\.domain/u);
 
 console.log(JSON.stringify({
