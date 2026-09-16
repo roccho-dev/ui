@@ -264,27 +264,35 @@ class EditorCoreState extends DomainStateStore {
 
   projectCandidateScene(command) {
     invariant(this.projection, 'presentation.project requires presentation.configure');
-    const domain = normalizeInputDomain(command.semantic);
-    const view = command.view == null ? this.projection.view : structuredClone(command.view);
-    const modules = Object.hasOwn(command, 'modules') ? command.modules : this.projection.modules;
-    const presentation = clonePresentation(command.presentation ?? this.presentation);
-    invariant(presentation?.camera && presentation?.viewport, 'presentation.project presentation is required');
-    const presentationProjection = projectPresentationValue(this.projection.projectPresentation, domain, view);
-    const { projector } = this.projection;
+    const acceptedProjection = this.projection;
+    const { projector } = acceptedProjection;
+    this.beginTransaction();
     try {
-      projector.setDomain(domain);
-      projector.setModules(modules);
-      projector.setView(view);
-      projector.setPresentationProjection(presentationProjection);
-      return structuredClone(projector.project({
-        scale: presentation.camera.scale,
-        viewport: presentation.viewport,
-      }));
+      const domain = normalizeInputDomain(command.semantic);
+      const view = command.view == null ? acceptedProjection.view : structuredClone(command.view);
+      const modules = Object.hasOwn(command, 'modules') ? command.modules : acceptedProjection.modules;
+      const presentation = clonePresentation(command.presentation ?? this.presentation);
+      invariant(presentation?.camera && presentation?.viewport, 'presentation.project presentation is required');
+      const presentationProjection = projectPresentationValue(acceptedProjection.projectPresentation, domain, view);
+      try {
+        projector.setDomain(domain);
+        projector.setModules(modules);
+        projector.setView(view);
+        projector.setPresentationProjection(presentationProjection);
+        return structuredClone(projector.project({
+          scale: presentation.camera.scale,
+          viewport: presentation.viewport,
+        }));
+      } finally {
+        projector.setDomain(this.domain);
+        projector.setModules(acceptedProjection.modules);
+        projector.setView(acceptedProjection.view);
+        projector.setPresentationProjection(this.presentationProjection);
+      }
     } finally {
-      projector.setDomain(this.domain);
-      projector.setModules(this.projection.modules);
-      projector.setView(this.projection.view);
-      projector.setPresentationProjection(this.presentationProjection);
+      this.pendingDomainEvents = [];
+      this.transactionSnapshot = null;
+      this.transactionDepth = 0;
     }
   }
 
