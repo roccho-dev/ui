@@ -29,6 +29,7 @@
           cp -R ${self}/packages/a2ui-browser "$out/packages/a2ui-browser"
           cp -R ${self}/packages/control "$out/packages/control"
           cp ${self}/examples/control/design.json "$out/design.json"
+          chmod -R u+w "$out/packages/control" "$out/packages/a2ui-browser"
           rm -rf "$out/packages/control/tests" "$out/packages/a2ui-browser/tests"
           node --check "$out/apps/control/main.mjs"
           node --check "$out/packages/control/live-input.mjs"
