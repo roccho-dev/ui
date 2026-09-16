@@ -8,6 +8,7 @@ import { createSemanticMapArtifactModuleBridge } from './artifact-module.js';
 import { translateSetTopologyOperation } from './set-topology-bridge.js';
 
 const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';
+const EMBED_READY_SCHEMA = 'semantic-map-embed-ready/1';
 const PARENT_MESSAGE_INPUT = 'parent-message';
 const pageConfig = readJson('semantic-page-config');
 const artifactModuleBridge = createSemanticMapArtifactModuleBridge({ window: globalThis, embedded: pageConfig.mode === 'embedded' });
@@ -56,6 +57,7 @@ function embeddedEnvelope(timeoutMs = 15_000) {
       }
     }
     globalThis.addEventListener('message', onMessage);
+    globalThis.parent.postMessage(Object.freeze({ schema: EMBED_READY_SCHEMA }), globalThis.location.origin);
   });
 }
 
