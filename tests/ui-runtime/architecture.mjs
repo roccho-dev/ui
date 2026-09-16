@@ -41,10 +41,14 @@ assert.equal(Object.hasOwn(editorCore, 'EditorCore'), false);
 assert.equal(Object.hasOwn(editorCore, 'normalizeOperation'), false);
 assert.equal(Object.hasOwn(editorCore, 'operationToGesture'), false);
 
-const surfacePort = { render() {}, onGesture() {}, snapshot() {}, destroy() {} };
+const surfaceMechanics = { render() {}, onGesture() {}, snapshot() {}, destroy() {}, graph: {} };
+const surfacePort = editorCore.assertSurfacePort(surfaceMechanics);
 const documentPort = { requestEdit() {}, commit() {}, reload() {}, renderChrome() {} };
 const authorityPort = { authorize() {} };
-assert.equal(editorCore.assertSurfacePort(surfacePort), surfacePort);
+assert.notEqual(surfacePort, surfaceMechanics);
+assert.deepEqual(Object.keys(surfacePort).sort(), ['destroy', 'onGesture', 'render']);
+assert.equal(surfacePort.snapshot, undefined);
+assert.equal(surfacePort.graph, undefined);
 assert.equal(editorCore.assertDocumentPort(documentPort), documentPort);
 assert.equal(editorCore.assertAuthorityPort(authorityPort), authorityPort);
 assert.throws(
@@ -79,6 +83,7 @@ console.log(JSON.stringify({
   publicOwner: 'packages/semantic-map/editor-core/index.js',
   exactPublicExports: expectedEditorCoreExports,
   exactCoreMethods: ['dispatch', 'acceptGesture', 'replaceInput', 'snapshot', 'subscribe', 'destroy'],
+  exactCoreSurfaceMethods: ['render', 'onGesture', 'destroy'],
   hiddenCoreBypass: 0,
   executablePortContracts: true,
   explicitPorts: ['SurfacePort', 'DocumentPort', 'AuthorityPort'],
