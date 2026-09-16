@@ -1,4 +1,4 @@
-import { createUrlModuleUrl, readUrlModule } from '../../packages/url-module/src/index.mjs';
+import { createDataTransport, createUrlModuleUrl } from '../../packages/url-module/src/index.mjs';
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`ui-preview: ${message}`); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -114,20 +114,6 @@ const hrefFor = async item => createUrlModuleUrl({
   fragment: 'data',
   value: item.input,
 });
-const createDataTransport = scope => {
-  const create = (value, { base = scope.location.href } = {}) => createUrlModuleUrl({
-    base,
-    fragment: 'data',
-    value,
-  });
-  const read = input => readUrlModule({ fragment: 'data', input });
-  const replace = async value => {
-    const url = await create(value);
-    scope.history.replaceState(scope.history.state, '', url);
-    return url;
-  };
-  return Object.freeze({ schema: 'ui-data-transport/1', fragment: 'data', create, read, replace });
-};
 
 const renderLauncher = async () => {
   const target = document.querySelector('#cases');
