@@ -1,0 +1,67 @@
+name: T283 semantic embed ready handshake
+
+on:
+  push:
+    branches:
+      - fix/retire-smap-t283
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add child-ready handshake and retire workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+
+          runtime = Path('packages/semantic-map/runtime.js')
+          text = runtime.read_text(encoding='utf-8')
+          old = "const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';\nconst invariant ="
+          new = "const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';\nconst EMBED_READY_SCHEMA = 'semantic-map-embed-ready/1';\nconst invariant ="
+          if text.count(old) != 1:
+              raise SystemExit('runtime schema anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = "const waitForReady = (frame, timeoutMs = 15000) => new Promise((resolve, reject) => {\n"
+          insert = """const waitForEmbedReady = (document, frame, targetOrigin, timeoutMs = 15000) => {\n  const parentWindow = document.defaultView;\n  invariant(parentWindow?.addEventListener, 'document.defaultView is required');\n  return new Promise((resolve, reject) => {\n    const timer = setTimeout(() => {\n      parentWindow.removeEventListener('message', onMessage);\n      reject(new Error('embedded semantic map ready timed out'));\n    }, timeoutMs);\n    function onMessage(event) {\n      if (event.source !== frame.contentWindow) return;\n      if (event.origin !== targetOrigin) return;\n      if (event.data?.schema !== EMBED_READY_SCHEMA) return;\n      clearTimeout(timer);\n      parentWindow.removeEventListener('message', onMessage);\n      resolve(true);\n    }\n    parentWindow.addEventListener('message', onMessage);\n  });\n};\n\nconst waitForReady = (frame, timeoutMs = 15000) => new Promise((resolve, reject) => {\n"""
+          if text.count(old) != 1:
+              raise SystemExit('runtime waitForReady anchor changed')
+          text = text.replace(old, insert, 1)
+
+          old = """  const frameUrl = new URL('./authoring/pages/embed.html', import.meta.url);\n  const targetOrigin = frameUrl.origin;\n  frame.addEventListener('load', () => {\n    frame.contentWindow?.postMessage(\n      Object.freeze({ schema: EMBED_INPUT_SCHEMA, envelope: structuredClone(inspection.envelope) }),\n      targetOrigin,\n    );\n  }, { once: true });\n  frame.src = frameUrl.href;\n  surfaceMount.replaceChildren(frame);\n  const site = await waitForReady(frame);\n"""
+          new = """  const frameUrl = new URL('./authoring/pages/embed.html', import.meta.url);\n  const targetOrigin = frameUrl.origin;\n  const embedReady = waitForEmbedReady(document, frame, targetOrigin);\n  frame.src = frameUrl.href;\n  surfaceMount.replaceChildren(frame);\n  await embedReady;\n  frame.contentWindow?.postMessage(\n    Object.freeze({ schema: EMBED_INPUT_SCHEMA, envelope: structuredClone(inspection.envelope) }),\n    targetOrigin,\n  );\n  const site = await waitForReady(frame);\n"""
+          if text.count(old) != 1:
+              raise SystemExit('runtime load-send block changed')
+          runtime.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          entry = Path('packages/semantic-map/authoring/entry.js')
+          text = entry.read_text(encoding='utf-8')
+          old = "const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';\nconst PARENT_MESSAGE_INPUT ="
+          new = "const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';\nconst EMBED_READY_SCHEMA = 'semantic-map-embed-ready/1';\nconst PARENT_MESSAGE_INPUT ="
+          if text.count(old) != 1:
+              raise SystemExit('entry schema anchor changed')
+          text = text.replace(old, new, 1)
+
+          old = """    globalThis.addEventListener('message', onMessage);\n  });\n}\n\nasync function bootstrapEnvelope(config) {\n"""
+          new = """    globalThis.addEventListener('message', onMessage);\n    globalThis.parent.postMessage(Object.freeze({ schema: EMBED_READY_SCHEMA }), globalThis.location.origin);\n  });\n}\n\nasync function bootstrapEnvelope(config) {\n"""
+          if text.count(old) != 1:
+              raise SystemExit('entry listener anchor changed')
+          entry.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          node apps/artifact-shell/scripts/build-registry.mjs
+          rm .github/workflows/t283-embed-ready.yml
+          git add -A
+          git commit -m "fix: handshake semantic embed input after child ready"
+          git push origin HEAD:fix/retire-smap-t283
