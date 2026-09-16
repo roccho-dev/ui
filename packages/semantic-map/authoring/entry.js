@@ -8,6 +8,8 @@ import { createSemanticMapArtifactModuleBridge } from './artifact-module.js';
 import { translateSetTopologyOperation } from './set-topology-bridge.js';
 
 const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';
+const EMBED_READY_SCHEMA = 'semantic-map-embed-ready/1';
+const PARENT_MESSAGE_INPUT = 'parent-message';
 const pageConfig = readJson('semantic-page-config');
 const artifactModuleBridge = createSemanticMapArtifactModuleBridge({ window: globalThis, embedded: pageConfig.mode === 'embedded' });
 if (artifactModuleBridge.embedded) document.documentElement.dataset.artifactModule = 'true';
@@ -55,11 +57,14 @@ function embeddedEnvelope(timeoutMs = 15_000) {
       }
     }
     globalThis.addEventListener('message', onMessage);
+    globalThis.parent.postMessage(Object.freeze({ schema: EMBED_READY_SCHEMA }), globalThis.location.origin);
   });
 }
 
 async function bootstrapEnvelope(config) {
-  if (config.mode === 'embedded') return embeddedEnvelope();
+  if (config.input === PARENT_MESSAGE_INPUT) return embeddedEnvelope();
+  const transported = await globalThis.semanticMapDataTransport?.read?.();
+  if (transported !== null && transported !== undefined) return (await inspectEnvelope(transported)).envelope;
   const initialText = document.getElementById('semantic-initial-state')?.textContent ?? '';
   const initialRecords = parseSemanticMapRecords(initialText);
   const mapId = config.mapId || `urn:uuid:${crypto.randomUUID()}`;
@@ -152,6 +157,7 @@ async function start() {
     });
   }
   await applyView(editor, runtime.view);
+  if (!artifactModuleBridge.embedded) await nextFrame(2);
   const changePattern = artifactModuleBridge.embedded ? null : installPatternControls(runtime, editor);
   if (!artifactModuleBridge.embedded) {
     enableEditorControls(); syncPatternControls(runtime.view);

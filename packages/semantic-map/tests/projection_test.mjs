@@ -34,7 +34,7 @@ assert.equal(ordinalScene.scenes[0].space, 'ordinal/1');
 assert.equal(calendarScene.scenes[0].space, 'calendar/1');
 assert.equal(chartScene.scenes[0].space, 'quantitative/1');
 assert.ok(mapScene.representations.some((item) => item.geometryEditable));
-assert.ok(graphScene.representations.filter((item) => !item.isRoot).every((item) => !item.geometryEditable));
+assert.ok(graphScene.representations.filter((item) => !item.isRoot && item.mode !== 'boundary').every((item) => item.geometryEditable));
 assert.ok(ordinalScene.representations.some((item) => item.temporalEdit?.axis === 'ordinal'));
 assert.ok(calendarScene.representations.some((item) => item.temporalEdit?.axis === 'calendar'));
 const ordinalById = new Map(ordinalScene.representations.map((item) => [item.regionId, item]));
@@ -152,8 +152,7 @@ const unknownProjection = createPresentationProjection({
 });
 assert.throws(
   () => new SemanticProjector(mapDomain, null, { pattern: 'map/1' }, { presentationProjection: unknownProjection }).project({
-    scale: 1,
-    viewport: { x: -100, y: -100, width: 2500, height: 1800 },
+    scale: 1, viewport: { x: -100, y: -100, width: 2500, height: 1800 },
   }),
   /layout references unknown region missing/u,
 );

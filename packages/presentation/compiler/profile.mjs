@@ -1,4 +1,4 @@
-import { BUSINESS_MODEL_SEMANTIC_STATE_SCHEMA } from "./model.mjs";
+import { BUSINESS_MODEL_SEMANTIC_STATE_SCHEMA } from "../../business-model/model.mjs";
 
 export const BUSINESS_MODEL_PROJECTION_PROFILE_SCHEMA = "business-model-projection-profile/1";
 export const BUSINESS_MODEL_PRESENTATION_PLAN_SCHEMA = "business-model-presentation-plan/1";

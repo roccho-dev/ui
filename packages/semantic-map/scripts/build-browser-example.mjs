@@ -16,15 +16,19 @@ const outputRoot = path.resolve(repoRoot, args.out ?? path.join('examples', 'ren
 const appEntry = 'authoring/index.js';
 const importOrExport = /\b(?:import|export)\s+(?:(?:[^;]*?)\s+from\s+)?(["'])([^"']+)\1/gmu;
 const dynamicImport = /\bimport\(\s*(["'])([^"']+)\1\s*\)/gmu;
-const moduleId = relative => `semantic:${relative.split(path.sep).join('/')}`;
+const sharedModulePrefix = '../url-module/src/';
+const moduleId = relative => relative.startsWith(sharedModulePrefix)
+  ? `url-module:${relative.slice(sharedModulePrefix.length)}`
+  : `semantic:${relative.split(path.sep).join('/')}`;
 const dataUrl = source => `data:text/javascript;charset=utf-8;base64,${Buffer.from(source).toString('base64')}`;
 const sha256 = bytes => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 
 const resolveModule = (current, specifier) => {
   if (!specifier.startsWith('.')) throw new Error(`external module is forbidden: ${current} -> ${specifier}`);
   const target = path.posix.normalize(path.posix.join(path.posix.dirname(current), specifier));
-  if (target.startsWith('../') || target === '..') throw new Error(`module escapes semantic-map package: ${current} -> ${specifier}`);
-  if (!target.endsWith('.js')) throw new Error(`module must use explicit .js: ${current} -> ${specifier}`);
+  const shared = target.startsWith(sharedModulePrefix);
+  if ((target.startsWith('../') || target === '..') && !shared) throw new Error(`module escapes allowed package roots: ${current} -> ${specifier}`);
+  if (!/\.(?:js|mjs)$/u.test(target)) throw new Error(`module must use explicit .js/.mjs: ${current} -> ${specifier}`);
   return target;
 };
 

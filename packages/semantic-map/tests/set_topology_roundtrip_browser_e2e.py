@@ -89,9 +89,11 @@ def main() -> None:
             """async () => {
               const proposal=await semanticMapRuntime.createDraftProposal();
               const accepted=await semanticMapRuntime.accept(proposal);
+              const envelope=await semanticMapRuntime.envelope();
+              const url=await semanticMapDataTransport.create(envelope);
               await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
               const decision=JSON.parse(accepted.log.trimEnd().split('\\n').at(-1));
-              return {proposal,accepted:{decisionId:accepted.decisionId,stateHash:accepted.stateHash,log:accepted.log,url:accepted.url},decision};
+              return {proposal,accepted:{decisionId:accepted.decisionId,stateHash:accepted.stateHash,log:accepted.log,url},decision};
             }"""
         )
         page.wait_for_function("semanticMapRuntime.draftCount() === 0")
@@ -104,6 +106,7 @@ def main() -> None:
         assert accepted_state["stateHash"] == accepted["accepted"]["stateHash"]
 
         fragment = "#" + urlsplit(accepted["accepted"]["url"]).fragment
+        assert fragment.startswith("#data="), fragment
         recompiled_page = load_app(context, ROOT / "examples" / "render.semantic-map.set-topology" / "dist" / "index.html", errors, fragment=fragment)
         recompiled_page.wait_for_function("semanticMapSite.setTopologyProof === true")
         recompiled_page.wait_for_function("semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'partial-overlap'")

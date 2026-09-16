@@ -1,8 +1,18 @@
-import { createSemanticMap, parseSemanticMapRecords } from './domain/index.js';
+import { createSemanticMap } from './domain/index.js';
 import { SemanticDomainStore } from './domain/authoring-store.js';
+import { normalizeLayoutRecords, splitStateRecords } from './layout/state.js';
 import { ModuleResolver } from './module-embedding/index.js';
 import { patternConfigKey, validatePatternDomain } from './pattern/index.js';
-import { ENVELOPE_SCHEMA, createDecisionLog, createEnvelope, defaultViewForPattern, inspectEnvelope } from './protocol/index.js';
+import {
+  ENVELOPE_SCHEMA,
+  appendDecision,
+  createDecision,
+  createDecisionLog,
+  createEnvelope,
+  defaultViewForPattern,
+  inspectEnvelope,
+} from './protocol/index.js';
+import { parseStateJSONL } from './protocol/input-jsonl.js';
 import { validateSceneGraph } from './projection/index.js';
 import { mountSemanticMapSurface } from './surface-runtime.mjs';
 import { DecisionRuntime } from './authoring/runtime.js';
@@ -19,11 +29,28 @@ const snapshotDomain = domain => Object.freeze({
   relations: Object.freeze(domain.relations.map(relation => Object.freeze({ ...relation }))),
 });
 
+const stateParts = records => {
+  const { semanticRecords, layoutRecords } = splitStateRecords(records);
+  const domain = createSemanticMap(semanticRecords);
+  return Object.freeze({
+    domain,
+    layoutRecords: normalizeLayoutRecords(layoutRecords, domain),
+  });
+};
+
 const bootstrapEnvelope = async ({ input, view, scope }) => {
   if (typeof input === 'string') {
     invariant(typeof scope.crypto?.randomUUID === 'function', 'crypto.randomUUID is required');
-    const records = parseSemanticMapRecords(input);
-    const created = await createDecisionLog(records, `urn:uuid:${scope.crypto.randomUUID()}`);
+    const records = parseStateJSONL(input);
+    const { semanticRecords, layoutRecords } = splitStateRecords(records);
+    let created = await createDecisionLog(semanticRecords, `urn:uuid:${scope.crypto.randomUUID()}`);
+    if (layoutRecords.length > 0) {
+      const layoutDecision = await createDecision(created.head, [{
+        type: 'PinRegions',
+        items: layoutRecords.map(record => ({ regionId: record.regionId, bounds: record.bounds })),
+      }], created.records);
+      created = await appendDecision(created.log, layoutDecision.decision);
+    }
     return createEnvelope(created.log, null, view);
   }
   invariant(input && typeof input === 'object' && !Array.isArray(input), 'data must be raw JSONL text or an Envelope');
@@ -31,12 +58,41 @@ const bootstrapEnvelope = async ({ input, view, scope }) => {
   return (await inspectEnvelope(input)).envelope;
 };
 
+const graphAuthoringOperation = (operation, scene) => {
+  if (scene?.pattern !== 'graph/1') return operation;
+  if (operation.type === 'ResizeRegions') {
+    return Object.freeze({
+      type: 'PinRegions',
+      items: operation.items.map(item => Object.freeze({ regionId: item.regionId, bounds: item.bounds })),
+    });
+  }
+  if (operation.type !== 'MoveRegions') return operation;
+  const visible = new Map(
+    scene.representations
+      .filter(item => item.mode !== 'boundary' && item.sourceRegionId)
+      .map(item => [item.sourceRegionId, item]),
+  );
+  return Object.freeze({
+    type: 'PinRegions',
+    items: operation.regionIds.map(regionId => {
+      const representation = visible.get(regionId);
+      invariant(representation, `graph pin source is not visible: ${regionId}`);
+      const { x, y, width, height } = representation.bounds;
+      return Object.freeze({
+        regionId,
+        bounds: Object.freeze([x + operation.dx, y + operation.dy, width, height]),
+      });
+    }),
+  });
+};
+
 export const mountFeature = async ({ feature, input, root, scope = globalThis, transport }) => {
   invariant(root?.replaceChildren, 'root is required');
   invariant(
     transport?.schema === 'ui-data-transport/1'
       && transport.fragment === 'data'
-      && typeof transport.read === 'function',
+      && typeof transport.read === 'function'
+      && typeof transport.replace === 'function',
     '#data transport is required',
   );
   const pattern = patterns[feature?.id];
@@ -48,16 +104,20 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
   invariant(envelope.view.pattern === pattern, `Envelope view pattern must be ${pattern}`);
   const moduleResolver = new ModuleResolver({ resolveSource: transport.read });
   const validateRecords = async (records, context) => {
-    const domain = createSemanticMap(records);
+    const { domain } = stateParts(records);
     const modules = await moduleResolver.resolve(domain, context);
     const scenes = validateSceneGraph(domain, modules, context.view);
     return Object.freeze({ modules, scenes });
   };
   const runtime = await DecisionRuntime.create(envelope, { validateRecords });
 
-  const initialDomain = createSemanticMap(runtime.records);
-  const initialModules = await moduleResolver.resolve(initialDomain, { mapId: runtime.mapId, head: runtime.head, view: runtime.view });
-  const store = new SemanticDomainStore(initialDomain);
+  const initial = stateParts(runtime.records);
+  const initialModules = await moduleResolver.resolve(initial.domain, {
+    mapId: runtime.mapId,
+    head: runtime.head,
+    view: runtime.view,
+  });
+  const store = new SemanticDomainStore(initial.domain, initial.layoutRecords);
   runtime.attachStore(store);
 
   const surface = await mountSemanticMapSurface({
@@ -73,7 +133,8 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
   const { adapter, canvas } = surface;
 
   adapter.setOperationHandler(operation => {
-    const prepared = runtime.prepareLocalOperation(operation);
+    const authored = graphAuthoringOperation(operation, surface.scene());
+    const prepared = runtime.prepareLocalOperation(authored);
     const configKey = patternConfigKey(runtime.view.pattern);
     const batch = store.performBatch([prepared], candidate => validatePatternDomain(
       candidate.domain,
@@ -111,6 +172,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
     operation: operation => adapter.submitOperation(operation),
     snapshot: () => Object.freeze({
       domain: snapshotDomain(store.domain),
+      layout: store.layoutSnapshot(),
       draft: store.draftSnapshot(),
       scene: surface.scene() ? Object.freeze({ pattern: surface.scene().pattern }) : null,
       selection: adapter.selectionSnapshot(),
@@ -128,7 +190,11 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
     const revision = ++moduleRevision;
     queueMicrotask(async () => {
       try {
-        const modules = await moduleResolver.resolve(store.domain, { mapId: runtime.mapId, head: runtime.head, view: runtime.view });
+        const modules = await moduleResolver.resolve(store.domain, {
+          mapId: runtime.mapId,
+          head: runtime.head,
+          view: runtime.view,
+        });
         if (revision === moduleRevision) surface.setModules(modules);
       } catch (error) {
         console.error(error);

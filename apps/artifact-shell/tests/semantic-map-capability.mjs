@@ -124,7 +124,7 @@ await assert.rejects(() => failedBridgeListener({ kind: 'view' }), /stale parent
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(failedBridge.snapshot().revisions, 0);
 assert.equal(failedBridge.snapshot().lastError, 'stale parent input');
-assert.deepEqual(failedBridgeErrors, ['共有URLを更新できません: stale parent input']);
+assert.deepEqual(failedBridgeErrors, ['共有入力を更新できません: stale parent input']);
 failedBridge.unsubscribe();
 assert.equal(failedBridgeListener, null);
 

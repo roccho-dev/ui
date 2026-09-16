@@ -177,11 +177,13 @@ def main() -> None:
         assert candidate["rawBounds"] == initial_raw_bounds
         page.screenshot(path=str(OUTPUT / "meaning-recovery-candidate.png"), full_page=True)
 
-        rejected_url = page.evaluate("semanticMapRuntime.reject({local:true})")
+        before_reject_url = page.evaluate("location.href")
+        rejected = page.evaluate("semanticMapRuntime.reject({local:true})")
         page.wait_for_function("semanticMapRuntime.draftCount() === 0")
         page.wait_for_function("semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'disjoint'")
         after_reject = state(page)
-        assert rejected_url == page.evaluate("location.href")
+        assert rejected["local"] is True
+        assert before_reject_url == page.evaluate("location.href")
         assert after_reject["head"] == initial_head
         assert after_reject["stateHash"] == initial_state_hash
         assert after_reject["log"] == initial_log
@@ -193,8 +195,9 @@ def main() -> None:
             """async () => {
               const proposal=await semanticMapRuntime.createDraftProposal();
               const result=await semanticMapRuntime.accept(proposal);
+              const url=await semanticMapDataTransport.create(result.envelope);
               await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-              return result;
+              return {...result,url};
             }"""
         )
         page.wait_for_function("semanticMapRuntime.draftCount() === 0")
@@ -205,6 +208,7 @@ def main() -> None:
         assert accepted_state["rawBounds"] == initial_raw_bounds
 
         fragment = "#" + urlsplit(accepted["url"]).fragment
+        assert fragment.startswith("#data=")
         replay = load_app(context, ROOT / "examples" / "render.semantic-map.set-topology" / "dist" / "index.html", errors, fragment=fragment)
         replay.wait_for_function("semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'partial-overlap'")
         replay_state = state(replay)
@@ -271,6 +275,7 @@ def main() -> None:
             "sameHead": after_reject["head"] == initial_head,
             "sameStateHash": after_reject["stateHash"] == initial_state_hash,
             "sameLog": after_reject["log"] == initial_log,
+            "urlUnchanged": True,
         },
         "acceptAndReplay": {
             "move": accepted_move,

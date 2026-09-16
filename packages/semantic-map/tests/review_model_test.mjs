@@ -46,6 +46,7 @@ const operations = [
   { type: 'UnmountRegionModule', regionId: 'mounted' },
   { type: 'RemoveSelection', regionIds: [], relationIds: ['r1'] },
   { type: 'ReconnectRelation', relationId: 'r1', from: 'task-a', to: 'set-a' },
+  { type: 'PinRegions', items: [{ regionId: 'task-a', bounds: [90, 140, 160, 80] }] },
 ];
 
 const log = await createDecisionLog(records, 'urn:test:semantic-review-model');
@@ -56,7 +57,8 @@ async function previewFor(nextOperations) {
 }
 
 const proposalTypes = OPERATION_TYPES.filter((type) => type !== 'CreateMap').sort();
-assert.deepEqual(operations.map((operation) => operation.type).sort(), proposalTypes);
+const singleProposalTypes = proposalTypes.filter((type) => type !== 'UnpinRegions');
+assert.deepEqual(operations.map((operation) => operation.type).sort(), singleProposalTypes);
 
 for (const operation of operations) {
   const model = await createSemanticReviewModel({ preview: await previewFor([operation]) });
@@ -67,13 +69,26 @@ for (const operation of operations) {
   assert.equal(model.trace.length, 1);
   assert.equal(model.trace[0].type, operation.type);
   assert.match(model.trace[0].summary, new RegExp(`^${operation.type} · `, 'u'));
-  assert.equal(model.delta.netNoop, false, operation.type);
+  assert.equal(model.delta.netNoop, operation.type === 'PinRegions', operation.type);
   assert.equal(model.identities.proposalParent, log.head);
   assert.equal(model.identities.baseHead, log.head);
   assert.equal(model.identities.baseStateHash, log.stateHash);
   assert.equal(model.identities.proposalStateHash, model.identities.afterStateHash);
   assert.equal(model.identities.proposalId, model.identities.afterHead);
 }
+
+const pinPreview = await previewFor([operations[14]]);
+const unpinDecision = await createDecision(
+  pinPreview.head,
+  [{ type: 'UnpinRegions', regionIds: ['task-a'] }],
+  pinPreview.records,
+);
+const unpinPreview = await appendDecision(pinPreview.log, unpinDecision.decision);
+const unpinModel = await createSemanticReviewModel({ preview: unpinPreview });
+assert.equal(unpinModel.trace.length, 1);
+assert.equal(unpinModel.trace[0].type, 'UnpinRegions');
+assert.equal(unpinModel.trace[0].effect.netNoop, true);
+assert.equal(unpinModel.delta.netNoop, true);
 
 const moved = await createSemanticReviewModel({ preview: await previewFor([operations[0]]) });
 assert.deepEqual(moved.delta.regions[0].changedFields, ['bounds[0]', 'bounds[1]']);
