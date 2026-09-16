@@ -260,10 +260,13 @@ def main() -> None:
                 assert current["draft"] == []
                 assert current["overlay"] == {"active": False, "overlay": None}
                 assert current["pending"] is False
-                assert accepted["url"] == ""
+                assert "#data=" in accepted["url"]
+                assert "#smap=" not in accepted["url"]
 
                 envelope = page.evaluate("async () => await semanticMapRuntime.envelope()")
                 fragment = data_fragment(envelope)
+                assert accepted["url"].endswith(fragment), accepted["url"]
+                assert page.url.endswith(fragment), page.url
                 case_id = {"graph/1": "semantic/graph", "map/1": "map"}.get(envelope["view"]["pattern"])
                 assert case_id, envelope["view"]
                 replay = context.new_page()
