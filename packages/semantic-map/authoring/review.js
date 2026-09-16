@@ -94,7 +94,7 @@ async function install() {
 
   function clear() {
     pending = null;
-    app.adapter.clearReviewOverlay();
+    app.clearReviewOverlay();
     previewPanel.hidden = true;
     acceptButton.disabled = true;
     acceptButton.textContent = 'Accept';
@@ -189,7 +189,7 @@ async function install() {
   function render(value) {
     pending = value;
     const { model } = value;
-    app.adapter.setReviewOverlay(value.overlay);
+    app.setReviewOverlay(value.overlay);
     previewPanel.hidden = false;
     diffList.replaceChildren(...model.trace.map((entry) => {
       const item = document.createElement('li');
@@ -289,7 +289,7 @@ async function install() {
       });
       lastAccepted = Object.freeze({ ...accepted, result });
       pending = null;
-      app.adapter.clearReviewOverlay();
+      app.clearReviewOverlay();
       acceptButton.textContent = 'Accepted';
       rejectButton.disabled = true;
       afterUrlOutput.textContent = result.url;
