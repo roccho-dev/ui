@@ -23,9 +23,18 @@ jobs:
           CHUNK: ${{ matrix.chunk }}
         run: |
           set -euo pipefail
-          output="$RUNNER_TEMP/ui207-capability-registry.mjs"
-          node apps/artifact-shell/scripts/build-registry.mjs --output "$output" >/dev/null
-          OUTPUT="$output" python3 - <<'PY'
+          node --input-type=module - <<'NODE'
+          import { buildRegistry } from './apps/artifact-shell/scripts/build-registry.mjs';
+          import fs from 'node:fs/promises';
+          const result = await buildRegistry({
+            capabilitiesRoot: new URL('./apps/artifact-shell/capabilities/', import.meta.url).pathname,
+            check: false,
+            output: new URL('./apps/artifact-shell/generated/capability-registry.mjs', import.meta.url).pathname,
+            write: false,
+          });
+          await fs.writeFile(process.env.RUNNER_TEMP + '/ui207-capability-registry.mjs', result.source);
+          NODE
+          OUTPUT="$RUNNER_TEMP/ui207-capability-registry.mjs" python3 - <<'PY'
           import base64
           import os
           from pathlib import Path
