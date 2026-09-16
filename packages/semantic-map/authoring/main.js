@@ -1,7 +1,7 @@
 import { createSemanticMap, normalizeOperation, recordsToJSONL } from '../domain/index.js';
 import { createSemanticMapEditorCore } from '../editor-core/index.js';
 import { commandForKey } from '../editor-core/commands.js';
-import { SemanticProjector, projectorThresholds } from '../projection/index.js';
+import { projectorThresholds } from '../projection/index.js';
 import { PATTERN_SEQ, normalizeView } from '../protocol/index.js';
 import { patternCapabilities, patternConfigKey, validatePatternDomain } from '../pattern/index.js';
 import { MaxGraphAdapter } from '../renderer-maxgraph/index.js';
@@ -392,10 +392,13 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   }
 
   function projectDomain(domain, view = currentView, resolvedModules = modules) {
-    const normalizedView = normalizeView(view);
-    const presentationProjection = projectPresentation(domain, normalizedView);
-    const candidate = new SemanticProjector(domain, resolvedModules, normalizedView, { presentationProjection });
-    return candidate.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
+    return core.dispatch({
+      type: 'presentation.project',
+      semantic: domain,
+      view: normalizeView(view),
+      modules: resolvedModules,
+      presentation: Object.freeze({ camera: adapter.camera(), viewport: adapter.viewport() }),
+    });
   }
 
   adapter.setErrorHandler((error) => { showToast(error.message, true); queueRender(); });
