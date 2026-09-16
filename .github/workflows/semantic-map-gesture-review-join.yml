@@ -9,11 +9,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  source-diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Locate retired store imports
+        run: grep -R -n --include='*.js' 'SemanticDomainStore' packages/semantic-map || true
   registry-repair:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        chunk: [0, 1, 2, 3, 4, 5]
+        chunk:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
     steps:
       - uses: actions/checkout@v4
         with:
