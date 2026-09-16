@@ -102,9 +102,18 @@ def main() -> None:
                       scene: semanticMapSite.editor.snapshot().scene.pattern,
                       svg: Boolean(document.querySelector('#graph-container svg')),
                       editorReady: Boolean(semanticMapSite.editor?.ready),
+                      rawInternalsAbsent: semanticMapSite.editor.adapter === undefined
+                        && semanticMapSite.editor.projector === undefined
+                        && semanticMapSite.editor.store === undefined,
                     })"""
                 )
-                assert rendered == {"pattern": pattern, "scene": pattern, "svg": True, "editorReady": True}
+                assert rendered == {
+                    "pattern": pattern,
+                    "scene": pattern,
+                    "svg": True,
+                    "editorReady": True,
+                    "rawInternalsAbsent": True,
+                }
                 patterns.append(pattern)
                 if pattern == "graph/1":
                     for api in ("semanticMapHandoff", "semanticMapReview", "semanticMapSource"):
@@ -127,11 +136,15 @@ def main() -> None:
                         "schema": "semantic-map-input-bridge-receipt/1",
                     }
                     initial_parent_url = page.url
-                    child.evaluate(
+                    expected_camera = child.evaluate(
                         """() => {
                           globalThis.__artifactShellBridgeSentinel = 'alive';
-                          semanticMapSite.editor.adapter.setCamera(1.2, 12, 34);
-                          semanticMapSite.editor.adapter.setSelection({ regionIds: ['request'], relationIds: [] });
+                          semanticMapSite.editor.focusRegion('request', 1.2);
+                          semanticMapSite.editor.core.dispatch({
+                            type: 'selection.set',
+                            selection: { regionIds: ['request'], relationIds: [] },
+                          });
+                          return structuredClone(semanticMapSite.editor.snapshot().camera);
                         }"""
                     )
                     accepted = child.evaluate(
@@ -163,7 +176,7 @@ def main() -> None:
                           bridge: semanticMapInputBridge.snapshot(),
                         })"""
                     )
-                    assert preserved["camera"] == {"scale": 1.2, "translateX": 12, "translateY": 34}
+                    assert preserved["camera"] == expected_camera
                     assert preserved["selection"] == {"regionIds": ["request"], "relationIds": []}
                     assert preserved["bridge"] == {
                         "enabled": True,
@@ -248,7 +261,7 @@ def main() -> None:
             context.close()
             browser.close()
         print(json.dumps({
-            "schema": "artifact-shell-semantic-map-browser-proof/1",
+            "schema": "artifact-shell-semantic-map-browser-proof/2",
             "status": "PASS",
             "patterns": patterns,
             "bidirectional": bidirectional,
@@ -256,6 +269,7 @@ def main() -> None:
             "destructive": 2,
             "externalRequests": 0,
             "pageErrors": errors,
+            "publicEditorBoundary": True,
         }, ensure_ascii=False))
     finally:
         server.terminate()
