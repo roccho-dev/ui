@@ -154,7 +154,7 @@ def main() -> None:
                           const afterWheel=structuredClone(app.snapshot().camera);
                           const anchorAfter={
                             x:(clientX-rect.left)/afterWheel.scale-afterWheel.translateX,
-                            y:(clientY-rect.top)/afterWheel.scale-beforeWheel.translateY,
+                            y:(clientY-rect.top)/afterWheel.scale-afterWheel.translateY,
                           };
 
                           app.reset();
