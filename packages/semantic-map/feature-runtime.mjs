@@ -235,7 +235,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
     records: runtime.records.length,
     svg,
     authoring: true,
-    handoff: 'semantic-map-handoff/2',
+    handoff: 'semantic-map-handoff/3',
     activeItems: activeList.items.length,
   });
 };

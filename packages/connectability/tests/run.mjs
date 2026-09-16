@@ -138,15 +138,64 @@ await assert.rejects(
   error => error instanceof ConnectabilityError && error.code === 'PROPOSAL_TOO_LARGE',
 );
 
+const exactRequests = [];
+let responseGuardCalls = 0;
+const exact = createJsonConnectability({
+  endpoint: '/api/intents',
+  fetch: async (url, init) => {
+    exactRequests.push({ url, init });
+    return new Response(JSON.stringify({ schema: 'semantic-intent.result.v1', intent_id: 'intent-001' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    });
+  },
+  idOf: value => value.intent_id,
+  maxBytes: 32_768,
+  prepare: value => value,
+  responseGuard: response => {
+    responseGuardCalls += 1;
+    assert.match(response.headers.get('content-type'), /^application\/json/u);
+  },
+  serialize: value => JSON.stringify({
+    schema: value.schema,
+    intent_id: value.intent_id,
+    kind: value.kind,
+  }),
+});
+const exactPrepared = await exact.prepare({
+  kind: 'record',
+  intent_id: 'intent-001',
+  schema: 'semantic-intent.v1',
+});
+assert.equal(
+  exactPrepared.bytes,
+  '{"schema":"semantic-intent.v1","intent_id":"intent-001","kind":"record"}',
+  'caller-owned serializer preserves exact wire bytes without the default trailing newline',
+);
+await exact.submit(exactPrepared);
+assert.equal(exactRequests[0].url, '/api/intents');
+assert.equal(exactRequests[0].init.body, exactPrepared.bytes);
+assert.equal(responseGuardCalls, 1);
+
+assert.throws(
+  () => createJsonConnectability({ prepare: proposalFrom, fetch, serialize: null }),
+  error => error instanceof ConnectabilityError && error.code === 'INVALID_CONFIG',
+);
+assert.throws(
+  () => createJsonConnectability({ prepare: proposalFrom, fetch, responseGuard: 'invalid' }),
+  error => error instanceof ConnectabilityError && error.code === 'INVALID_CONFIG',
+);
+
 console.log(JSON.stringify({
   schema: 'check-receipt/1',
   checkId: 'ui.connectability',
   status: 'PASS',
-  assertions: 24,
+  assertions: 32,
   endpoint: connection.endpoint,
   proposalId: prepared.id,
   proposalDigest: prepared.digest,
   geometryLeaked: false,
   githubKnown: false,
   opsKnown: false,
+  exactWireSerializer: true,
 }));
