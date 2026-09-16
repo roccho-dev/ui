@@ -42,6 +42,15 @@ const graphPresentationProjection = (domain, direction, pins) => {
   });
 };
 
+const withGraphPinState = (scene, pins) => Object.freeze({
+  ...scene,
+  representations: Object.freeze(scene.representations.map((representation) => {
+    const regionId = representation.sourceRegionId ?? representation.regionId;
+    if (representation.mode === 'boundary' || representation.isGuide || !pins.has(regionId)) return representation;
+    return Object.freeze({ ...representation, layoutPinned: true });
+  })),
+});
+
 const graphLayoutControls = (scope, onSelect, onUnpin) => {
   const controls = scope.document.createElement('div');
   controls.className = 'semantic-map-layout-controls';
@@ -129,11 +138,14 @@ export const mountSemanticMapSurface = async ({
     : null;
 
   const projectDomain = (domain, candidateView = view, resolvedModules = activeModules) => {
-    const presentationProjection = featureId === 'graph' && candidateView.pattern === 'graph/1'
-      ? graphPresentationProjection(domain, activeDirection, store.layoutHints ?? new Map())
+    const graph = featureId === 'graph' && candidateView.pattern === 'graph/1';
+    const pins = graph ? (store.layoutHints ?? new Map()) : new Map();
+    const presentationProjection = graph
+      ? graphPresentationProjection(domain, activeDirection, pins)
       : null;
     const projector = new SemanticProjector(domain, resolvedModules, candidateView, { presentationProjection });
-    return projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
+    const projected = projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
+    return graph ? withGraphPinState(projected, pins) : projected;
   };
   const project = () => projectDomain(store.domain, view, activeModules);
   const updateControls = () => {
