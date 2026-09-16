@@ -120,7 +120,7 @@ export class DecisionRuntime {
   }
 
   artifactEndpoint() {
-    return this.continuation.artifactEndpoint();
+    return this.continuation.artifactEndpoint;
   }
 
   draftOperations() {
