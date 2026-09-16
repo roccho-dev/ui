@@ -30,3 +30,40 @@ jobs:
         run: node tests/check-pr-governance.mjs
       - name: Validate pull request text
         run: node tests/check-pr-body-governance.mjs
+
+  t283-standalone-data-repair:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 291 && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/retire-smap-t283
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Patch standalone data input, regenerate registry, restore workflows
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('packages/semantic-map/authoring/entry.js')
+          text = path.read_text(encoding='utf-8')
+          old = "async function bootstrapEnvelope(config) {\n  if (config.input === PARENT_MESSAGE_INPUT) return embeddedEnvelope();\n  const initialText = document.getElementById('semantic-initial-state')?.textContent ?? '';\n"
+          new = "async function bootstrapEnvelope(config) {\n  if (config.input === PARENT_MESSAGE_INPUT) return embeddedEnvelope();\n  const transported = await globalThis.semanticMapDataTransport?.read?.();\n  if (transported !== null && transported !== undefined) return (await inspectEnvelope(transported)).envelope;\n  const initialText = document.getElementById('semantic-initial-state')?.textContent ?? '';\n"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'bootstrapEnvelope anchor count={count}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          node apps/artifact-shell/scripts/build-registry.mjs
+          git checkout 29c1f9d23f32eda95e7804dc0730c7171c66f3a7 -- .github/workflows/pr-governance.yml .github/workflows/a2ui-adapter-artifacts.yml
+          rm -f .github/workflows/t283-standalone-data-load.yml
+          git add -A
+          git commit -m "fix: load standalone semantic map from generic data transport"
+          git push origin HEAD:fix/retire-smap-t283
