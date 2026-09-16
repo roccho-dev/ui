@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - packages/semantic-map/**
+      - packages/core-port/src/intent-client.mjs
+      - packages/core-port/fixtures/semantic-intent-v1/**
+      - packages/core-port/test/intent-client.test.mjs
+      - packages/connectability/**
       - packages/business-model/**
       - packages/a2ui-browser/**
       - packages/control/**
@@ -29,6 +33,10 @@ jobs:
           persist-credentials: false
       - name: Prove semantic source gates
         run: node packages/semantic-map/tests/run.mjs
+      - name: Prove semantic intent wire and single output port
+        run: |
+          node packages/core-port/test/intent-client.test.mjs
+          node packages/connectability/tests/run.mjs
       - name: Check preview cases
         run: npm --prefix apps/preview run check
       - name: Install pinned browser proof tooling
@@ -42,6 +50,8 @@ jobs:
           with sync_playwright() as playwright:
               print(f"CHROMIUM_EXECUTABLE={playwright.chromium.executable_path}")
           PY
+      - name: Prove Semantic Map handoff through same-origin intent
+        run: python3 packages/semantic-map/tests/handoff_intent_browser_e2e.py
       - name: Prove one data fragment across graph seq presentation
         run: python3 apps/preview/tests/unified-runtime-data-browser-proof.py
       - name: Prove Control one-grid alignment
