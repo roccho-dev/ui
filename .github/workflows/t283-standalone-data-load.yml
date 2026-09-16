@@ -1,23 +1,20 @@
-name: T283 standalone #data load
+name: T283 standalone data load
 
 on:
   push:
-    branches:
-      - fix/retire-smap-t283
+    branches: [fix/retire-smap-t283]
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Read generic data transport before fixture input
-        shell: bash
+      - shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
@@ -43,5 +40,5 @@ jobs:
           node apps/artifact-shell/scripts/build-registry.mjs
           rm .github/workflows/t283-standalone-data-load.yml
           git add -A
-          git commit -m "fix: load standalone semantic map from generic #data"
+          git commit -m "fix: load standalone semantic map from generic data transport"
           git push origin HEAD:fix/retire-smap-t283
