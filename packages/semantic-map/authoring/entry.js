@@ -63,6 +63,8 @@ function embeddedEnvelope(timeoutMs = 15_000) {
 
 async function bootstrapEnvelope(config) {
   if (config.input === PARENT_MESSAGE_INPUT) return embeddedEnvelope();
+  const transported = await globalThis.semanticMapDataTransport?.read?.();
+  if (transported !== null && transported !== undefined) return (await inspectEnvelope(transported)).envelope;
   const initialText = document.getElementById('semantic-initial-state')?.textContent ?? '';
   const initialRecords = parseSemanticMapRecords(initialText);
   const mapId = config.mapId || `urn:uuid:${crypto.randomUUID()}`;
