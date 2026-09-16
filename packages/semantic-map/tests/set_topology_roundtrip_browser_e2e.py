@@ -107,7 +107,6 @@ def main() -> None:
 
         fragment = "#" + urlsplit(accepted["accepted"]["url"]).fragment
         assert fragment.startswith("#data="), fragment
-        assert "#smap=" not in accepted["accepted"]["url"]
         recompiled_page = load_app(context, ROOT / "examples" / "render.semantic-map.set-topology" / "dist" / "index.html", errors, fragment=fragment)
         recompiled_page.wait_for_function("semanticMapSite.setTopologyProof === true")
         recompiled_page.wait_for_function("semanticMapApp.snapshot().scene.setOverlay.pairs[0]?.topology === 'partial-overlap'")

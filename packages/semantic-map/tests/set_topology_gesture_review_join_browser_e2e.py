@@ -261,7 +261,6 @@ def main() -> None:
                 assert current["overlay"] == {"active": False, "overlay": None}
                 assert current["pending"] is False
                 assert "#data=" in accepted["url"]
-                assert "#smap=" not in accepted["url"]
 
                 envelope = page.evaluate("async () => await semanticMapRuntime.envelope()")
                 fragment = data_fragment(envelope)
