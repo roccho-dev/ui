@@ -19,10 +19,26 @@ assert.deepEqual(Object.keys(editorCore).sort(), expectedEditorCoreExports);
 for (const name of ['EditorCore', 'normalizeOperation', 'operationToGesture', 'MAX_DECISION_OPERATIONS']) {
   assert.equal(Object.hasOwn(editorCore, name), false);
 }
-const surfacePort = { render() {}, onGesture() {}, destroy() {} };
+const surfaceCalls = [];
+const surfacePort = {
+  rawCell: { id: 'must-not-escape' },
+  render(value) { assert.equal(this, surfacePort); surfaceCalls.push('render'); return value; },
+  onGesture() { assert.equal(this, surfacePort); surfaceCalls.push('onGesture'); return () => surfaceCalls.push('unsubscribe'); },
+  destroy() { assert.equal(this, surfacePort); surfaceCalls.push('destroy'); return true; },
+};
 const documentPort = { requestEdit() {}, commit() {}, reload() {}, renderChrome() {} };
 const authorityPort = { authorize() {} };
-assert.equal(editorCore.assertSurfacePort(surfacePort), surfacePort);
+const checkedSurface = editorCore.assertSurfacePort(surfacePort);
+assert.notEqual(checkedSurface, surfacePort);
+assert.deepEqual(Object.keys(checkedSurface).sort(), ['destroy', 'onGesture', 'render']);
+assert.equal(Object.isFrozen(checkedSurface), true);
+assert.equal(checkedSurface.rawCell, undefined);
+const surfaceValue = { accepted: true };
+assert.equal(checkedSurface.render(surfaceValue), surfaceValue);
+const removeSurfaceListener = checkedSurface.onGesture(() => {});
+removeSurfaceListener();
+assert.equal(checkedSurface.destroy(), true);
+assert.deepEqual(surfaceCalls, ['render', 'onGesture', 'unsubscribe', 'destroy']);
 assert.equal(editorCore.assertDocumentPort(documentPort), documentPort);
 assert.equal(editorCore.assertAuthorityPort(authorityPort), authorityPort);
 assert.throws(() => editorCore.assertSurfacePort({ render() {}, destroy() {} }), /SurfacePort\.onGesture is required/u);
