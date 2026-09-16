@@ -9,27 +9,40 @@ on:
   workflow_dispatch:
 
 jobs:
-  gesture-review-join:
+  registry-repair:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        chunk: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Emit canonical registry repair material
+      - name: Emit one canonical registry chunk
+        env:
+          CHUNK: ${{ matrix.chunk }}
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/ui207-capability-registry.mjs"
-          node apps/artifact-shell/scripts/build-registry.mjs --output "$output"
+          node apps/artifact-shell/scripts/build-registry.mjs --output "$output" >/dev/null
           OUTPUT="$output" python3 - <<'PY'
           import base64
           import os
           from pathlib import Path
           value = base64.b64encode(Path(os.environ["OUTPUT"]).read_bytes()).decode("ascii")
           width = 12000
-          print(f"UI207_REGISTRY_CHUNKS={(len(value) + width - 1) // width}")
-          for index in range(0, len(value), width):
-              print(f"UI207_REGISTRY_{index // width + 1:02d}={value[index:index + width]}")
+          index = int(os.environ["CHUNK"])
+          chunks = [value[offset:offset + width] for offset in range(0, len(value), width)]
+          if len(chunks) != 6:
+              raise SystemExit(f"unexpected chunk count: {len(chunks)}")
+          print(f"UI207_REGISTRY_{index + 1:02d}={chunks[index]}")
           PY
+  gesture-review-join:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install pinned browser proof tooling
         run: |
           python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
