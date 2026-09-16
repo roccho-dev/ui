@@ -1,0 +1,6 @@
+{
+  "name": "@roccho/semantic-map-renderer-maxgraph",
+  "private": true,
+  "type": "module",
+  "exports": {}
+}
