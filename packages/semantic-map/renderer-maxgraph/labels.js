@@ -29,7 +29,9 @@ function compactLabel(label) {
 }
 
 export function displayedRegionLabel(representation, scale, theme, selected) {
-  const label = String(representation.label ?? '');
+  const semanticLabel = String(representation.label ?? '');
+  const pin = representation.layoutPinned ? '📌' : '';
+  const label = pin ? `${pin}${semanticLabel ? ` ${semanticLabel}` : ''}` : semanticLabel;
   if (!label) return '';
   if (selected || representation.isGuide || representation.shape === 'map-attribution') return label;
 
@@ -45,9 +47,9 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
   const minimumHeight = fontSize * (representation.shape === 'boundary' ? 1.7 : Math.max(1.45, lineCount * 1.25));
 
   if (lineCount > 1 && height < minimumHeight) {
-    return height >= fontSize * 1.45 ? lines[0] : '';
+    return height >= fontSize * 1.45 ? lines[0] : pin;
   }
-  if (height < minimumHeight) return '';
+  if (height < minimumHeight) return pin;
 
   const estimatedWidth = estimatedLabelWidth(label, fontSize);
   if (estimatedWidth <= availableWidth) return label;
@@ -58,9 +60,8 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
   if (height >= wrappedMinimumHeight) return label;
 
   const compact = compactLabel(label);
-  return compact !== label && estimatedLabelWidth(compact, fontSize) <= availableWidth
-    ? compact
-    : '';
+  if (compact !== label && estimatedLabelWidth(compact, fontSize) <= availableWidth) return compact;
+  return pin;
 }
 
 export function displayedRelationLabel(relation, scale, theme, representationsById, selected) {
