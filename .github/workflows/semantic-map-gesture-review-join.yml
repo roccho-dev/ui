@@ -9,57 +9,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  source-diagnostic:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Locate retired store imports
-        run: grep -R -n --include='*.js' 'SemanticDomainStore' packages/semantic-map || true
-  registry-repair:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        chunk:
-          - 0
-          - 1
-          - 2
-          - 3
-          - 4
-          - 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Emit one canonical registry chunk
-        env:
-          CHUNK: ${{ matrix.chunk }}
-        run: |
-          set -euo pipefail
-          node --input-type=module - <<'NODE'
-          import { buildRegistry } from './apps/artifact-shell/scripts/build-registry.mjs';
-          import fs from 'node:fs/promises';
-          const result = await buildRegistry({
-            capabilitiesRoot: new URL('./apps/artifact-shell/capabilities/', import.meta.url).pathname,
-            check: false,
-            output: new URL('./apps/artifact-shell/generated/capability-registry.mjs', import.meta.url).pathname,
-            write: false,
-          });
-          await fs.writeFile(process.env.RUNNER_TEMP + '/ui207-capability-registry.mjs', result.source);
-          NODE
-          OUTPUT="$RUNNER_TEMP/ui207-capability-registry.mjs" python3 - <<'PY'
-          import base64
-          import os
-          from pathlib import Path
-          value = base64.b64encode(Path(os.environ["OUTPUT"]).read_bytes()).decode("ascii")
-          width = 12000
-          index = int(os.environ["CHUNK"])
-          chunks = [value[offset:offset + width] for offset in range(0, len(value), width)]
-          if len(chunks) != 6:
-              raise SystemExit(f"unexpected chunk count: {len(chunks)}")
-          print(f"UI207_REGISTRY_{index + 1:02d}={chunks[index]}")
-          PY
   gesture-review-join:
     runs-on: ubuntu-latest
     steps:
