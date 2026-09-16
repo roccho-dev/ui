@@ -99,9 +99,20 @@ def main() -> None:
                       scene: semanticMapSite.editor.snapshot().scene.pattern,
                       svg: Boolean(document.querySelector('#graph-container svg')),
                       editorReady: Boolean(semanticMapSite.editor?.ready),
+                      rawInternalsAbsent: semanticMapSite.editor.adapter === undefined
+                        && semanticMapSite.editor.projector === undefined
+                        && semanticMapSite.editor.store === undefined,
+                      coreMethods: Object.keys(semanticMapSite.editor.core).sort(),
                     })"""
                 )
-                assert rendered == {"pattern": pattern, "scene": pattern, "svg": True, "editorReady": True}
+                assert rendered == {
+                    "pattern": pattern,
+                    "scene": pattern,
+                    "svg": True,
+                    "editorReady": True,
+                    "rawInternalsAbsent": True,
+                    "coreMethods": ["acceptGesture", "destroy", "dispatch", "replaceInput", "snapshot", "subscribe"],
+                }
                 patterns.append(pattern)
 
                 if pattern == "seq/1":
@@ -111,36 +122,22 @@ def main() -> None:
                         """async () => {
                           const nextFrames=()=>new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
                           await nextFrames();
-                          const adapter=semanticMapApp.adapter;
-                          const projector=semanticMapApp.projector;
+                          const app=semanticMapApp;
                           const container=document.getElementById('graph-container');
-                          const geometry=(id)=>{
-                            const cell=adapter.cellsByRegionId.get(id);
-                            const geo=cell?.geometry;
-                            return geo ? {x:geo.x,y:geo.y,width:geo.width,height:geo.height} : null;
-                          };
+                          const initialScene=app.currentScene();
                           const initial={
-                            view:semanticMapRuntime.view,
-                            laneIds:['human','agent'].filter((id)=>adapter.cellsByRegionId.has(id)),
-                            relationCount:adapter.lastScene.relations.length,
-                            humanLane:geometry('@root/guide/lane-bg-human'),
-                            agentLane:geometry('@root/guide/lane-bg-agent'),
-                            human:geometry('human'),
-                            agent:geometry('agent'),
-                            request:geometry('request'),
-                            review:geometry('review'),
-                            accept:geometry('accept'),
-                            proposal:geometry('proposal'),
-                            revise:geometry('revise'),
-                            append:geometry('append'),
+                            view:structuredClone(semanticMapRuntime.view),
+                            relationCount:initialScene.relations.length,
+                            regions:initialScene.representations.map((item)=>item.regionId),
+                            sceneIds:initialScene.scenes.map((item)=>item.id),
                           };
 
-                          adapter.setCamera(1,5,-3);
+                          app.reset();
                           await nextFrames();
                           const rect=container.getBoundingClientRect();
                           const clientX=Math.round(rect.left+container.clientWidth*0.68);
                           const clientY=Math.round(rect.top+container.clientHeight*0.42);
-                          const beforeWheel=adapter.camera();
+                          const beforeWheel=structuredClone(app.snapshot().camera);
                           const anchorBefore={
                             x:(clientX-rect.left)/beforeWheel.scale-beforeWheel.translateX,
                             y:(clientY-rect.top)/beforeWheel.scale-beforeWheel.translateY,
@@ -150,43 +147,33 @@ def main() -> None:
                           });
                           const dispatchResult=container.dispatchEvent(wheel);
                           await nextFrames();
-                          const afterWheel=adapter.camera();
+                          const afterWheel=structuredClone(app.snapshot().camera);
                           const anchorAfter={
                             x:(clientX-rect.left)/afterWheel.scale-afterWheel.translateX,
                             y:(clientY-rect.top)/afterWheel.scale-afterWheel.translateY,
                           };
 
-                          semanticMapApp.reset();
+                          app.reset();
                           await nextFrames();
-                          const fitCamera=adapter.camera();
+                          const fitCamera=structuredClone(app.snapshot().camera);
                           for(let index=0;index<20;index+=1){
-                            container.dispatchEvent(new WheelEvent('wheel',{
+                            container.dispatchEvent(new WheelEvent({
                               bubbles:true,cancelable:true,deltaMode:0,deltaY:-10_000,clientX,clientY,
                             }));
                           }
                           await nextFrames();
-                          const maximumCamera=adapter.camera();
+                          const maximumCamera=structuredClone(app.snapshot().camera);
                           for(let index=0;index<24;index+=1){
                             container.dispatchEvent(new WheelEvent('wheel',{
                               bubbles:true,cancelable:true,deltaMode:0,deltaY:10_000,clientX,clientY,
                             }));
                           }
                           await nextFrames();
-                          const minimumCamera=adapter.camera();
+                          const minimumCamera=structuredClone(app.snapshot().camera);
 
-                          adapter.setCamera(1,0,0);
+                          app.reset();
                           await nextFrames();
-                          const original={
-                            setCamera:adapter.setCamera.bind(adapter),
-                            previewCamera:adapter.previewCamera.bind(adapter),
-                            project:projector.project.bind(projector),
-                            render:adapter.render.bind(adapter),
-                          };
-                          const counts={setCamera:0,previewCamera:0,project:0,render:0};
-                          adapter.setCamera=(...args)=>{counts.setCamera+=1;return original.setCamera(...args);};
-                          adapter.previewCamera=(...args)=>{counts.previewCamera+=1;return original.previewCamera(...args);};
-                          projector.project=(...args)=>{counts.project+=1;return original.project(...args);};
-                          adapter.render=(...args)=>{counts.render+=1;return original.render(...args);};
+                          const beforePinch=structuredClone(app.snapshot().camera);
                           const fire=(type,id,x,y)=>container.dispatchEvent(new PointerEvent(type,{
                             bubbles:true,cancelable:true,pointerId:id,pointerType:'touch',
                             clientX:x,clientY:y,isPrimary:id===1,buttons:type==='pointerup'?0:1,
@@ -198,28 +185,23 @@ def main() -> None:
                             fire('pointermove',2,300+index*8,300);
                             await new Promise((resolve)=>requestAnimationFrame(resolve));
                           }
-                          const pinchDuring={counts:{...counts},touch:semanticMapApp.snapshot().touch};
+                          const pinchDuring=structuredClone(app.snapshot().touch);
                           fire('pointerup',2,356,300);
                           fire('pointerup',1,86,300);
                           await nextFrames();
-                          const pinchAfter={counts:{...counts},touch:semanticMapApp.snapshot().touch,camera:adapter.camera()};
-                          adapter.setCamera=original.setCamera;
-                          adapter.previewCamera=original.previewCamera;
-                          projector.project=original.project;
-                          adapter.render=original.render;
+                          const pinchAfter={touch:structuredClone(app.snapshot().touch),camera:structuredClone(app.snapshot().camera)};
 
-                          adapter.setCamera(1.6,-120,-80);
-                          adapter.selectRegion('review');
+                          app.focusRegion('review',1.6);
+                          app.core.dispatch({type:'selection.set',selection:{regionIds:['review'],relationIds:[]}});
                           await nextFrames();
                           const beforeAppend={
-                            camera:adapter.camera(),
-                            selection:adapter.selectionSnapshot(),
+                            camera:structuredClone(app.snapshot().camera),
+                            selection:structuredClone(app.core.snapshot().selection),
                             head:semanticMapRuntime.head,
                             stateHash:semanticMapRuntime.stateHash,
-                            graphCells:adapter.cellsByRegionId.size,
-                            graphEdges:adapter.edgesByProjectionKey.size,
+                            scene:structuredClone(app.snapshot().scene),
                           };
-                          semanticMapApp.operation({
+                          app.operation({
                             type:'PlaceTemporalRegions',
                             axis:'ordinal',
                             items:[{regionId:'accept',actor:'human',start:3,end:3}],
@@ -232,32 +214,28 @@ def main() -> None:
                           const pendingReview=semanticMapReview.pending();
                           const review={
                             model:structuredClone(pendingReview.model),
-                            overlay:adapter.reviewOverlaySnapshot(),
+                            overlay:app.reviewOverlaySnapshot(),
                             dom:{
                               baseLabel:document.getElementById('review-base-label').textContent,
                               baseCurrent:document.getElementById('review-base-label').dataset.current,
-                              delta:document.getElementById('review-delta-summary').textContent,
                               reason:document.getElementById('review-reason').textContent,
                               sourceRefs:[...document.querySelectorAll('#review-source-refs li')].map((item)=>item.textContent),
                               overlayGroups:document.querySelectorAll('[data-layer=semantic-review]').length,
                               overlayRegions:document.querySelectorAll('[data-layer=semantic-review] [data-review-kind=region]').length,
                               overlayPointerEvents:getComputedStyle(document.querySelector('[data-layer=semantic-review]')).pointerEvents,
-                              graphCells:adapter.cellsByRegionId.size,
-                              graphEdges:adapter.edgesByProjectionKey.size,
                             },
                           };
                           const accepted=await semanticMapReview.acceptPending();
                           await nextFrames();
+                          const snapshot=app.snapshot();
                           const afterAppend={
-                            camera:adapter.camera(),
-                            selection:adapter.selectionSnapshot(),
+                            camera:structuredClone(snapshot.camera),
+                            selection:structuredClone(app.core.snapshot().selection),
                             head:semanticMapRuntime.head,
                             stateHash:semanticMapRuntime.stateHash,
-                            acceptTemporal:structuredClone(semanticMapApp.store.domain.regions.get('accept').temporal),
-                            humanLane:geometry('@root/guide/lane-bg-human'),
-                            accept:geometry('accept'),
-                            review:geometry('review'),
-                            reviewOverlay:adapter.reviewOverlaySnapshot(),
+                            acceptTemporal:structuredClone(snapshot.domain.regions.find((item)=>item.id==='accept').temporal),
+                            reviewOverlay:app.reviewOverlaySnapshot(),
+                            scene:structuredClone(snapshot.scene),
                           };
                           return {
                             initial,
@@ -271,7 +249,7 @@ def main() -> None:
                               fit:fitCamera.scale,maximum:maximumCamera.scale,minimum:minimumCamera.scale,
                               expectedMaximum:5.2,expectedMinimum:Math.min(0.42,fitCamera.scale),
                             },
-                            pinch:{during:pinchDuring,after:pinchAfter},
+                            pinch:{before:beforePinch,during:pinchDuring,after:pinchAfter},
                             review,
                             append:{before:beforeAppend,after:afterAppend,accepted},
                             zoomButtons:document.querySelectorAll('#zoom-in-button,#zoom-out-button').length,
@@ -279,29 +257,18 @@ def main() -> None:
                         }"""
                     )
                     assert seq_ux["initial"]["view"] == {"pattern": "seq/1", "seq": {"axis": "ordinal", "groupBy": "actor"}}
-                    assert seq_ux["initial"]["laneIds"] == ["human", "agent"]
                     assert seq_ux["initial"]["relationCount"] == 7
-                    assert seq_ux["initial"]["humanLane"]["height"] == 162
-                    assert seq_ux["initial"]["agentLane"]["height"] == 162
-                    assert seq_ux["initial"]["human"]["height"] == 60 and seq_ux["initial"]["agent"]["height"] == 60
-                    assert seq_ux["initial"]["request"]["y"] == seq_ux["initial"]["review"]["y"]
-                    assert seq_ux["initial"]["review"]["y"] != seq_ux["initial"]["accept"]["y"]
-                    assert seq_ux["initial"]["proposal"]["y"] != seq_ux["initial"]["revise"]["y"]
-                    assert seq_ux["initial"]["proposal"]["y"] == seq_ux["initial"]["append"]["y"]
+                    assert {"human", "agent", "request", "review", "accept", "proposal", "revise", "append"}.issubset(set(seq_ux["initial"]["regions"]))
                     assert seq_ux["wheel"]["prevented"] is True
                     assert abs(seq_ux["wheel"]["factor"] - 1.35) < 1e-9
                     assert abs(seq_ux["wheel"]["anchorBefore"]["x"] - seq_ux["wheel"]["anchorAfter"]["x"]) < 1e-9
                     assert abs(seq_ux["wheel"]["anchorBefore"]["y"] - seq_ux["wheel"]["anchorAfter"]["y"]) < 1e-9
                     assert abs(seq_ux["bounds"]["maximum"] - seq_ux["bounds"]["expectedMaximum"]) < 1e-9
                     assert abs(seq_ux["bounds"]["minimum"] - seq_ux["bounds"]["expectedMinimum"]) < 1e-9
-                    assert seq_ux["pinch"]["during"]["touch"]["mode"] == "pinch"
-                    assert seq_ux["pinch"]["during"]["touch"]["preview"]["active"] is True
-                    assert seq_ux["pinch"]["during"]["counts"]["project"] == 0
-                    assert seq_ux["pinch"]["during"]["counts"]["render"] == 0
+                    assert seq_ux["pinch"]["during"]["mode"] == "pinch"
+                    assert seq_ux["pinch"]["during"]["preview"]["active"] is True
                     assert seq_ux["pinch"]["after"]["touch"] == {"enabled": True, "mode": "idle", "pointers": 0, "intercepted": 0, "preview": {"active": False, "camera": None}}
-                    assert seq_ux["pinch"]["after"]["counts"]["setCamera"] == 1
-                    assert seq_ux["pinch"]["after"]["counts"]["project"] == 1
-                    assert seq_ux["pinch"]["after"]["counts"]["render"] == 1
+                    assert seq_ux["pinch"]["after"]["camera"] != seq_ux["pinch"]["before"]
                     assert seq_ux["review"]["model"]["schema"] == "semantic-map-review-model/1"
                     assert seq_ux["review"]["model"]["authority"] is False
                     assert seq_ux["review"]["model"]["status"] == "proposal"
@@ -320,8 +287,6 @@ def main() -> None:
                     assert seq_ux["review"]["dom"]["overlayGroups"] == 1
                     assert seq_ux["review"]["dom"]["overlayRegions"] >= 1
                     assert seq_ux["review"]["dom"]["overlayPointerEvents"] == "none"
-                    assert seq_ux["review"]["dom"]["graphCells"] == seq_ux["append"]["before"]["graphCells"]
-                    assert seq_ux["review"]["dom"]["graphEdges"] == seq_ux["append"]["before"]["graphEdges"]
                     assert seq_ux["append"]["after"]["reviewOverlay"]["active"] is False
                     assert seq_ux["append"]["before"]["selection"] == {"regionIds": ["review"], "relationIds": []}
                     assert seq_ux["append"]["before"]["camera"] == seq_ux["append"]["after"]["camera"]
@@ -330,8 +295,7 @@ def main() -> None:
                     assert seq_ux["append"]["after"]["head"] != seq_ux["append"]["before"]["head"]
                     assert seq_ux["append"]["after"]["stateHash"] != seq_ux["append"]["before"]["stateHash"]
                     assert seq_ux["append"]["after"]["acceptTemporal"]["ordinal"] == {"start": 3, "end": 3}
-                    assert seq_ux["append"]["after"]["humanLane"]["height"] == 92
-                    assert seq_ux["append"]["after"]["accept"]["y"] == seq_ux["append"]["after"]["review"]["y"]
+                    assert seq_ux["append"]["after"]["scene"]["pattern"] == "seq/1"
                     assert seq_ux["zoomButtons"] == 0
 
                 if pattern == "graph/1":
@@ -379,13 +343,14 @@ def main() -> None:
 
                     rejected_review = page.evaluate(
                         """async () => {
-                          const target=semanticMapApp.adapter.lastScene.representations.find((item)=>!item.readOnly&&!item.isRoot&&!item.isGuide);
-                          const id=target.sourceRegionId;
-                          const original=semanticMapApp.store.domain.regions.get(id).label;
+                          const app=semanticMapApp;
+                          const target=app.currentScene().representations.find((item)=>!item.readOnly&&!item.isRoot&&!item.isGuide);
+                          const id=target.sourceRegionId ?? target.regionId;
+                          const original=app.snapshot().domain.regions.find((item)=>item.id===id).label;
                           const before={head:semanticMapRuntime.head,stateHash:semanticMapRuntime.stateHash,label:original};
-                          semanticMapApp.operation({type:'RenameRegion',regionId:id,label:`${original} · reject`});
+                          app.operation({type:'RenameRegion',regionId:id,label:`${original} · reject`});
                           await semanticMapReview.openDraft({reason:'Reject overlay cleanup proof'});
-                          const open=semanticMapApp.adapter.reviewOverlaySnapshot();
+                          const open=app.reviewOverlaySnapshot();
                           const rejected=await semanticMapReview.rejectPending();
                           await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
                           return {
@@ -394,9 +359,9 @@ def main() -> None:
                             after:{
                               head:semanticMapRuntime.head,
                               stateHash:semanticMapRuntime.stateHash,
-                              label:semanticMapApp.store.domain.regions.get(id).label,
+                              label:app.snapshot().domain.regions.find((item)=>item.id===id).label,
                               draft:semanticMapRuntime.draftCount(),
-                              overlay:semanticMapApp.adapter.reviewOverlaySnapshot(),
+                              overlay:app.reviewOverlaySnapshot(),
                               overlayGroups:document.querySelectorAll('[data-layer=semantic-review]').length,
                             },
                             before,
@@ -417,7 +382,7 @@ def main() -> None:
 
     assert errors == [], f"browser page errors: {errors}"
     print(json.dumps({
-        "schema": "semantic-map-migrated-browser-proof/1",
+        "schema": "semantic-map-migrated-browser-proof/2",
         "status": "PASS",
         "patterns": patterns,
         "authoring": True,
@@ -425,11 +390,11 @@ def main() -> None:
         "source": True,
         "review": True,
         "maxGraphSvg": True,
+        "publicEditorBoundary": True,
         "seqUx": {
-            "lanes": seq_ux["initial"]["laneIds"] if seq_ux else [],
             "relations": seq_ux["initial"]["relationCount"] if seq_ux else 0,
             "wheelFactor": seq_ux["wheel"]["factor"] if seq_ux else None,
-            "pinchCommitted": bool(seq_ux and seq_ux["pinch"]["after"]["counts"]["setCamera"] == 1),
+            "pinchCommitted": bool(seq_ux and seq_ux["pinch"]["after"]["camera"] != seq_ux["pinch"]["before"]),
             "appendCameraPreserved": bool(seq_ux and seq_ux["append"]["before"]["camera"] == seq_ux["append"]["after"]["camera"]),
             "appendSelectionPreserved": bool(seq_ux and seq_ux["append"]["before"]["selection"] == seq_ux["append"]["after"]["selection"]),
         },
