@@ -206,6 +206,63 @@ assert.equal(first.surface.renders.length, rendersBeforeCandidate, 'candidate pr
 assert.equal(first.document.chrome.length, chromeBeforeCandidate, 'candidate projection must not render accepted chrome');
 assert.equal(eventsDuringCandidate, 0, 'candidate projection must not publish core events');
 
+let candidateReentryMode = 'setup';
+let candidateReentryCallbacks = 0;
+let candidateReentrySnapshot = null;
+core.dispatch({
+  type: 'presentation.configure',
+  projection: {
+    view: defaultViewForPattern('graph/1'),
+    modules: null,
+    projectPresentation() {
+      if (candidateReentryMode === 'setup') return null;
+      candidateReentryCallbacks += 1;
+      candidateReentrySnapshot = core.snapshot();
+      assert.throws(() => core.dispatch({ type: 'frame.set', frame: { id: 'forbidden' } }), /nested mutation transaction/u);
+      assert.throws(() => core.acceptGesture({ type: 'selection.changed', selection: { regionIds: ['request'], relationIds: [] } }), /nested mutation transaction/u);
+      assert.throws(() => core.replaceInput(core.snapshot().records), /nested mutation transaction/u);
+      assert.throws(() => core.destroy(), /nested mutation transaction/u);
+      if (candidateReentryMode === 'throw') throw new Error('E_CANDIDATE_PROJECTION_CALLBACK');
+      return null;
+    },
+    presentation: {
+      camera: { scale: 1, translateX: 0, translateY: 0 },
+      viewport: { x: 0, y: 0, width: 1200, height: 800 },
+    },
+  },
+});
+const acceptedBeforeReentry = structuredClone(core.snapshot());
+const rendersBeforeReentry = first.surface.renders.length;
+const chromeBeforeReentry = first.document.chrome.length;
+let eventsDuringReentry = 0;
+const removeReentryListener = core.subscribe(() => { eventsDuringReentry += 1; });
+for (const mode of ['return', 'throw']) {
+  candidateReentryMode = mode;
+  const project = () => core.dispatch({
+    type: 'presentation.project',
+    semantic: candidateRecords,
+    view: defaultViewForPattern('map/1'),
+    modules: null,
+    presentation: {
+      camera: { scale: 1, translateX: 0, translateY: 0 },
+      viewport: { x: 0, y: 0, width: 1200, height: 800 },
+    },
+  });
+  if (mode === 'throw') assert.throws(project, /E_CANDIDATE_PROJECTION_CALLBACK/u);
+  else assert.equal(project().pattern, 'map/1');
+  assert.deepEqual(candidateReentrySnapshot, acceptedBeforeReentry, `candidate ${mode} callback must observe accepted snapshot`);
+  assert.deepEqual(core.snapshot(), acceptedBeforeReentry, `candidate ${mode} callback must not mutate accepted state`);
+  assert.equal(first.surface.renders.length, rendersBeforeReentry, `candidate ${mode} callback must not render SurfacePort`);
+  assert.equal(first.document.chrome.length, chromeBeforeReentry, `candidate ${mode} callback must not render chrome`);
+  assert.equal(eventsDuringReentry, 0, `candidate ${mode} callback must not publish events`);
+}
+removeReentryListener();
+candidateReentryMode = 'setup';
+assert.equal(candidateReentryCallbacks, 2);
+core.dispatch({ type: 'frame.set', frame: { id: 'after-candidate' } });
+assert.deepEqual(core.snapshot().frame, { id: 'after-candidate' }, 'normal dispatch must recover after candidate projection');
+core.dispatch({ type: 'frame.set', frame: null });
+
 core.acceptGesture({ type: 'selection.changed', selection: { regionIds: ['request'], relationIds: [] } });
 assert.deepEqual(core.snapshot().selection, { regionIds: ['request'], relationIds: [] });
 
@@ -298,6 +355,7 @@ console.log(JSON.stringify({
   snapshotDetached: true,
   coreOwnsAcceptedSceneProjection: true,
   candidateProjectionReadOnly: true,
+  candidateProjectionReentryGuard: true,
   projectionConfigureAtomic: true,
   projectionCallbackDetached: true,
   authorityDenyAtomic: true,
