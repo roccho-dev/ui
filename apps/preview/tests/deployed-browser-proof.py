@@ -81,7 +81,9 @@ def prove_graph_pin(page):
           const site = globalThis.semanticMapSite;
           const pinned = site?.editor?.snapshot?.().layout?.some(record => record.regionId === regionId);
           const cell = site?.editor?.adapter?.cellsByRegionId?.get(regionId);
-          return pinned && cell?.semantic?.layoutPinned === true && String(cell.value ?? '').includes('📌');
+          const indicator = [...document.querySelectorAll('[data-layout-pin]')]
+            .some(node => node.getAttribute('data-layout-pin') === regionId);
+          return pinned && cell?.semantic?.layoutPinned === true && indicator;
         }""",
         arg=region_id,
         timeout=5_000,
@@ -91,12 +93,14 @@ def prove_graph_pin(page):
           const site = globalThis.semanticMapSite;
           const record = site.editor.snapshot().layout.find(item => item.regionId === regionId);
           const cell = site.editor.adapter.cellsByRegionId.get(regionId);
-          return {bounds: record?.bounds ?? null, label: String(cell?.value ?? ''), layoutPinned: cell?.semantic?.layoutPinned === true};
+          const indicator = [...document.querySelectorAll('[data-layout-pin]')]
+            .some(node => node.getAttribute('data-layout-pin') === regionId);
+          return {bounds: record?.bounds ?? null, indicator, layoutPinned: cell?.semantic?.layoutPinned === true};
         }""",
         region_id,
     )
     assert pinned['layoutPinned'] is True, pinned
-    assert '📌' in pinned['label'], pinned
+    assert pinned['indicator'] is True, pinned
     assert pinned['bounds'] is not None, pinned
 
     page.evaluate(
@@ -112,7 +116,9 @@ def prove_graph_pin(page):
           const site = globalThis.semanticMapSite;
           const hasHint = site?.editor?.snapshot?.().layout?.some(record => record.regionId === regionId);
           const cell = site?.editor?.adapter?.cellsByRegionId?.get(regionId);
-          return !hasHint && cell?.semantic?.layoutPinned !== true && !String(cell?.value ?? '').includes('📌');
+          const indicator = [...document.querySelectorAll('[data-layout-pin]')]
+            .some(node => node.getAttribute('data-layout-pin') === regionId);
+          return !hasHint && cell?.semantic?.layoutPinned !== true && !indicator;
         }""",
         arg=region_id,
         timeout=5_000,
