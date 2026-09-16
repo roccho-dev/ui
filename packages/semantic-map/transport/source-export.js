@@ -1,5 +1,5 @@
-import { recordsToJSONL } from '../domain/index.js';
 import { canonicalJson, inspectEnvelope } from '../protocol/index.js';
+import { stateRecordsToJSONL } from '../protocol/input-jsonl.js';
 import { resolveSmapInvocation } from './smap-delivery.js';
 
 export const SOURCE_EXPORT_SCHEMA = 'semantic-map-source-export/1';
@@ -11,7 +11,7 @@ function invariant(condition, message) {
 function fromInspection(inspection, delivery = null) {
   invariant(inspection && typeof inspection === 'object', 'Envelope inspection is required');
   const proposalStateJSONL = inspection.preview
-    ? recordsToJSONL(inspection.preview.records)
+    ? stateRecordsToJSONL(inspection.preview.records)
     : null;
   const proposal = inspection.preview
     ? Object.freeze({
@@ -25,7 +25,7 @@ function fromInspection(inspection, delivery = null) {
     mapId: inspection.base.mapId,
     head: inspection.base.head,
     stateHash: inspection.base.stateHash,
-    stateJSONL: recordsToJSONL(inspection.base.records),
+    stateJSONL: stateRecordsToJSONL(inspection.base.records),
     proposalStateJSONL,
     decisionLogJSONL: inspection.base.log,
     envelopeJSON: `${canonicalJson(inspection.envelope)}\n`,

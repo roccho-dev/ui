@@ -98,6 +98,27 @@ function renderOverlays(scene = this.lastScene) {
   }
   root.append(setGroup);
 
+  const pinGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  pinGroup.setAttribute('data-layer', 'layout-pins');
+  pinGroup.setAttribute('pointer-events', 'none');
+  for (const representation of scene.representations ?? []) {
+    if (!representation.layoutPinned || representation.mode === 'boundary' || representation.isGuide) continue;
+    const [right, top] = screenPoint([
+      representation.bounds.x + representation.bounds.width,
+      representation.bounds.y,
+    ]);
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    marker.setAttribute('x', String(Math.max(14, Math.min(width - 4, right - 5))));
+    marker.setAttribute('y', String(Math.max(4, Math.min(height - 18, top + 5))));
+    marker.setAttribute('text-anchor', 'end');
+    marker.setAttribute('dominant-baseline', 'hanging');
+    marker.setAttribute('font-size', '15');
+    marker.setAttribute('data-layout-pin', representation.sourceRegionId ?? representation.regionId);
+    marker.textContent = '📌';
+    pinGroup.append(marker);
+  }
+  root.append(pinGroup);
+
   const requestedFocus = this.focusMarkerRegionId;
   if (requestedFocus) {
     const visibleFocus = scene.selectionProxies?.[requestedFocus] ?? requestedFocus;
