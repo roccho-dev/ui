@@ -64,6 +64,14 @@ function normalizeInputDomain(input) {
   throw new Error('editor-core: semantic input is invalid');
 }
 
+function projectPresentationValue(projectPresentation, domain, view) {
+  const value = synchronous(
+    projectPresentation(structuredClone(domain), structuredClone(view)),
+    'presentation.configure projectPresentation',
+  );
+  return value == null ? null : structuredClone(value);
+}
+
 function createProjectionState(domain, input) {
   invariant(input && typeof input === 'object', 'presentation.configure projection is required');
   invariant(input.view && typeof input.view === 'object', 'presentation.configure view is required');
@@ -74,7 +82,7 @@ function createProjectionState(domain, input) {
   const projectPresentation = input.projectPresentation ?? (() => null);
   const view = structuredClone(input.view);
   const modules = input.modules ?? null;
-  const presentationProjection = projectPresentation(domain, view);
+  const presentationProjection = projectPresentationValue(projectPresentation, domain, view);
   return Object.freeze({
     view,
     modules,
@@ -229,10 +237,12 @@ class EditorCoreState extends DomainStateStore {
   }
 
   configureProjection(input) {
+    const hasPresentation = Object.hasOwn(input, 'presentation');
+    const nextPresentation = hasPresentation ? clonePresentation(input.presentation) : this.presentation;
     const next = createProjectionState(this.domain, input);
     this.projection = next;
     this.presentationProjection = next.presentationProjection;
-    if (Object.hasOwn(input, 'presentation')) this.presentation = clonePresentation(input.presentation);
+    if (hasPresentation) this.presentation = nextPresentation;
     return null;
   }
 
@@ -242,7 +252,7 @@ class EditorCoreState extends DomainStateStore {
     projector.setDomain(this.domain);
     projector.setModules(modules);
     projector.setView(view);
-    const presentationProjection = projectPresentation(this.domain, view);
+    const presentationProjection = projectPresentationValue(projectPresentation, this.domain, view);
     projector.setPresentationProjection(presentationProjection);
     this.presentationProjection = presentationProjection;
     this.scene = projector.project({
