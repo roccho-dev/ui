@@ -1,4 +1,5 @@
 export { canonicalJson, canonicalValue } from "./canonical.mjs";
+export { createDataTransport } from "./data-transport.mjs";
 export { sha256Hex } from "./digest.mjs";
 export {
   MAX_URL_MODULE_CHARS,
