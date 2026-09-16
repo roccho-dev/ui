@@ -89,10 +89,14 @@ def main() -> None:
             )
             for pattern, html in html_by_pattern.items():
                 page = context.new_page()
-                page.on("pageerror", lambda error: errors.append(str(error)))
+                page_errors: list[str] = []
+                page.on("pageerror", lambda error: (errors.append(str(error)), page_errors.append(str(error))))
                 install_test_crypto(page)
                 page.set_content(html, wait_until="load")
-                page.wait_for_function("globalThis.semanticMapSite?.ready === true", timeout=30_000)
+                try:
+                    page.wait_for_function("globalThis.semanticMapSite?.ready === true", timeout=30_000)
+                except Exception as error:
+                    raise AssertionError(f"semantic-map startup failed for {pattern}: {page_errors}") from error
                 rendered = page.evaluate(
                     """() => ({
                       pattern: semanticMapRuntime.view.pattern,
@@ -150,7 +154,7 @@ def main() -> None:
                           const afterWheel=structuredClone(app.snapshot().camera);
                           const anchorAfter={
                             x:(clientX-rect.left)/afterWheel.scale-afterWheel.translateX,
-                            y:(clientY-rect.top)/afterWheel.scale-afterWheel.translateY,
+                            y:(clientY-rect.top)/afterWheel.scale-beforeWheel.translateY,
                           };
 
                           app.reset();
