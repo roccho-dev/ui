@@ -9,6 +9,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  registry-repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Emit canonical registry chunks
+        run: |
+          node --input-type=module - <<'NODE'
+          import { buildRegistry } from './apps/artifact-shell/scripts/build-registry.mjs';
+          const result = await buildRegistry({
+            capabilitiesRoot: new URL('./apps/artifact-shell/capabilities/', import.meta.url).pathname,
+            check: false,
+            output: new URL('./apps/artifact-shell/generated/capability-registry.mjs', import.meta.url).pathname,
+            write: false,
+          });
+          const value = Buffer.from(result.source, 'utf8').toString('base64');
+          const width = 12000;
+          const chunks = Array.from({ length: Math.ceil(value.length / width) }, (_, index) => value.slice(index * width, (index + 1) * width));
+          console.log(`UI207_REGISTRY_CHUNKS=${chunks.length}`);
+          chunks.forEach((chunk, index) => console.log(`UI207_REGISTRY_${String(index + 1).padStart(2, '0')}=${chunk}`));
+          NODE
   gesture-review-join:
     runs-on: ubuntu-latest
     steps:
