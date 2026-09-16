@@ -1,0 +1,28 @@
+name: T283 regenerate final registry
+on:
+  push:
+    branches: [fix/retire-smap-t283]
+    paths: [.t283-final-registry-trigger]
+permissions:
+  contents: write
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/retire-smap-t283
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Regenerate and clean
+        run: |
+          set -euo pipefail
+          node apps/artifact-shell/scripts/build-registry.mjs
+          rm .github/workflows/t283-regenerate-final.yml .t283-final-registry-trigger
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "build: regenerate capability registry"
+          git push origin HEAD:fix/retire-smap-t283
