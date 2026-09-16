@@ -36,7 +36,11 @@ export function assertSurfacePort(surface) {
   for (const name of ['render', 'onGesture', 'destroy']) {
     method(surface, name, 'SurfacePort');
   }
-  return surface;
+  return Object.freeze({
+    render: (...args) => surface.render(...args),
+    onGesture: (...args) => surface.onGesture(...args),
+    destroy: (...args) => surface.destroy(...args),
+  });
 }
 
 export function assertDocumentPort(documentPort) {
