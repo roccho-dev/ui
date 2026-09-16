@@ -262,6 +262,32 @@ class EditorCoreState extends DomainStateStore {
     return this.scene;
   }
 
+  projectCandidateScene(command) {
+    invariant(this.projection, 'presentation.project requires presentation.configure');
+    const domain = normalizeInputDomain(command.semantic);
+    const view = command.view == null ? this.projection.view : structuredClone(command.view);
+    const modules = Object.hasOwn(command, 'modules') ? command.modules : this.projection.modules;
+    const presentation = clonePresentation(command.presentation ?? this.presentation);
+    invariant(presentation?.camera && presentation?.viewport, 'presentation.project presentation is required');
+    const presentationProjection = projectPresentationValue(this.projection.projectPresentation, domain, view);
+    const { projector } = this.projection;
+    try {
+      projector.setDomain(domain);
+      projector.setModules(modules);
+      projector.setView(view);
+      projector.setPresentationProjection(presentationProjection);
+      return structuredClone(projector.project({
+        scale: presentation.camera.scale,
+        viewport: presentation.viewport,
+      }));
+    } finally {
+      projector.setDomain(this.domain);
+      projector.setModules(this.projection.modules);
+      projector.setView(this.projection.view);
+      projector.setPresentationProjection(this.presentationProjection);
+    }
+  }
+
   renderSurface() {
     if (this.destroyed) return null;
     const scene = this.projectAcceptedScene();
@@ -381,6 +407,7 @@ class EditorCoreState extends DomainStateStore {
       this.transaction('presentation', null, () => ({ result: null, detail: { retry: true } }));
       return this.snapshot();
     }
+    if (command.type === 'presentation.project') return this.projectCandidateScene(command);
 
     const initial = this.prepareOperation(command);
     return this.transaction('mutation', initial.operation, (authority, beforeRevision) => {
