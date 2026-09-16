@@ -2,7 +2,6 @@ name: PR governance
 
 on:
   workflow_dispatch:
-  push:
   pull_request:
     types:
       - opened
@@ -33,7 +32,7 @@ jobs:
         run: node tests/check-pr-body-governance.mjs
 
   t283-standalone-data-repair:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/fix/retire-smap-t283' && github.actor != 'github-actions[bot]'
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'fix/retire-smap-t283' && github.event.pull_request.head.ref == 'chore/t283-repair-driver' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
