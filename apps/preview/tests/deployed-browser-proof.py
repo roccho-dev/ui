@@ -54,6 +54,78 @@ def prove_control_grid(page):
     return {"rows": 129, "reports": reports, "missing": missing, "aligned": 129}
 
 
+def prove_graph_pin(page):
+    target = page.evaluate(
+        """() => {
+          const site = globalThis.semanticMapSite;
+          const adapter = site?.editor?.adapter;
+          if (!adapter) throw new Error('semantic-map editor adapter missing');
+          const pair = [...adapter.cellsByRegionId.entries()].find(([, cell]) => (
+            cell?.isVertex?.()
+            && cell.semantic?.type === 'region'
+            && cell.semantic?.geometryEditable === true
+            && cell.semantic?.mode !== 'boundary'
+            && cell.semantic?.readOnly !== true
+          ));
+          if (!pair) throw new Error('movable graph region missing');
+          const [regionId, cell] = pair;
+          const geometry = cell.getGeometry();
+          const before = [geometry.x, geometry.y, geometry.width, geometry.height];
+          adapter.graph.moveCells([cell], 40, 20, false);
+          return {regionId, before};
+        }""",
+    )
+    region_id = target['regionId']
+    page.wait_for_function(
+        """regionId => {
+          const site = globalThis.semanticMapSite;
+          const pinned = site?.editor?.snapshot?.().layout?.some(record => record.regionId === regionId);
+          const cell = site?.editor?.adapter?.cellsByRegionId?.get(regionId);
+          return pinned && cell?.semantic?.layoutPinned === true && String(cell.value ?? '').includes('📌');
+        }""",
+        arg=region_id,
+        timeout=5_000,
+    )
+    pinned = page.evaluate(
+        """regionId => {
+          const site = globalThis.semanticMapSite;
+          const record = site.editor.snapshot().layout.find(item => item.regionId === regionId);
+          const cell = site.editor.adapter.cellsByRegionId.get(regionId);
+          return {bounds: record?.bounds ?? null, label: String(cell?.value ?? ''), layoutPinned: cell?.semantic?.layoutPinned === true};
+        }""",
+        region_id,
+    )
+    assert pinned['layoutPinned'] is True, pinned
+    assert '📌' in pinned['label'], pinned
+    assert pinned['bounds'] is not None, pinned
+
+    page.evaluate(
+        """regionId => globalThis.semanticMapSite.editor.adapter.setSelection({regionIds: [regionId], relationIds: []})""",
+        region_id,
+    )
+    unpin = page.locator("[data-layout-action='unpin']")
+    assert unpin.count() == 1
+    assert not unpin.is_disabled()
+    unpin.click()
+    page.wait_for_function(
+        """regionId => {
+          const site = globalThis.semanticMapSite;
+          const hasHint = site?.editor?.snapshot?.().layout?.some(record => record.regionId === regionId);
+          const cell = site?.editor?.adapter?.cellsByRegionId?.get(regionId);
+          return !hasHint && cell?.semantic?.layoutPinned !== true && !String(cell?.value ?? '').includes('📌');
+        }""",
+        arg=region_id,
+        timeout=5_000,
+    )
+    return {
+        "regionId": region_id,
+        "before": target['before'],
+        "pinnedBounds": pinned['bounds'],
+        "indicator": True,
+        "unpin": True,
+    }
+
+
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch()
     page = browser.new_page(viewport={"width": 1440, "height": 1000})
@@ -80,6 +152,7 @@ with sync_playwright() as playwright:
 
     checked = []
     control = None
+    graph_pin = None
     for item in links:
         page.goto(item['href'], wait_until='domcontentloaded', timeout=20_000)
         wait_for_status(page, 20)
@@ -90,9 +163,12 @@ with sync_playwright() as playwright:
         assert page.locator('#fatal').is_hidden(), item
         if item['id'] == 'control':
             control = prove_control_grid(page)
+        if item['id'] == 'graph':
+            graph_pin = prove_graph_pin(page)
         checked.append(item['id'])
 
     assert control is not None
+    assert graph_pin is not None
     browser.close()
 
-print(json.dumps({"schema": "ui-preview-deployed-browser-proof/2", "status": "PASS", "base": base, "cases": checked, "control": control}, ensure_ascii=False))
+print(json.dumps({"schema": "ui-preview-deployed-browser-proof/2", "status": "PASS", "base": base, "cases": checked, "control": control, "graphPin": graph_pin}, ensure_ascii=False))
