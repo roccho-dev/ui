@@ -1,4 +1,4 @@
-import { createUrlModuleUrl, readUrlModule } from '../../packages/url-module/src/index.mjs';
+import { createDataTransport, createUrlModuleUrl } from '../../packages/url-module/src/index.mjs';
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`ui-preview: ${message}`); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -131,7 +131,8 @@ const renderLauncher = async () => {
 };
 
 const renderFeature = async item => {
-  const input = await readUrlModule({ fragment: 'data', input: globalThis.location.href });
+  const transport = createDataTransport(globalThis);
+  const input = await transport.read(globalThis.location.href);
   invariant(input !== null, `${item.id}: #data required`);
   let feature = item.feature;
   if (typeof feature.plan === 'string') {
@@ -152,7 +153,7 @@ const renderFeature = async item => {
   invariant(root, 'feature root missing');
   document.body.dataset.mode = 'feature';
   document.title = `UI · ${item.label}`;
-  const mounted = await runtime.mountFeature({ feature, input, root, scope: globalThis });
+  const mounted = await runtime.mountFeature({ feature, input, root, scope: globalThis, transport });
   document.documentElement.dataset.status = 'pass';
   globalThis.uiPreviewProof = Object.freeze({ status: 'PASS', mode: 'feature', caseId: item.id, source: item.source, feature, mounted: mounted ?? null });
 };

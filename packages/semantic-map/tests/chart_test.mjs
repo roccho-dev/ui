@@ -27,8 +27,7 @@ import {
   SUNBURST_CHART,
 } from '../pattern/view-types/chart/contract.js';
 import { SemanticProjector, createPatternLayout } from '../projection/index.js';
-import { createDecisionLog, createEnvelope, normalizeView } from '../protocol/index.js';
-import { createSmapUrl, readSmapHash } from '../transport/index.js';
+import { normalizeView } from '../protocol/index.js';
 
 function fixture(path) {
   const text = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -175,12 +174,6 @@ assert.equal(streamedAll.scenes[0].axis.maximum, 50);
 assert.equal(streamedAll.scenes[0].axis.total, 141);
 assert.equal(streamedAll.representations.filter(item => item.visual?.chartType).length, itemCount * 6);
 
-const log = await createDecisionLog(records, 'semantic-map:example:chart-test');
-const envelope = await createEnvelope(log.log, null, allView);
-const url = await createSmapUrl(envelope, 'https://example.test/app');
-const opened = await readSmapHash(url);
-assert.deepEqual(opened.envelope.view, allView);
-
 const scatter = fixture('../../../examples/chart/scatter.jsonl');
 const scatterChart = { type: SCATTER_CHART };
 assert.equal(validatePatternDomain(scatter.domain, CHART_PATTERN, scatterChart), CHART_PATTERN);
@@ -238,12 +231,6 @@ assert.equal(
   streamedHeatmap.marks.find(item => item.sourceId === 'nagoya-am').visual.appearance.fillOpacity,
   100,
 );
-
-const heatmapLog = await createDecisionLog(heatmap.records, 'semantic-map:example:heatmap-test');
-const heatmapEnvelope = await createEnvelope(heatmapLog.log, null, heatmapView);
-const heatmapUrl = await createSmapUrl(heatmapEnvelope, 'https://example.test/app');
-const openedHeatmap = await readSmapHash(heatmapUrl);
-assert.deepEqual(openedHeatmap.envelope.view, heatmapView);
 
 const sunburst = fixture('../../../examples/chart/sunburst.jsonl');
 const sunburstChart = { type: SUNBURST_CHART };
@@ -327,18 +314,6 @@ const streamedSunburst = createPatternLayout(sunburstStore.domain, CHART_PATTERN
 assert.equal(streamedSunburst.axis.total, 72);
 assert.equal(streamedSunburst.marks.find(item => item.sourceId === 'api').visual.sector.endAngle
   > streamedSunburst.marks.find(item => item.sourceId === 'api').visual.sector.startAngle, true);
-
-const sunburstLog = await createDecisionLog(sunburst.records, 'semantic-map:example:sunburst-test');
-const sunburstEnvelope = await createEnvelope(sunburstLog.log, null, {
-  pattern: CHART_PATTERN,
-  chart: focusedSunburstChart,
-});
-const sunburstUrl = await createSmapUrl(sunburstEnvelope, 'https://example.test/app');
-const openedSunburst = await readSmapHash(sunburstUrl);
-assert.deepEqual(openedSunburst.envelope.view, {
-  pattern: CHART_PATTERN,
-  chart: focusedSunburstChart,
-});
 
 const missingValue = records.map(record => record.id === 'other'
   ? Object.fromEntries(Object.entries(record).filter(([key]) => key !== 'value'))
@@ -438,6 +413,5 @@ console.log(JSON.stringify({
   primitives: ['graph-node', 'graph-terminal', 'vector-sector', 'chart-line'],
   sunburstSectors: sunburstSectors.length,
   coordinateSpaces: ['cartesian/1', 'polar/1', 'matrix/1', 'polar-hierarchy/1'],
-  urlChars: { overlay: url.length, heatmap: heatmapUrl.length, sunburst: sunburstUrl.length },
   streamingOperations: ['SetRegionValue:flat', 'SetRegionValue:heatmap', 'SetRegionValue:sunburst'],
 }));

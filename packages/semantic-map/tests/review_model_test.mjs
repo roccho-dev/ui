@@ -27,7 +27,7 @@ const records = [
   { type: 'region', id: 'task-b', parent: 'map', label: 'Task B', kind: 'task', bounds: [320, 100, 160, 80], summary: '' },
   { type: 'region', id: 'set-a', parent: 'map', label: 'Set A', kind: 'set', bounds: [50, 280, 240, 180], summary: '', set: { complete: true } },
   { type: 'region', id: 'mountable', parent: 'map', label: 'Mountable', kind: 'concept', bounds: [560, 100, 160, 80], summary: '' },
-  { type: 'region', id: 'mounted', parent: 'map', label: 'Mounted', kind: 'concept', bounds: [560, 260, 160, 80], summary: '', mount: { src: '/child#smap=fixture' } },
+  { type: 'region', id: 'mounted', parent: 'map', label: 'Mounted', kind: 'concept', bounds: [560, 260, 160, 80], summary: '', mount: { src: '/child#data=fixture' } },
   { type: 'relation', id: 'r1', from: 'task-a', to: 'task-b', kind: 'dependency', label: 'before' },
 ];
 
@@ -42,7 +42,7 @@ const operations = [
   { type: 'SetSetCompleteness', regionId: 'set-a', complete: false },
   { type: 'AddRegion', regionId: 'added', parentId: 'map', label: 'Added', kind: 'concept', summary: '', bounds: [320, 300, 160, 80] },
   { type: 'ConnectRegions', relationId: 'r2', from: 'task-b', to: 'set-a', kind: 'relates', label: '' },
-  { type: 'MountRegionModule', regionId: 'mountable', src: '/child#smap=next' },
+  { type: 'MountRegionModule', regionId: 'mountable', src: '/child#data=next' },
   { type: 'UnmountRegionModule', regionId: 'mounted' },
   { type: 'RemoveSelection', regionIds: [], relationIds: ['r1'] },
   { type: 'ReconnectRelation', relationId: 'r1', from: 'task-a', to: 'set-a' },
@@ -228,7 +228,7 @@ assert.deepEqual(removedRegionOverlay.regions[0].beforeBounds, { x: 320, y: 100,
 assert.equal(removedRegionOverlay.regions[0].afterBounds, null);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-review-model-test/1',
+  schema: 'semantic-map-review-model-test/2',
   status: 'PASS',
   operationTypes: proposalTypes.length,
   netNoopTrace: noOp.trace.length,

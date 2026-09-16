@@ -22,17 +22,11 @@ import {
   renderElementResourceComposition,
   renderResourceTarget,
 } from '../renderer-resource-dom/index.js';
-import { createSmapUrl, readSmapHash } from '../transport/index.js';
-
 
 const requiredReferrerMeta = '<meta name="referrer" content="no-referrer">';
 for (const page of ['app.html', 'root.html', 'help.html', 'example-index.html']) {
   const source = readFileSync(new URL(`../authoring/pages/${page}`, import.meta.url), 'utf8');
-  assert.equal(
-    source.split(requiredReferrerMeta).length - 1,
-    1,
-    `MUTATION:document-referrer-boundary:${page}`,
-  );
+  assert.equal(source.split(requiredReferrerMeta).length - 1, 1, `MUTATION:document-referrer-boundary:${page}`);
 }
 
 const records = Object.freeze([
@@ -46,36 +40,11 @@ const sourceHref = '/assets/example/map/hatfield-overview.svg';
 const provenanceRef = 'provenance:osm-odbl:2026-08-13';
 const imageComposition = {
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'hatfield-map',
-    contract: 'image/1',
-    source: { type: 'url', href: sourceHref },
-    provenanceRef,
-  }],
+  resources: [{ id: 'hatfield-map', contract: 'image/1', source: { type: 'url', href: sourceHref }, provenanceRef }],
   placements: [
-    {
-      id: 'as-background',
-      resourceRef: 'hatfield-map',
-      targetRef: 'surface:root',
-      slot: 'background',
-      view: { alt: '', title: 'Hatfield background', fit: 'cover', opacity: 0.16 },
-    },
-    {
-      id: 'as-node',
-      resourceRef: 'hatfield-map',
-      targetRef: 'node:visual',
-      slot: 'content',
-      view: { alt: 'Hatfield map', title: 'Hatfield map node', fit: 'contain' },
-      action: { kind: 'navigate', href: 'https://www.openstreetmap.org/copyright' },
-    },
-    {
-      id: 'as-element',
-      resourceRef: 'hatfield-map',
-      targetRef: 'element:resource-panel',
-      slot: 'content',
-      view: { alt: 'Hatfield map', title: 'Hatfield map panel', fit: 'cover' },
-      action: { kind: 'navigate', href: 'https://www.openstreetmap.org/copyright' },
-    },
+    { id: 'as-background', resourceRef: 'hatfield-map', targetRef: 'surface:root', slot: 'background', view: { alt: '', title: 'Hatfield background', fit: 'cover', opacity: 0.16 } },
+    { id: 'as-node', resourceRef: 'hatfield-map', targetRef: 'node:visual', slot: 'content', view: { alt: 'Hatfield map', title: 'Hatfield map node', fit: 'contain' }, action: { kind: 'navigate', href: 'https://www.openstreetmap.org/copyright' } },
+    { id: 'as-element', resourceRef: 'hatfield-map', targetRef: 'element:resource-panel', slot: 'content', view: { alt: 'Hatfield map', title: 'Hatfield map panel', fit: 'cover' }, action: { kind: 'navigate', href: 'https://www.openstreetmap.org/copyright' } },
   ],
 };
 
@@ -94,45 +63,20 @@ assert.deepEqual(resourceRegistryManifest(), {
   },
   serialized: ['resources', 'placements'],
   runtimeOwned: ['adapter', 'boundary', 'target-catalog'],
-  integrity: {
-    accepted: false,
-    owner: 'verified-reference-adapter',
-    reason: 'typed-resource-composition/1 has no byte-owning adapter that can enforce it',
-  },
-  export: {
-    sceneImage: 'same-origin-image-only',
-    externalComposition: 'url-share-only',
-  },
+  integrity: { accepted: false, owner: 'verified-reference-adapter', reason: 'typed-resource-composition/1 has no byte-owning adapter that can enforce it' },
+  export: { sceneImage: 'same-origin-image-only', externalComposition: 'url-share-only' },
 });
 assert.equal(resolveResourceEntries(normalized).filter(entry => entry.resource.id === 'hatfield-map').length, 3);
 assert.deepEqual(
-  Object.fromEntries(resolveResourceEntries(normalized).map((entry) => [
-    `${parseTargetRef(entry.placement.targetRef).catalog}:${entry.placement.slot}`,
-    resourcePolicyForEntry(entry).adapter,
-  ])),
-  {
-    'surface:background': 'dom-image',
-    'node:content': 'maxgraph-image',
-    'element:content': 'dom-image',
-  },
+  Object.fromEntries(resolveResourceEntries(normalized).map(entry => [`${parseTargetRef(entry.placement.targetRef).catalog}:${entry.placement.slot}`, resourcePolicyForEntry(entry).adapter])),
+  { 'surface:background': 'dom-image', 'node:content': 'maxgraph-image', 'element:content': 'dom-image' },
   'adapter and boundary are registry-derived and not serialized',
 );
 
 const external = normalizeResourceComposition({
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'external-image',
-    contract: 'image/1',
-    source: { type: 'url', href: 'https://cdn.example.test/media/diagram.png?rev=7' },
-    provenanceRef: 'provenance:external-diagram:2026-08-13',
-  }],
-  placements: [{
-    id: 'external-element',
-    resourceRef: 'external-image',
-    targetRef: 'element:resource-panel',
-    slot: 'content',
-    view: { alt: 'External diagram' },
-  }],
+  resources: [{ id: 'external-image', contract: 'image/1', source: { type: 'url', href: 'https://cdn.example.test/media/diagram.png?rev=7' }, provenanceRef: 'provenance:external-diagram:2026-08-13' }],
+  placements: [{ id: 'external-element', resourceRef: 'external-image', targetRef: 'element:resource-panel', slot: 'content', view: { alt: 'External diagram' } }],
 });
 assert.equal(external.resources[0].source.href, 'https://cdn.example.test/media/diagram.png?rev=7');
 assert.equal(resourcePolicyForEntry(resolveResourceEntries(external)[0]).adapter, 'dom-image');
@@ -143,186 +87,47 @@ const serialized = JSON.stringify(envelope);
 assert.equal(serialized.split(sourceHref).length - 1, 1, 'source URL is serialized once');
 assert(!serialized.includes('dom-image'), 'adapter policy is not serialized');
 assert(!serialized.includes('sandboxed'), 'boundary policy is not serialized');
-const url = await createSmapUrl(envelope, 'https://example.test/app');
-const opened = await readSmapHash(url);
-assert.deepEqual(opened.envelope.view.resourceComposition, normalized);
+assert.deepEqual((await inspectEnvelope(envelope)).envelope.view.resourceComposition, normalized);
 
 const pruned = projectView(envelope.view, records.filter(record => record.id !== 'visual'));
 assert.equal(pruned.resourceComposition.placements.length, 2);
 assert.deepEqual(pruned.resourceComposition.placements.map(placement => placement.id).sort(), ['as-background', 'as-element']);
 await assert.rejects(
-  inspectEnvelope({
-    ...envelope,
-    view: {
-      pattern: 'graph/1',
-      resourceComposition: {
-        ...imageComposition,
-        placements: [{
-          id: 'missing',
-          resourceRef: 'hatfield-map',
-          targetRef: 'node:missing',
-          slot: 'content',
-          view: { alt: 'Missing' },
-        }],
-      },
-    },
-  }),
+  inspectEnvelope({ ...envelope, view: { pattern: 'graph/1', resourceComposition: { ...imageComposition, placements: [{ id: 'missing', resourceRef: 'hatfield-map', targetRef: 'node:missing', slot: 'content', view: { alt: 'Missing' } }] } } }),
   /resource placement node not found/u,
 );
 
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    resources: [{
-      id: 'missing-provenance',
-      contract: 'image/1',
-      source: { type: 'url', href: 'https://example.test/image.png' },
-    }],
-    placements: [{
-      id: 'element',
-      resourceRef: 'missing-provenance',
-      targetRef: 'element:resource-panel',
-      slot: 'content',
-      view: { alt: 'Missing provenance' },
-    }],
-  }),
-  /requires provenanceRef/u,
-  'MUTATION:require-resource-provenance',
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    resources: [imageComposition.resources[0], { ...imageComposition.resources[0], id: 'duplicate' }],
-  }),
-  /duplicate resource source/u,
-  'MUTATION:unique-resource-source',
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    resources: [{
-      ...imageComposition.resources[0],
-      source: { type: 'url', href: 'https://user:secret@example.test/image.png' },
-    }],
-  }),
-  /must not contain userinfo/u,
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    resources: [{
-      ...imageComposition.resources[0],
-      source: { type: 'url', href: 'data:image/png;base64,AA==' },
-    }],
-  }),
-  /must use http or https/u,
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    placements: [{
-      id: 'bad-target',
-      resourceRef: 'hatfield-map',
-      targetRef: 'surface:root',
-      slot: 'content',
-      view: { alt: 'Bad target' },
-    }],
-  }),
-  /image\/1 cannot target surface\/content/u,
-  'MUTATION:target-contract-policy',
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    placements: [{
-      id: 'background',
-      resourceRef: 'hatfield-map',
-      targetRef: 'surface:root',
-      slot: 'background',
-      view: { alt: '' },
-      action: { kind: 'navigate', href: 'https://example.test/' },
-    }],
-  }),
-  /does not allow navigate/u,
-  'MUTATION:background-action-policy',
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    placements: [{
-      id: 'raw-style',
-      resourceRef: 'hatfield-map',
-      targetRef: 'element:resource-panel',
-      slot: 'content',
-      view: { alt: 'Unsafe', style: 'position:fixed' },
-    }],
-  }),
-  /view\.style is not allowed/u,
-  'MUTATION:reject-raw-view-style',
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    placements: [{
-      id: 'old-shape',
-      resourceRef: 'hatfield-map',
-      targetRef: 'element:resource-panel',
-      slot: 'content',
-      view: { alt: 'Old shape' },
-      host: 'element',
-    }],
-  }),
-  /placements\[0\]\.host is not allowed/u,
-  'MUTATION:reject-legacy-host-shape',
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    ...imageComposition,
-    resources: [{
-      ...imageComposition.resources[0],
-      integrity: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    }],
-  }),
-  /resources\[0\]\.integrity is not allowed/u,
-  'MUTATION:reject-decorative-integrity',
-);
-assert.throws(
-  () => normalizeResourceComposition({
-    schema: RESOURCE_COMPOSITION_SCHEMA,
-    resources: [{
-      id: 'false-semantic-map',
-      contract: 'semantic-map-envelope/3',
-      source: { type: 'url', href: 'https://example.test/arbitrary-page' },
-    }],
-    placements: [{
-      id: 'false-semantic-surface',
-      resourceRef: 'false-semantic-map',
-      targetRef: 'surface:root',
-      slot: 'content',
-      view: { title: 'Not a semantic map' },
-    }],
-  }),
-  /must contain exactly one #smap token/u,
-  'MUTATION:semantic-map-source-contract',
-);
+assert.throws(() => normalizeResourceComposition({
+  ...imageComposition,
+  resources: [{ id: 'missing-provenance', contract: 'image/1', source: { type: 'url', href: 'https://example.test/image.png' } }],
+  placements: [{ id: 'element', resourceRef: 'missing-provenance', targetRef: 'element:resource-panel', slot: 'content', view: { alt: 'Missing provenance' } }],
+}), /requires provenanceRef/u, 'MUTATION:require-resource-provenance');
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, resources: [imageComposition.resources[0], { ...imageComposition.resources[0], id: 'duplicate' }] }), /duplicate resource source/u, 'MUTATION:unique-resource-source');
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, resources: [{ ...imageComposition.resources[0], source: { type: 'url', href: 'https://user:secret@example.test/image.png' } }] }), /must not contain userinfo/u);
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, resources: [{ ...imageComposition.resources[0], source: { type: 'url', href: 'data:image/png;base64,AA==' } }] }), /must use http or https/u);
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, placements: [{ id: 'bad-target', resourceRef: 'hatfield-map', targetRef: 'surface:root', slot: 'content', view: { alt: 'Bad target' } }] }), /image\/1 cannot target surface\/content/u, 'MUTATION:target-contract-policy');
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, placements: [{ id: 'background', resourceRef: 'hatfield-map', targetRef: 'surface:root', slot: 'background', view: { alt: '' }, action: { kind: 'navigate', href: 'https://example.test/' } }] }), /does not allow navigate/u, 'MUTATION:background-action-policy');
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, placements: [{ id: 'raw-style', resourceRef: 'hatfield-map', targetRef: 'element:resource-panel', slot: 'content', view: { alt: 'Unsafe', style: 'position:fixed' } }] }), /view\.style is not allowed/u, 'MUTATION:reject-raw-view-style');
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, placements: [{ id: 'old-shape', resourceRef: 'hatfield-map', targetRef: 'element:resource-panel', slot: 'content', view: { alt: 'Old shape' }, host: 'element' }] }), /placements\[0\]\.host is not allowed/u, 'MUTATION:reject-legacy-host-shape');
+assert.throws(() => normalizeResourceComposition({ ...imageComposition, resources: [{ ...imageComposition.resources[0], integrity: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }] }), /resources\[0\]\.integrity is not allowed/u, 'MUTATION:reject-decorative-integrity');
+
+const unresolvedSemantic = normalizeResourceComposition({
+  schema: RESOURCE_COMPOSITION_SCHEMA,
+  resources: [{ id: 'semantic-source', contract: 'semantic-map-envelope/3', source: { type: 'url', href: 'https://example.test/arbitrary-page' } }],
+  placements: [{ id: 'semantic-surface', resourceRef: 'semantic-source', targetRef: 'surface:root', slot: 'content', view: { title: 'Semantic source' } }],
+});
+assert.equal(unresolvedSemantic.resources[0].source.href, 'https://example.test/arbitrary-page', 'resource registry validates shape, not transport payload');
 
 function fakeElement(tagName) {
   const attributes = new Map();
   const listeners = new Map();
   return {
-    tagName: tagName.toUpperCase(),
-    attributes,
-    style: {},
-    children: [],
-    hidden: false,
+    tagName: tagName.toUpperCase(), attributes, style: {}, children: [], hidden: false,
     setAttribute(name, value) { attributes.set(name, String(value)); },
     removeAttribute(name) { attributes.delete(name); },
     getAttribute(name) { return attributes.get(name) ?? null; },
     hasAttribute(name) { return attributes.has(name); },
-    addEventListener(name, listener) {
-      if (!listeners.has(name)) listeners.set(name, []);
-      listeners.get(name).push(listener);
-    },
+    addEventListener(name, listener) { if (!listeners.has(name)) listeners.set(name, []); listeners.get(name).push(listener); },
     dispatch(name) { for (const listener of listeners.get(name) ?? []) listener(); },
     append(...nodes) { this.children.push(...nodes); },
     replaceChildren(...nodes) { this.children = [...nodes]; },
@@ -342,15 +147,7 @@ const fakeDocument = {
     return [];
   },
 };
-assert.throws(
-  () => renderElementResourceComposition({
-    document: { ...fakeDocument, querySelectorAll: () => [] },
-    composition: imageComposition,
-  }),
-  /exactly one document referrer policy is required/u,
-  'MUTATION:document-referrer-boundary',
-);
-
+assert.throws(() => renderElementResourceComposition({ document: { ...fakeDocument, querySelectorAll: () => [] }, composition: imageComposition }), /exactly one document referrer policy is required/u, 'MUTATION:document-referrer-boundary');
 const rendered = renderElementResourceComposition({ document: fakeDocument, composition: imageComposition });
 assert.equal(rendered.rendered, 1);
 assert.equal(resourcePanel.children.length, 1);
@@ -363,59 +160,24 @@ assert.equal(resourcePanel.children[0].children[0].getAttribute('data-resource-s
 
 const documentEntry = resolveResourceEntries({
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'doc',
-    contract: 'document/1',
-    source: { type: 'url', href: 'https://example.test/app' },
-  }],
-  placements: [{
-    id: 'doc-element',
-    resourceRef: 'doc',
-    targetRef: 'element:resource-panel',
-    slot: 'content',
-    view: { title: 'External app' },
-  }],
+  resources: [{ id: 'doc', contract: 'document/1', source: { type: 'url', href: 'https://example.test/app' } }],
+  placements: [{ id: 'doc-element', resourceRef: 'doc', targetRef: 'element:resource-panel', slot: 'content', view: { title: 'External app' } }],
 })[0];
 const frame = createResourceElement({ document: fakeDocument, entry: documentEntry });
 assert.equal(frame.tagName, 'IFRAME');
-assert.equal(
-  frame.attributes.get('sandbox'),
-  'allow-scripts',
-  'MUTATION:document-sandbox-boundary',
-);
+assert.equal(frame.attributes.get('sandbox'), 'allow-scripts', 'MUTATION:document-sandbox-boundary');
 assert.equal(frame.referrerPolicy, 'no-referrer');
 assert.deepEqual(resourcePolicyForEntry(documentEntry), {
-  adapter: 'sandboxed-document',
-  boundary: 'sandboxed',
-  interaction: 'content',
-  referrerPolicy: 'no-referrer',
-  action: null,
+  adapter: 'sandboxed-document', boundary: 'sandboxed', interaction: 'content', referrerPolicy: 'no-referrer', action: null,
   target: { ref: 'element:resource-panel', catalog: 'element', id: 'resource-panel' },
 });
 
 const videoEntries = resolveResourceEntries({
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'demo-video',
-    contract: 'video/1',
-    source: { type: 'url', href: 'https://media.example.test/demo.mp4' },
-    provenanceRef: 'provenance:demo-video:2026-08-13',
-  }],
+  resources: [{ id: 'demo-video', contract: 'video/1', source: { type: 'url', href: 'https://media.example.test/demo.mp4' }, provenanceRef: 'provenance:demo-video:2026-08-13' }],
   placements: [
-    {
-      id: 'video-background',
-      resourceRef: 'demo-video',
-      targetRef: 'surface:root',
-      slot: 'background',
-      view: { title: 'Background video', fit: 'cover', opacity: 0.5 },
-    },
-    {
-      id: 'video-element',
-      resourceRef: 'demo-video',
-      targetRef: 'element:resource-panel',
-      slot: 'content',
-      view: { title: 'Playable video', fit: 'contain' },
-    },
+    { id: 'video-background', resourceRef: 'demo-video', targetRef: 'surface:root', slot: 'background', view: { title: 'Background video', fit: 'cover', opacity: 0.5 } },
+    { id: 'video-element', resourceRef: 'demo-video', targetRef: 'element:resource-panel', slot: 'content', view: { title: 'Playable video', fit: 'contain' } },
   ],
 });
 const backgroundVideo = createResourceElement({ document: fakeDocument, entry: videoEntries[0] });
@@ -442,63 +204,24 @@ assert.equal(contentVideo.getAttribute('aria-label'), 'Playable video');
 
 const videoComposition = {
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'demo-video',
-    contract: 'video/1',
-    source: { type: 'url', href: 'https://media.example.test/demo.mp4' },
-    provenanceRef: 'provenance:demo-video:2026-08-13',
-  }],
+  resources: [{ id: 'demo-video', contract: 'video/1', source: { type: 'url', href: 'https://media.example.test/demo.mp4' }, provenanceRef: 'provenance:demo-video:2026-08-13' }],
   placements: [
-    {
-      id: 'video-background',
-      resourceRef: 'demo-video',
-      targetRef: 'surface:root',
-      slot: 'background',
-      view: { title: 'Background video', fit: 'cover', opacity: 0.5 },
-    },
-    {
-      id: 'video-element',
-      resourceRef: 'demo-video',
-      targetRef: 'element:resource-panel',
-      slot: 'content',
-      view: { title: 'Playable video', fit: 'contain' },
-    },
+    { id: 'video-background', resourceRef: 'demo-video', targetRef: 'surface:root', slot: 'background', view: { title: 'Background video', fit: 'cover', opacity: 0.5 } },
+    { id: 'video-element', resourceRef: 'demo-video', targetRef: 'element:resource-panel', slot: 'content', view: { title: 'Playable video', fit: 'contain' } },
   ],
 };
 const videoSurface = fakeElement('section');
-const videoSurfaceResult = renderResourceTarget({
-  document: fakeDocument,
-  mount: videoSurface,
-  composition: videoComposition,
-  targetRef: 'surface:root',
-  slot: 'background',
-});
+const videoSurfaceResult = renderResourceTarget({ document: fakeDocument, mount: videoSurface, composition: videoComposition, targetRef: 'surface:root', slot: 'background' });
 assert.equal(videoSurfaceResult.count, 1);
 assert.equal(videoSurface.children[0].tagName, 'VIDEO');
 
 const surfaceDocumentComposition = {
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'surface-doc',
-    contract: 'document/1',
-    source: { type: 'url', href: 'https://example.test/help' },
-  }],
-  placements: [{
-    id: 'surface-doc-placement',
-    resourceRef: 'surface-doc',
-    targetRef: 'surface:root',
-    slot: 'content',
-    view: { title: 'Surface document' },
-  }],
+  resources: [{ id: 'surface-doc', contract: 'document/1', source: { type: 'url', href: 'https://example.test/help' } }],
+  placements: [{ id: 'surface-doc-placement', resourceRef: 'surface-doc', targetRef: 'surface:root', slot: 'content', view: { title: 'Surface document' } }],
 };
 const documentSurface = fakeElement('section');
-const documentSurfaceResult = renderResourceTarget({
-  document: fakeDocument,
-  mount: documentSurface,
-  composition: surfaceDocumentComposition,
-  targetRef: 'surface:root',
-  slot: 'content',
-});
+const documentSurfaceResult = renderResourceTarget({ document: fakeDocument, mount: documentSurface, composition: surfaceDocumentComposition, targetRef: 'surface:root', slot: 'content' });
 assert.equal(documentSurfaceResult.count, 1);
 assert.equal(documentSurface.children[0].tagName, 'IFRAME');
 assert.equal(documentSurface.children[0].getAttribute('sandbox'), 'allow-scripts');
@@ -510,21 +233,11 @@ const childRecords = Object.freeze([
 ]);
 const childLog = await createDecisionLog(childRecords, 'semantic-map:test:resource-child');
 const childEnvelope = await createEnvelope(childLog.log, null, { pattern: 'graph/1' });
-const childUrl = await createSmapUrl(childEnvelope, 'https://example.test/app');
+const childUrl = 'https://example.test/app#data=child-envelope';
 const semanticSurfaceEntry = resolveResourceEntries({
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'child-map-surface',
-    contract: 'semantic-map-envelope/3',
-    source: { type: 'url', href: childUrl },
-  }],
-  placements: [{
-    id: 'child-map-surface-placement',
-    resourceRef: 'child-map-surface',
-    targetRef: 'surface:root',
-    slot: 'content',
-    view: { title: 'Child semantic map surface' },
-  }],
+  resources: [{ id: 'child-map-surface', contract: 'semantic-map-envelope/3', source: { type: 'url', href: childUrl } }],
+  placements: [{ id: 'child-map-surface-placement', resourceRef: 'child-map-surface', targetRef: 'surface:root', slot: 'content', view: { title: 'Child semantic map surface' } }],
 })[0];
 const semanticSurface = createResourceElement({ document: fakeDocument, entry: semanticSurfaceEntry });
 assert.equal(semanticSurface.tagName, 'IFRAME');
@@ -533,47 +246,27 @@ assert.equal(semanticSurface.getAttribute('sandbox'), 'allow-scripts');
 assert.equal(resourcePolicyForEntry(semanticSurfaceEntry).boundary, 'sandboxed');
 const semanticComposition = {
   schema: RESOURCE_COMPOSITION_SCHEMA,
-  resources: [{
-    id: 'child-map',
-    contract: 'semantic-map-envelope/3',
-    source: { type: 'url', href: childUrl },
-  }],
-  placements: [{
-    id: 'child-node-placement',
-    resourceRef: 'child-map',
-    targetRef: 'node:visual',
-    slot: 'content',
-    view: { title: 'Child semantic map' },
-  }],
+  resources: [{ id: 'child-map', contract: 'semantic-map-envelope/3', source: { type: 'url', href: childUrl } }],
+  placements: [{ id: 'child-node-placement', resourceRef: 'child-map', targetRef: 'node:visual', slot: 'content', view: { title: 'Child semantic map' } }],
 };
-const semanticEnvelope = await createEnvelope(log.log, null, {
-  pattern: 'graph/1',
-  resourceComposition: semanticComposition,
-});
-const resolver = new ModuleResolver();
+const semanticEnvelope = await createEnvelope(log.log, null, { pattern: 'graph/1', resourceComposition: semanticComposition });
+const moduleResolver = new ModuleResolver({ resolveSource: async source => {
+  assert.equal(source, childUrl);
+  return childEnvelope;
+} });
 const domain = createSemanticMap(records);
-const modules = await resolver.resolve(domain, {
-  mapId: 'semantic-map:test:resource-parent',
-  head: log.head,
-  view: semanticEnvelope.view,
-});
+const modules = await moduleResolver.resolve(domain, { mapId: 'semantic-map:test:resource-parent', head: log.head, view: semanticEnvelope.view });
 assert.equal(modules.moduleCount, 1);
 assert.equal(modules.root.mountSources.get('visual'), childUrl);
 assert.equal(modules.root.mounts.get('visual').source, childUrl);
 
-const imageScene = new SemanticProjector(domain, null, envelope.view).project({
-  scale: 1,
-  viewport: { x: 0, y: 0, width: 1000, height: 700 },
-});
+const imageScene = new SemanticProjector(domain, null, envelope.view).project({ scale: 1, viewport: { x: 0, y: 0, width: 1000, height: 700 } });
 const visualRepresentation = imageScene.representations.find(item => item.sourceRegionId === 'visual');
 assert.equal(visualRepresentation.resource.src, sourceHref);
 assert.equal(visualRepresentation.resource.contract, 'image/1');
 assert.equal(visualRepresentation.href, 'https://www.openstreetmap.org/copyright');
 
-const scene = new SemanticProjector(domain, modules, semanticEnvelope.view).project({
-  scale: 5,
-  viewport: { x: 0, y: 0, width: 1000, height: 700 },
-});
+const scene = new SemanticProjector(domain, modules, semanticEnvelope.view).project({ scale: 5, viewport: { x: 0, y: 0, width: 1000, height: 700 } });
 assert.equal(scene.scenes.length, 2);
 assert(scene.representations.some(item => item.regionId.includes('@mount/visual/region/child-node')));
 const semanticEntry = resolveResourceEntries(semanticComposition)[0];
@@ -581,7 +274,7 @@ assert.equal(resourcePolicyForEntry(semanticEntry).adapter, 'nested-semantic-map
 assert.equal(resourcePolicyForEntry(semanticEntry).boundary, 'validated-read-only');
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-resource-composition-test/1',
+  schema: 'semantic-map-resource-composition-test/2',
   pass: true,
   status: 'PASS',
   skipped: false,
@@ -589,8 +282,9 @@ console.log(JSON.stringify({
   errors: [],
   resourceDefinitions: normalized.resources.length,
   placements: normalized.placements.length,
-  parentUrlChars: url.length,
+  serializedBytes: new TextEncoder().encode(serialized).byteLength,
   mountedSemanticMaps: modules.moduleCount,
+  moduleSourcePort: true,
   registry: resourceRegistryManifest(),
   documentBoundary: frame.attributes.get('sandbox'),
   rendererCoverage: {

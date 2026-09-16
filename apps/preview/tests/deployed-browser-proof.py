@@ -153,7 +153,7 @@ with sync_playwright() as playwright:
     assert launcher['status'] == 'PASS'
     assert launcher['mode'] == 'launcher'
     links = page.locator('#cases a').evaluate_all("nodes => nodes.map(node => ({ id: node.textContent, href: node.href }))")
-    assert len(links) == 14, links
+    assert [item['id'] for item in links] == launcher['cases'], (links, launcher)
     assert len({item['id'] for item in links}) == len(links)
 
     checked = []

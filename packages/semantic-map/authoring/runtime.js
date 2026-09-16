@@ -1,37 +1,12 @@
 import { appendDecision, createDecision, createEnvelope, inspectEnvelope, normalizeView, verifyDecisionLog } from '../protocol/index.js';
 import { normalizeOperation } from '../domain/index.js';
-import { createInlineSmapUrl } from '../transport/index.js';
-import {
-  CONTINUATION_RESULT_SCHEMA,
-  continuationError,
-  createContinuationService,
-} from './continuation.js';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(`semantic-runtime: ${message}`);
 }
 
-function defaultReplaceUrl(url) {
-  history.replaceState(null, '', url);
-}
-
 function sameOperations(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function assertExpectedDigest(expected, delivery) {
-  if (expected == null || expected === delivery.digest) return;
-  throw continuationError('STALE_DELIVERY_PLAN', 'reviewed continuation differs from the current preflight', {
-    expectedDigest: expected,
-    actualDigest: delivery.digest,
-  });
-}
-
-function assertRealized(preflight, delivery) {
-  invariant(delivery?.schema === CONTINUATION_RESULT_SCHEMA, 'continuation result is invalid');
-  invariant(delivery.digest === preflight.delivery.digest, 'continuation digest differs from preflight');
-  invariant(delivery.url === preflight.delivery.plannedUrl, 'continuation URL differs from preflight');
-  invariant(delivery.artifactUrl === preflight.delivery.artifactUrl, 'continuation artifact URL differs from preflight');
 }
 
 export class DecisionRuntime {
@@ -65,13 +40,7 @@ export class DecisionRuntime {
     this.view = inspection.envelope.view;
     this.store = null;
     this.listeners = new Set();
-    this.replaceUrl = options.replaceUrl ?? defaultReplaceUrl;
-    this.baseUrl = options.baseUrl ?? (() => location.href);
     this.validateRecords = options.validateRecords ?? null;
-    this.continuation = createContinuationService(options.publisherPort, {
-      artifactEndpoint: options.artifactEndpoint,
-      knownReferences: options.knownReferences,
-    });
   }
 
   attachStore(store) {
@@ -101,18 +70,6 @@ export class DecisionRuntime {
       view: this.view,
       draftOperations: this.draftOperations(),
     });
-  }
-
-  currentUrl() {
-    return this.baseUrl();
-  }
-
-  publisherDisclosure() {
-    return this.continuation.disclosure;
-  }
-
-  artifactEndpoint() {
-    return this.continuation.artifactEndpoint;
   }
 
   draftOperations() {
@@ -159,38 +116,7 @@ export class DecisionRuntime {
     return createEnvelope(this.log, proposal, normalizeView(view));
   }
 
-  async prepareContinuation(envelope, { base = this.baseUrl() } = {}) {
-    return this.continuation.prepare(envelope, { base });
-  }
-
-  async realizeContinuation(plan, options = {}) {
-    return this.continuation.realize(plan, options);
-  }
-
-  async url({ proposal = null, view = this.view, base = this.baseUrl() } = {}) {
-    const normalizedView = normalizeView(view);
-    const candidate = proposal === null
-      ? { records: this.records, head: this.head }
-      : await appendDecision(this.log, proposal);
-    await this.validateRecords?.(candidate.records, {
-      mapId: this.mapId,
-      head: candidate.head,
-      view: normalizedView,
-    });
-    return createInlineSmapUrl(await this.envelope({ proposal, view: normalizedView }), { base });
-  }
-
-  async proposalUrl(proposal, { view = this.view, base = this.baseUrl() } = {}) {
-    return this.url({ proposal, view, base });
-  }
-
-  async canonicalize({ base = this.baseUrl() } = {}) {
-    const url = await this.url({ proposal: this.proposal, view: this.view, base });
-    this.replaceUrl(url);
-    return url;
-  }
-
-  async preflightView(view, { base = this.baseUrl() } = {}) {
+  async preflightView(view) {
     invariant(!this.proposal, 'cannot change Pattern while a Proposal is pending');
     invariant(this.draftCount() === 0, 'cannot change Pattern while a Local Draft is active');
     const normalizedView = normalizeView(view);
@@ -200,36 +126,22 @@ export class DecisionRuntime {
       view: normalizedView,
     });
     const envelope = await createEnvelope(this.log, null, normalizedView);
-    const delivery = await this.prepareContinuation(envelope, { base });
-    return Object.freeze({
-      head: this.head,
-      log: this.log,
-      view: envelope.view,
-      envelope,
-      delivery,
-      validation: validation ?? null,
-    });
+    return Object.freeze({ head: this.head, log: this.log, view: envelope.view, envelope, validation: validation ?? null });
   }
 
-  commitView(preflight, delivery) {
+  commitView(preflight) {
     invariant(preflight?.head === this.head && preflight?.log === this.log, 'Pattern preflight is stale');
     invariant(!this.proposal && this.draftCount() === 0, 'Pattern change base is no longer clean');
-    assertRealized(preflight, delivery);
-    this.replaceUrl(delivery.url);
     this.view = preflight.view;
-    this.notify('view', { url: delivery.url, view: preflight.view, delivery });
-    return Object.freeze({ ...preflight, url: delivery.url, delivery });
+    this.notify('view', { view: preflight.view });
+    return Object.freeze({ ...preflight });
   }
 
-  async changeView(view, options = {}) {
-    const preflight = await this.preflightView(view, options);
-    const delivery = await this.realizeContinuation(preflight.delivery, {
-      confirmPublish: options.confirmPublish === true,
-    });
-    return this.commitView(preflight, delivery);
+  async changeView(view) {
+    return this.commitView(await this.preflightView(view));
   }
 
-  async preflightAccept(proposal, { view = this.view, base = this.baseUrl() } = {}) {
+  async preflightAccept(proposal, { view = this.view } = {}) {
     const normalizedView = normalizeView(view);
     const appended = await appendDecision(this.log, proposal);
     await this.validateRecords?.(appended.records, {
@@ -238,7 +150,6 @@ export class DecisionRuntime {
       view: normalizedView,
     });
     const envelope = await createEnvelope(appended.log, null, normalizedView);
-    const delivery = await this.prepareContinuation(envelope, { base });
     return Object.freeze({
       head: this.head,
       log: this.log,
@@ -246,7 +157,6 @@ export class DecisionRuntime {
       draftOperations: this.draftOperations(),
       appended,
       envelope,
-      delivery,
       view: envelope.view,
     });
   }
@@ -254,20 +164,12 @@ export class DecisionRuntime {
   async accept(proposal, options = {}) {
     invariant(this.store, 'store is not attached');
     const draft = this.draftOperations();
-    if (draft.length) {
-      invariant(sameOperations(draft, proposal.operations), 'another draft is active');
-    }
+    if (draft.length) invariant(sameOperations(draft, proposal.operations), 'another draft is active');
     const preflight = await this.preflightAccept(proposal, options);
-    assertExpectedDigest(options.expectedDigest, preflight.delivery);
-    const delivery = await this.realizeContinuation(preflight.delivery, {
-      confirmPublish: options.confirmPublish === true,
-    });
     invariant(preflight.head === this.head && preflight.log === this.log, 'Accept preflight is stale');
-    invariant(preflight.proposal === this.proposal, 'Accept Proposal changed during delivery');
-    invariant(sameOperations(preflight.draftOperations, this.draftOperations()), 'Accept draft changed during delivery');
-    assertRealized(preflight, delivery);
+    invariant(preflight.proposal === this.proposal, 'Accept Proposal changed during preflight');
+    invariant(sameOperations(preflight.draftOperations, this.draftOperations()), 'Accept draft changed during preflight');
     const previous = Object.freeze({
-      url: this.baseUrl(),
       log: this.log,
       head: this.head,
       records: this.records,
@@ -276,9 +178,7 @@ export class DecisionRuntime {
       view: this.view,
       storeSession: this.store.snapshotSession(),
     });
-
     try {
-      this.replaceUrl(delivery.url);
       this.store.replaceRecords(preflight.appended.records);
       this.log = preflight.appended.log;
       this.head = preflight.appended.head;
@@ -287,7 +187,6 @@ export class DecisionRuntime {
       this.proposal = null;
       this.view = preflight.view;
     } catch (error) {
-      try { this.replaceUrl(previous.url); } catch (_) { /* best effort rollback */ }
       try { this.store.restoreSession(previous.storeSession); } catch (_) { /* best effort rollback */ }
       this.log = previous.log;
       this.head = previous.head;
@@ -297,79 +196,54 @@ export class DecisionRuntime {
       this.view = previous.view;
       throw error;
     }
-    this.notify('append', { decisionId: this.head, url: delivery.url, delivery });
+    const envelope = await createEnvelope(this.log, null, this.view);
+    this.notify('append', { decisionId: this.head });
     return Object.freeze({
       decisionId: this.head,
       stateHash: this.stateHash,
       log: this.log,
-      url: delivery.url,
-      delivery,
       records: this.records,
+      envelope,
     });
   }
 
-  async preflightReject({ local = false, view = this.view, base = this.baseUrl() } = {}) {
+  async preflightReject({ local = false, view = this.view } = {}) {
     invariant(this.store, 'store is not attached');
     if (local) {
       invariant(this.draftCount() > 0, 'there is no Local Draft to reject');
-      return Object.freeze({
-        head: this.head,
-        log: this.log,
-        local: true,
-        view: this.view,
-        delivery: this.continuation.keep(this.currentUrl()),
-      });
+      return Object.freeze({ head: this.head, log: this.log, local: true, view: this.view, envelope: await this.envelope() });
     }
-    invariant(this.proposal, 'there is no URL Proposal to reject');
+    invariant(this.proposal, 'there is no Data Proposal to reject');
     const normalizedView = normalizeView(view);
-    await this.validateRecords?.(this.records, {
-      mapId: this.mapId,
-      head: this.head,
-      view: normalizedView,
-    });
-    const envelope = await createEnvelope(this.log, null, normalizedView);
-    const delivery = await this.prepareContinuation(envelope, { base });
+    await this.validateRecords?.(this.records, { mapId: this.mapId, head: this.head, view: normalizedView });
     return Object.freeze({
       head: this.head,
       log: this.log,
       local: false,
-      view: envelope.view,
-      envelope,
-      delivery,
+      view: normalizedView,
+      envelope: await createEnvelope(this.log, null, normalizedView),
     });
   }
 
   async reject(options = {}) {
     invariant(this.store, 'store is not attached');
     const preflight = await this.preflightReject(options);
-    assertExpectedDigest(options.expectedDigest, preflight.delivery);
-    const delivery = await this.realizeContinuation(preflight.delivery, {
-      confirmPublish: options.confirmPublish === true,
-    });
     invariant(preflight.head === this.head && preflight.log === this.log, 'Proposal rejection preflight is stale');
     invariant(preflight.local ? this.draftCount() > 0 : Boolean(this.proposal), 'Proposal rejection base is no longer pending');
-    assertRealized(preflight, delivery);
-
-    const previous = Object.freeze({
-      url: this.currentUrl(),
-      proposal: this.proposal,
-      view: this.view,
-      storeSession: this.store.snapshotSession(),
-    });
+    const previous = Object.freeze({ proposal: this.proposal, view: this.view, storeSession: this.store.snapshotSession() });
     try {
-      if (delivery.mode !== 'existing') this.replaceUrl(delivery.url);
       if (preflight.local) this.store.replaceRecords(this.records);
       this.proposal = null;
       this.view = preflight.view;
     } catch (error) {
-      try { if (delivery.mode !== 'existing') this.replaceUrl(previous.url); } catch (_) { /* best effort rollback */ }
       try { this.store.restoreSession(previous.storeSession); } catch (_) { /* best effort rollback */ }
       this.proposal = previous.proposal;
       this.view = previous.view;
       throw error;
     }
-    this.notify('reject', { local: preflight.local, url: delivery.url, delivery });
-    return delivery.url;
+    const envelope = await createEnvelope(this.log, null, this.view);
+    this.notify('reject', { local: preflight.local });
+    return Object.freeze({ envelope, local: preflight.local });
   }
 
   async verify() {

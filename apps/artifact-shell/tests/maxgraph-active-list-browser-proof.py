@@ -127,7 +127,10 @@ def main() -> None:
                     lambda state: state in {"pass", "fail"},
                     f"artifact shell did not settle for {pattern}",
                 )
-                assert status.get_attribute("data-state") == "pass", status.text_content()
+                if status.get_attribute("data-state") != "pass":
+                    result_text = page.locator("#result").text_content()
+                    receipt_text = page.locator("#receipt").text_content()
+                    raise AssertionError(f"{status.text_content()}\nresult={result_text}\nreceipt={receipt_text}")
                 frame_element = page.locator("#surface iframe[data-package='semantic-map']")
                 frame_element.wait_for(state="visible", timeout=30_000)
                 child = child_frame(frame_element)
