@@ -32,8 +32,8 @@ const graphDirection = (mode, width) => {
   return mode.toUpperCase();
 };
 
-const graphPresentationProjection = (domain, direction) => {
-  const layout = createGraphLayout(domain, { direction });
+const graphPresentationProjection = (domain, direction, pins) => {
+  const layout = createGraphLayout(domain, { direction, pins });
   return createPresentationProjection({
     id: `graph-layout-${direction.toLowerCase()}`,
     pattern: 'graph/1',
@@ -42,7 +42,16 @@ const graphPresentationProjection = (domain, direction) => {
   });
 };
 
-const graphLayoutControls = (scope, onSelect) => {
+const withGraphPinState = (scene, pins) => Object.freeze({
+  ...scene,
+  representations: Object.freeze(scene.representations.map((representation) => {
+    const regionId = representation.sourceRegionId ?? representation.regionId;
+    if (representation.mode === 'boundary' || representation.isGuide || !pins.has(regionId)) return representation;
+    return Object.freeze({ ...representation, layoutPinned: true });
+  })),
+});
+
+const graphLayoutControls = (scope, onSelect, onUnpin) => {
   const controls = scope.document.createElement('div');
   controls.className = 'semantic-map-layout-controls';
   controls.setAttribute('role', 'group');
@@ -58,7 +67,15 @@ const graphLayoutControls = (scope, onSelect) => {
     controls.append(button);
     buttons.set(mode, button);
   }
-  return Object.freeze({ controls, buttons });
+  const unpinButton = scope.document.createElement('button');
+  unpinButton.type = 'button';
+  unpinButton.className = 'semantic-map-layout-button';
+  unpinButton.dataset.layoutAction = 'unpin';
+  unpinButton.textContent = 'Unpin';
+  unpinButton.disabled = true;
+  unpinButton.addEventListener('click', onUnpin);
+  controls.append(unpinButton);
+  return Object.freeze({ controls, buttons, unpinButton });
 };
 
 export const mountSemanticMapSurface = async ({
@@ -85,8 +102,10 @@ export const mountSemanticMapSurface = async ({
   canvas.className = 'semantic-map-feature-canvas';
   surface.append(canvas);
 
+  let adapter = null;
   let layoutMode = featureId === 'graph' ? graphLayoutMode(scope) : null;
   let buttons = null;
+  let unpinButton = null;
   if (featureId === 'graph') {
     const shell = document.createElement('div');
     shell.className = 'semantic-map-feature-shell';
@@ -96,8 +115,13 @@ export const mountSemanticMapSurface = async ({
       url.searchParams.set('layout', selected);
       scope.history.replaceState(scope.history.state, '', url);
       renderAndFit();
+    }, () => {
+      const regionIds = adapter?.selectionSnapshot().regionIds ?? [];
+      if (regionIds.length === 0) return;
+      adapter.submitOperation({ type: 'UnpinRegions', regionIds });
     });
     buttons = controls.buttons;
+    unpinButton = controls.unpinButton;
     shell.append(controls.controls, surface);
     root.replaceChildren(shell);
   } else {
@@ -105,7 +129,7 @@ export const mountSemanticMapSurface = async ({
   }
   await frame(scope);
 
-  const adapter = mode === 'authoring' ? createSemanticAuthoring(canvas) : createViewAdapter(canvas);
+  adapter = mode === 'authoring' ? createSemanticAuthoring(canvas) : createViewAdapter(canvas);
   let scene = null;
   let renderQueued = false;
   let activeModules = modules;
@@ -114,17 +138,35 @@ export const mountSemanticMapSurface = async ({
     : null;
 
   const projectDomain = (domain, candidateView = view, resolvedModules = activeModules) => {
-    const presentationProjection = featureId === 'graph' && candidateView.pattern === 'graph/1'
-      ? graphPresentationProjection(domain, activeDirection)
+    const graph = featureId === 'graph' && candidateView.pattern === 'graph/1';
+    const pins = graph ? (store.layoutHints ?? new Map()) : new Map();
+    const presentationProjection = graph
+      ? graphPresentationProjection(domain, activeDirection, pins)
       : null;
     const projector = new SemanticProjector(domain, resolvedModules, candidateView, { presentationProjection });
-    return projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
+    const projected = projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
+    return graph ? withGraphPinState(projected, pins) : projected;
   };
   const project = () => projectDomain(store.domain, view, activeModules);
+  const updateControls = () => {
+    if (buttons) {
+      for (const [value, button] of buttons) {
+        const selected = value === layoutMode;
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        button.dataset.selected = selected ? 'true' : 'false';
+      }
+    }
+    if (unpinButton) {
+      const selection = adapter?.selectionSnapshot().regionIds ?? [];
+      const pins = store.layoutHints ?? new Map();
+      unpinButton.disabled = !selection.some((regionId) => pins.has(regionId));
+    }
+  };
   const render = () => {
     renderQueued = false;
     scene = project();
     adapter.render(scene);
+    updateControls();
     return scene;
   };
   const queueRender = () => {
@@ -135,14 +177,6 @@ export const mountSemanticMapSurface = async ({
   const setModules = next => {
     activeModules = next;
     return render();
-  };
-  const updateControls = () => {
-    if (!buttons) return;
-    for (const [value, button] of buttons) {
-      const selected = value === layoutMode;
-      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-      button.dataset.selected = selected ? 'true' : 'false';
-    }
   };
 
   function renderAndFit() {
@@ -181,7 +215,6 @@ export const mountSemanticMapSurface = async ({
       surface.dataset.layoutDirection = activeDirection;
       surface.dataset.fit = mobileTopDown ? 'width' : 'contain';
     }
-    updateControls();
     return scene;
   }
 
@@ -200,6 +233,7 @@ export const mountSemanticMapSurface = async ({
   };
 
   store.onChange?.(queueRender);
+  adapter.onSelectionChange?.(updateControls);
   renderAndFit();
 
   if (featureId === 'graph' && typeof scope.addEventListener === 'function') {
