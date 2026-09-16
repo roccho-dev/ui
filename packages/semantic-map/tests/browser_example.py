@@ -157,7 +157,7 @@ def main() -> None:
                           await nextFrames();
                           const fitCamera=structuredClone(app.snapshot().camera);
                           for(let index=0;index<20;index+=1){
-                            container.dispatchEvent(new WheelEvent({
+                            container.dispatchEvent(new WheelEvent('wheel',{
                               bubbles:true,cancelable:true,deltaMode:0,deltaY:-10_000,clientX,clientY,
                             }));
                           }
