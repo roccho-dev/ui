@@ -181,6 +181,31 @@ assert.equal(core.snapshot().stateHash, stateHashBeforeProjectionCallback);
 core.dispatch({ type: 'presentation.refresh' });
 assert.ok(region(core, 'request'), 'retained projection callback input must not mutate core state');
 
+const acceptedBeforeCandidate = structuredClone(core.snapshot());
+const rendersBeforeCandidate = first.surface.renders.length;
+const chromeBeforeCandidate = first.document.chrome.length;
+let eventsDuringCandidate = 0;
+const removeCandidateListener = core.subscribe(() => { eventsDuringCandidate += 1; });
+const candidateRecords = structuredClone(core.snapshot().records);
+candidateRecords.find(row => row.type === 'region' && row.id === 'request').label = 'Candidate only';
+const candidateScene = core.dispatch({
+  type: 'presentation.project',
+  semantic: candidateRecords,
+  view: defaultViewForPattern('map/1'),
+  modules: null,
+  presentation: {
+    camera: { scale: 1, translateX: 0, translateY: 0 },
+    viewport: { x: 0, y: 0, width: 1200, height: 800 },
+  },
+});
+removeCandidateListener();
+assert.equal(candidateScene.pattern, 'map/1');
+assert.equal(candidateScene.representations.find(item => item.regionId === 'request').label, 'Candidate only');
+assert.deepEqual(core.snapshot(), acceptedBeforeCandidate, 'candidate projection must not replace accepted state');
+assert.equal(first.surface.renders.length, rendersBeforeCandidate, 'candidate projection must not render accepted SurfacePort');
+assert.equal(first.document.chrome.length, chromeBeforeCandidate, 'candidate projection must not render accepted chrome');
+assert.equal(eventsDuringCandidate, 0, 'candidate projection must not publish core events');
+
 core.acceptGesture({ type: 'selection.changed', selection: { regionIds: ['request'], relationIds: [] } });
 assert.deepEqual(core.snapshot().selection, { regionIds: ['request'], relationIds: [] });
 
@@ -272,6 +297,7 @@ console.log(JSON.stringify({
   hiddenWorkspaceAbsent: true,
   snapshotDetached: true,
   coreOwnsAcceptedSceneProjection: true,
+  candidateProjectionReadOnly: true,
   projectionConfigureAtomic: true,
   projectionCallbackDetached: true,
   authorityDenyAtomic: true,
