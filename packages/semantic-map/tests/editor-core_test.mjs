@@ -127,6 +127,60 @@ assert.equal(core.snapshot().scene.pattern, 'graph/1');
 assert.equal(first.surface.renders.at(-1).scene.pattern, 'graph/1');
 assert.deepEqual(first.surface.renders.at(-1).scene, core.snapshot().scene, 'Surface must receive the core-accepted scene');
 
+const stableProjection = structuredClone(core.snapshot());
+assert.throws(() => core.dispatch({
+  type: 'presentation.configure',
+  projection: {
+    view: defaultViewForPattern('map/1'),
+    presentation: {
+      camera: { scale: 1, translateX: 0, translateY: 0 },
+      viewport: { x: 0, y: 0, width: 1200, height: 800 },
+      uncloneable: () => {},
+    },
+  },
+}), /clone|could not be cloned|DataCloneError/iu);
+assert.deepEqual(core.snapshot(), stableProjection, 'rejected presentation clone must preserve accepted projection');
+core.dispatch({ type: 'presentation.refresh' });
+assert.equal(core.snapshot().scene.pattern, 'graph/1', 'refresh must not adopt a rejected projection');
+
+const throwingPresentation = {};
+Object.defineProperty(throwingPresentation, 'camera', {
+  enumerable: true,
+  get() { throw new Error('E_PRESENTATION_GETTER'); },
+});
+assert.throws(() => core.dispatch({
+  type: 'presentation.configure',
+  projection: { view: defaultViewForPattern('map/1'), presentation: throwingPresentation },
+}), /E_PRESENTATION_GETTER/u);
+assert.equal(core.snapshot().scene.pattern, 'graph/1');
+core.dispatch({ type: 'presentation.refresh' });
+assert.equal(core.snapshot().scene.pattern, 'graph/1', 'getter failure must not leak a rejected projection');
+
+let retainedProjectionDomain = null;
+const stateHashBeforeProjectionCallback = core.snapshot().stateHash;
+core.dispatch({
+  type: 'presentation.configure',
+  projection: {
+    view: defaultViewForPattern('graph/1'),
+    modules: null,
+    projectPresentation(domain) {
+      retainedProjectionDomain = domain;
+      return null;
+    },
+    presentation: {
+      camera: { scale: 1, translateX: 0, translateY: 0 },
+      viewport: { x: 0, y: 0, width: 1200, height: 800 },
+    },
+  },
+});
+assert.ok(retainedProjectionDomain?.regions instanceof Map);
+retainedProjectionDomain.regions.delete('request');
+assert.equal(core.snapshot().document.regions, stableProjection.document.regions);
+assert.ok(region(core, 'request'));
+assert.equal(core.snapshot().stateHash, stateHashBeforeProjectionCallback);
+core.dispatch({ type: 'presentation.refresh' });
+assert.ok(region(core, 'request'), 'retained projection callback input must not mutate core state');
+
 core.acceptGesture({ type: 'selection.changed', selection: { regionIds: ['request'], relationIds: [] } });
 assert.deepEqual(core.snapshot().selection, { regionIds: ['request'], relationIds: [] });
 
@@ -218,6 +272,8 @@ console.log(JSON.stringify({
   hiddenWorkspaceAbsent: true,
   snapshotDetached: true,
   coreOwnsAcceptedSceneProjection: true,
+  projectionConfigureAtomic: true,
+  projectionCallbackDetached: true,
   authorityDenyAtomic: true,
   commitFailureAtomic: true,
   commitBeforePublish: true,
