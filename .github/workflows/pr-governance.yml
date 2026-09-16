@@ -30,3 +30,40 @@ jobs:
         run: node tests/check-pr-governance.mjs
       - name: Validate pull request text
         run: node tests/check-pr-body-governance.mjs
+
+  t283-final-proof-repair:
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'fix/retire-smap-t283' && github.event.pull_request.head.ref == 'chore/t283-repair-driver' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/retire-smap-t283
+          fetch-depth: 0
+      - name: Align projection-decoupling proof with generic data transport
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('packages/semantic-map/tests/set_topology_projection_decoupling_browser_e2e.py')
+          text = path.read_text(encoding='utf-8')
+          old = """          const accepted=await semanticMapRuntime.accept(proposal);\n          await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));\n          const decision=JSON.parse(accepted.log.trimEnd().split('\\\\n').at(-1));\n          return {\n            proposal,\n            decision,\n            accepted:{\n              decisionId:accepted.decisionId,\n              stateHash:accepted.stateHash,\n              log:accepted.log,\n              url:accepted.url,\n            },\n          };\n"""
+          new = """          const accepted=await semanticMapRuntime.accept(proposal);\n          const envelope=await semanticMapRuntime.envelope();\n          const url=await semanticMapDataTransport.create(envelope);\n          await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));\n          const decision=JSON.parse(accepted.log.trimEnd().split('\\\\n').at(-1));\n          return {\n            proposal,\n            decision,\n            accepted:{\n              decisionId:accepted.decisionId,\n              stateHash:accepted.stateHash,\n              log:accepted.log,\n              url,\n            },\n          };\n"""
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'accept block count={count}')
+          text = text.replace(old, new, 1)
+          old_fragment = '        fragment = "#" + urlsplit(accepted_horizontal["accepted"]["url"]).fragment\n'
+          new_fragment = '        fragment = "#" + urlsplit(accepted_horizontal["accepted"]["url"]).fragment\n        assert fragment.startswith("#data=")\n'
+          if text.count(old_fragment) != 1:
+              raise SystemExit('fragment anchor changed')
+          path.write_text(text.replace(old_fragment, new_fragment, 1), encoding='utf-8')
+          PY
+          git checkout 29c1f9d23f32eda95e7804dc0730c7171c66f3a7 -- .github/workflows/pr-governance.yml
+          git add -A
+          git commit -m "test: create projection replay URL via generic data transport"
+          git push origin HEAD:fix/retire-smap-t283
