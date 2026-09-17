@@ -1,3 +1,8 @@
+import {
+  normalizeDataPinRecords,
+  splitDataPinRecords,
+  targetIdsFromRecords,
+} from '../data-pin/contract.mjs';
 import { createSemanticMap } from './domain/index.js';
 import { SemanticDomainStore } from './domain/authoring-store.js';
 import { normalizeLayoutRecords, splitStateRecords } from './layout/state.js';
@@ -30,11 +35,16 @@ const snapshotDomain = domain => Object.freeze({
 });
 
 const stateParts = records => {
-  const { semanticRecords, layoutRecords } = splitStateRecords(records);
+  const { dataRecords, dataPinRecords } = splitDataPinRecords(records);
+  const { semanticRecords, layoutRecords } = splitStateRecords(dataRecords);
   const domain = createSemanticMap(semanticRecords);
   return Object.freeze({
     domain,
     layoutRecords: normalizeLayoutRecords(layoutRecords, domain),
+    dataPinRecords: normalizeDataPinRecords(
+      dataPinRecords,
+      dataPinRecords.length > 0 ? targetIdsFromRecords(semanticRecords) : null,
+    ),
   });
 };
 
@@ -42,14 +52,29 @@ const bootstrapEnvelope = async ({ input, view, scope }) => {
   if (typeof input === 'string') {
     invariant(typeof scope.crypto?.randomUUID === 'function', 'crypto.randomUUID is required');
     const records = parseStateJSONL(input);
-    const { semanticRecords, layoutRecords } = splitStateRecords(records);
+    const { dataRecords, dataPinRecords } = splitDataPinRecords(records);
+    const { semanticRecords, layoutRecords } = splitStateRecords(dataRecords);
     let created = await createDecisionLog(semanticRecords, `urn:uuid:${scope.crypto.randomUUID()}`);
+    const constraintOperations = [];
+    if (dataPinRecords.length > 0) {
+      constraintOperations.push({
+        type: 'PinData',
+        items: dataPinRecords.map(record => ({
+          targetId: record.targetId,
+          basis: record.basis,
+          reason: record.reason,
+        })),
+      });
+    }
     if (layoutRecords.length > 0) {
-      const layoutDecision = await createDecision(created.head, [{
+      constraintOperations.push({
         type: 'PinRegions',
         items: layoutRecords.map(record => ({ regionId: record.regionId, bounds: record.bounds })),
-      }], created.records);
-      created = await appendDecision(created.log, layoutDecision.decision);
+      });
+    }
+    if (constraintOperations.length > 0) {
+      const constraintDecision = await createDecision(created.head, constraintOperations, created.records);
+      created = await appendDecision(created.log, constraintDecision.decision);
     }
     return createEnvelope(created.log, null, view);
   }
@@ -117,7 +142,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
     head: runtime.head,
     view: runtime.view,
   });
-  const store = new SemanticDomainStore(initial.domain, initial.layoutRecords);
+  const store = new SemanticDomainStore(initial.domain, initial.layoutRecords, initial.dataPinRecords);
   runtime.attachStore(store);
 
   const surface = await mountSemanticMapSurface({
@@ -173,6 +198,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
     snapshot: () => Object.freeze({
       domain: snapshotDomain(store.domain),
       layout: store.layoutSnapshot(),
+      dataPins: store.dataPinSnapshot(),
       draft: store.draftSnapshot(),
       scene: surface.scene() ? Object.freeze({ pattern: surface.scene().pattern }) : null,
       selection: adapter.selectionSnapshot(),
