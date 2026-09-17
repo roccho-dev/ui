@@ -109,7 +109,8 @@ def main() -> None:
                         pins = page.evaluate("() => globalThis.semanticMapSite.editor.snapshot().dataPins")
                         assert pins == [EXPECTED_PIN], (runtime, pins)
                         if runtime == "graph":
-                            assert "📍given" in page.locator("body").inner_text(), "graph must visibly project the data pin"
+                            svg_text = "".join(page.locator("svg").all_text_contents())
+                            assert "📍given" in svg_text, "graph must visibly project the data pin in SVG"
                     elif runtime == "presentation":
                         assert mounted["schema"] == "ui-presentation-runtime/1", mounted
                         assert mounted["sourceId"] == "construction-evidence-service", mounted
