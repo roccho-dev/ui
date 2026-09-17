@@ -28,15 +28,20 @@ function compactLabel(label) {
   return head?.trim() || '';
 }
 
-function withDataPin(label, pin) {
-  if (!pin) return String(label ?? '');
-  const marker = `📍${pin.basis}`;
+function withDataPins(label, pins) {
+  const dataPins = Array.isArray(pins) ? pins.filter(Boolean) : [];
+  if (dataPins.length === 0) return String(label ?? '');
+  const bases = [...new Set(dataPins.map(pin => pin.basis))];
+  const marker = dataPins.length === 1
+    ? `📍${bases[0]}`
+    : `📍${dataPins.length}:${bases.join('/')}`;
   const value = String(label ?? '');
   return value ? `${marker} · ${value}` : marker;
 }
 
 export function displayedRegionLabel(representation, scale, theme, selected) {
-  const label = withDataPin(representation.label, representation.dataPin);
+  const pins = representation.dataPins ?? (representation.dataPin ? [representation.dataPin] : []);
+  const label = withDataPins(representation.label, pins);
   if (!label) return '';
   if (selected || representation.isGuide || representation.shape === 'map-attribution') return label;
 
@@ -71,7 +76,7 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
 }
 
 export function displayedRelationLabel(relation, scale, theme, representationsById, selected) {
-  const label = withDataPin(relation.label, relation.dataPins?.[0] ?? null);
+  const label = withDataPins(relation.label, relation.dataPins ?? []);
   if (!label) return '';
   if (selected) return label;
   const source = representationsById.get(relation.from);
