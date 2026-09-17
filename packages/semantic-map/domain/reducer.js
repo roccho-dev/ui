@@ -17,7 +17,10 @@ function storeFromRecords(records) {
   const { semanticRecords, layoutRecords } = splitStateRecords(dataRecords);
   const domain = createSemanticMap(semanticRecords);
   const layout = normalizeLayoutRecords(layoutRecords, domain);
-  const pins = normalizeDataPinRecords(dataPinRecords, targetIdsFromRecords(semanticRecords));
+  const pins = normalizeDataPinRecords(
+    dataPinRecords,
+    dataPinRecords.length > 0 ? targetIdsFromRecords(semanticRecords) : null,
+  );
   return new SemanticDomainStore(domain, layout, pins);
 }
 
