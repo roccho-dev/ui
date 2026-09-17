@@ -42,24 +42,44 @@ const graphPresentationProjection = (domain, direction, pins) => {
   });
 };
 
-const withConstraintState = (scene, layoutPins, dataPins) => Object.freeze({
-  ...scene,
-  representations: Object.freeze(scene.representations.map((representation) => {
-    const regionId = representation.sourceRegionId ?? representation.regionId;
-    const layoutPinned = !representation.isGuide && representation.mode !== 'boundary' && layoutPins.has(regionId);
-    const dataPin = dataPins.get(regionId) ?? null;
-    if (!layoutPinned && !dataPin) return representation;
-    return Object.freeze({
-      ...representation,
-      ...(layoutPinned ? { layoutPinned: true } : {}),
-      ...(dataPin ? { dataPin } : {}),
-    });
-  })),
-  relations: Object.freeze(scene.relations.map((relation) => {
-    const pins = Object.freeze((relation.relationIds ?? []).map(id => dataPins.get(id)).filter(Boolean));
-    return pins.length === 0 ? relation : Object.freeze({ ...relation, dataPins: pins });
-  })),
-});
+const visibleDataPins = (scene, dataPins) => {
+  const byRegionId = new Map();
+  for (const [targetId, pin] of dataPins) {
+    const visibleRegionId = scene.selectionProxies?.[targetId] ?? targetId;
+    if (!visibleRegionId) continue;
+    const pins = byRegionId.get(visibleRegionId) ?? [];
+    pins.push(pin);
+    byRegionId.set(visibleRegionId, pins);
+  }
+  return byRegionId;
+};
+
+const withConstraintState = (scene, layoutPins, dataPins) => {
+  const pinsByVisibleRegionId = visibleDataPins(scene, dataPins);
+  return Object.freeze({
+    ...scene,
+    representations: Object.freeze(scene.representations.map((representation) => {
+      const sourceRegionId = representation.sourceRegionId ?? representation.regionId;
+      const layoutPinned = !representation.isGuide && representation.mode !== 'boundary' && layoutPins.has(sourceRegionId);
+      const pins = pinsByVisibleRegionId.get(representation.regionId)
+        ?? pinsByVisibleRegionId.get(sourceRegionId)
+        ?? [];
+      if (!layoutPinned && pins.length === 0) return representation;
+      return Object.freeze({
+        ...representation,
+        ...(layoutPinned ? { layoutPinned: true } : {}),
+        ...(pins.length > 0 ? {
+          dataPin: pins[0],
+          dataPins: Object.freeze([...pins]),
+        } : {}),
+      });
+    })),
+    relations: Object.freeze(scene.relations.map((relation) => {
+      const pins = Object.freeze((relation.relationIds ?? []).map(id => dataPins.get(id)).filter(Boolean));
+      return pins.length === 0 ? relation : Object.freeze({ ...relation, dataPins: pins });
+    })),
+  });
+};
 
 const graphLayoutControls = (scope, onSelect, onUnpin) => {
   const controls = scope.document.createElement('div');
