@@ -14,6 +14,12 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[3]
 SOURCE = ROOT / "examples" / "presentation" / "presentation.jsonl"
 CHROMIUM = os.environ.get("CHROMIUM_EXECUTABLE")
+EXPECTED_PIN = {
+    "type": "data-pin",
+    "targetId": "case-records",
+    "basis": "given",
+    "reason": "顧客から与えられる案件記録だから",
+}
 
 
 def port() -> int:
@@ -100,6 +106,10 @@ def main() -> None:
                         assert mounted["runtimeDataSchema"] == "business-model-runtime-data/1", mounted
                         assert mounted["pattern"] == f"{runtime}/1", mounted
                         assert page.locator("svg").count() > 0
+                        pins = page.evaluate("() => globalThis.semanticMapSite.editor.snapshot().dataPins")
+                        assert pins == [EXPECTED_PIN], (runtime, pins)
+                        if runtime == "graph":
+                            assert "📍given" in page.locator("body").inner_text(), "graph must visibly project the data pin"
                     elif runtime == "presentation":
                         assert mounted["schema"] == "ui-presentation-runtime/1", mounted
                         assert mounted["sourceId"] == "construction-evidence-service", mounted
@@ -114,6 +124,10 @@ def main() -> None:
                         page.wait_for_function("() => uiPreviewProof.mounted.read().currentStageIndex === 1")
                         state = page.evaluate("() => uiPreviewProof.mounted.read()")
                         assert state["seq"]["focusMarker"] == "act-t1-customer", state
+                        marker = page.locator(".data-pin[data-data-pin='case-records']")
+                        assert marker.count() == 1
+                        assert marker.get_attribute("data-data-pin-basis") == "given"
+                        assert marker.get_attribute("title") == "given: 顧客から与えられる案件記録だから"
                     else:
                         assert mounted["schema"] == "ui-control-runtime/3", mounted
                         assert page.locator("[data-a2ui-component='TreeGrid']").count() == 1
@@ -131,11 +145,13 @@ def main() -> None:
                 assert unexpected == [], unexpected
                 browser.close()
             print(json.dumps({
-                "schema": "ui-preview-design-data-browser-proof/1",
+                "schema": "ui-preview-design-data-browser-proof/2",
                 "status": "PASS",
                 "source": str(SOURCE.relative_to(ROOT)),
                 "sourceBytes": len(source_bytes),
                 "graphSeqSameFragment": True,
+                "dataPin": EXPECTED_PIN,
+                "dataPinProjection": ["graph", "seq", "presentation"],
                 "designDataApps": ["presentation", "control"],
                 "runtimes": observed,
                 "externalRequests": 0,
