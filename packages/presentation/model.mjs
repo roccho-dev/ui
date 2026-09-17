@@ -1,5 +1,6 @@
 import { createPresentationCatalog } from '../a2ui-browser/src/catalog/presentation.mjs';
 import { A2UI_MESSAGE_VERSION } from '../a2ui-browser/src/catalog/base.mjs';
+import { splitDataPinJSONL } from '../data-pin/contract.mjs';
 import { createSemanticMap } from '../semantic-map/domain/index.js';
 import { SemanticDomainStore } from '../semantic-map/domain/authoring-store.js';
 import { mountSemanticMapSurface } from '../semantic-map/surface-runtime.mjs';
@@ -12,7 +13,7 @@ const invariant = (condition, message) => { if (!condition) throw new Error(`pre
 const objectById = items => Object.freeze(Object.fromEntries(items.map(item => [item.id, Object.freeze({ ...item })])));
 const clone = value => structuredClone(value);
 
-const dataModelFor = ({ model, plan, profile }) => Object.freeze({
+const dataModelFor = ({ model, plan, profile, dataPins }) => Object.freeze({
   schema: 'business-model-profiled-view/1',
   source: Object.freeze({ schema: model.sourceSchema, id: model.id }),
   title: model.title,
@@ -25,6 +26,7 @@ const dataModelFor = ({ model, plan, profile }) => Object.freeze({
   exchanges: objectById(model.exchanges),
   activities: objectById(model.activities),
   columns: Object.freeze(plan.columns.map(column => Object.freeze({ ...column }))),
+  dataPins: Object.freeze(dataPins.map(pin => Object.freeze({ ...pin }))),
 });
 
 export const createFeaturePlan = async ({ design, input }) => {
@@ -32,13 +34,14 @@ export const createFeaturePlan = async ({ design, input }) => {
   invariant(typeof input.presentation === 'string' && input.presentation.trim(), 'presentation.jsonl input required');
   invariant(typeof design.profileId === 'string' && design.profileId, 'design.profileId required');
   invariant(typeof design.mainSurfaceId === 'string' && design.mainSurfaceId, 'design.mainSurfaceId required');
-  const model = parseBusinessModelSemanticJsonl(input.presentation);
+  const source = splitDataPinJSONL(input.presentation);
+  const model = parseBusinessModelSemanticJsonl(source.dataText);
   const profile = derivePublicBusinessModelProjectionProfile(model);
   invariant(profile.id === design.profileId, 'design.profileId mismatch');
   const presentationPlan = compileBusinessModelPresentationPlan(model, profile);
   const catalog = createPresentationCatalog({ id: design.catalogId });
   const seqStore = new SemanticDomainStore(createSemanticMap(projectBusinessModelSemanticMapRecords(model)));
-  const viewModel = dataModelFor({ model, plan: presentationPlan, profile });
+  const viewModel = dataModelFor({ model, plan: presentationPlan, profile, dataPins: source.dataPinRecords });
 
   return Object.freeze({
     catalog,
