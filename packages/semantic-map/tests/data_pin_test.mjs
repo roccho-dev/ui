@@ -7,11 +7,20 @@ import {
   parseSemanticMapRecords,
 } from '../domain/index.js';
 import { splitStateRecords } from '../layout/state.js';
+import {
+  appendDecision,
+  createDecision,
+  createDecisionLog,
+  createEnvelope,
+  defaultViewForPattern,
+  inspectEnvelope,
+} from '../protocol/index.js';
 import { parseStateJSONL, stateRecordsToJSONL } from '../protocol/input-jsonl.js';
 import { stateHash } from '../protocol/state-hash.js';
 
 const text = fs.readFileSync(new URL('../examples/graph/flow.jsonl', import.meta.url), 'utf8');
-const domain = createSemanticMap(parseSemanticMapRecords(text));
+const semanticSourceRecords = parseSemanticMapRecords(text);
+const domain = createSemanticMap(semanticSourceRecords);
 const store = new SemanticDomainStore(domain);
 const review = domain.regions.get('review');
 const bounds = [review.bounds.x, review.bounds.y, review.bounds.width, review.bounds.height];
@@ -48,6 +57,16 @@ assert.equal(layoutRecords.length, 1);
 assert.equal(createSemanticMap(semanticRecords).regions.get('review').label, beforeLabel);
 assert.notEqual(await stateHash(parseStateJSONL(text)), await stateHash(replay), 'data pin must participate in the state hash');
 
+const initialLog = await createDecisionLog(semanticSourceRecords, 'urn:test:data-pin-envelope');
+const pinnedDecision = await createDecision(initialLog.head, [{
+  type: 'PinData',
+  items: [{ targetId: 'review', basis: 'premise', reason: 'review is an agreed premise' }],
+}], initialLog.records);
+const appended = await appendDecision(initialLog.log, pinnedDecision.decision);
+const envelope = await createEnvelope(appended.log, null, defaultViewForPattern('graph/1'));
+const inspected = await inspectEnvelope(envelope);
+assert.equal(splitDataPinRecords(inspected.base.records).dataPinRecords.length, 1, 'Envelope must preserve data pin state while semantic validation ignores the sidecar');
+
 store.performBatch([
   { type: 'UnpinData', targetIds: ['review'] },
   { type: 'RenameRegion', regionId: 'review', label: 'changed after explicit unpin' },
@@ -67,6 +86,7 @@ console.log(JSON.stringify({
   schema: 'semantic-map-data-pin-test/1',
   status: 'PASS',
   jsonlRoundtrip: true,
+  envelopeRoundtrip: true,
   mutationRejected: true,
   explicitUnpinRequired: true,
   layoutIndependent: true,
