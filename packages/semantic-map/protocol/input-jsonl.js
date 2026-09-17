@@ -39,7 +39,10 @@ export function normalizeStateInputRecords(records) {
   const { semanticRecords, layoutRecords } = splitStateRecords(dataRecords);
   const normalizedSemantic = Object.freeze(semanticRecordsFromJSONL(recordsToJSONL(semanticRecords)));
   const domain = createSemanticMap(normalizedSemantic);
-  const normalizedDataPins = normalizeDataPinRecords(dataPinRecords, targetIdsFromRecords(normalizedSemantic));
+  const normalizedDataPins = normalizeDataPinRecords(
+    dataPinRecords,
+    dataPinRecords.length > 0 ? targetIdsFromRecords(normalizedSemantic) : null,
+  );
   const normalizedLayout = normalizeLayoutRecords(layoutRecords, domain);
   return Object.freeze([...normalizedSemantic, ...normalizedDataPins, ...normalizedLayout]);
 }
