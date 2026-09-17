@@ -1,3 +1,8 @@
+import {
+  normalizeDataPinRecords,
+  splitDataPinRecords,
+  targetIdsFromRecords,
+} from '../../data-pin/contract.mjs';
 import { SemanticDomainStore } from './authoring-store.js';
 import { normalizeOperations } from './authoring-operation.js';
 import { createSemanticMap } from './semantic-map.js';
@@ -8,10 +13,12 @@ function invariant(condition, message) {
 }
 
 function storeFromRecords(records) {
-  const { semanticRecords, layoutRecords } = splitStateRecords(structuredClone(records));
+  const { dataRecords, dataPinRecords } = splitDataPinRecords(structuredClone(records));
+  const { semanticRecords, layoutRecords } = splitStateRecords(dataRecords);
   const domain = createSemanticMap(semanticRecords);
   const layout = normalizeLayoutRecords(layoutRecords, domain);
-  return new SemanticDomainStore(domain, layout);
+  const pins = normalizeDataPinRecords(dataPinRecords, targetIdsFromRecords(semanticRecords));
+  return new SemanticDomainStore(domain, layout, pins);
 }
 
 export function normalizeStateRecords(records) {
