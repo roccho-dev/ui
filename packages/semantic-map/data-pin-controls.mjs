@@ -8,15 +8,30 @@ const selectedTargetId = selection => {
   return ids.length === 1 ? ids[0] : null;
 };
 
-const option = (document, value, label) => {
-  const node = document.createElement('option');
-  node.value = value;
-  node.textContent = label;
-  return node;
+const selectedRegionId = selection => (
+  (selection?.regionIds?.length ?? 0) === 1
+  && (selection?.relationIds?.length ?? 0) === 0
+    ? selection.regionIds[0]
+    : null
+);
+
+const editableSelectedRegion = (adapter, selection) => {
+  const regionId = selectedRegionId(selection);
+  if (!regionId) return null;
+  const visibleId = adapter.lastScene?.selectionProxies?.[regionId] ?? regionId;
+  const cell = adapter.cellsByRegionId?.get?.(visibleId) ?? null;
+  return cell?.semantic?.type === 'region'
+    && cell.semantic.labelEditable === true
+    && cell.semantic.readOnly !== true
+      ? regionId
+      : null;
 };
 
 export const mountDataPinControls = ({ adapter, document, mount, store }) => {
-  invariant(adapter?.selectionSnapshot && adapter?.submitOperation, 'adapter is required');
+  invariant(
+    adapter?.selectionSnapshot && adapter?.submitOperation && adapter?.startEditingSelection,
+    'adapter is required',
+  );
   invariant(document?.createElement, 'document is required');
   invariant(mount?.append, 'mount is required');
   invariant(store?.dataPins instanceof Map, 'store dataPins are required');
@@ -30,11 +45,11 @@ export const mountDataPinControls = ({ adapter, document, mount, store }) => {
   summary.className = 'semantic-map-data-pin-summary';
   summary.dataset.dataPinSummary = 'true';
 
-  const pinButton = document.createElement('button');
-  pinButton.type = 'button';
-  pinButton.className = 'semantic-map-data-pin-button';
-  pinButton.dataset.dataPinAction = 'pin';
-  pinButton.textContent = '📍 Pin data';
+  const editButton = document.createElement('button');
+  editButton.type = 'button';
+  editButton.className = 'semantic-map-data-pin-button';
+  editButton.dataset.dataPinAction = 'edit';
+  editButton.textContent = '✎ Edit text → 📍';
 
   const unpinButton = document.createElement('button');
   unpinButton.type = 'button';
@@ -42,100 +57,46 @@ export const mountDataPinControls = ({ adapter, document, mount, store }) => {
   unpinButton.dataset.dataPinAction = 'unpin';
   unpinButton.textContent = 'Unpin data';
 
-  const form = document.createElement('form');
-  form.className = 'semantic-map-data-pin-form';
-  form.dataset.dataPinForm = 'true';
-  form.hidden = true;
-
-  const basis = document.createElement('select');
-  basis.className = 'semantic-map-data-pin-input';
-  basis.dataset.dataPinBasis = 'true';
-  basis.required = true;
-  const basisPlaceholder = option(document, '', 'Basis…');
-  basisPlaceholder.disabled = true;
-  basisPlaceholder.selected = true;
-  basis.append(
-    basisPlaceholder,
-    option(document, 'premise', 'Premise'),
-    option(document, 'dependency', 'Dependency'),
-    option(document, 'given', 'Given'),
-  );
-
-  const reason = document.createElement('input');
-  reason.type = 'text';
-  reason.className = 'semantic-map-data-pin-input semantic-map-data-pin-reason';
-  reason.dataset.dataPinReason = 'true';
-  reason.placeholder = 'Why is this fixed input?';
-  reason.required = true;
-
-  const confirm = document.createElement('button');
-  confirm.type = 'submit';
-  confirm.className = 'semantic-map-data-pin-button';
-  confirm.dataset.dataPinAction = 'confirm';
-  confirm.textContent = 'Pin';
-
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.className = 'semantic-map-data-pin-button';
-  cancel.dataset.dataPinAction = 'cancel';
-  cancel.textContent = 'Cancel';
-
-  form.append(basis, reason, confirm, cancel);
-  root.append(summary, pinButton, unpinButton, form);
+  root.append(summary, editButton, unpinButton);
   mount.append(root);
 
   let targetId = null;
-
-  const closeForm = () => {
-    form.hidden = true;
-    form.reset();
-  };
+  let editableRegionId = null;
 
   const update = (selection = adapter.selectionSnapshot()) => {
-    const nextTargetId = selectedTargetId(selection);
-    if (nextTargetId !== targetId) closeForm();
-    targetId = nextTargetId;
+    targetId = selectedTargetId(selection);
+    editableRegionId = editableSelectedRegion(adapter, selection);
     const pin = targetId ? store.dataPins.get(targetId) ?? null : null;
+    const canEditAndPin = Boolean(editableRegionId) && !pin;
+
     root.dataset.dataPinTarget = targetId ?? '';
     root.dataset.dataPinned = pin ? 'true' : 'false';
+    root.dataset.dataPinEditable = canEditAndPin ? 'true' : 'false';
+
     summary.textContent = !targetId
-      ? 'Select one item'
+      ? 'Select one text item'
       : pin
         ? `📍 ${pin.basis} — ${pin.reason}`
-        : targetId;
-    pinButton.disabled = !targetId || Boolean(pin);
-    unpinButton.disabled = !pin;
+        : canEditAndPin
+          ? 'Edit text; the edit is pinned automatically'
+          : targetId;
+
+    editButton.hidden = Boolean(pin);
+    editButton.disabled = !canEditAndPin;
     unpinButton.hidden = !pin;
-    return Object.freeze({ targetId, pin });
+    unpinButton.disabled = !pin;
+    return Object.freeze({ targetId, pin, editableRegionId });
   };
 
-  pinButton.addEventListener('click', () => {
-    if (!targetId || store.dataPins.has(targetId)) return;
-    form.hidden = false;
-    basis.focus();
-  });
-
-  cancel.addEventListener('click', closeForm);
-
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    if (!targetId) return;
-    const reasonText = reason.value.trim();
-    if (!basis.value || !reasonText) return;
-    const result = adapter.submitOperation({
-      type: 'PinData',
-      items: [{ targetId, basis: basis.value, reason: reasonText }],
-    });
-    if (!result) return;
-    closeForm();
-    update();
+  editButton.addEventListener('click', () => {
+    if (!editableRegionId || store.dataPins.has(editableRegionId)) return;
+    adapter.startEditingSelection();
   });
 
   unpinButton.addEventListener('click', () => {
     if (!targetId || !store.dataPins.has(targetId)) return;
     const result = adapter.submitOperation({ type: 'UnpinData', targetIds: [targetId] });
     if (!result) return;
-    closeForm();
     update();
   });
 
