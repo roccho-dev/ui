@@ -28,8 +28,15 @@ function compactLabel(label) {
   return head?.trim() || '';
 }
 
+function withDataPin(label, pin) {
+  if (!pin) return String(label ?? '');
+  const marker = `📍${pin.basis}`;
+  const value = String(label ?? '');
+  return value ? `${marker} · ${value}` : marker;
+}
+
 export function displayedRegionLabel(representation, scale, theme, selected) {
-  const label = String(representation.label ?? '');
+  const label = withDataPin(representation.label, representation.dataPin);
   if (!label) return '';
   if (selected || representation.isGuide || representation.shape === 'map-attribution') return label;
 
@@ -64,7 +71,7 @@ export function displayedRegionLabel(representation, scale, theme, selected) {
 }
 
 export function displayedRelationLabel(relation, scale, theme, representationsById, selected) {
-  const label = String(relation.label ?? '');
+  const label = withDataPin(relation.label, relation.dataPins?.[0] ?? null);
   if (!label) return '';
   if (selected) return label;
   const source = representationsById.get(relation.from);
