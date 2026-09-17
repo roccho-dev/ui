@@ -40,7 +40,10 @@ export const createFeaturePlan = async ({ design, input }) => {
   invariant(profile.id === design.profileId, 'design.profileId mismatch');
   const presentationPlan = compileBusinessModelPresentationPlan(model, profile);
   const catalog = createPresentationCatalog({ id: design.catalogId });
-  const seqStore = new SemanticDomainStore(createSemanticMap(projectBusinessModelSemanticMapRecords(model)));
+  const seqRecords = projectBusinessModelSemanticMapRecords(model);
+  const seqIds = new Set(seqRecords.map(record => record.id).filter(Boolean));
+  const seqPins = source.dataPinRecords.filter(pin => seqIds.has(pin.targetId));
+  const seqStore = new SemanticDomainStore(createSemanticMap(seqRecords), [], seqPins);
   const viewModel = dataModelFor({ model, plan: presentationPlan, profile, dataPins: source.dataPinRecords });
 
   return Object.freeze({
