@@ -132,6 +132,87 @@ def prove_graph_pin(page):
     }
 
 
+def prove_data_pin_controls(page):
+    target_id = page.evaluate(
+        """() => {
+          const site = globalThis.semanticMapSite;
+          const adapter = site?.editor?.adapter;
+          const snapshot = site?.editor?.snapshot?.();
+          if (!adapter || !snapshot) throw new Error('semantic-map editor missing');
+          const pinned = new Set(snapshot.dataPins.map(item => item.targetId));
+          const pair = [...adapter.cellsByRegionId.entries()].find(([, cell]) => {
+            const targetId = cell?.semantic?.sourceRegionId ?? cell?.semantic?.regionId ?? null;
+            return cell?.isVertex?.()
+              && cell.semantic?.type === 'region'
+              && cell.semantic?.mode !== 'boundary'
+              && cell.semantic?.readOnly !== true
+              && targetId
+              && !pinned.has(targetId);
+          });
+          if (!pair) throw new Error('unpinned selectable data target missing');
+          const [, cell] = pair;
+          const targetId = cell.semantic.sourceRegionId ?? cell.semantic.regionId;
+          adapter.setSelection({regionIds: [targetId], relationIds: []});
+          return targetId;
+        }""",
+    )
+
+    controls = page.locator("[data-data-pin-controls='true']")
+    assert controls.count() == 1
+    assert controls.get_attribute('data-data-pin-target') == target_id
+    assert controls.get_attribute('data-data-pinned') == 'false'
+
+    pin = page.locator("[data-data-pin-action='pin']")
+    assert not pin.is_disabled()
+    pin.click()
+    form = page.locator("[data-data-pin-form='true']")
+    assert form.is_visible()
+    page.locator("[data-data-pin-basis='true']").select_option('dependency')
+    reason_text = 'depends on upstream contract'
+    page.locator("[data-data-pin-reason='true']").fill(reason_text)
+    page.locator("[data-data-pin-action='confirm']").click()
+
+    page.wait_for_function(
+        """({targetId, reason}) => {
+          const pin = globalThis.semanticMapSite?.editor?.snapshot?.().dataPins
+            ?.find(item => item.targetId === targetId);
+          return pin?.basis === 'dependency' && pin?.reason === reason;
+        }""",
+        arg={"targetId": target_id, "reason": reason_text},
+        timeout=5_000,
+    )
+    pinned = page.evaluate(
+        """targetId => {
+          const site = globalThis.semanticMapSite;
+          const pin = site.editor.snapshot().dataPins.find(item => item.targetId === targetId);
+          const jsonl = site.editor.store.toJSONL();
+          return {pin, jsonl};
+        }""",
+        target_id,
+    )
+    assert pinned['pin']['basis'] == 'dependency'
+    assert pinned['pin']['reason'] == reason_text
+    assert f'"targetId":"{target_id}"' in pinned['jsonl']
+    assert '"type":"data-pin"' in pinned['jsonl']
+    assert controls.get_attribute('data-data-pinned') == 'true'
+    assert '📍 dependency' in page.locator("[data-data-pin-summary='true']").inner_text()
+
+    unpin = page.locator("[data-data-pin-action='unpin']")
+    assert unpin.is_visible()
+    assert not unpin.is_disabled()
+    unpin.click()
+    page.wait_for_function(
+        """targetId => !globalThis.semanticMapSite?.editor?.snapshot?.().dataPins
+          ?.some(item => item.targetId === targetId)""",
+        arg=target_id,
+        timeout=5_000,
+    )
+    unpinned_jsonl = page.evaluate("() => globalThis.semanticMapSite.editor.store.toJSONL()")
+    assert f'"targetId":"{target_id}"' not in unpinned_jsonl
+    assert controls.get_attribute('data-data-pinned') == 'false'
+    return {"targetId": target_id, "basis": "dependency", "reasonRequired": True, "pin": True, "jsonl": True, "unpin": True}
+
+
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch()
     page = browser.new_page(viewport={"width": 1440, "height": 1000})
@@ -159,6 +240,7 @@ with sync_playwright() as playwright:
     checked = []
     control = None
     graph_pin = None
+    data_pin = None
     for item in links:
         page.goto(item['href'], wait_until='domcontentloaded', timeout=20_000)
         wait_for_status(page, 20)
@@ -171,10 +253,12 @@ with sync_playwright() as playwright:
             control = prove_control_grid(page)
         if item['id'] == 'graph':
             graph_pin = prove_graph_pin(page)
+            data_pin = prove_data_pin_controls(page)
         checked.append(item['id'])
 
     assert control is not None
     assert graph_pin is not None
+    assert data_pin is not None
     browser.close()
 
-print(json.dumps({"schema": "ui-preview-deployed-browser-proof/2", "status": "PASS", "base": base, "cases": checked, "control": control, "graphPin": graph_pin}, ensure_ascii=False))
+print(json.dumps({"schema": "ui-preview-deployed-browser-proof/3", "status": "PASS", "base": base, "cases": checked, "control": control, "graphPin": graph_pin, "dataPin": data_pin}, ensure_ascii=False))
