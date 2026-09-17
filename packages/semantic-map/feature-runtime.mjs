@@ -3,6 +3,7 @@ import {
   splitDataPinRecords,
   targetIdsFromRecords,
 } from '../data-pin/contract.mjs';
+import { mountDataPinControls } from './data-pin-controls.mjs';
 import { createSemanticMap } from './domain/index.js';
 import { SemanticDomainStore } from './domain/authoring-store.js';
 import { normalizeLayoutRecords, splitStateRecords } from './layout/state.js';
@@ -156,6 +157,7 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
     modules: initialModules,
   });
   const { adapter, canvas } = surface;
+  mountDataPinControls({ adapter, document: root.ownerDocument, mount: canvas.parentElement, store });
 
   adapter.setOperationHandler(operation => {
     const authored = graphAuthoringOperation(operation, surface.scene());
