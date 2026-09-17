@@ -1,3 +1,4 @@
+import { splitDataPinRecords } from '../../data-pin/contract.mjs';
 import { createSemanticMap } from '../domain/index.js';
 import { splitStateRecords } from '../layout/state.js';
 import {
@@ -95,7 +96,8 @@ export function normalizeView(input) {
 }
 
 function semanticRecordsFor(records) {
-  return splitStateRecords(records).semanticRecords;
+  const { dataRecords } = splitDataPinRecords(records);
+  return splitStateRecords(dataRecords).semanticRecords;
 }
 
 function regionIdsFor(records) {

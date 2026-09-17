@@ -1,3 +1,4 @@
+import { normalizeDataPinRecord } from '../../data-pin/contract.mjs';
 import {
   MAX_DECISION_OPERATIONS,
   OPERATION_TYPES as BASE_OPERATION_TYPES,
@@ -11,6 +12,8 @@ export const OPERATION_TYPES = Object.freeze([
   'ReconnectRelation',
   'PinRegions',
   'UnpinRegions',
+  'PinData',
+  'UnpinData',
 ]);
 
 function invariant(condition, message) {
@@ -81,16 +84,42 @@ function normalizeUnpinRegions(input) {
   return Object.freeze({ type: 'UnpinRegions', regionIds: normalizeIds(value.regionIds, 'UnpinRegions.regionIds') });
 }
 
+function normalizePinData(input) {
+  const value = plainObject(input, 'PinData');
+  exactKeys(value, ['type', 'items'], 'PinData');
+  invariant(Array.isArray(value.items) && value.items.length > 0, 'PinData.items must be a non-empty array');
+  const seen = new Set();
+  const items = value.items.map((item, index) => {
+    plainObject(item, `PinData.items[${index}]`);
+    exactKeys(item, ['targetId', 'basis', 'reason'], `PinData.items[${index}]`);
+    const pin = normalizeDataPinRecord({ type: 'data-pin', ...item });
+    invariant(!seen.has(pin.targetId), `PinData.items contains duplicate ${pin.targetId}`);
+    seen.add(pin.targetId);
+    return Object.freeze({ targetId: pin.targetId, basis: pin.basis, reason: pin.reason });
+  });
+  return Object.freeze({ type: 'PinData', items: Object.freeze(items) });
+}
+
+function normalizeUnpinData(input) {
+  const value = plainObject(input, 'UnpinData');
+  exactKeys(value, ['type', 'targetIds'], 'UnpinData');
+  return Object.freeze({ type: 'UnpinData', targetIds: normalizeIds(value.targetIds, 'UnpinData.targetIds') });
+}
+
 export function isOperationType(value) {
   return value === 'ReconnectRelation'
     || value === 'PinRegions'
     || value === 'UnpinRegions'
+    || value === 'PinData'
+    || value === 'UnpinData'
     || isBaseOperationType(value);
 }
 
 export function normalizeOperation(input) {
   if (input?.type === 'PinRegions') return normalizePinRegions(input);
   if (input?.type === 'UnpinRegions') return normalizeUnpinRegions(input);
+  if (input?.type === 'PinData') return normalizePinData(input);
+  if (input?.type === 'UnpinData') return normalizeUnpinData(input);
   if (input?.type !== 'ReconnectRelation') return normalizeBaseOperation(input);
   const value = plainObject(input, 'operation');
   exactKeys(value, ['type', 'relationId', 'from', 'to'], 'ReconnectRelation');

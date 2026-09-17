@@ -1,3 +1,4 @@
+import { appendDataPinMarker } from '../data-pin.mjs';
 import { createBaseCatalog } from './base.mjs';
 import { assertExactKeys, extendTrustedCatalog, isPlainObject } from './runtime.mjs';
 
@@ -71,20 +72,21 @@ const appendMissing = ({ classes, document, properties, value }) => {
   missing.textContent = value;
   properties.append(missing);
 };
-const appendSource = ({ classes, component, document, properties, record }) => {
+const appendSource = ({ classes, component, dataModel, document, properties, record }) => {
   const titleKey = rootKey(component.titlePath);
   const idKey = rootKey(component.idPath);
   const title = readPath(record, component.titlePath);
   const id = readPath(record, component.idPath);
   if (title !== undefined) properties.append(propertyElement({ classes, document, key: titleKey, value: title, title: true }));
   properties.append(propertyElement({ classes, document, key: idKey, value: id }));
+  appendDataPinMarker({ container: properties, dataModel, document, targetId: id });
   const excluded = new Set([titleKey, idKey, rootKey(component.parentPath), rootKey(component.relationKindPath)]);
   for (const [key, value] of Object.entries(record)) {
     if (excluded.has(key)) continue;
     properties.append(propertyElement({ classes, document, key, value, rest: true }));
   }
 };
-const appendJoined = ({ classes, component, document, joined, properties, record, missing }) => {
+const appendJoined = ({ classes, component, dataModel, document, joined, properties, record, missing }) => {
   const titleKey = rootKey(component.titlePath);
   const idKey = rootKey(component.idPath);
   const title = readPath(record, component.titlePath);
@@ -92,6 +94,7 @@ const appendJoined = ({ classes, component, document, joined, properties, record
   if (title !== undefined) properties.append(propertyElement({ classes, document, key: titleKey, value: title, title: true }));
   properties.append(propertyElement({ classes, document, key: idKey, value: id }));
   if (!joined) return appendMissing({ classes, document, properties, value: missing });
+  appendDataPinMarker({ container: properties, dataModel, document, targetId: readPath(joined, component.idPath) });
   const excluded = new Set([idKey, rootKey(component.join.foreignPath)]);
   for (const [key, value] of Object.entries(joined)) {
     if (excluded.has(key)) continue;
@@ -181,8 +184,8 @@ const definitions = [{
         cell.dataset.controlColumn = column.id;
         const properties = document.createElement('div');
         addClass(properties, className(component.classes, 'properties'));
-        if (column.source === 'record') appendSource({ classes: component.classes, component, document, properties, record });
-        else appendJoined({ classes: component.classes, component, document, joined, properties, record, missing: column.missing ?? '—' });
+        if (column.source === 'record') appendSource({ classes: component.classes, component, dataModel, document, properties, record });
+        else appendJoined({ classes: component.classes, component, dataModel, document, joined, properties, record, missing: column.missing ?? '—' });
         cell.append(properties);
         row.append(cell);
         cells.push(cell);

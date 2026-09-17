@@ -1,3 +1,8 @@
+import {
+  normalizeDataPinRecords,
+  splitDataPinRecords,
+  targetIdsFromRecords,
+} from '../../data-pin/contract.mjs';
 import { canonicalJson } from '../domain/canonical-json.js';
 import { createSemanticMap, recordsToJSONL } from '../domain/semantic-map.js';
 import { normalizeLayoutRecords, splitStateRecords } from '../layout/state.js';
@@ -30,11 +35,16 @@ function semanticRecordsFromJSONL(text) {
 
 export function normalizeStateInputRecords(records) {
   invariant(Array.isArray(records) && records.length > 0, 'records must be a non-empty array');
-  const { semanticRecords, layoutRecords } = splitStateRecords(records);
+  const { dataRecords, dataPinRecords } = splitDataPinRecords(records);
+  const { semanticRecords, layoutRecords } = splitStateRecords(dataRecords);
   const normalizedSemantic = Object.freeze(semanticRecordsFromJSONL(recordsToJSONL(semanticRecords)));
   const domain = createSemanticMap(normalizedSemantic);
+  const normalizedDataPins = normalizeDataPinRecords(
+    dataPinRecords,
+    dataPinRecords.length > 0 ? targetIdsFromRecords(normalizedSemantic) : null,
+  );
   const normalizedLayout = normalizeLayoutRecords(layoutRecords, domain);
-  return Object.freeze([...normalizedSemantic, ...normalizedLayout]);
+  return Object.freeze([...normalizedSemantic, ...normalizedDataPins, ...normalizedLayout]);
 }
 
 export function parseStateJSONL(input) {

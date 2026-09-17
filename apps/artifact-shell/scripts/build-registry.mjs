@@ -45,6 +45,8 @@ const baseRuntimeSourceRoots = Object.freeze([
   path.join(repoRoot, "packages", "artifact-reference", "package.json"),
   path.join(repoRoot, "packages", "a2ui-browser", "src"),
   path.join(repoRoot, "packages", "a2ui-browser", "package.json"),
+  path.join(repoRoot, "packages", "data-pin", "contract.mjs"),
+  path.join(repoRoot, "packages", "data-pin", "policy.mjs"),
   path.join(repoRoot, "packages", "core-port", "src", "jsonl.mjs"),
   path.join(repoRoot, "packages", "core-port", "src", "project.mjs"),
   path.join(repoRoot, "packages", "core-port", "src", "catalog.mjs"),

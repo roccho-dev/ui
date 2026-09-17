@@ -28,3 +28,4 @@
 {"type":"transition","id":"tr-12","from":"act-t1-customer","to":"act-t2-provider","kind":"next","label":"入力から商品"}
 {"type":"transition","id":"tr-23","from":"act-t2-provider","to":"act-t3-customer","kind":"next","label":"商品から成果"}
 {"type":"transition","id":"tr-3n","from":"act-t3-customer","to":"act-tn-provider","kind":"next","label":"取引から反復"}
+{"type":"data-pin","targetId":"case-records","basis":"given","reason":"顧客から与えられる案件記録だから"}
