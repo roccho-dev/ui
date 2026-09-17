@@ -42,12 +42,22 @@ const graphPresentationProjection = (domain, direction, pins) => {
   });
 };
 
-const withGraphPinState = (scene, pins) => Object.freeze({
+const withConstraintState = (scene, layoutPins, dataPins) => Object.freeze({
   ...scene,
   representations: Object.freeze(scene.representations.map((representation) => {
     const regionId = representation.sourceRegionId ?? representation.regionId;
-    if (representation.mode === 'boundary' || representation.isGuide || !pins.has(regionId)) return representation;
-    return Object.freeze({ ...representation, layoutPinned: true });
+    const layoutPinned = !representation.isGuide && representation.mode !== 'boundary' && layoutPins.has(regionId);
+    const dataPin = dataPins.get(regionId) ?? null;
+    if (!layoutPinned && !dataPin) return representation;
+    return Object.freeze({
+      ...representation,
+      ...(layoutPinned ? { layoutPinned: true } : {}),
+      ...(dataPin ? { dataPin } : {}),
+    });
+  })),
+  relations: Object.freeze(scene.relations.map((relation) => {
+    const pins = Object.freeze((relation.relationIds ?? []).map(id => dataPins.get(id)).filter(Boolean));
+    return pins.length === 0 ? relation : Object.freeze({ ...relation, dataPins: pins });
   })),
 });
 
@@ -139,13 +149,14 @@ export const mountSemanticMapSurface = async ({
 
   const projectDomain = (domain, candidateView = view, resolvedModules = activeModules) => {
     const graph = featureId === 'graph' && candidateView.pattern === 'graph/1';
-    const pins = graph ? (store.layoutHints ?? new Map()) : new Map();
+    const layoutPins = graph ? (store.layoutHints ?? new Map()) : new Map();
+    const dataPins = store.dataPins ?? new Map();
     const presentationProjection = graph
-      ? graphPresentationProjection(domain, activeDirection, pins)
+      ? graphPresentationProjection(domain, activeDirection, layoutPins)
       : null;
     const projector = new SemanticProjector(domain, resolvedModules, candidateView, { presentationProjection });
     const projected = projector.project({ scale: adapter.camera().scale, viewport: adapter.viewport() });
-    return graph ? withGraphPinState(projected, pins) : projected;
+    return withConstraintState(projected, layoutPins, dataPins);
   };
   const project = () => projectDomain(store.domain, view, activeModules);
   const updateControls = () => {
