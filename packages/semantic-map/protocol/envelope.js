@@ -1,3 +1,4 @@
+import { splitDataPinRecords } from '../../data-pin/contract.mjs';
 import { createSemanticMap } from '../domain/index.js';
 import { splitStateRecords } from '../layout/state.js';
 import {
@@ -34,7 +35,7 @@ function finiteTuple(value, length, name, { positiveFrom = length } = {}) {
   return Object.freeze(value.map((item, index) => {
     invariant(typeof item === 'number' && Number.isFinite(item), `${name}[${index}] must be finite`);
     invariant(index < positiveFrom || item > 0, `${name}[${index}] must be positive`);
-    return Object.is(item, -0) ? 0 : item;
+    return Object.is(value, -0) ? 0 : item;
   }));
 }
 
@@ -95,7 +96,8 @@ export function normalizeView(input) {
 }
 
 function semanticRecordsFor(records) {
-  return splitStateRecords(records).semanticRecords;
+  const { dataRecords } = splitDataPinRecords(records);
+  return splitStateRecords(dataRecords).semanticRecords;
 }
 
 function regionIdsFor(records) {
