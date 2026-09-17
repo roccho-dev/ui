@@ -1,3 +1,4 @@
+import { appendDataPinMarker } from '../data-pin.mjs';
 import { assertExactKeys, assertStringArray, createTrustedCatalog, isPlainObject } from './runtime.mjs';
 
 const fail = message => { throw new Error(`presentation-catalog: ${message}`); };
@@ -9,9 +10,10 @@ const element = (document, tag, className = '', value) => {
   if (value !== undefined) node.textContent = value;
   return node;
 };
-const semantic = (node, type, id) => {
+const semantic = (node, type, id, dataModel, document) => {
   node.dataset.semanticType = type;
   node.dataset.semanticId = id;
+  appendDataPinMarker({ container: node, dataModel, document, targetId: id });
   return node;
 };
 const modelData = value => {
@@ -23,6 +25,7 @@ const modelData = value => {
   invariant(isPlainObject(value.exchanges), 'exchanges required');
   invariant(isPlainObject(value.activities), 'activities required');
   invariant(Array.isArray(value.columns), 'columns required');
+  invariant(Array.isArray(value.dataPins), 'dataPins required');
   invariant(isPlainObject(value.profile), 'profile required');
   return value;
 };
@@ -61,6 +64,7 @@ const renderBusinessModel = ({ component, dataModel, document, emitAction }) => 
     button.classList.toggle('past', index < model.currentIndex);
     button.setAttribute('aria-pressed', String(index === model.currentIndex));
     button.dataset.stageId = item.id;
+    appendDataPinMarker({ container: button, dataModel: model, document, targetId: item.id });
     button.append(element(document, 'strong', '', item.short), element(document, 'span', '', item.caption));
     button.addEventListener('click', () => emitAction({ action: component.action, context: { index, stageId: item.id } }));
     timeline.append(button);
@@ -75,7 +79,7 @@ const renderBusinessModel = ({ component, dataModel, document, emitAction }) => 
       invariant(isPlainObject(actor), `actor missing: ${column.actorRef}`);
       const state = itemState(model, actor.born);
       if (!state) continue;
-      const card = semantic(element(document, 'article', `profiled-actor stage-item${stateClass(state)}`), 'actor', actor.id);
+      const card = semantic(element(document, 'article', `profiled-actor stage-item${stateClass(state)}`), 'actor', actor.id, model, document);
       card.append(element(document, 'div', 'profiled-actor-role', actor.role));
       card.append(element(document, 'h2', '', actor.label));
       card.append(element(document, 'p', 'profiled-actor-detail', actor.detail));
@@ -83,7 +87,7 @@ const renderBusinessModel = ({ component, dataModel, document, emitAction }) => 
       for (const node of model.nodesByActor[actor.id] ?? []) {
         const nodeState = itemState(model, node.born);
         if (!nodeState) continue;
-        const panel = semantic(element(document, 'section', `profiled-owned-node stage-item kind-${node.kind}${stateClass(nodeState)}`), 'node', node.id);
+        const panel = semantic(element(document, 'section', `profiled-owned-node stage-item kind-${node.kind}${stateClass(nodeState)}`), 'node', node.id, model, document);
         panel.style.setProperty('--node-depth', String(node.depth ?? 0));
         if (node.role) panel.append(element(document, 'small', '', node.role));
         panel.append(element(document, 'strong', '', node.label));
@@ -114,7 +118,7 @@ const renderBusinessModel = ({ component, dataModel, document, emitAction }) => 
       const exchangeState = itemState(model, exchange.born);
       if (!exchangeState) continue;
       const direction = exchange.from === column.leftActorRef ? 'to-right' : 'to-left';
-      const lane = semantic(element(document, 'article', `profiled-exchange ${direction} stage-item${stateClass(exchangeState)}`), 'exchange', ref);
+      const lane = semantic(element(document, 'article', `profiled-exchange ${direction} stage-item${stateClass(exchangeState)}`), 'exchange', ref, model, document);
       lane.append(element(document, 'small', '', exchange.kind), element(document, 'strong', '', exchange.label));
       if (exchange.detail) lane.append(element(document, 'span', '', exchange.detail));
       group.append(lane);
@@ -135,7 +139,7 @@ const renderBusinessModel = ({ component, dataModel, document, emitAction }) => 
   evidence.append(element(document, 'small', '', '観測'), element(document, 'strong', '', stage.evidence));
   const activities = element(document, 'div', 'profiled-activities');
   for (const activity of Object.values(model.activities).filter(item => item.stage === stage.id).sort((a, b) => a.recordIndex - b.recordIndex)) {
-    activities.append(semantic(element(document, 'span', '', activity.label), 'activity', activity.id));
+    activities.append(semantic(element(document, 'span', '', activity.label), 'activity', activity.id, model, document));
   }
   status.append(change, evidence, activities, element(document, 'div', 'profiled-gate', stage.gate));
 
