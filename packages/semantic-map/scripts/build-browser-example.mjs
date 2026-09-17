@@ -21,6 +21,7 @@ const dataUrl = source => `data:text/javascript;charset=utf-8;base64,${Buffer.fr
 const sha256 = bytes => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 const BROWSER_MODULE_ROOTS = Object.freeze([
   'packages/semantic-map/',
+  'packages/data-pin/',
   'packages/core-port/',
   'packages/connectability/',
   'packages/url-module/',
