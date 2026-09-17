@@ -13,7 +13,8 @@
   background: #ffffff;
 }
 
-.semantic-map-layout-button {
+.semantic-map-layout-button,
+.semantic-map-data-pin-button {
   min-width: 3.25rem;
   padding: 0.35rem 0.7rem;
   border: 1px solid #c5ced8;
@@ -29,6 +30,12 @@
   background: #e9f5ef;
   color: #245d49;
   font-weight: 700;
+}
+
+.semantic-map-layout-button:disabled,
+.semantic-map-data-pin-button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .semantic-map-feature {
@@ -47,6 +54,58 @@
   overflow: hidden;
 }
 
+.semantic-map-data-pin-controls {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 8;
+  display: flex;
+  max-width: min(34rem, calc(100% - 1.5rem));
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.4rem;
+  border: 1px solid #d8dee6;
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.semantic-map-data-pin-summary {
+  max-width: 22rem;
+  overflow: hidden;
+  color: #334155;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.semantic-map-data-pin-form {
+  display: flex;
+  flex-basis: 100%;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.semantic-map-data-pin-form[hidden] {
+  display: none;
+}
+
+.semantic-map-data-pin-input {
+  min-width: 8rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #c5ced8;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.semantic-map-data-pin-reason {
+  flex: 1 1 14rem;
+}
+
 @media (max-width: 720px) {
   .semantic-map-layout-controls {
     justify-content: center;
@@ -54,5 +113,19 @@
 
   .semantic-map-feature {
     min-height: 680px;
+  }
+
+  .semantic-map-data-pin-controls {
+    left: 0.5rem;
+    right: 0.5rem;
+    max-width: none;
+  }
+
+  .semantic-map-data-pin-summary {
+    max-width: 100%;
+  }
+
+  .semantic-map-data-pin-form {
+    flex-wrap: wrap;
   }
 }
