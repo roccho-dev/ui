@@ -102,10 +102,18 @@ export function createJsonConnectability({
   fetch: fetchValue = globalThis.fetch,
   idOf = value => value.proposal_id,
   maxBytes = DEFAULT_MAX_BYTES,
+  responseGuard = null,
+  serialize = canonicalJson,
 } = {}) {
   invariant(typeof prepareValue === 'function', 'INVALID_CONFIG', 'prepare must be a function');
   invariant(typeof fetchValue === 'function', 'INVALID_CONFIG', 'fetch must be a function');
   invariant(typeof idOf === 'function', 'INVALID_CONFIG', 'idOf must be a function');
+  invariant(
+    responseGuard === null || typeof responseGuard === 'function',
+    'INVALID_CONFIG',
+    'responseGuard must be null or a function',
+  );
+  invariant(typeof serialize === 'function', 'INVALID_CONFIG', 'serialize must be a function');
   invariant(
     Number.isSafeInteger(maxBytes) && maxBytes > 0,
     'INVALID_CONFIG',
@@ -123,7 +131,8 @@ export function createJsonConnectability({
       'INVALID_PROPOSAL',
       'prepared proposal must have a stable id',
     );
-    const bytes = canonicalJson(value);
+    const bytes = serialize(value);
+    invariant(typeof bytes === 'string', 'INVALID_PROPOSAL', 'serialized proposal must be a string');
     const byteLength = bytesOf(bytes);
     invariant(byteLength <= maxBytes, 'PROPOSAL_TOO_LARGE', `proposal exceeds ${maxBytes} bytes`);
     const digest = await digestOf(bytes);
@@ -166,6 +175,7 @@ export function createJsonConnectability({
       credentials: 'same-origin',
       redirect: 'error',
     });
+    if (responseGuard) await responseGuard(response);
     const value = await responseJson(response);
     return deepFreeze({
       schema: 'ui.connectability.submit-result/1',
@@ -189,6 +199,7 @@ export function createJsonConnectability({
       credentials: 'same-origin',
       redirect: 'error',
     });
+    if (responseGuard) await responseGuard(response);
     const value = await responseJson(response);
     return deepFreeze({
       schema: 'ui.connectability.observation/1',

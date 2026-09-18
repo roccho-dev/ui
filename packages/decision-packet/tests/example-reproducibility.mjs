@@ -1,30 +1,25 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildDecisionPacketExample } from '../scripts/build-example.mjs';
+import { projectDecisionPacket } from '../projection/to-semantic-map.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
 const inputPath = path.join(repoRoot, 'examples', 'render.decision-packet', 'input', 'decision-packet.json');
-const expectedRoot = path.join(repoRoot, 'examples', 'render.decision-packet', 'dist');
-const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'decision-packet-repro-'));
+const distRoot = path.join(repoRoot, 'examples', 'render.decision-packet', 'dist');
 
-async function snapshot(root) {
-  const result = {};
-  for (const file of (await fs.readdir(root)).sort()) result[file] = await fs.readFile(path.join(root, file));
-  return result;
-}
+await assert.rejects(fs.access(distRoot), undefined, 'decision-packet dist must not be checked in');
+const packet = JSON.parse(await fs.readFile(inputPath, 'utf8'));
+const first = await projectDecisionPacket(packet);
+const second = await projectDecisionPacket(structuredClone(packet));
+assert.deepEqual(first.envelope, second.envelope);
+assert.deepEqual(first.records, second.records);
+assert.equal(first.packetDigest, packet.packet_digest);
 
-try {
-  const first = path.join(temporary, 'first');
-  const second = path.join(temporary, 'second');
-  await buildDecisionPacketExample({ inputPath, outputRoot: first });
-  await buildDecisionPacketExample({ inputPath, outputRoot: second });
-  assert.deepEqual(await snapshot(first), await snapshot(second));
-  assert.deepEqual(await snapshot(first), await snapshot(expectedRoot));
-  console.log(JSON.stringify({ schema: 'decision-packet-example-reproducibility/1', status: 'PASS', files: Object.keys(await snapshot(first)).length }));
-} finally {
-  await fs.rm(temporary, { recursive: true, force: true });
-}
+console.log(JSON.stringify({
+  schema: 'decision-packet-example-reproducibility/2',
+  status: 'PASS',
+  checkedInDist: false,
+  deterministicProjection: true,
+}));

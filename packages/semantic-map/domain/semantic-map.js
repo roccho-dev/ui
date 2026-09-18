@@ -361,7 +361,6 @@ export function createSemanticMap(records) {
     invariant(!relationIds.has(record.id), `duplicate relation id: ${record.id}`);
     invariant(regions.has(record.from), `${record.id}.from not found: ${record.from}`);
     invariant(regions.has(record.to), `${record.id}.to not found: ${record.to}`);
-    invariant(record.from !== record.to, `${record.id} must not be a self relation`);
     const fromKind = regions.get(record.from).kind;
     const toKind = regions.get(record.to).kind;
     if (record.kind === 'memberOf') {

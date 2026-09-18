@@ -11,11 +11,7 @@ function invariant(condition, message) {
 function deltaSummary(model) {
   const { regions, relations, changed } = model.delta.counts;
   if (model.delta.netNoop) return 'Net no-op · Operation trace retained';
-  return [
-    `Changed ${changed}`,
-    `regions +${regions.added} −${regions.removed} Δ${regions.changed}`,
-    `relations +${relations.added} −${relations.removed} Δ${relations.changed}`,
-  ].join(' · ');
+  return [`Changed ${changed}`, `regions +${regions.added} −${regions.removed} Δ${regions.changed}`, `relations +${relations.added} −${relations.removed} Δ${relations.changed}`].join(' · ');
 }
 
 function appendSourceRef(list, value) {
@@ -68,30 +64,18 @@ async function install() {
   let pending = null;
   let lastAccepted = null;
 
-  function showStatus(message, kind = 'info') {
-    status.textContent = message;
-    status.dataset.kind = kind;
-  }
+  const transport = () => globalThis.semanticMapDataTransport ?? null;
+  const urlFor = async envelope => transport()?.create ? transport().create(envelope) : '';
 
+  function showStatus(message, kind = 'info') { status.textContent = message; status.dataset.kind = kind; }
   function open() {
     layer.hidden = false;
     setTimeout(() => {
-      const target = !pending
-        ? closeButton
-        : !acceptButton.disabled
-          ? acceptButton
-          : !rejectButton.disabled
-            ? rejectButton
-            : closeButton;
+      const target = !pending ? closeButton : !acceptButton.disabled ? acceptButton : !rejectButton.disabled ? rejectButton : closeButton;
       target.focus({ preventScroll: true });
     }, 30);
   }
-
-  function close() {
-    layer.hidden = true;
-    document.getElementById('handoff-fab')?.focus({ preventScroll: true });
-  }
-
+  function close() { layer.hidden = true; document.getElementById('handoff-fab')?.focus({ preventScroll: true }); }
   function clear() {
     pending = null;
     app.adapter.clearReviewOverlay();
@@ -102,8 +86,8 @@ async function install() {
     rejectButton.textContent = 'Reject';
     copyBeforeButton.disabled = true;
     copyAfterButton.disabled = true;
-    deliveryOutput.textContent = 'Delivery not planned';
-    deliveryOutput.dataset.kind = 'info';
+    deliveryOutput.textContent = 'Decision only · #data transport';
+    deliveryOutput.dataset.kind = 'inline';
     baseLabelOutput.textContent = 'Base';
     baseLabelOutput.dataset.current = 'false';
     deltaSummaryOutput.textContent = 'No semantic delta';
@@ -116,74 +100,24 @@ async function install() {
     diffList.replaceChildren();
   }
 
-  async function simulate(proposal, {
-    source,
-    local,
-    view = runtime.view,
-    metadata = null,
-    currentProofVerifier = null,
-  } = {}) {
+  async function simulate(proposal, { source, local, view = runtime.view, metadata = null, currentProofVerifier = null } = {}) {
     const preview = await runtime.preview(proposal);
     const beforeView = projectView(view, runtime.records);
     const afterView = projectView(view, preview.records);
     const preflight = await runtime.preflightAccept(proposal, { view: afterView });
     const rejection = await runtime.preflightReject({ local, view: beforeView });
-    const beforeUrl = rejection.delivery.url ?? rejection.delivery.plannedUrl ?? rejection.delivery.code;
-    const afterUrl = preflight.delivery.url ?? preflight.delivery.plannedUrl ?? preflight.delivery.code;
-
+    const beforeUrl = await urlFor(rejection.envelope);
+    const afterUrl = await urlFor(preflight.envelope);
     const beforeDomain = createSemanticMap(runtime.records);
     const afterDomain = createSemanticMap(preview.records);
     const resolver = globalThis.semanticMapModuleResolver;
-    const beforeModules = await resolver.resolve(beforeDomain, {
-      mapId: runtime.mapId,
-      head: runtime.head,
-      view: beforeView,
-    });
-    const afterModules = await resolver.resolve(afterDomain, {
-      mapId: runtime.mapId,
-      head: preview.head,
-      view: afterView,
-    });
+    const beforeModules = await resolver.resolve(beforeDomain, { mapId: runtime.mapId, head: runtime.head, view: beforeView });
+    const afterModules = await resolver.resolve(afterDomain, { mapId: runtime.mapId, head: preview.head, view: afterView });
     const beforeScene = app.projectDomain(beforeDomain, beforeView, beforeModules);
     const afterScene = app.projectDomain(afterDomain, afterView, afterModules);
     const model = await createSemanticReviewModel({ preview, metadata, currentProofVerifier });
     const overlay = createSemanticReviewOverlay(model, beforeScene, afterScene);
-
-    return Object.freeze({
-      proposal,
-      preview,
-      model,
-      overlay,
-      preflight,
-      delivery: preflight.delivery,
-      rejection,
-      source,
-      local,
-      view: afterView,
-      beforeView,
-      afterView,
-      beforeHash: model.identities.baseStateHash,
-      afterHash: model.identities.afterStateHash,
-      beforeUrl,
-      afterUrl,
-      diffs: Object.freeze(model.trace.map((entry) => entry.summary)),
-    });
-  }
-
-  function deliveryLabel(delivery) {
-    if (delivery.mode === 'existing') return 'current URL retained';
-    if (delivery.mode === 'inline') {
-      return `inline ${delivery.inspection.urlChars.toLocaleString()} / ${delivery.inspection.maxUrlChars.toLocaleString()} chars`;
-    }
-    if (delivery.status === 'blocked') {
-      return delivery.code === 'PUBLISHER_REQUIRED'
-        ? `${delivery.code} · publisher unavailable`
-        : `${delivery.code} · blocked`;
-    }
-    if (delivery.status === 'ready' && delivery.mode === 'reference') {
-      return `verified reference · ${delivery.digest}`;
-    }
-    return `${delivery.publisher.label} · ${delivery.publisher.visibility} · ${delivery.publisher.retention} · ${delivery.publisher.cost}`;
+    return Object.freeze({ proposal, preview, model, overlay, preflight, rejection, source, local, view: afterView, beforeView, afterView, beforeHash: model.identities.baseStateHash, afterHash: model.identities.afterStateHash, beforeUrl, afterUrl, diffs: Object.freeze(model.trace.map(entry => entry.summary)) });
   }
 
   function render(value) {
@@ -191,13 +125,7 @@ async function install() {
     const { model } = value;
     app.adapter.setReviewOverlay(value.overlay);
     previewPanel.hidden = false;
-    diffList.replaceChildren(...model.trace.map((entry) => {
-      const item = document.createElement('li');
-      item.textContent = entry.summary;
-      item.dataset.operationType = entry.type;
-      return item;
-    }));
-
+    diffList.replaceChildren(...model.trace.map(entry => { const item = document.createElement('li'); item.textContent = entry.summary; item.dataset.operationType = entry.type; return item; }));
     baseLabelOutput.textContent = model.baseLabel === 'current' ? 'Current' : 'Base';
     baseLabelOutput.dataset.current = String(model.baseLabel === 'current');
     deltaSummaryOutput.textContent = deltaSummary(model);
@@ -208,99 +136,55 @@ async function install() {
     proposalDigestOutput.textContent = model.identities.proposalDigest;
     beforeHashOutput.textContent = model.identities.baseStateHash;
     afterHashOutput.textContent = model.identities.afterStateHash;
-
     reasonOutput.textContent = model.provenance.reason ?? 'Not supplied';
     assessmentWrap.hidden = model.provenance.assessment === null;
     assessmentOutput.textContent = model.provenance.assessment ?? '';
     sourceRefsOutput.replaceChildren();
     for (const ref of model.provenance.sourceRefs) appendSourceRef(sourceRefsOutput, ref);
     sourceRefsOutput.hidden = model.provenance.sourceRefs.length === 0;
-
-    beforeUrlOutput.textContent = value.beforeUrl;
-    afterUrlOutput.textContent = value.afterUrl;
+    beforeUrlOutput.textContent = value.beforeUrl || 'not projected in this host';
+    afterUrlOutput.textContent = value.afterUrl || 'not projected in this host';
     beforeUrlOutput.title = value.beforeUrl;
     afterUrlOutput.title = value.afterUrl;
-    sourceOutput.textContent = value.source === 'url' ? 'URL Proposal' : 'Local Draft';
-
-    const acceptance = value.delivery;
-    const rejection = value.rejection.delivery;
-    const acceptPublishes = acceptance.status === 'confirmation-required';
-    const rejectPublishes = rejection.status === 'confirmation-required';
-    const acceptBlocked = acceptance.status === 'blocked';
-    const rejectBlocked = rejection.status === 'blocked';
-
-    acceptButton.disabled = acceptBlocked;
-    acceptButton.textContent = acceptPublishes ? 'Publish & Accept' : 'Accept';
-    rejectButton.disabled = rejectBlocked;
-    rejectButton.textContent = rejectPublishes ? 'Publish & Reject' : 'Reject';
-    copyBeforeButton.disabled = rejection.status !== 'ready';
-    copyAfterButton.disabled = acceptance.status !== 'ready';
-    deliveryOutput.textContent = `Accept: ${deliveryLabel(acceptance)} · Reject: ${deliveryLabel(rejection)}`;
-    deliveryOutput.dataset.kind = acceptBlocked && rejectBlocked
-      ? 'error'
-      : acceptPublishes || rejectPublishes
-        ? 'publish'
-        : 'inline';
-
-    if (acceptBlocked && !rejectBlocked) {
-      showStatus(`${acceptance.code}: Acceptには保存先が必要です。Rejectなら現在URLを保ったまま戻せます。`, 'error');
-    } else if (acceptBlocked && rejectBlocked) {
-      showStatus(`${acceptance.code}: AcceptとRejectの続行には保存先が必要です。StateとProposalは保持されています。`, 'error');
-    } else if (acceptPublishes || rejectPublishes) {
-      showStatus(`${value.proposal.operations.length} Operation(s) validated. ボタン操作後、Publish成功時だけ確定します。`, 'ok');
-    } else {
-      showStatus(`${value.proposal.operations.length} Operation(s) validated. DecisionLog has not changed.`, 'ok');
-    }
+    sourceOutput.textContent = value.source === 'data' ? 'Data Proposal' : 'Local Draft';
+    acceptButton.disabled = false;
+    rejectButton.disabled = false;
+    copyBeforeButton.disabled = !value.beforeUrl;
+    copyAfterButton.disabled = !value.afterUrl;
+    deliveryOutput.textContent = value.afterUrl ? 'Accept commits one Decision; #data is then projected.' : 'Accept commits one Decision.';
+    deliveryOutput.dataset.kind = 'inline';
+    showStatus(`${value.proposal.operations.length} Operation(s) validated. DecisionLog has not changed.`, 'ok');
     open();
     return value;
   }
 
   async function previewProposal(proposal, options = {}) {
     clear();
-    try {
-      return render(await simulate(proposal, options));
-    } catch (error) {
-      showStatus(error.message, 'error');
-      open();
-      throw error;
-    }
+    try { return render(await simulate(proposal, options)); }
+    catch (error) { showStatus(error.message, 'error'); open(); throw error; }
   }
-
   async function openDraft(metadata = null, currentProofVerifier = null) {
     const proposal = await runtime.createDraftProposal();
-    return previewProposal(proposal, {
-      source: 'local',
-      local: true,
-      view: runtime.view,
-      metadata,
-      currentProofVerifier,
-    });
+    return previewProposal(proposal, { source: 'local', local: true, view: runtime.view, metadata, currentProofVerifier });
   }
-
   async function acceptPending() {
     invariant(pending, 'no Proposal is pending');
     acceptButton.disabled = true;
     const accepted = pending;
     try {
-      const result = await runtime.accept(accepted.proposal, {
-        view: accepted.afterView,
-        confirmPublish: accepted.delivery.status === 'confirmation-required',
-        expectedDigest: accepted.delivery.digest,
-      });
+      const committed = await runtime.accept(accepted.proposal, { view: accepted.afterView });
+      const url = transport()?.replace ? await transport().replace(committed.envelope) : '';
+      const result = Object.freeze({ ...committed, url });
       lastAccepted = Object.freeze({ ...accepted, result });
       pending = null;
       app.adapter.clearReviewOverlay();
       acceptButton.textContent = 'Accepted';
       rejectButton.disabled = true;
-      afterUrlOutput.textContent = result.url;
-      afterUrlOutput.title = result.url;
-      copyAfterButton.disabled = false;
-      deliveryOutput.textContent = result.delivery.action === 'publish-reference'
-        ? `Published reference · ${result.delivery.digest}`
-        : result.delivery.action === 'reuse-reference'
-          ? `Reused verified reference · ${result.delivery.digest}`
-          : 'Inline URL committed';
-      deliveryOutput.dataset.kind = result.delivery.mode;
+      afterUrlOutput.textContent = url || 'Decision committed';
+      afterUrlOutput.title = url;
+      copyAfterButton.disabled = !url;
+      deliveryOutput.textContent = url ? '#data updated after Decision commit' : 'Decision committed';
+      deliveryOutput.dataset.kind = 'inline';
       showStatus(`Decision appended. Head is ${result.decisionId}.`, 'ok');
       navigator.vibrate?.([12, 35, 18]);
       return result;
@@ -310,29 +194,18 @@ async function install() {
       throw error;
     }
   }
-
   async function rejectPending() {
     if (!pending) return false;
     rejectButton.disabled = true;
     const rejected = pending;
-    const delivery = rejected.rejection.delivery;
     try {
-      const url = await runtime.reject({
-        local: rejected.local,
-        view: rejected.beforeView,
-        confirmPublish: delivery.status === 'confirmation-required',
-        expectedDigest: delivery.digest,
-      });
+      const result = await runtime.reject({ local: rejected.local, view: rejected.beforeView });
+      if (transport()?.replace) await transport().replace(result.envelope);
       clear();
-      showStatus(
-        delivery.status === 'confirmation-required'
-          ? `Proposal rejected after publishing ${delivery.digest}. DecisionLog did not change.`
-          : 'Proposal rejected. DecisionLog did not change.',
-        'ok',
-      );
+      showStatus('Proposal rejected. DecisionLog did not change.', 'ok');
       return true;
     } catch (error) {
-      rejectButton.disabled = delivery.status === 'blocked';
+      rejectButton.disabled = false;
       showStatus(error.message, 'error');
       throw error;
     }
@@ -341,35 +214,18 @@ async function install() {
   closeButton.addEventListener('click', close);
   acceptButton.addEventListener('click', () => acceptPending().catch(() => {}));
   rejectButton.addEventListener('click', () => rejectPending().catch(() => {}));
-  copyBeforeButton.addEventListener('click', () => {
-    const url = pending?.beforeUrl ?? lastAccepted?.beforeUrl;
-    if (url) copyText(url).then(() => showStatus('Before URL copied.', 'ok')).catch((error) => showStatus(error.message, 'error'));
-  });
-  copyAfterButton.addEventListener('click', () => {
-    const url = pending?.afterUrl ?? lastAccepted?.result?.url;
-    if (url) copyText(url).then(() => showStatus('After URL copied.', 'ok')).catch((error) => showStatus(error.message, 'error'));
-  });
-  layer.addEventListener('click', (event) => { if (event.target === layer) close(); });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !layer.hidden) close(); });
+  copyBeforeButton.addEventListener('click', () => { const url = pending?.beforeUrl ?? lastAccepted?.beforeUrl; if (url) copyText(url).then(() => showStatus('Before URL copied.', 'ok')).catch(error => showStatus(error.message, 'error')); });
+  copyAfterButton.addEventListener('click', () => { const url = pending?.afterUrl ?? lastAccepted?.result?.url; if (url) copyText(url).then(() => showStatus('After URL copied.', 'ok')).catch(error => showStatus(error.message, 'error')); });
+  layer.addEventListener('click', event => { if (event.target === layer) close(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !layer.hidden) close(); });
 
   clear();
-
-  const api = Object.freeze({
-    ready: true,
-    open,
-    close,
-    openDraft,
-    previewProposal,
-    acceptPending,
-    rejectPending,
-    pending: () => pending,
-    lastAccepted: () => lastAccepted,
-  });
+  const api = Object.freeze({ ready: true, open, close, openDraft, previewProposal, acceptPending, rejectPending, pending: () => pending, lastAccepted: () => lastAccepted });
   globalThis.semanticMapReview = api;
-  if (runtime.proposal) await previewProposal(runtime.proposal, { source: 'url', local: false, view: runtime.view });
+  if (runtime.proposal) await previewProposal(runtime.proposal, { source: 'data', local: false, view: runtime.view });
 }
 
-install().catch((error) => {
+install().catch(error => {
   console.error(error);
   const status = document.getElementById('review-status');
   if (status) { status.textContent = error.message; status.dataset.kind = 'error'; }

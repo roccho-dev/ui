@@ -27,8 +27,7 @@ import {
   SUNBURST_CHART,
 } from '../pattern/view-types/chart/contract.js';
 import { SemanticProjector, createPatternLayout } from '../projection/index.js';
-import { createDecisionLog, createEnvelope, normalizeView } from '../protocol/index.js';
-import { createSmapUrl, readSmapHash } from '../transport/index.js';
+import { normalizeView } from '../protocol/index.js';
 
 function fixture(path) {
   const text = fs.readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -36,7 +35,7 @@ function fixture(path) {
   return Object.freeze({ records, domain: createSemanticMap(records) });
 }
 
-const flat = fixture('../examples/chart.jsonl');
+const flat = fixture('../../../examples/chart/bar-horizontal.jsonl');
 const records = flat.records;
 const domain = flat.domain;
 const itemCount = domain.children.get(domain.meta.root).length;
@@ -94,8 +93,8 @@ assert.equal(legacyScene.scenes[0].axis.type, BAR_HORIZONTAL_CHART);
 assert.equal(legacyScene.relations.length, 0);
 assert.equal(legacyBars.length, 4);
 assert.ok(
-  legacyBars.every(item => item.shape === 'graph-node' && item.readOnly && item.label === ''),
-  'MUTATION:chart-read-only',
+  legacyBars.every(item => item.shape === 'graph-node' && !item.readOnly && item.label === '' && domain.regions.has(item.sourceRegionId)),
+  'MUTATION:chart-authorable',
 );
 for (const label of ['製品質問', '導入相談', '不具合', 'その他', '42', '31', '18', '9']) {
   assert.ok(legacyScene.guides.some(item => item.label === label), `chart guide missing: ${label}`);
@@ -114,7 +113,7 @@ for (let mask = 1; mask < 2 ** OVERLAY_CHART_TYPES.length; mask += 1) {
     .project({ scale: 1, viewport });
   const marks = scene.representations.filter(item => item.visual?.chartType);
   assert.equal(marks.length, itemCount * requested.length, `combination ${mask} mark count`);
-  assert.ok(marks.every(item => item.readOnly && item.label === ''), 'MUTATION:chart-read-only');
+  assert.ok(marks.every(item => !item.readOnly && item.label === '' && domain.regions.has(item.sourceRegionId)), 'MUTATION:chart-authorable');
   assert.deepEqual(scene.scenes[0].axis.layers, requested);
   assert.equal(scene.scenes[0].axis.supportedCombinations, CHART_COMBINATION_COUNT);
   assert.equal(scene.scenes[0].axis.type, requested.length === 1 ? requested[0] : 'overlay/1');
@@ -175,13 +174,7 @@ assert.equal(streamedAll.scenes[0].axis.maximum, 50);
 assert.equal(streamedAll.scenes[0].axis.total, 141);
 assert.equal(streamedAll.representations.filter(item => item.visual?.chartType).length, itemCount * 6);
 
-const log = await createDecisionLog(records, 'semantic-map:example:chart-test');
-const envelope = await createEnvelope(log.log, null, allView);
-const url = await createSmapUrl(envelope, 'https://example.test/app');
-const opened = await readSmapHash(url);
-assert.deepEqual(opened.envelope.view, allView);
-
-const scatter = fixture('../examples/chart-scatter.jsonl');
+const scatter = fixture('../../../examples/chart/scatter.jsonl');
 const scatterChart = { type: SCATTER_CHART };
 assert.equal(validatePatternDomain(scatter.domain, CHART_PATTERN, scatterChart), CHART_PATTERN);
 const scatterLayout = createPatternLayout(scatter.domain, CHART_PATTERN, scatterChart);
@@ -206,7 +199,7 @@ assert.ok(scatterScene.representations
   .filter(item => item.visual?.chartType === SCATTER_CHART)
   .every(item => item.shape === 'graph-terminal'));
 
-const heatmap = fixture('../examples/chart-heatmap.jsonl');
+const heatmap = fixture('../../../examples/chart/heatmap.jsonl');
 const heatmapChart = { type: HEATMAP_CHART };
 const heatmapView = { pattern: CHART_PATTERN, chart: heatmapChart };
 assert.equal(validatePatternDomain(heatmap.domain, CHART_PATTERN, heatmapChart), CHART_PATTERN);
@@ -225,7 +218,7 @@ assert.ok(heatmapLayout.marks.every(item => item.mode === 'bar' && item.visual.p
 const heatmapScene = new SemanticProjector(heatmap.domain, null, heatmapView).project({ scale: 1, viewport });
 const heatmapMarks = heatmapScene.representations.filter(item => item.visual?.chartType === HEATMAP_CHART);
 assert.equal(heatmapMarks.length, 12);
-assert.ok(heatmapMarks.every(item => item.shape === 'graph-node' && item.readOnly));
+assert.ok(heatmapMarks.every(item => item.shape === 'graph-node' && !item.readOnly && heatmap.domain.regions.has(item.sourceRegionId)));
 for (const label of ['東京', '大阪', '名古屋', '午前', '昼', '夕方', '夜']) {
   assert.ok(heatmapScene.guides.some(item => item.label === label), `heatmap guide missing: ${label}`);
 }
@@ -239,13 +232,7 @@ assert.equal(
   100,
 );
 
-const heatmapLog = await createDecisionLog(heatmap.records, 'semantic-map:example:heatmap-test');
-const heatmapEnvelope = await createEnvelope(heatmapLog.log, null, heatmapView);
-const heatmapUrl = await createSmapUrl(heatmapEnvelope, 'https://example.test/app');
-const openedHeatmap = await readSmapHash(heatmapUrl);
-assert.deepEqual(openedHeatmap.envelope.view, heatmapView);
-
-const sunburst = fixture('../examples/chart-sunburst.jsonl');
+const sunburst = fixture('../../../examples/chart/sunburst.jsonl');
 const sunburstChart = { type: SUNBURST_CHART };
 const sunburstView = { pattern: CHART_PATTERN, chart: sunburstChart };
 assert.equal(validatePatternDomain(sunburst.domain, CHART_PATTERN, sunburstChart), CHART_PATTERN);
@@ -280,7 +267,14 @@ assert.equal(sunburstLayout.marks.find(item => item.sourceId === 'api'), undefin
 const sunburstScene = new SemanticProjector(sunburst.domain, null, sunburstView).project({ scale: 1, viewport });
 const sunburstSectors = sunburstScene.representations.filter(item => item.visual?.chartType === SUNBURST_CHART && item.mode === 'slice');
 assert.equal(sunburstSectors.length, 14);
-assert.ok(sunburstSectors.every(item => item.shape === 'vector-sector' && item.readOnly));
+const sunburstCenter = sunburstScene.representations.find(
+  item => item.visual?.chartType === SUNBURST_CHART && item.mode === 'point',
+);
+assert.equal(sunburstCenter.sourceRegionId, sunburst.domain.meta.root);
+assert.equal(sunburstCenter.isRoot, false, 'MUTATION:sunburst-center-not-root-boundary');
+assert.equal(sunburstCenter.readOnly, false);
+assert.equal(sunburstCenter.labelEditable, true, 'MUTATION:sunburst-center-authorable');
+assert.ok(sunburstSectors.every(item => item.shape === 'vector-sector' && !item.readOnly && sunburst.domain.regions.has(item.sourceRegionId)));
 const productSector = sunburstSectors.find(item => item.visual.sourceRegionId === 'product');
 assert.equal(productSector.activation.kind, 'set-view');
 assert.deepEqual(productSector.activation.view, {
@@ -320,18 +314,6 @@ const streamedSunburst = createPatternLayout(sunburstStore.domain, CHART_PATTERN
 assert.equal(streamedSunburst.axis.total, 72);
 assert.equal(streamedSunburst.marks.find(item => item.sourceId === 'api').visual.sector.endAngle
   > streamedSunburst.marks.find(item => item.sourceId === 'api').visual.sector.startAngle, true);
-
-const sunburstLog = await createDecisionLog(sunburst.records, 'semantic-map:example:sunburst-test');
-const sunburstEnvelope = await createEnvelope(sunburstLog.log, null, {
-  pattern: CHART_PATTERN,
-  chart: focusedSunburstChart,
-});
-const sunburstUrl = await createSmapUrl(sunburstEnvelope, 'https://example.test/app');
-const openedSunburst = await readSmapHash(sunburstUrl);
-assert.deepEqual(openedSunburst.envelope.view, {
-  pattern: CHART_PATTERN,
-  chart: focusedSunburstChart,
-});
 
 const missingValue = records.map(record => record.id === 'other'
   ? Object.fromEntries(Object.entries(record).filter(([key]) => key !== 'value'))
@@ -431,6 +413,5 @@ console.log(JSON.stringify({
   primitives: ['graph-node', 'graph-terminal', 'vector-sector', 'chart-line'],
   sunburstSectors: sunburstSectors.length,
   coordinateSpaces: ['cartesian/1', 'polar/1', 'matrix/1', 'polar-hierarchy/1'],
-  urlChars: { overlay: url.length, heatmap: heatmapUrl.length, sunburst: sunburstUrl.length },
   streamingOperations: ['SetRegionValue:flat', 'SetRegionValue:heatmap', 'SetRegionValue:sunburst'],
 }));

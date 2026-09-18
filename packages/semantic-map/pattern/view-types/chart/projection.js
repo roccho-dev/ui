@@ -67,11 +67,11 @@ function project({ node, plan, transform, depthOffset, clipBounds, api }) {
       mark.mode,
       depthOffset + 2,
       {
+        sourceRegionId: mark.sourceId,
         detailsVisible: false,
         geometryEditable: false,
         hasChildren: false,
         label: mark.label ?? '',
-        readOnly: true,
         activation: markActivation(node, mark),
         visual: mark.visual,
         zIndex: mark.zIndex,

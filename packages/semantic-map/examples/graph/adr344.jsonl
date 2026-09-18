@@ -1,0 +1,49 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"adr344","title":"ADR #344 | Progressive refinement + Decision Model"}
+{"type":"region","id":"adr344","parent":null,"label":"ADR #344 | proof-carrying phase transitions","kind":"root","bounds":[0,0,1800,1200],"summary":"meaning contract"}
+{"type":"region","id":"meaning","parent":"adr344","label":"Meaning authority","kind":"group","bounds":[0,0,720,680],"summary":"Fact Condition Claim and projection","order":0}
+{"type":"region","id":"world","parent":"meaning","label":"WorldEvidence","kind":"class","bounds":[0,0,240,130],"summary":"non-authority evidence","order":0}
+{"type":"region","id":"fact","parent":"meaning","label":"Fact","kind":"class","bounds":[0,0,320,190],"summary":"immutable record","order":1}
+{"type":"region","id":"fact.kind","parent":"fact","label":"kind / domain / subject / predicate / value","kind":"attribute","bounds":[0,0,260,40],"summary":"fact fields","order":0}
+{"type":"region","id":"fact.source","parent":"fact","label":"source_reference / observed_at / digest","kind":"attribute","bounds":[0,0,260,40],"summary":"provenance","order":1}
+{"type":"region","id":"condition","parent":"meaning","label":"Condition","kind":"class","bounds":[0,0,320,170],"summary":"immutable record","order":2}
+{"type":"region","id":"condition.fields","parent":"condition","label":"operator / value_type / effective_range","kind":"attribute","bounds":[0,0,260,40],"summary":"condition fields","order":0}
+{"type":"region","id":"claim","parent":"meaning","label":"Claim","kind":"class","bounds":[0,0,320,210],"summary":"Decision = Claim(role=decision)","order":3}
+{"type":"region","id":"claim.role","parent":"claim","label":"role: proposal | decision","kind":"attribute","bounds":[0,0,240,40],"summary":"role","order":0}
+{"type":"region","id":"claim.fields","parent":"claim","label":"rationale / required_dependencies / relations[]","kind":"attribute","bounds":[0,0,280,40],"summary":"claim fields","order":1}
+{"type":"region","id":"projection","parent":"meaning","label":"ProjectionResult","kind":"class","bounds":[0,0,320,190],"summary":"rebuildable non-authority","order":4}
+{"type":"region","id":"projection.fields","parent":"projection","label":"result / missing[] / unknown[] / conflict[]","kind":"attribute","bounds":[0,0,280,40],"summary":"projection result","order":0}
+{"type":"region","id":"phases","parent":"adr344","label":"Progressive phase values","kind":"group","bounds":[0,0,900,520],"summary":"Candidate to Finding","order":1}
+{"type":"region","id":"candidate","parent":"phases","label":"CandidateData","kind":"state","bounds":[0,0,220,110],"summary":"immutable phase value","order":0}
+{"type":"region","id":"ready","parent":"phases","label":"ReadyData","kind":"state","bounds":[0,0,220,110],"summary":"readiness proven","order":1}
+{"type":"region","id":"admitted","parent":"phases","label":"AdmittedData","kind":"state","bounds":[0,0,220,110],"summary":"authority admitted","order":2}
+{"type":"region","id":"effect","parent":"phases","label":"EffectResult","kind":"state","bounds":[0,0,220,110],"summary":"bounded external effect","order":3}
+{"type":"region","id":"observed","parent":"phases","label":"ObservedData","kind":"state","bounds":[0,0,220,110],"summary":"observation appended","order":4}
+{"type":"region","id":"finding","parent":"phases","label":"FindingData","kind":"state","bounds":[0,0,220,110],"summary":"candidate feedback","order":5}
+{"type":"region","id":"results","parent":"adr344","label":"Explicit non-green results","kind":"group","bounds":[0,0,300,420],"summary":"missing failure unknown","order":2}
+{"type":"region","id":"missing","parent":"results","label":"Missing","kind":"data","bounds":[0,0,180,90],"summary":"explicit result","order":0}
+{"type":"region","id":"admission-failure","parent":"results","label":"AdmissionFailure","kind":"data","bounds":[0,0,220,90],"summary":"explicit result","order":1}
+{"type":"region","id":"unknown","parent":"results","label":"ExplicitUnknown","kind":"data","bounds":[0,0,220,90],"summary":"explicit result","order":2}
+{"type":"relation","id":"r1","from":"world","to":"fact","kind":"dependency","label":"source_reference"}
+{"type":"relation","id":"r2","from":"claim","to":"fact","kind":"dependency","label":"depends_on"}
+{"type":"relation","id":"r3","from":"claim","to":"condition","kind":"dependency","label":"depends_on"}
+{"type":"relation","id":"r4","from":"claim","to":"claim","kind":"dependency","label":"depends_on"}
+{"type":"relation","id":"r5","from":"fact","to":"claim","kind":"dependency","label":"result_of [decision]"}
+{"type":"relation","id":"r6","from":"fact","to":"fact","kind":"dependency","label":"supersedes / contradicts"}
+{"type":"relation","id":"r7","from":"condition","to":"condition","kind":"dependency","label":"supersedes / contradicts"}
+{"type":"relation","id":"r8","from":"fact","to":"projection","kind":"dependency","label":"project() input"}
+{"type":"relation","id":"r9","from":"condition","to":"projection","kind":"dependency","label":"project() input"}
+{"type":"relation","id":"r10","from":"claim","to":"projection","kind":"dependency","label":"project() input / rule"}
+{"type":"relation","id":"r11","from":"projection","to":"candidate","kind":"flow","label":"candidate / gap"}
+{"type":"relation","id":"r12","from":"candidate","to":"ready","kind":"transition","label":"refine() / Right"}
+{"type":"relation","id":"r13","from":"candidate","to":"missing","kind":"transition","label":"refine() / Left"}
+{"type":"relation","id":"r14","from":"ready","to":"admitted","kind":"transition","label":"admit() / Right"}
+{"type":"relation","id":"r15","from":"ready","to":"admission-failure","kind":"transition","label":"admit() / Left"}
+{"type":"relation","id":"r16","from":"admitted","to":"effect","kind":"transition","label":"execute()"}
+{"type":"relation","id":"r17","from":"effect","to":"observed","kind":"transition","label":"observe() / observed"}
+{"type":"relation","id":"r18","from":"effect","to":"unknown","kind":"transition","label":"observe() / unobserved"}
+{"type":"relation","id":"r19","from":"observed","to":"fact","kind":"flow","label":"append observation Fact"}
+{"type":"relation","id":"r20","from":"fact","to":"finding","kind":"flow","label":"observation / counterevidence"}
+{"type":"relation","id":"r21","from":"projection","to":"finding","kind":"flow","label":"missing / unknown / conflict"}
+{"type":"relation","id":"r22","from":"finding","to":"claim","kind":"flow","label":"propose() [role=proposal]"}
+{"type":"relation","id":"r23","from":"claim","to":"claim","kind":"transition","label":"authority decision"}
+{"type":"relation","id":"r24","from":"claim","to":"projection","kind":"flow","label":"reproject() [accept]"}

@@ -56,14 +56,14 @@ assert.throws(() => createSemanticMap(oldSchema), /is not semantic-map-state\/1/
 const unknownField = records.map((record, index) => index === 1 ? { ...record, obsolete: true } : record);
 assert.throws(() => createSemanticMap(unknownField), /obsolete is not allowed/u);
 const both = records.map((record) => record.id === 'request'
-  ? { ...record, href: 'https://example.com', mount: { src: '/app#smap=abc' } }
+  ? { ...record, href: 'https://example.com', mount: { src: '/app#data=abc' } }
   : record);
 assert.throws(() => createSemanticMap(both), /must not define both href and mount/u);
 assert.throws(() => store.perform({ type: 'MoveRegions', regionIds: ['map'], dx: 1, dy: 1 }), /no editable regions/u);
 assert.notEqual(store.toJSONL(), accepted);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-domain-test/3',
+  schema: 'semantic-map-domain-test/4',
   pass: true,
   status: 'PASS',
   skipped: false,

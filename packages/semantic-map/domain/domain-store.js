@@ -480,14 +480,39 @@ export class SemanticDomainStore {
     invariant(Array.isArray(operations) && operations.length > 0, 'operations must be a non-empty array');
     invariant(validate === null || typeof validate === 'function', 'validate must be a function');
     const session = this.snapshotSession();
+    const beforeBatch = this.snapshotState();
     const entries = [];
     try {
-      for (const operation of operations) entries.push(this.recordDraft(operation));
+      for (const operation of operations) {
+        const before = this.snapshotState();
+        let executed;
+        try {
+          executed = this.execute(operation);
+          this.rebuild();
+        } catch (error) {
+          this.restoreState(before);
+          throw error;
+        }
+        const after = this.snapshotState();
+        entries.push(Object.freeze({
+          operation: executed.operation,
+          before,
+          after,
+          result: Object.freeze({ ...executed.result }),
+        }));
+      }
       const batch = Object.freeze({
         entries: Object.freeze(entries),
         results: Object.freeze(entries.map((entry) => entry.result)),
       });
       validate?.(this, batch);
+      this.past.push(Object.freeze({
+        operations: Object.freeze(entries.map((entry) => entry.operation)),
+        before: beforeBatch,
+        after: this.snapshotState(),
+        results: Object.freeze(entries.map((entry) => entry.result)),
+      }));
+      this.future = [];
       this.notify(Object.freeze({ kind: 'batch', batch, domain: this.domain }));
       return batch;
     } catch (error) {
@@ -515,12 +540,13 @@ export class SemanticDomainStore {
   }
 
   draftSnapshot() {
+    const operations = this.past.flatMap((entry) => entry.operations ?? [entry.operation]);
     return Object.freeze({
       canUndo: this.past.length > 0,
       canRedo: this.future.length > 0,
       applied: this.past.length,
       redo: this.future.length,
-      operations: Object.freeze(this.past.map((entry) => entry.operation)),
+      operations: Object.freeze(operations),
     });
   }
 

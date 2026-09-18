@@ -1,6 +1,5 @@
 import { createSemanticMap } from '../domain/index.js';
-import { readSmapHash } from '../transport/index.js';
-import { normalizeView } from '../protocol/index.js';
+import { inspectEnvelope, normalizeView } from '../protocol/index.js';
 import { parseTargetRef, resolveResourceEntries } from '../resource-composition/index.js';
 
 export const MAX_MODULE_DEPTH = 4;
@@ -24,21 +23,24 @@ export class ModuleResolver {
     this.maxDepth = options.maxDepth ?? MAX_MODULE_DEPTH;
     this.maxModules = options.maxModules ?? MAX_MOUNTED_MODULES;
     this.maxRegions = options.maxRegions ?? MAX_MODULE_REGIONS;
+    this.resolveSource = options.resolveSource ?? null;
+    invariant(this.resolveSource === null || typeof this.resolveSource === 'function', 'resolveSource must be a function');
     this.cache = new Map();
   }
 
   async inspectSource(src) {
+    invariant(this.resolveSource, 'module source resolver is required');
     if (!this.cache.has(src)) {
       const pending = (async () => {
-        const inspection = await readSmapHash(src);
-        invariant(inspection, 'mount.src must contain #smap');
-        invariant(inspection.envelope.proposal === null, 'mounted #smap must not contain a Proposal');
+        const resolved = await this.resolveSource(src);
+        const inspection = await inspectEnvelope(resolved);
+        invariant(inspection.envelope.proposal === null, 'mounted Envelope must not contain a Proposal');
         const view = normalizeView(inspection.envelope.view);
-        invariant(!view.frame, 'mounted #smap View may contain only Pattern configuration and node resourceComposition');
+        invariant(!view.frame, 'mounted Envelope View may contain only Pattern configuration and node resourceComposition');
         for (const entry of resolveResourceEntries(view.resourceComposition)) {
           invariant(
             parseTargetRef(entry.placement.targetRef).catalog === 'node',
-            'mounted #smap resourceComposition may target only child nodes',
+            'mounted Envelope resourceComposition may target only child nodes',
           );
         }
         return Object.freeze({
@@ -67,8 +69,6 @@ export class ModuleResolver {
 
     const build = async ({ currentDomain, mapId, head, view, path, depth, ancestry, source = null }) => {
       counters.regions += currentDomain.regions.size;
-      // The root State is not introduced by mounting; only mounted child
-      // regions consume the recursive module budget.
       if (depth > 0) {
         counters.mountedRegions += currentDomain.regions.size;
         invariant(
@@ -92,14 +92,14 @@ export class ModuleResolver {
           !(explicitSource && resourceSource),
           `region.mount conflicts with resource semantic-map at ${region.id}`,
         );
-        const sourceUrl = explicitSource ?? resourceSource;
-        if (!sourceUrl) continue;
-        mountSources.set(region.id, sourceUrl);
+        const sourceKey = explicitSource ?? resourceSource;
+        if (!sourceKey) continue;
+        mountSources.set(region.id, sourceKey);
         invariant(depth < this.maxDepth, `mount depth exceeds ${this.maxDepth} at ${region.id}`);
         counters.modules += 1;
         invariant(counters.modules <= this.maxModules, `mounted module count exceeds ${this.maxModules}`);
 
-        const inspected = await this.inspectSource(sourceUrl);
+        const inspected = await this.inspectSource(sourceKey);
         const childIdentity = identity(inspected.mapId, inspected.head);
         invariant(!ancestry.has(childIdentity), `module cycle at ${region.id}`);
         const childPath = Object.freeze([...path, region.id]);

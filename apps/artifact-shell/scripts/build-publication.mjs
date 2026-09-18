@@ -29,4 +29,4 @@ const result = await buildArtifactShellPublication({
   outputRoot,
   repoRoot,
 });
-console.log(JSON.stringify({ schema: "artifact-shell-publication-build-receipt/2", status: "PASS", capabilities: result.catalog.capabilities.length, files: result.artifactManifest.files.length, treeDigest: result.artifactManifest.treeDigest, outputRoot: result.outputRoot }));
+console.log(JSON.stringify({ schema: "artifact-shell-publication-build-receipt/4", status: "PASS", capabilities: result.catalog.capabilities.length, files: result.artifactManifest.files.length, treeDigest: result.artifactManifest.treeDigest, outputRoot: result.outputRoot }));

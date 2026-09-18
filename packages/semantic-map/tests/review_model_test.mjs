@@ -27,7 +27,7 @@ const records = [
   { type: 'region', id: 'task-b', parent: 'map', label: 'Task B', kind: 'task', bounds: [320, 100, 160, 80], summary: '' },
   { type: 'region', id: 'set-a', parent: 'map', label: 'Set A', kind: 'set', bounds: [50, 280, 240, 180], summary: '', set: { complete: true } },
   { type: 'region', id: 'mountable', parent: 'map', label: 'Mountable', kind: 'concept', bounds: [560, 100, 160, 80], summary: '' },
-  { type: 'region', id: 'mounted', parent: 'map', label: 'Mounted', kind: 'concept', bounds: [560, 260, 160, 80], summary: '', mount: { src: '/child#smap=fixture' } },
+  { type: 'region', id: 'mounted', parent: 'map', label: 'Mounted', kind: 'concept', bounds: [560, 260, 160, 80], summary: '', mount: { src: '/child#data=fixture' } },
   { type: 'relation', id: 'r1', from: 'task-a', to: 'task-b', kind: 'dependency', label: 'before' },
 ];
 
@@ -42,9 +42,12 @@ const operations = [
   { type: 'SetSetCompleteness', regionId: 'set-a', complete: false },
   { type: 'AddRegion', regionId: 'added', parentId: 'map', label: 'Added', kind: 'concept', summary: '', bounds: [320, 300, 160, 80] },
   { type: 'ConnectRegions', relationId: 'r2', from: 'task-b', to: 'set-a', kind: 'relates', label: '' },
-  { type: 'MountRegionModule', regionId: 'mountable', src: '/child#smap=next' },
+  { type: 'MountRegionModule', regionId: 'mountable', src: '/child#data=next' },
   { type: 'UnmountRegionModule', regionId: 'mounted' },
   { type: 'RemoveSelection', regionIds: [], relationIds: ['r1'] },
+  { type: 'ReconnectRelation', relationId: 'r1', from: 'task-a', to: 'set-a' },
+  { type: 'PinRegions', items: [{ regionId: 'task-a', bounds: [90, 140, 160, 80] }] },
+  { type: 'PinData', items: [{ targetId: 'task-a', basis: 'premise', reason: 'reviewed premise' }] },
 ];
 
 const log = await createDecisionLog(records, 'urn:test:semantic-review-model');
@@ -55,7 +58,8 @@ async function previewFor(nextOperations) {
 }
 
 const proposalTypes = OPERATION_TYPES.filter((type) => type !== 'CreateMap').sort();
-assert.deepEqual(operations.map((operation) => operation.type).sort(), proposalTypes);
+const singleProposalTypes = proposalTypes.filter((type) => !['UnpinRegions', 'UnpinData'].includes(type));
+assert.deepEqual(operations.map((operation) => operation.type).sort(), singleProposalTypes);
 
 for (const operation of operations) {
   const model = await createSemanticReviewModel({ preview: await previewFor([operation]) });
@@ -66,7 +70,7 @@ for (const operation of operations) {
   assert.equal(model.trace.length, 1);
   assert.equal(model.trace[0].type, operation.type);
   assert.match(model.trace[0].summary, new RegExp(`^${operation.type} · `, 'u'));
-  assert.equal(model.delta.netNoop, false, operation.type);
+  assert.equal(model.delta.netNoop, ['PinRegions', 'PinData'].includes(operation.type), operation.type);
   assert.equal(model.identities.proposalParent, log.head);
   assert.equal(model.identities.baseHead, log.head);
   assert.equal(model.identities.baseStateHash, log.stateHash);
@@ -74,11 +78,36 @@ for (const operation of operations) {
   assert.equal(model.identities.proposalId, model.identities.afterHead);
 }
 
+const pinPreview = await previewFor([operations[14]]);
+const unpinDecision = await createDecision(
+  pinPreview.head,
+  [{ type: 'UnpinRegions', regionIds: ['task-a'] }],
+  pinPreview.records,
+);
+const unpinPreview = await appendDecision(pinPreview.log, unpinDecision.decision);
+const unpinModel = await createSemanticReviewModel({ preview: unpinPreview });
+assert.equal(unpinModel.trace.length, 1);
+assert.equal(unpinModel.trace[0].type, 'UnpinRegions');
+assert.equal(unpinModel.trace[0].effect.netNoop, true);
+assert.equal(unpinModel.delta.netNoop, true);
+
+const dataPinPreview = await previewFor([operations[15]]);
+const dataUnpinDecision = await createDecision(
+  dataPinPreview.head,
+  [{ type: 'UnpinData', targetIds: ['task-a'] }],
+  dataPinPreview.records,
+);
+const dataUnpinPreview = await appendDecision(dataPinPreview.log, dataUnpinDecision.decision);
+const dataUnpinModel = await createSemanticReviewModel({ preview: dataUnpinPreview });
+assert.equal(dataUnpinModel.trace.length, 1);
+assert.equal(dataUnpinModel.trace[0].type, 'UnpinData');
+assert.equal(dataUnpinModel.trace[0].effect.netNoop, true);
+assert.equal(dataUnpinModel.delta.netNoop, true);
+
 const moved = await createSemanticReviewModel({ preview: await previewFor([operations[0]]) });
 assert.deepEqual(moved.delta.regions[0].changedFields, ['bounds[0]', 'bounds[1]']);
 assert.equal(moved.delta.regions[0].id, 'task-a');
 assert.equal(moved.delta.regions[0].status, 'changed');
-
 assert.equal(Object.isFrozen(moved.delta.regions[0].after.bounds), true);
 assert.throws(() => { moved.delta.regions[0].after.bounds[0] = 999; }, TypeError);
 
@@ -90,6 +119,10 @@ const removed = await createSemanticReviewModel({ preview: await previewFor([ope
 assert.deepEqual(removed.delta.relations.map((item) => [item.id, item.status]), [['r1', 'removed']]);
 assert.equal(removed.delta.relations[0].before.label, 'before');
 assert.equal(removed.delta.relations[0].after, null);
+
+const reconnected = await createSemanticReviewModel({ preview: await previewFor([operations[13]]) });
+assert.deepEqual(reconnected.delta.relations.map((item) => [item.id, item.status]), [['r1', 'changed']]);
+assert.deepEqual(reconnected.delta.relations[0].changedFields, ['to']);
 
 const noOpPreview = await previewFor([
   { type: 'RenameRegion', regionId: 'task-a', label: 'Temporary' },
@@ -124,10 +157,7 @@ const currentInput = {
     currentProof: { verified: true, baseHead: log.head, baseStateHash: log.stateHash },
   },
 };
-await assert.rejects(
-  createSemanticReviewModel(currentInput),
-  /current proof requires an upstream verifier/u,
-);
+await assert.rejects(createSemanticReviewModel(currentInput), /current proof requires an upstream verifier/u);
 const current = await createSemanticReviewModel({
   ...currentInput,
   currentProofVerifier: async (proof, expected) => (
@@ -212,7 +242,7 @@ assert.deepEqual(removedRegionOverlay.regions[0].beforeBounds, { x: 320, y: 100,
 assert.equal(removedRegionOverlay.regions[0].afterBounds, null);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-review-model-test/1',
+  schema: 'semantic-map-review-model-test/2',
   status: 'PASS',
   operationTypes: proposalTypes.length,
   netNoopTrace: noOp.trace.length,

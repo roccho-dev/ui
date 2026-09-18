@@ -1,0 +1,26 @@
+flowchart TB
+  subgraph source
+    E[examples]
+    U[user data]
+  end
+
+  subgraph transport
+    D[#data]
+  end
+
+  subgraph publication
+    H[feature host]
+    F[feature runtime]
+  end
+
+  subgraph result
+    V[render]
+    B[BLOCKED]
+  end
+
+  E --> D
+  U --> D
+  D --> H
+  H --> F
+  F --> V
+  H -->|#data absent| B

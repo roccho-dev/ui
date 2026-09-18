@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
+DATA_PIN_PACKAGE = PACKAGE.parent / "data-pin"
 SCHEMA = "semantic-meaning-recovery-negative-controls/1"
 
 
@@ -61,6 +62,7 @@ def main() -> None:
         target = Path(name) / "packages" / "semantic-map"
         target.parent.mkdir(parents=True)
         shutil.copytree(PACKAGE, target)
+        shutil.copytree(DATA_PIN_PACKAGE, target.parent / "data-pin")
         for control in CONTROLS:
             path = target / control.relative
             original = path.read_bytes()
