@@ -73,6 +73,12 @@ store.performBatch([
 ]);
 assert.equal(store.dataPinSnapshot().length, 0);
 assert.equal(store.domain.regions.get('review').label, 'changed after explicit unpin');
+assert.equal(store.undo(), true, 'one undo must revert the whole batch');
+assert.equal(store.dataPinSnapshot().length, 1, 'batch undo must restore the data pin');
+assert.equal(store.domain.regions.get('review').label, beforeLabel, 'batch undo must restore the old label');
+assert.equal(store.redo(), true, 'one redo must replay the whole batch');
+assert.equal(store.dataPinSnapshot().length, 0, 'batch redo must remove the data pin again');
+assert.equal(store.domain.regions.get('review').label, 'changed after explicit unpin', 'batch redo must restore the edited label');
 
 const atomic = new SemanticDomainStore(domain);
 assert.throws(() => atomic.performBatch([

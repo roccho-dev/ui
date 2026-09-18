@@ -132,6 +132,115 @@ def prove_graph_pin(page):
     }
 
 
+def prove_data_pin_controls(page):
+    target = page.evaluate(
+        """() => {
+          const site = globalThis.semanticMapSite;
+          const adapter = site?.editor?.adapter;
+          const snapshot = site?.editor?.snapshot?.();
+          if (!adapter || !snapshot) throw new Error('semantic-map editor missing');
+          const pinned = new Set(snapshot.dataPins.map(item => item.targetId));
+          const pair = [...adapter.cellsByRegionId.entries()].find(([, cell]) => {
+            const targetId = cell?.semantic?.sourceRegionId ?? cell?.semantic?.regionId ?? null;
+            return cell?.isVertex?.()
+              && cell.semantic?.type === 'region'
+              && cell.semantic?.mode !== 'boundary'
+              && cell.semantic?.readOnly !== true
+              && cell.semantic?.labelEditable === true
+              && targetId
+              && !pinned.has(targetId);
+          });
+          if (!pair) throw new Error('unpinned editable text target missing');
+          const [, cell] = pair;
+          const targetId = cell.semantic.sourceRegionId ?? cell.semantic.regionId;
+          adapter.setSelection({regionIds: [targetId], relationIds: []});
+          return {targetId, label: site.editor.store.domain.regions.get(targetId)?.label ?? ''};
+        }""",
+    )
+    target_id = target['targetId']
+
+    controls = page.locator("[data-data-pin-controls='true']")
+    assert controls.count() == 1
+    assert controls.get_attribute('data-data-pin-target') == target_id
+    assert controls.get_attribute('data-data-pinned') == 'false'
+    assert controls.get_attribute('data-data-pin-editable') == 'true'
+
+    edit = page.locator("[data-data-pin-action='edit']")
+    assert edit.is_visible()
+    assert not edit.is_disabled()
+    edit.click()
+
+    editor = page.locator('.mxCellEditor')
+    assert editor.is_visible()
+    next_label = (target['label'] or target_id) + ' ✓'
+    editor.fill(next_label)
+    editor.press('F2')
+
+    page.wait_for_function(
+        """({targetId, label}) => {
+          const site = globalThis.semanticMapSite;
+          const pin = site?.editor?.snapshot?.().dataPins?.find(item => item.targetId === targetId);
+          const currentLabel = site?.editor?.store?.domain?.regions?.get(targetId)?.label;
+          return pin?.basis === 'given'
+            && pin?.reason === 'manually edited text'
+            && currentLabel === label;
+        }""",
+        arg={"targetId": target_id, "label": next_label},
+        timeout=5_000,
+    )
+
+    pinned = page.evaluate(
+        """targetId => {
+          const site = globalThis.semanticMapSite;
+          const pin = site.editor.snapshot().dataPins.find(item => item.targetId === targetId);
+          const label = site.editor.store.domain.regions.get(targetId)?.label ?? null;
+          const jsonl = site.editor.store.toJSONL();
+          return {pin, label, jsonl};
+        }""",
+        target_id,
+    )
+    assert pinned['label'] == next_label
+    assert pinned['pin']['basis'] == 'given'
+    assert pinned['pin']['reason'] == 'manually edited text'
+    assert f'"targetId":"{target_id}"' in pinned['jsonl']
+    assert '"type":"data-pin"' in pinned['jsonl']
+    assert controls.get_attribute('data-data-pinned') == 'true'
+    assert '📍 given' in page.locator("[data-data-pin-summary='true']").inner_text()
+
+    unpin = page.locator("[data-data-pin-action='unpin']")
+    assert unpin.is_visible()
+    assert not unpin.is_disabled()
+    unpin.click()
+    page.wait_for_function(
+        """targetId => !globalThis.semanticMapSite?.editor?.snapshot?.().dataPins
+          ?.some(item => item.targetId === targetId)""",
+        arg=target_id,
+        timeout=5_000,
+    )
+    unpinned = page.evaluate(
+        """targetId => ({
+          label: globalThis.semanticMapSite.editor.store.domain.regions.get(targetId)?.label ?? null,
+          jsonl: globalThis.semanticMapSite.editor.store.toJSONL(),
+        })""",
+        target_id,
+    )
+    assert unpinned['label'] == next_label
+    assert f'"targetId":"{target_id}"' not in unpinned['jsonl']
+    assert controls.get_attribute('data-data-pinned') == 'false'
+    assert edit.is_visible()
+    assert not edit.is_disabled()
+    return {
+        "targetId": target_id,
+        "flow": "edit->pin",
+        "basis": "given",
+        "reason": "manually edited text",
+        "label": next_label,
+        "pin": True,
+        "jsonl": True,
+        "unpin": True,
+    }
+
+
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch()
     page = browser.new_page(viewport={"width": 1440, "height": 1000})
@@ -159,6 +268,7 @@ with sync_playwright() as playwright:
     checked = []
     control = None
     graph_pin = None
+    data_pin = None
     for item in links:
         page.goto(item['href'], wait_until='domcontentloaded', timeout=20_000)
         wait_for_status(page, 20)
@@ -171,10 +281,12 @@ with sync_playwright() as playwright:
             control = prove_control_grid(page)
         if item['id'] == 'graph':
             graph_pin = prove_graph_pin(page)
+            data_pin = prove_data_pin_controls(page)
         checked.append(item['id'])
 
     assert control is not None
     assert graph_pin is not None
+    assert data_pin is not None
     browser.close()
 
-print(json.dumps({"schema": "ui-preview-deployed-browser-proof/2", "status": "PASS", "base": base, "cases": checked, "control": control, "graphPin": graph_pin}, ensure_ascii=False))
+print(json.dumps({"schema": "ui-preview-deployed-browser-proof/3", "status": "PASS", "base": base, "cases": checked, "control": control, "graphPin": graph_pin, "dataPin": data_pin}, ensure_ascii=False))

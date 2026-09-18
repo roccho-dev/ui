@@ -3,6 +3,7 @@ import {
   splitDataPinRecords,
   targetIdsFromRecords,
 } from '../data-pin/contract.mjs';
+import { mountDataPinControls } from './data-pin-controls.mjs';
 import { createSemanticMap } from './domain/index.js';
 import { SemanticDomainStore } from './domain/authoring-store.js';
 import { normalizeLayoutRecords, splitStateRecords } from './layout/state.js';
@@ -156,12 +157,25 @@ export const mountFeature = async ({ feature, input, root, scope = globalThis, t
     modules: initialModules,
   });
   const { adapter, canvas } = surface;
+  mountDataPinControls({ adapter, document: root.ownerDocument, mount: canvas.parentElement, store });
 
   adapter.setOperationHandler(operation => {
     const authored = graphAuthoringOperation(operation, surface.scene());
-    const prepared = runtime.prepareLocalOperation(authored);
+    const textChanged = authored.type === 'RenameRegion'
+      && store.domain.regions.get(authored.regionId)?.label !== authored.label;
+    const prepared = [
+      runtime.prepareLocalOperation(authored),
+      ...(textChanged ? [runtime.prepareLocalOperation({
+        type: 'PinData',
+        items: [{
+          targetId: authored.regionId,
+          basis: 'given',
+          reason: 'manually edited text',
+        }],
+      })] : []),
+    ];
     const configKey = patternConfigKey(runtime.view.pattern);
-    const batch = store.performBatch([prepared], candidate => validatePatternDomain(
+    const batch = store.performBatch(prepared, candidate => validatePatternDomain(
       candidate.domain,
       runtime.view.pattern,
       configKey === null ? null : runtime.view[configKey],

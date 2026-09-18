@@ -13,7 +13,8 @@
   background: #ffffff;
 }
 
-.semantic-map-layout-button {
+.semantic-map-layout-button,
+.semantic-map-data-pin-button {
   min-width: 3.25rem;
   padding: 0.35rem 0.7rem;
   border: 1px solid #c5ced8;
@@ -29,6 +30,12 @@
   background: #e9f5ef;
   color: #245d49;
   font-weight: 700;
+}
+
+.semantic-map-layout-button:disabled,
+.semantic-map-data-pin-button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .semantic-map-feature {
@@ -47,6 +54,33 @@
   overflow: hidden;
 }
 
+.semantic-map-data-pin-controls {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 8;
+  display: flex;
+  width: min(360px, 46vw);
+  max-width: calc(100% - 1.5rem);
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem;
+  border: 1px solid #d8dee6;
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.semantic-map-data-pin-summary {
+  min-width: 0;
+  flex: 1 1 10rem;
+  overflow: hidden;
+  color: #334155;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .semantic-map-layout-controls {
     justify-content: center;
@@ -54,5 +88,12 @@
 
   .semantic-map-feature {
     min-height: 680px;
+  }
+
+  .semantic-map-data-pin-controls {
+    top: 0.5rem;
+    left: 0.5rem;
+    width: min(360px, 46vw);
+    max-width: calc(100% - 1rem);
   }
 }
