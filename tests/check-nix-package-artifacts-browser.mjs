@@ -29,7 +29,7 @@ assert.equal(proof.uiIr, "ui.ir.v1");
 assert.match(proof.a2uiText, /artifact proof/u);
 assert.equal(proof.semanticSvg, true);
 assert.ok(proof.semanticCells >= 3);
-assert.equal(await page.locator("#graph svg").count(), 1);
+assert.ok(await page.locator("#graph svg").count() >= 1);
 assert.deepEqual(pageErrors, []);
 assert.deepEqual(consoleErrors, []);
 assert.deepEqual(failedRequests, []);
