@@ -54,9 +54,9 @@ jobs:
           set -euo pipefail
           rm -rf .artifact-proof
           mkdir -p .artifact-proof
-          cp -RL result-ui-ir/. .artifact-proof/
-          cp -RL result-a2ui-browser/. .artifact-proof/
-          cp -RL result-semantic-map/. .artifact-proof/
+          cp -RL --no-preserve=mode,ownership result-ui-ir/. .artifact-proof/
+          cp -RL --no-preserve=mode,ownership result-a2ui-browser/. .artifact-proof/
+          cp -RL --no-preserve=mode,ownership result-semantic-map/. .artifact-proof/
           cp tests/fixtures/nix-package-artifacts/index.html .artifact-proof/index.html
           test -s .artifact-proof/packages/ui-ir/src/index.mjs
           test -s .artifact-proof/packages/a2ui-browser/src/render/trusted-dom.mjs
