@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roccho.dev/schemas/ui/ui.ir.v1.schema.json",
+  "title": "ui.ir.v1",
+  "description": "Renderer-neutral UI capability invocation envelope. Product meaning stays outside this contract.",
+  "type": "object",
+  "required": ["kind", "capability", "payloadKind", "payload"],
+  "properties": {
+    "kind": { "const": "ui.ir.v1" },
+    "capability": { "type": "string", "minLength": 1 },
+    "payloadKind": { "type": "string", "minLength": 1 },
+    "payload": {}
+  },
+  "additionalProperties": false
+}
