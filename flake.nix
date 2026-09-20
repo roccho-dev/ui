@@ -38,6 +38,56 @@
           test ! -e "$out/data/control.jsonl"
           test ! -e "$out/data/claims.jsonl"
         '';
+
+      mkUiIrArtifact = pkgs:
+        pkgs.runCommand "ui-ir" { } ''
+          set -euo pipefail
+          mkdir -p "$out/packages/ui-ir"
+          cp -R ${self}/packages/ui-ir/src "$out/packages/ui-ir/src"
+          cp -R ${self}/packages/ui-ir/schema "$out/packages/ui-ir/schema"
+          cp ${self}/packages/ui-ir/package.json "$out/packages/ui-ir/package.json"
+          test -s "$out/packages/ui-ir/src/index.mjs"
+          test -s "$out/packages/ui-ir/schema/ui-ir.v1.schema.json"
+        '';
+      mkA2uiBrowserArtifact = pkgs:
+        pkgs.runCommand "a2ui-browser" { } ''
+          set -euo pipefail
+          mkdir -p "$out/packages/a2ui-browser" "$out/packages/core-port/src"
+          cp -R ${self}/packages/a2ui-browser/src "$out/packages/a2ui-browser/src"
+          chmod -R u+w "$out/packages/a2ui-browser/src"
+          rm -f "$out/packages/a2ui-browser/src/web-core.mjs"
+          cp ${self}/packages/core-port/src/jsonl.mjs "$out/packages/core-port/src/jsonl.mjs"
+          cp ${self}/packages/core-port/src/project.mjs "$out/packages/core-port/src/project.mjs"
+          cp ${self}/packages/core-port/src/registry.mjs "$out/packages/core-port/src/registry.mjs"
+          cp ${self}/packages/core-port/src/catalog.mjs "$out/packages/core-port/src/catalog.mjs"
+          test -s "$out/packages/a2ui-browser/src/index.mjs"
+          test -s "$out/packages/a2ui-browser/src/render/trusted-dom.mjs"
+          test ! -e "$out/packages/a2ui-browser/src/web-core.mjs"
+        '';
+      mkSemanticMapArtifact = pkgs:
+        pkgs.runCommand "semantic-map" { } ''
+          set -euo pipefail
+          mkdir -p "$out/packages"
+          cp -R ${self}/packages/semantic-map "$out/packages/semantic-map"
+          chmod -R u+w "$out/packages/semantic-map"
+          rm -rf             "$out/packages/semantic-map/tests"             "$out/packages/semantic-map/scripts"             "$out/packages/semantic-map/examples"             "$out/packages/semantic-map/migration"
+          rm -f "$out/packages/semantic-map/migration-manifest.json"
+
+          mkdir -p             "$out/packages/data-pin"             "$out/packages/core-port/src"             "$out/packages/connectability/src"             "$out/packages/url-module/src"
+          cp ${self}/packages/data-pin/contract.mjs "$out/packages/data-pin/contract.mjs"
+          cp ${self}/packages/data-pin/policy.mjs "$out/packages/data-pin/policy.mjs"
+          cp ${self}/packages/core-port/src/intent-client.mjs "$out/packages/core-port/src/intent-client.mjs"
+          cp ${self}/packages/connectability/src/index.mjs "$out/packages/connectability/src/index.mjs"
+          cp ${self}/packages/url-module/src/data-transport.mjs "$out/packages/url-module/src/data-transport.mjs"
+          cp ${self}/packages/url-module/src/codec.mjs "$out/packages/url-module/src/codec.mjs"
+          cp ${self}/packages/url-module/src/canonical.mjs "$out/packages/url-module/src/canonical.mjs"
+
+          test -s "$out/packages/semantic-map/runtime.js"
+          test -s "$out/packages/semantic-map/renderer-maxgraph/adapter.js"
+          test -s "$out/packages/semantic-map/vendor/maxgraph/view/AbstractGraph.js"
+          test -s "$out/packages/data-pin/contract.mjs"
+        '';
+
       mkPurposeVisualizationArtifact = pkgs:
         pkgs.runCommand "purpose-visualization-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           set -euo pipefail
@@ -126,6 +176,9 @@
         gov-package-output = mkUiGovPackageOutput pkgs;
         purpose-visualization-artifact = mkPurposeVisualizationArtifact pkgs;
         control-ui = mkControlUi pkgs;
+        ui-ir = mkUiIrArtifact pkgs;
+        a2ui-browser = mkA2uiBrowserArtifact pkgs;
+        semantic-map = mkSemanticMapArtifact pkgs;
 
         generic-a2ui-preview-html = pkgs.runCommand "generic-a2ui-preview-html" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
@@ -141,6 +194,9 @@
         uiGovPackageOutput = mkUiGovPackageOutput pkgs;
         purposeVisualizationArtifact = mkPurposeVisualizationArtifact pkgs;
         controlUi = mkControlUi pkgs;
+        uiIrArtifact = mkUiIrArtifact pkgs;
+        a2uiBrowserArtifact = mkA2uiBrowserArtifact pkgs;
+        semanticMapArtifact = mkSemanticMapArtifact pkgs;
       in {
         ui-modeling-corr-port = pkgs.runCommand "ui-modeling-corr-port-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/run-all.mjs
@@ -157,6 +213,31 @@
           test -s ${controlUi}/packages/a2ui-browser/src/feature-app.mjs
           test ! -e ${controlUi}/data/control.jsonl
           test ! -e ${controlUi}/data/claims.jsonl
+          touch "$out"
+        '';
+
+
+        consumer-ui-ir-artifact = pkgs.runCommand "consumer-ui-ir-artifact-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          set -euo pipefail
+          node ${self}/tests/check-static-artifact-closure.mjs ${uiIrArtifact}
+          test -s ${uiIrArtifact}/packages/ui-ir/src/index.mjs
+          touch "$out"
+        '';
+
+        consumer-a2ui-browser-artifact = pkgs.runCommand "consumer-a2ui-browser-artifact-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          set -euo pipefail
+          node ${self}/tests/check-static-artifact-closure.mjs ${a2uiBrowserArtifact}
+          test -s ${a2uiBrowserArtifact}/packages/a2ui-browser/src/render/trusted-dom.mjs
+          test ! -e ${a2uiBrowserArtifact}/packages/a2ui-browser/src/web-core.mjs
+          touch "$out"
+        '';
+
+        consumer-semantic-map-artifact = pkgs.runCommand "consumer-semantic-map-artifact-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          set -euo pipefail
+          node ${self}/tests/check-static-artifact-closure.mjs ${semanticMapArtifact}
+          test -s ${semanticMapArtifact}/packages/semantic-map/renderer-maxgraph/adapter.js
+          test -s ${semanticMapArtifact}/packages/semantic-map/vendor/maxgraph/view/AbstractGraph.js
+          test ! -e ${semanticMapArtifact}/packages/semantic-map/tests
           touch "$out"
         '';
 

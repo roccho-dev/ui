@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" data-proof="pending">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Nix package artifact proof</title>
+    <style>
+      #graph { position: relative; width: 900px; height: 560px; }
+    </style>
+  </head>
+  <body>
+    <section id="a2ui"></section>
+    <section id="graph"></section>
+    <script type="module">
+      import { createUiIr, validateUiIr } from "/packages/ui-ir/src/index.mjs";
+      import { renderTrustedSurface } from "/packages/a2ui-browser/src/render/trusted-dom.mjs";
+      import { createSemanticMap } from "/packages/semantic-map/domain/index.js";
+      import { SemanticProjector } from "/packages/semantic-map/projection/index.js";
+      import { createMaxGraphAdapter } from "/packages/semantic-map/renderer-maxgraph/adapter.js";
+
+      try {
+        const ir = createUiIr({
+          capability: "a2ui-browser",
+          payloadKind: "a2ui.surface.v1",
+          payload: {
+            components: [
+              { id: "root", component: "Column", children: ["title"], gap: 8 },
+              { id: "title", component: "Text", path: "/title", variant: "h2" },
+            ],
+            dataModel: { title: "artifact proof" },
+          },
+        });
+        validateUiIr(ir);
+        const a2ui = document.querySelector("#a2ui");
+        renderTrustedSurface({
+          components: ir.payload.components,
+          dataModel: ir.payload.dataModel,
+          document,
+          mount: a2ui,
+        });
+
+        const domain = createSemanticMap([
+          { type: "meta", schema: "semantic-map-state/1", root: "delivery", title: "Artifact graph" },
+          { type: "region", id: "delivery", parent: null, label: "Artifact graph", kind: "root", bounds: [0, 0, 900, 520], summary: "" },
+          { type: "region", id: "input", parent: "delivery", label: "Input", kind: "input", bounds: [80, 210, 190, 100], summary: "" },
+          { type: "region", id: "output", parent: "delivery", label: "Output", kind: "output", bounds: [610, 210, 190, 100], summary: "" },
+          { type: "relation", id: "flow", from: "input", to: "output", kind: "flows", label: "artifact" },
+        ]);
+        const scene = new SemanticProjector(domain, null, { pattern: "graph/1" }).project({
+          scale: 1,
+          viewport: { x: -100, y: -100, width: 1200, height: 800 },
+        });
+        const graph = document.querySelector("#graph");
+        const adapter = createMaxGraphAdapter(graph);
+        adapter.render(scene);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const cells = adapter.graph.getChildCells(adapter.graph.getDefaultParent(), true, true);
+        const svg = graph.querySelector("svg");
+        if (!a2ui.textContent.includes("artifact proof")) throw new Error("A2UI render missing");
+        if (!svg || cells.length < 3) throw new Error("maxGraph render missing");
+
+        window.__artifactProof = Object.freeze({
+          uiIr: ir.kind,
+          a2uiText: a2ui.textContent,
+          semanticCells: cells.length,
+          semanticSvg: true,
+        });
+        document.documentElement.dataset.proof = "pass";
+      } catch (error) {
+        document.documentElement.dataset.proof = "fail";
+        document.body.dataset.error = String(error?.stack ?? error);
+        console.error(error);
+      }
+    </script>
+  </body>
+</html>
