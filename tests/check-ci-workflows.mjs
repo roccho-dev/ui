@@ -12,7 +12,7 @@ const byRole = value => intents.find(intent => intent.role === value);
 const requireText = (text, patterns) => { for (const pattern of patterns) assert.match(text, pattern); };
 const forbidText = (text, patterns) => { for (const pattern of patterns) assert.doesNotMatch(text, pattern); };
 
-assert.equal(intents.length, 9);
+assert.equal(intents.length, 10);
 const primary = intents.find(intent => intent.kind === "ui.ciIntent.v1");
 assert.ok(primary);
 assert.deepEqual(primary.entrypoints, [".github/workflows/nix-flake-check.yml"]);
@@ -22,7 +22,7 @@ assert.deepEqual(primary.forbiddenEntryGlobs, [".github/workflows/generic-a2ui-p
 assert.deepEqual(primary.artifacts, ["ui-gov-package-output"]);
 
 const records = intents.filter(intent => intent.kind === "ci.intent.v1");
-assert.equal(records.length, 8);
+assert.equal(records.length, 9);
 assert.equal(new Set(records.map(intent => intent.path)).size, records.length);
 assert.equal(new Set(records.map(intent => intent.role)).size, records.length);
 for (const intent of records) {
@@ -87,6 +87,24 @@ requireText(adapterText, [
   /CADDY_EXPECTED_VERSION:\s*v2\.11\.3/,
   /name:\s*adapter-artifact-index/,
 ]);
+
+const nixPackageArtifacts = byRole("consumer_nix_artifact_proof");
+assert.equal(nixPackageArtifacts.path, ".github/workflows/nix-package-artifacts.yml");
+assert.equal(nixPackageArtifacts.source, "exact Nix package outputs only");
+assert.equal(nixPackageArtifacts.artifact_source, "nix-output");
+assert.deepEqual(nixPackageArtifacts.proof_execution, { fail_closed: true, result_only: true });
+const nixPackageArtifactsText = read(nixPackageArtifacts.path);
+requireText(nixPackageArtifactsText, [
+  /name:\s*Nix package artifacts/,
+  /nix build --print-build-logs \.#ui-ir --out-link result-ui-ir/,
+  /nix build --print-build-logs \.#a2ui-browser --out-link result-a2ui-browser/,
+  /nix build --print-build-logs \.#semantic-map --out-link result-semantic-map/,
+  /check-static-artifact-closure\.mjs result-ui-ir/,
+  /check-static-artifact-closure\.mjs result-a2ui-browser/,
+  /check-static-artifact-closure\.mjs result-semantic-map/,
+  /check-nix-package-artifacts-browser\.mjs/,
+]);
+forbidText(nixPackageArtifactsText, [/actions\/checkout@v4[\s\S]*repository:\s*roccho-dev\/(?:ui|apps|ops)/]);
 
 const packageValidation = byRole("package_validation");
 assert.equal(packageValidation.path, ".github/workflows/gov-package-validation.yml");
