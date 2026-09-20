@@ -16,24 +16,41 @@ const walk = directory => {
 };
 walk(root);
 
-const patterns = [
-  /\bfrom\s*["']([^"']+)["']/gu,
-  /\bimport\s*["']([^"']+)["']/gu,
-  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu,
-  /\bnew\s+URL\s*\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url\s*\)/gu,
-];
+const staticModuleSpecifiers = source => {
+  const specs = new Set();
+  const lines = source.split("\n");
+
+  let statement = "";
+  const flush = () => {
+    if (!statement) return;
+    const from = statement.match(/\bfrom\s*["']([^"']+)["']/u);
+    const sideEffect = statement.match(/^\s*import\s*["']([^"']+)["']/u);
+    if (from) specs.add(from[1]);
+    if (sideEffect) specs.add(sideEffect[1]);
+    statement = "";
+  };
+
+  for (const line of lines) {
+    if (!statement && /^\s*(?:import|export)\b/u.test(line)) statement = line;
+    else if (statement) statement += "\n" + line;
+    if (statement && /;\s*(?:\/\/.*)?$/u.test(line)) flush();
+  }
+  flush();
+
+  for (const pattern of [
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu,
+    /\bnew\s+URL\s*\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url\s*\)/gu,
+  ]) {
+    let match;
+    while ((match = pattern.exec(source))) specs.add(match[1]);
+  }
+  return specs;
+};
 
 const failures = [];
 for (const file of files) {
   const source = fs.readFileSync(file, "utf8");
-  const specs = new Set();
-  for (const pattern of patterns) {
-    pattern.lastIndex = 0;
-    let match;
-    while ((match = pattern.exec(source))) specs.add(match[1]);
-  }
-
-  for (const spec of specs) {
+  for (const spec of staticModuleSpecifiers(source)) {
     if (/^(?:https?:|data:|blob:)/u.test(spec)) continue;
     if (!spec.startsWith(".") && !spec.startsWith("/")) {
       failures.push({ file: path.relative(root, file), spec, reason: "bare-import" });
