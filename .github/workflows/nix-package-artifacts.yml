@@ -1,0 +1,82 @@
+name: Nix package artifacts
+
+on:
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "ci.intent.v1.jsonl"
+      - ".github/workflows/nix-package-artifacts.yml"
+      - "packages/ui-ir/**"
+      - "packages/a2ui-browser/**"
+      - "packages/semantic-map/**"
+      - "packages/data-pin/**"
+      - "packages/core-port/**"
+      - "packages/connectability/**"
+      - "packages/url-module/**"
+      - "tests/check-static-artifact-closure.mjs"
+      - "tests/check-nix-package-artifacts-browser.mjs"
+      - "tests/fixtures/nix-package-artifacts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  consumer-artifacts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-experimental-features = nix-command flakes
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Build consumer-ready package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix build --print-build-logs .#ui-ir --out-link result-ui-ir
+          nix build --print-build-logs .#a2ui-browser --out-link result-a2ui-browser
+          nix build --print-build-logs .#semantic-map --out-link result-semantic-map
+          node tests/check-static-artifact-closure.mjs result-ui-ir
+          node tests/check-static-artifact-closure.mjs result-a2ui-browser
+          node tests/check-static-artifact-closure.mjs result-semantic-map
+
+      - name: Assemble only Nix outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .artifact-proof
+          mkdir -p .artifact-proof
+          cp -RL --no-preserve=mode,ownership result-ui-ir/. .artifact-proof/
+          cp -RL --no-preserve=mode,ownership result-a2ui-browser/. .artifact-proof/
+          cp -RL --no-preserve=mode,ownership result-semantic-map/. .artifact-proof/
+          cp tests/fixtures/nix-package-artifacts/index.html .artifact-proof/index.html
+          test -s .artifact-proof/packages/ui-ir/src/index.mjs
+          test -s .artifact-proof/packages/a2ui-browser/src/render/trusted-dom.mjs
+          test -s .artifact-proof/packages/semantic-map/renderer-maxgraph/adapter.js
+          test -s .artifact-proof/packages/semantic-map/vendor/maxgraph/view/AbstractGraph.js
+
+      - name: Install pinned browser proof tooling
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+
+      - name: Prove result-only browser composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory .artifact-proof >"$RUNNER_TEMP/nix-artifact-http.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node tests/check-nix-package-artifacts-browser.mjs http://127.0.0.1:4173/
