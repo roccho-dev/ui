@@ -1,4 +1,6 @@
+import { splitDataPinRecords } from '../../data-pin/contract.mjs';
 import { createSemanticMap } from '../domain/index.js';
+import { splitStateRecords } from '../layout/state.js';
 import {
   normalizePattern,
   normalizePatternConfig,
@@ -93,21 +95,27 @@ export function normalizeView(input) {
   return Object.freeze(result);
 }
 
+function semanticRecordsFor(records) {
+  const { dataRecords } = splitDataPinRecords(records);
+  return splitStateRecords(dataRecords).semanticRecords;
+}
+
 function regionIdsFor(records) {
   return new Set(records.filter((record) => record.type === 'region').map((record) => record.id));
 }
 
 function validateView(view, records) {
+  const semanticRecords = semanticRecordsFor(records);
   validatePatternDomain(
-    createSemanticMap(records),
+    createSemanticMap(semanticRecords),
     view.pattern,
     patternConfigKey(view.pattern) === null ? null : view[patternConfigKey(view.pattern)],
   );
-  const regionIds = regionIdsFor(records);
+  const regionIds = regionIdsFor(semanticRecords);
   if (view.frame?.focus) invariant(regionIds.has(view.frame.focus), `View.frame.focus region not found: ${view.frame.focus}`);
   for (const id of view.frame?.select ?? []) invariant(regionIds.has(id), `View.frame.select region not found: ${id}`);
   if (view.resourceComposition) {
-    const mountedRegionIds = new Set(records.filter(
+    const mountedRegionIds = new Set(semanticRecords.filter(
       (record) => record.type === 'region' && record.mount,
     ).map((record) => record.id));
     for (const entry of resolveResourceEntries(view.resourceComposition)) {
@@ -125,12 +133,13 @@ function validateView(view, records) {
 
 export function projectView(input, records) {
   const view = normalizeView(input);
+  const semanticRecords = semanticRecordsFor(records);
   validatePatternDomain(
-    createSemanticMap(records),
+    createSemanticMap(semanticRecords),
     view.pattern,
     patternConfigKey(view.pattern) === null ? null : view[patternConfigKey(view.pattern)],
   );
-  const regionIds = regionIdsFor(records);
+  const regionIds = regionIdsFor(semanticRecords);
   const projected = { pattern: view.pattern };
   const configKey = patternConfigKey(view.pattern);
   if (configKey !== null) projected[configKey] = view[configKey];

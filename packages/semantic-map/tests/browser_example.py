@@ -375,7 +375,7 @@ def main() -> None:
                           return {kind: transfer.kind, text: transfer.clipboardText, url: transfer.stateUrl};
                         }"""
                     )
-                    assert handoff["text"] and "#smap=" in handoff["url"]
+                    assert handoff["text"] and "#data=" in handoff["url"]
 
                     rejected_review = page.evaluate(
                         """async () => {

@@ -17,8 +17,8 @@ import {
 } from '../pattern/index.js';
 import { createPatternLayout, createSeqLayout, SemanticProjector } from '../projection/index.js';
 
-function load(name) {
-  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8')));
+function load(source) {
+  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(source, import.meta.url), 'utf8')));
 }
 
 assert.deepEqual(SUPPORTED_PATTERNS, [MAP_PATTERN, GRAPH_PATTERN, SEQ_PATTERN, CHART_PATTERN]);
@@ -35,11 +35,11 @@ assert.equal(coordinateSpaceForPattern(SEQ_PATTERN, { groupBy: 'actor', axis: 'o
 assert.equal(coordinateSpaceForPattern(SEQ_PATTERN, { groupBy: 'task', axis: 'calendar' }), 'calendar/1');
 assert.equal(coordinateSpaceForPattern(CHART_PATTERN, { type: BAR_HORIZONTAL_CHART }), 'quantitative/1');
 
-const map = load('example.jsonl');
-const graph = load('graph.jsonl');
-const sequence = load('sequence.jsonl');
-const gantt = load('gantt.jsonl');
-const chart = load('chart.jsonl');
+const map = load('../examples/example.jsonl');
+const graph = load('../examples/graph.jsonl');
+const sequence = load('../examples/sequence.jsonl');
+const gantt = load('../examples/gantt.jsonl');
+const chart = load('../../../examples/chart/bar-horizontal.jsonl');
 validatePatternDomain(map, MAP_PATTERN);
 validatePatternDomain(graph, GRAPH_PATTERN);
 validatePatternDomain(sequence, SEQ_PATTERN, { groupBy: 'actor', axis: 'ordinal' });

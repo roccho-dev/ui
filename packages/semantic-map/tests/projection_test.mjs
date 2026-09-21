@@ -9,19 +9,19 @@ import {
   validateSceneGraph,
 } from '../projection/index.js';
 
-function load(name) {
-  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8')));
+function load(source) {
+  return createSemanticMap(parseSemanticMapRecords(fs.readFileSync(new URL(source, import.meta.url), 'utf8')));
 }
 function project(domain, view) {
   const projector = new SemanticProjector(domain, null, view);
   return projector.project({ scale: 1, viewport: { x: -100, y: -100, width: 2500, height: 1800 } });
 }
 
-const mapDomain = load('example.jsonl');
-const graphDomain = load('graph.jsonl');
-const seqDomain = load('sequence.jsonl');
-const ganttDomain = load('gantt.jsonl');
-const chartDomain = load('chart.jsonl');
+const mapDomain = load('../examples/example.jsonl');
+const graphDomain = load('../examples/graph.jsonl');
+const seqDomain = load('../examples/sequence.jsonl');
+const ganttDomain = load('../examples/gantt.jsonl');
+const chartDomain = load('../../../examples/chart/bar-horizontal.jsonl');
 const mapScene = project(mapDomain, { pattern: 'map/1' });
 const graphScene = project(graphDomain, { pattern: 'graph/1' });
 const ordinalScene = project(seqDomain, { pattern: 'seq/1', seq: { groupBy: 'actor', axis: 'ordinal' } });
@@ -34,7 +34,7 @@ assert.equal(ordinalScene.scenes[0].space, 'ordinal/1');
 assert.equal(calendarScene.scenes[0].space, 'calendar/1');
 assert.equal(chartScene.scenes[0].space, 'quantitative/1');
 assert.ok(mapScene.representations.some((item) => item.geometryEditable));
-assert.ok(graphScene.representations.filter((item) => !item.isRoot).every((item) => !item.geometryEditable));
+assert.ok(graphScene.representations.filter((item) => !item.isRoot && item.mode !== 'boundary').every((item) => item.geometryEditable));
 assert.ok(ordinalScene.representations.some((item) => item.temporalEdit?.axis === 'ordinal'));
 assert.ok(calendarScene.representations.some((item) => item.temporalEdit?.axis === 'calendar'));
 const ordinalById = new Map(ordinalScene.representations.map((item) => [item.regionId, item]));
@@ -47,7 +47,9 @@ assert.equal(
   'one Human lane must express repeated occurrences without duplicating actor identity',
 );
 assert.equal(chartScene.representations.filter((item) => item.mode === 'bar').length, 4);
-assert.ok(chartScene.representations.filter((item) => item.mode === 'bar').every((item) => item.readOnly));
+assert.ok(chartScene.representations
+  .filter((item) => item.mode === 'bar')
+  .every((item) => !item.readOnly && chartDomain.regions.has(item.sourceRegionId)));
 assert.ok(graphScene.relations.every((item) => item.directed && item.line === 'graph'));
 assert.ok(ordinalScene.relations.every((item) => item.directed));
 assert.deepEqual(validateSceneGraph(graphDomain, null, { pattern: 'graph/1' }), { rootPattern: 'graph/1', scenes: 1 });
@@ -150,8 +152,7 @@ const unknownProjection = createPresentationProjection({
 });
 assert.throws(
   () => new SemanticProjector(mapDomain, null, { pattern: 'map/1' }, { presentationProjection: unknownProjection }).project({
-    scale: 1,
-    viewport: { x: -100, y: -100, width: 2500, height: 1800 },
+    scale: 1, viewport: { x: -100, y: -100, width: 2500, height: 1800 },
   }),
   /layout references unknown region missing/u,
 );

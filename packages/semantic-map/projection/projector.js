@@ -267,13 +267,15 @@ export class SemanticProjector {
     };
 
     const addRepresentation = (node, region, bounds, mode, depth, extra = {}) => {
+      const sourceRegionId = extra.sourceRegionId ?? region.id;
       const regionId = regionProjectionId(node, region.id);
       const geographic = this.geoFeatureIdsFor(node.domain).has(region.id);
       const resourceEntry = resourceIndexFor(node).get(region.id) ?? null;
       const imageResource = resourceEntry?.resource.contract === 'image/1' ? resourceEntry : null;
       const representation = Object.freeze({
         regionId,
-        sourceRegionId: region.id,
+        sourceRegionId,
+        sourceLabel: region.label,
         parentRegionId: region.parent === null ? null : regionProjectionId(node, region.parent),
         representationId: `${regionId}@${mode}`,
         sceneId: sceneId(node),
@@ -297,14 +299,13 @@ export class SemanticProjector {
         }) : null,
         bounds,
         depth,
-        isRoot: node.namespace === '' && region.id === this.domain.meta.root,
+        isRoot: node.namespace === '' && sourceRegionId === this.domain.meta.root && mode === 'boundary',
         isPortal: Boolean(node.mountSources?.get(region.id) ?? region.mount),
         readOnly: node.namespace !== '' || Boolean(extra.readOnly) || Boolean(region.image) || geographic,
         geometryEditable: Boolean(extra.geometryEditable) && !geographic && !region.image,
         labelEditable: node.namespace === ''
           && !geographic
           && !region.image
-          && region.id !== this.domain.meta.root
           && (mode !== 'boundary' || Boolean(extra.geometryEditable)),
         hasChildren: Boolean(extra.hasChildren),
         detailsVisible: Boolean(extra.detailsVisible),
@@ -354,7 +355,8 @@ export class SemanticProjector {
     };
 
     const addRelation = (node, relation, from, to) => {
-      if (!from || !to || from === to) return;
+      if (!from || !to) return;
+      if (from === to && relation.from !== relation.to) return;
       const readOnly = node.namespace !== '' || Boolean(relation.readOnly);
       const relationId = relationProjectionId(node, relation.id);
       const visual = relationVisualForPattern(node.view.pattern, relation);
@@ -383,11 +385,11 @@ export class SemanticProjector {
       }
     };
 
-    const detailsVisible = (node, region, bounds, hasChildren, force = false) => {
+    const detailsVisible = (node, region, bounds, hasChildren, force = false, thresholdPx2 = DETAIL_AREA_PX2) => {
       if (force) return true;
       if (!hasChildren) return false;
       const projectedArea = area(bounds) * scale * scale;
-      return projectedArea >= DETAIL_AREA_PX2;
+      return projectedArea >= thresholdPx2;
     };
 
     const addScene = (node, rootBounds, transform, axis = null, clipBounds = null) => {

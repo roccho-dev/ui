@@ -9,10 +9,9 @@ import {
   normalizeView,
   projectView,
 } from '../protocol/index.js';
-import { createSmapUrl, readSmapHash } from '../transport/index.js';
 
 const records = parseSemanticMapRecords(fs.readFileSync(new URL('../examples/example.jsonl', import.meta.url), 'utf8'));
-const chartRecords = parseSemanticMapRecords(fs.readFileSync(new URL('../examples/chart.jsonl', import.meta.url), 'utf8'));
+const chartRecords = parseSemanticMapRecords(fs.readFileSync(new URL('../../../examples/chart/bar-horizontal.jsonl', import.meta.url), 'utf8'));
 assert.deepEqual(normalizeView({ pattern: 'map/1' }), { pattern: 'map/1' });
 assert.deepEqual(normalizeView({ pattern: 'seq/1', seq: { groupBy: 'actor', axis: 'ordinal' } }), {
   pattern: 'seq/1',
@@ -58,19 +57,17 @@ const envelope = await createEnvelope(log.log, null, {
   pattern: 'map/1',
   frame: { bbox: [0, 0, 1180, 760], viewport: [412, 915], select: ['request'] },
 });
-const url = await createSmapUrl(envelope, 'https://example.test/app');
-const opened = await readSmapHash(url);
-assert.deepEqual(opened.envelope.view, envelope.view);
+assert.deepEqual((await inspectEnvelope(envelope)).envelope.view, envelope.view);
 const chartLog = await createDecisionLog(chartRecords, 'urn:test:view:chart');
 const chartEnvelope = await createEnvelope(chartLog.log, null, {
   pattern: 'chart/1',
   chart: { layers: ['bar-horizontal/1', 'bar-vertical/1', 'line/1', 'pie/1', 'donut/1', 'scatter/1'] },
 });
-assert.deepEqual((await readSmapHash(await createSmapUrl(chartEnvelope, 'https://example.test/app'))).envelope.view, chartEnvelope.view);
+assert.deepEqual((await inspectEnvelope(chartEnvelope)).envelope.view, chartEnvelope.view);
 await assert.rejects(inspectEnvelope({ ...envelope, view: { pattern: 'map/1', frame: { focus: 'missing', scale: 2 } } }), /region not found/u);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-view-contract-test/3',
+  schema: 'semantic-map-view-contract-test/4',
   pass: true,
   status: 'PASS',
   skipped: false,

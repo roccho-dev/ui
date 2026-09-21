@@ -1,4 +1,10 @@
+import { registerArtifactWebMcp } from "../../../adapters/webmcp/index.mjs";
+import { setArtifactShellMode } from "../mode.mjs";
 import { createArtifactShell } from "./shell.mjs";
+
+setArtifactShellMode();
+globalThis.addEventListener("popstate", () => setArtifactShellMode());
+globalThis.addEventListener("hashchange", () => setArtifactShellMode());
 
 const elements = Object.freeze({
   form: document.querySelector("#request-form"),
@@ -12,7 +18,18 @@ const elements = Object.freeze({
   surface: document.querySelector("#surface"),
 });
 
-createArtifactShell({ elements }).catch(error => {
+createArtifactShell({ elements }).then(async shell => {
+  const webMcpPort = Object.freeze({
+    query: shell.query,
+    render: shell.execute,
+    applyAction: shell.applyAction,
+  });
+  try {
+    globalThis.artifactShellWebMcp = await registerArtifactWebMcp({ document, port: webMcpPort });
+  } catch (error) {
+    globalThis.artifactShellWebMcp = Object.freeze({ available: false, error: String(error.message) });
+  }
+}).catch(error => {
   elements.status.dataset.state = "inconclusive";
   elements.status.textContent = `INCONCLUSIVE · ${error.message}`;
   globalThis.artifactShellProof = Object.freeze({ error: String(error.message) });

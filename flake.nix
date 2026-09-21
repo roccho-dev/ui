@@ -20,6 +20,24 @@
         pkgs.runCommand "ui-readme-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-readme-artifact.mjs --out "$out"
         '';
+      mkControlUi = pkgs:
+        pkgs.runCommand "control-ui" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          set -euo pipefail
+          mkdir -p "$out/apps" "$out/packages"
+          cp ${self}/apps/control/index.html "$out/index.html"
+          cp -R ${self}/apps/control "$out/apps/control"
+          cp -R ${self}/packages/a2ui-browser "$out/packages/a2ui-browser"
+          cp -R ${self}/packages/control "$out/packages/control"
+          cp ${self}/examples/control/design.json "$out/design.json"
+          chmod -R u+w "$out/packages/control" "$out/packages/a2ui-browser"
+          rm -rf "$out/packages/control/tests" "$out/packages/a2ui-browser/tests"
+          node --check "$out/apps/control/main.mjs"
+          node --check "$out/packages/control/live-input.mjs"
+          test -s "$out/index.html"
+          test -s "$out/design.json"
+          test ! -e "$out/data/control.jsonl"
+          test ! -e "$out/data/claims.jsonl"
+        '';
       mkPurposeVisualizationArtifact = pkgs:
         pkgs.runCommand "purpose-visualization-artifact" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           set -euo pipefail
@@ -107,6 +125,7 @@
         readme-artifact = mkReadmeArtifact pkgs;
         gov-package-output = mkUiGovPackageOutput pkgs;
         purpose-visualization-artifact = mkPurposeVisualizationArtifact pkgs;
+        control-ui = mkControlUi pkgs;
 
         generic-a2ui-preview-html = pkgs.runCommand "generic-a2ui-preview-html" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/scripts/build-generic-a2ui-preview.mjs "$out"
@@ -121,9 +140,23 @@
         readmeArtifact = mkReadmeArtifact pkgs;
         uiGovPackageOutput = mkUiGovPackageOutput pkgs;
         purposeVisualizationArtifact = mkPurposeVisualizationArtifact pkgs;
+        controlUi = mkControlUi pkgs;
       in {
         ui-modeling-corr-port = pkgs.runCommand "ui-modeling-corr-port-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           node ${self}/tests/run-all.mjs
+          touch "$out"
+        '';
+
+        control-ui = pkgs.runCommand "control-ui-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          node ${self}/packages/control/tests/live-input.mjs
+          test -s ${controlUi}/index.html
+          test -s ${controlUi}/design.json
+          test -s ${controlUi}/apps/control/main.mjs
+          test -s ${controlUi}/packages/control/model.mjs
+          test -s ${controlUi}/packages/control/live-input.mjs
+          test -s ${controlUi}/packages/a2ui-browser/src/feature-app.mjs
+          test ! -e ${controlUi}/data/control.jsonl
+          test ! -e ${controlUi}/data/claims.jsonl
           touch "$out"
         '';
 

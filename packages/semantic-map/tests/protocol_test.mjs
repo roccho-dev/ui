@@ -14,7 +14,6 @@ import {
   parseDecisionLog,
   verifyDecisionLog,
 } from '../protocol/index.js';
-import { createSmapUrl, decodeEnvelopeToken, encodeEnvelopeToken, readSmapHash } from '../transport/index.js';
 
 const records = parseSemanticMapRecords(fs.readFileSync(new URL('../examples/example.jsonl', import.meta.url), 'utf8'));
 const created = await createDecisionLog(records, 'urn:test:protocol');
@@ -40,12 +39,7 @@ const inspection = await inspectEnvelope(envelope);
 assert.equal(inspection.base.head, created.head);
 assert.equal(inspection.preview.head, preview.head);
 assert.deepEqual(inspection.envelope.view, view);
-
-const token = await encodeEnvelopeToken(envelope);
-assert.deepEqual(await decodeEnvelopeToken(token), inspection);
-const url = await createSmapUrl(envelope, 'https://example.test/old/path?x=1#old');
-assert.match(url, /^https:\/\/example\.test\/app#smap=/u);
-assert.deepEqual(await readSmapHash(url), inspection);
+assert.equal(canonicalJson(inspection.envelope), canonicalJson(envelope));
 
 await assert.rejects(inspectEnvelope({ ...envelope, schema: 'semantic-map-envelope/2' }), /is not semantic-map-envelope\/3/u, 'MUTATION:accept-old-envelope-schema');
 const first = JSON.parse(created.log.trim());
@@ -59,7 +53,7 @@ const wrongParent = { ...proposal, parent: `sha256:${'0'.repeat(64)}` };
 await assert.rejects(appendDecision(created.log, wrongParent), /is not head/u);
 
 console.log(JSON.stringify({
-  schema: 'semantic-map-protocol-test/3',
+  schema: 'semantic-map-protocol-test/4',
   pass: true,
   status: 'PASS',
   skipped: false,
@@ -70,5 +64,4 @@ console.log(JSON.stringify({
   decisionsVerified: 2,
   exactAppend: true,
   currentOnly: true,
-  tokenChars: token.length,
 }));

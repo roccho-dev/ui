@@ -13,18 +13,30 @@ const args = Object.fromEntries(process.argv.slice(2).map(argument => {
 }));
 const inputPath = path.resolve(repoRoot, args.input ?? path.join('examples', 'render.semantic-map', 'input', 'envelope.json'));
 const outputRoot = path.resolve(repoRoot, args.out ?? path.join('examples', 'render.semantic-map', 'dist'));
-const appEntry = 'authoring/index.js';
+const appEntry = 'packages/semantic-map/authoring/index.js';
 const importOrExport = /\b(?:import|export)\s+(?:(?:[^;]*?)\s+from\s+)?(["'])([^"']+)\1/gmu;
 const dynamicImport = /\bimport\(\s*(["'])([^"']+)\1\s*\)/gmu;
-const moduleId = relative => `semantic:${relative.split(path.sep).join('/')}`;
+const moduleId = relative => `ui:${relative.split(path.sep).join('/')}`;
 const dataUrl = source => `data:text/javascript;charset=utf-8;base64,${Buffer.from(source).toString('base64')}`;
 const sha256 = bytes => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+const BROWSER_MODULE_ROOTS = Object.freeze([
+  'packages/semantic-map/',
+  'packages/data-pin/',
+  'packages/core-port/',
+  'packages/connectability/',
+  'packages/url-module/',
+]);
 
 const resolveModule = (current, specifier) => {
   if (!specifier.startsWith('.')) throw new Error(`external module is forbidden: ${current} -> ${specifier}`);
   const target = path.posix.normalize(path.posix.join(path.posix.dirname(current), specifier));
-  if (target.startsWith('../') || target === '..') throw new Error(`module escapes semantic-map package: ${current} -> ${specifier}`);
-  if (!target.endsWith('.js')) throw new Error(`module must use explicit .js: ${current} -> ${specifier}`);
+  if (target.startsWith('../') || target === '..') throw new Error(`module escapes repository: ${current} -> ${specifier}`);
+  if (!BROWSER_MODULE_ROOTS.some(root => target.startsWith(root))) {
+    throw new Error(`browser module owner is not allowed: ${current} -> ${target}`);
+  }
+  if (!target.endsWith('.js') && !target.endsWith('.mjs')) {
+    throw new Error(`module must use explicit .js or .mjs: ${current} -> ${specifier}`);
+  }
   return target;
 };
 
@@ -41,7 +53,7 @@ const discover = async entry => {
   while (pending.length) {
     const relative = pending.pop();
     if (found.has(relative)) continue;
-    const target = path.join(packageRoot, relative);
+    const target = path.join(repoRoot, relative);
     const source = await fs.readFile(target, 'utf8');
     found.add(relative);
     for (const specifier of specifiers(source)) {
@@ -84,7 +96,7 @@ const modules = await discover(appEntry);
 const known = new Set(modules);
 const imports = {};
 for (const relative of modules) {
-  const source = await fs.readFile(path.join(packageRoot, relative), 'utf8');
+  const source = await fs.readFile(path.join(repoRoot, relative), 'utf8');
   imports[moduleId(relative)] = dataUrl(rewrite(relative, source, known));
 }
 const importMap = JSON.stringify({ imports });
@@ -119,6 +131,7 @@ const receipt = Object.freeze({
   input: Object.freeze({ path: 'input/envelope.json', sha256: sha256(inputBytes) }),
   output: Object.freeze({ path: 'dist/index.html', bytes: htmlBytes.byteLength, sha256: sha256(htmlBytes) }),
   modules: modules.length,
+  moduleRoots: Object.freeze(BROWSER_MODULE_ROOTS),
   pattern: envelope.view.pattern,
 });
 await fs.writeFile(path.join(outputRoot, 'receipt.json'), `${JSON.stringify(receipt, null, 2)}\n`);

@@ -1,0 +1,6 @@
+{"type":"meta","schema":"semantic-map-state/1","root":"meaning","title":"Self relation"}
+{"type":"region","id":"meaning","parent":null,"label":"Meaning","kind":"root","bounds":[0,0,800,500],"summary":"graph/1 self relation proof"}
+{"type":"region","id":"claim","parent":"meaning","label":"Claim","kind":"class","bounds":[0,0,240,150],"summary":"immutable claim"}
+{"type":"region","id":"claim.role","parent":"claim","label":"role: proposal | decision","kind":"attribute","bounds":[0,0,160,40],"summary":"claim role","order":0}
+{"type":"region","id":"claim.relations","parent":"claim","label":"rationale / required_dependencies / relations[]","kind":"attribute","bounds":[0,0,160,40],"summary":"semantic relations","order":1}
+{"type":"relation","id":"self-depends","from":"claim","to":"claim","kind":"dependency","label":"depends_on"}

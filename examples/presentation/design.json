@@ -1,0 +1,31 @@
+{
+  "schema": "ui-a2ui-app-design/1",
+  "app": "presentation",
+  "catalogId": "urn:roccho:a2ui:catalog:presentation:1",
+  "surfaceId": "presentation",
+  "rootId": "root",
+  "profileId": "business-model/1",
+  "mainSurfaceId": "business-model-profiled",
+  "css": "@import url(\"../../modules/packages/a2ui-browser/src/catalog/presentation.css\");",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "presentation",
+        "catalogId": "urn:roccho:a2ui:catalog:presentation:1",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "presentation",
+        "components": [
+          {"id":"root","component":"PresentationFrame","children":["presentation-surface","presentation-seq"]},
+          {"id":"presentation-surface","component":"PresentationSurface"},
+          {"id":"presentation-seq","component":"PresentationSeqShell"}
+        ]
+      }
+    }
+  ]
+}

@@ -1,7 +1,28 @@
 import { canonicalJson, inspectEnvelope } from './protocol/index.js';
-import { assertUrlWithinLimit, encodeEnvelopeToken, SMAP_FRAGMENT } from './transport/index.js';
 
+const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';
+const EMBED_READY_SCHEMA = 'semantic-map-embed-ready/1';
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-package: ${message}`); };
+const waitForEmbedReady = (document, frame, targetOrigin, timeoutMs = 15000) => {
+  const parentWindow = document.defaultView;
+  invariant(parentWindow?.addEventListener, 'document.defaultView is required');
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      parentWindow.removeEventListener('message', onMessage);
+      reject(new Error('embedded semantic map ready timed out'));
+    }, timeoutMs);
+    function onMessage(event) {
+      if (event.source !== frame.contentWindow) return;
+      if (event.origin !== targetOrigin) return;
+      if (event.data?.schema !== EMBED_READY_SCHEMA) return;
+      clearTimeout(timer);
+      parentWindow.removeEventListener('message', onMessage);
+      resolve(true);
+    }
+    parentWindow.addEventListener('message', onMessage);
+  });
+};
+
 const waitForReady = (frame, timeoutMs = 15000) => new Promise((resolve, reject) => {
   const started = performance.now();
   const poll = () => {
@@ -50,7 +71,7 @@ export const createEnvelopeInputBridge = ({ initialEnvelope, inputAction, site }
     const task = pending.then(flush);
     pending = task.catch((error) => {
       lastError = String(error?.message ?? error);
-      site.editor?.showError?.(`共有URLを更新できません: ${lastError}`);
+      site.editor?.showError?.(`共有入力を更新できません: ${lastError}`);
       return null;
     });
     return task;
@@ -78,9 +99,15 @@ export async function executeArtifactPackage({ document, input, inputAction = nu
   frame.setAttribute('allow', 'clipboard-read; clipboard-write');
   frame.style.cssText = 'display:block;width:100%;height:min(78vh,900px);min-height:560px;border:0;border-radius:12px;background:#f8fafb;pointer-events:none;';
   const frameUrl = new URL('./authoring/pages/embed.html', import.meta.url);
-  frameUrl.hash = `${SMAP_FRAGMENT}=${await encodeEnvelopeToken(inspection.envelope)}`;
-  frame.src = assertUrlWithinLimit(frameUrl.href);
+  const targetOrigin = frameUrl.origin;
+  const embedReady = waitForEmbedReady(document, frame, targetOrigin);
+  frame.src = frameUrl.href;
   surfaceMount.replaceChildren(frame);
+  await embedReady;
+  frame.contentWindow?.postMessage(
+    Object.freeze({ schema: EMBED_INPUT_SCHEMA, envelope: structuredClone(inspection.envelope) }),
+    targetOrigin,
+  );
   const site = await waitForReady(frame);
   let bridge = null;
   if (bridgeEnabled) {
@@ -105,6 +132,6 @@ export async function executeArtifactPackage({ document, input, inputAction = nu
       mode: bridge ? 'parent-invocation' : 'read-only',
       schema: 'semantic-map-input-bridge-receipt/1',
     }),
-    source: Object.freeze({ contract: 'semantic-map-envelope/3', mode: 'inline-child' }),
+    source: Object.freeze({ contract: 'semantic-map-envelope/3', mode: 'embedded-message' }),
   });
 }
