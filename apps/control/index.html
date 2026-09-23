@@ -4,8 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Control</title>
+  <style>
+    .editor{position:sticky;top:0;z-index:4;display:grid;gap:6px;padding:10px 12px;background:#fff;border-bottom:1px solid #ccc;font:12px/1.4 system-ui,sans-serif}
+    .editor label{display:grid;gap:4px;max-width:800px}
+    .editor textarea{width:100%;min-height:54px;font:12px/1.4 ui-monospace,monospace}
+    .editor .actions{display:flex;gap:6px}
+    .editor button{padding:3px 8px}
+    .editor output{min-height:1.4em}
+    [data-control-row] .property[data-key]:hover{outline:1px solid #667}
+  </style>
 </head>
 <body>
+  <section class="editor" aria-label="Control local draft editor">
+    <strong>Local draft · Save does not adopt policy</strong>
+    <span id="selection">Select a property in the Control tree.</span>
+    <label>JSON value <textarea id="value" spellcheck="false" disabled></textarea></label>
+    <div class="actions">
+      <button id="apply" type="button" disabled>Apply one field</button>
+      <button id="save" type="button" disabled>Save local draft</button>
+      <button id="reload" type="button">Reload</button>
+    </div>
+    <output id="status" role="status"></output>
+  </section>
   <main id="feature"></main>
   <pre id="fatal" hidden></pre>
   <script type="module" src="/apps/control/main.mjs"></script>

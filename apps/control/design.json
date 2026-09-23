@@ -1,0 +1,55 @@
+{
+  "schema": "ui-a2ui-app-design/1",
+  "app": "control",
+  "catalogId": "urn:roccho:a2ui:catalog:control:1",
+  "surfaceId": "control",
+  "rootId": "root",
+  "css": "*{box-sizing:border-box}body{margin:0;color:#181818;background:#fafafa;font:12px/1.35 system-ui,sans-serif}#feature{padding:8px 12px 32px}.tree-grid{min-width:0}.grid-head,.grid-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:stretch}.grid-head{position:sticky;top:0;z-index:2;padding:7px 2px;background:#fafafa;border-bottom:1px solid #ddd}.grid-head-cell{display:flex;justify-content:space-between}.grid-title{font-weight:650}.grid-meta{color:#777;font-size:10px}.children{display:grid;gap:3px;margin:3px 0 0 14px;padding-left:10px;border-left:1px solid #ddd}.children[hidden]{display:none}.grid-row{min-height:22px}.grid-cell{display:flex;min-width:0;align-items:flex-start}.grid-cell[data-control-column=claims]{padding-left:12px;border-left:1px solid #ececec}.properties{display:flex;gap:3px;flex-wrap:wrap;min-width:0}.property{padding:0 4px;border-radius:999px;background:#f2f2f2;color:#666;font:10px/1.45 ui-monospace,monospace;overflow-wrap:anywhere}.property[data-variant=title]{order:-2;background:transparent;color:#181818;font-weight:650}.property[data-key=id]{order:-1}.relation-controls{display:flex;gap:3px;margin-left:auto}.relation-toggle{border:0;border-radius:999px;background:#eceff3;cursor:pointer}@media(max-width:640px){.grid-head,.grid-row{gap:7px}.grid-cell[data-control-column=claims]{padding-left:7px}.children{margin-left:7px;padding-left:7px}.grid-meta{display:none}}",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "control",
+        "catalogId": "urn:roccho:a2ui:catalog:control:1",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "control",
+        "components": [
+          {
+            "id": "root",
+            "component": "TreeGrid",
+            "sourcePath": "/control",
+            "idPath": "id",
+            "parentPath": "rel.parent",
+            "relationKindPath": "rel.kind",
+            "titlePath": "title",
+            "join": { "sourcePath": "/claims", "foreignPath": "rel.parent", "localPath": "id" },
+            "classes": {
+              "root": "tree-grid",
+              "header": "grid-head",
+              "headerCell": "grid-head-cell",
+              "title": "grid-title",
+              "meta": "grid-meta",
+              "node": "node",
+              "row": "grid-row",
+              "cell": "grid-cell",
+              "properties": "properties",
+              "property": "property",
+              "children": "children",
+              "relationControls": "relation-controls",
+              "relationToggle": "relation-toggle"
+            },
+            "columns": [
+              { "id": "control", "title": "control.jsonl", "meta": "local draft · not adopted", "source": "record" },
+              { "id": "claims", "title": "claims.jsonl", "meta": { "path": "/summary/claims", "prefix": "reports · " }, "source": "join", "missing": "—" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
