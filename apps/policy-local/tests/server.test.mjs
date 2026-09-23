@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
+import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, rmdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { editExistingField } from '../../../packages/control/editor.mjs';
 import { parseControl } from '../../../packages/control/src/control-graph.mjs';
@@ -25,6 +27,9 @@ test('same-size disposable fixture: conditional save, readback, and bounded reje
   await writeFile(fixture, source, { flag: 'wx' });
   const server = createServer({ controlPath: fixture });
   try {
+    const nonLoopback = spawnSync(process.execPath, [fileURLToPath(new URL('../server.mjs', import.meta.url)), fixture, '4173', '0.0.0.0'], { encoding: 'utf8' });
+    assert.notEqual(nonLoopback.status, 0, 'CLI must refuse non-loopback bind override');
+    assert.match(nonLoopback.stderr, /host override prohibited/u);
     await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', error => error ? reject(error) : resolve()));
     const port = server.address().port;
     const origin = `http://127.0.0.1:${port}`;

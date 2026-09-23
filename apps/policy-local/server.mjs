@@ -44,7 +44,7 @@ const send = (response, status, body, headers = {}) => {
   response.end(body);
 };
 
-export const createServer = ({ assetRoot = defaultAssetRoot, controlPath, host = '127.0.0.1' } = {}) => {
+export const createServer = ({ assetRoot = defaultAssetRoot, controlPath } = {}) => {
   if (typeof controlPath !== 'string' || !path.isAbsolute(controlPath)) throw new Error('absolute controlPath required');
   const store = createFileStore(controlPath);
   const server = http.createServer(async (request, response) => {
@@ -106,9 +106,9 @@ export const createServer = ({ assetRoot = defaultAssetRoot, controlPath, host =
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const controlPath = process.argv[2];
   const port = Number(process.argv[3] ?? 4173);
-  const host = process.argv[4] ?? '127.0.0.1';
+  if (process.argv.length > 4) throw new Error('host override prohibited; loopback only');
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error('valid port required');
-  createServer({ controlPath, host }).listen(port, host, () => {
-    process.stdout.write(`policy-local http://${host}:${port}/\n`);
+  createServer({ controlPath }).listen(port, '127.0.0.1', () => {
+    process.stdout.write(`policy-local http://127.0.0.1:${port}/\n`);
   });
 }
