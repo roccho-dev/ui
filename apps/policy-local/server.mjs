@@ -3,7 +3,7 @@ import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { validateSingleFieldEdit } from '../../packages/control/editor.mjs';
+import { validateMutation } from '../../packages/control/editor.mjs';
 import { createFileStore } from './store.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -75,7 +75,7 @@ export const createServer = ({ assetRoot = defaultAssetRoot, controlPath } = {})
             let oldText, newText;
             try { oldText = decoder.decode(before); newText = decoder.decode(after); }
             catch { throw failure(400, 'invalid UTF-8'); }
-            try { validateSingleFieldEdit(oldText, newText); }
+            try { validateMutation(oldText, newText); }
             catch (error) { throw failure(400, error.message); }
           },
         });

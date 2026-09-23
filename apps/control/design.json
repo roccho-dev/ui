@@ -27,6 +27,8 @@
             "parentPath": "rel.parent",
             "relationKindPath": "rel.kind",
             "titlePath": "title",
+            "editable": true,
+            "collapseDetails": true,
             "join": { "sourcePath": "/claims", "foreignPath": "rel.parent", "localPath": "id" },
             "classes": {
               "root": "tree-grid",

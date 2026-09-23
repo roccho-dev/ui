@@ -2,81 +2,83 @@ import { getFeature } from '/packages/a2ui-browser/feature.mjs';
 import { mountFeature } from '/packages/a2ui-browser/src/feature-app.mjs';
 import * as planModule from '/packages/control/model.mjs';
 import { loadControlInput } from '/packages/control/live-input.mjs';
-import { editExistingField } from '/packages/control/editor.mjs';
-import { parseControl } from '/packages/control/src/control-graph.mjs';
+import { createChild, deleteLeaf, updateRecord } from '/packages/control/editor.mjs';
+import { connectControl, parseControl } from '/packages/control/src/control-graph.mjs';
 
-const invariant = (condition, message) => {
-  if (!condition) throw new Error(`control-app: ${message}`);
-};
-
-const readDesign = async () => {
-  const response = await fetch('/design.json', { cache: 'no-store' });
-  invariant(response.ok, `/design.json returned HTTP ${response.status}`);
-  return response.json();
-};
+const invariant = (condition, message) => { if (!condition) throw new Error(`control-app: ${message}`); };
+const strongEtag = value => /^"sha256-[a-f0-9]{64}"$/u.test(value ?? '');
 
 const boot = async () => {
   const root = document.querySelector('#feature');
-  invariant(root, '#feature required');
-  const selection = document.querySelector('#selection');
-  const value = document.querySelector('#value');
-  const applyButton = document.querySelector('#apply');
+  const dialog = document.querySelector('#editor');
+  const title = document.querySelector('#editor-title');
+  const input = document.querySelector('#record-editor');
+  const editorError = document.querySelector('#editor-error');
   const saveButton = document.querySelector('#save');
   const reloadButton = document.querySelector('#reload');
   const status = document.querySelector('#status');
+  const fatal = document.querySelector('#fatal');
+  invariant(root && dialog && title && input && editorError && saveButton && reloadButton && status, 'editor shell incomplete');
 
-  const [design, live] = await Promise.all([readDesign(), loadControlInput()]);
-  invariant(/^"sha256-[a-f0-9]{64}"$/u.test(live.controlEtag ?? ''), 'strong Control ETag required');
+  const designResponse = await fetch('/design.json', { cache: 'no-store' });
+  invariant(designResponse.ok, `/design.json returned HTTP ${designResponse.status}`);
+  const design = await designResponse.json();
   const feature = Object.freeze({ ...getFeature('control'), planModule });
+  let live = await loadControlInput();
+  invariant(strongEtag(live.controlEtag), 'strong Control ETag required');
   let source = live.control;
-  let candidate = source;
   let etag = live.controlEtag;
-  let selected = null;
-  let busy = false;
-  const note = message => { status.textContent = message; };
-  const refreshButtons = () => {
-    value.disabled = !selected || busy;
-    applyButton.disabled = !selected || busy || candidate !== source;
-    saveButton.disabled = busy || candidate === source;
+  let editing = null;
+  let saving = false;
+
+  const note = (message, error = false) => {
+    status.textContent = message;
+    status.classList.toggle('error', error);
   };
   const render = async () => {
+    connectControl(parseControl(source));
     const mounted = await mountFeature({
       feature,
-      input: Object.freeze({ design, control: candidate, ...(live.claims === undefined ? {} : { claims: live.claims }) }),
+      input: Object.freeze({ design, control: source, ...(live.claims === undefined ? {} : { claims: live.claims }) }),
       root,
       scope: globalThis,
     });
-    globalThis.controlUiProof = Object.freeze({ status: 'PASS', mounted, dirty: candidate !== source });
+    globalThis.controlUiProof = Object.freeze({ status: 'PASS', mounted });
   };
-
-  root.addEventListener('click', event => {
-    const property = event.target.closest?.('.property[data-key]');
-    if (property?.closest('[data-control-column]')?.dataset.controlColumn !== 'control') return;
-    const row = property?.closest('[data-control-row]');
-    if (!row) return;
-    const key = property.dataset.key;
-    if (key === 'id' || key === 'rel') { note('Identity and relation are locked.'); return; }
-    const record = parseControl(candidate).find(item => item.id === row.dataset.controlRow);
-    if (!record || !Object.hasOwn(record, key)) return;
-    selected = { id: record.id, key };
-    selection.textContent = `${record.id} · ${key}`;
-    value.value = JSON.stringify(record[key], null, 2);
-    refreshButtons();
-  });
-
-  applyButton.addEventListener('click', async () => {
-    try {
-      invariant(candidate === source, 'save or reload before another edit');
-      candidate = editExistingField({ source, id: selected.id, key: selected.key, value: JSON.parse(value.value) });
-      await render();
-      note('Unsaved local change. Save writes a draft, not adopted policy.');
-      refreshButtons();
-    } catch (error) { note(`Edit rejected: ${error.message}`); }
-  });
-
-  saveButton.addEventListener('click', async () => {
-    if (busy || candidate === source) return;
-    busy = true; refreshButtons(); note('Saving local draft…');
+  const setSaving = value => {
+    saving = value;
+    saveButton.disabled = value;
+    reloadButton.disabled = value;
+    root.querySelectorAll('[data-edit-id],[data-control-action]').forEach(button => { button.disabled = value || button.dataset.locked === 'true'; });
+  };
+  const findRecord = id => parseControl(source).find(record => record.id === id);
+  const selectProperty = (text, record, key) => {
+    const marker = `  ${JSON.stringify(key)}:`;
+    const start = text.indexOf(marker);
+    if (start < 0) return;
+    const from = start + marker.length + 1;
+    const token = JSON.stringify(record[key]);
+    if (record[key] === null || typeof record[key] !== 'object') input.setSelectionRange(from, from + token.length);
+    else {
+      const end = text.indexOf('\n', start);
+      input.setSelectionRange(start, end < 0 ? text.length : end);
+    }
+  };
+  const openEditor = (mode, record, key, trigger) => {
+    if (saving) return;
+    editing = { mode, id: record.id, key, trigger };
+    editorError.textContent = '';
+    title.textContent = `${mode} · ${record.id} · ${key}`;
+    const value = mode === 'update' ? { ...record } : { id: '', rel: { parent: record.id, kind: '' } };
+    input.value = JSON.stringify(value, null, 2);
+    dialog.showModal();
+    input.focus();
+    selectProperty(input.value, value, key);
+  };
+  const saveCandidate = async candidate => {
+    if (saving) throw new Error('save in progress');
+    setSaving(true);
+    note('Saving local draft…');
     try {
       const response = await fetch('/data/control.jsonl', {
         method: 'PUT',
@@ -84,47 +86,81 @@ const boot = async () => {
         body: candidate,
       });
       if (!response.ok) {
-        note(response.status === 412 ? 'Stale version. Unsaved text remains; reload explicitly.' : `Save rejected: HTTP ${response.status}`);
-        return;
+        const message = response.status === 412 ? 'Stale version. Unsaved text remains; reload explicitly.' : `HTTP ${response.status}: ${(await response.text()).trim()}`;
+        throw new Error(message);
       }
       const result = await response.json();
       const readback = await fetch('/data/control.jsonl', { cache: 'no-store' });
-      const readbackText = await readback.text();
-      const readbackEtag = readback.headers.get('etag');
-      invariant(readback.ok && result.etag === readbackEtag && readbackText === candidate, 'save readback mismatch');
-      source = readbackText;
-      etag = readbackEtag;
-      note('Local draft saved and read back. Policy is not adopted.');
+      const body = await readback.text();
+      const nextEtag = readback.headers.get('etag');
+      invariant(readback.ok && strongEtag(nextEtag) && result.etag === nextEtag && body === candidate, 'save readback mismatch');
+      source = body;
+      etag = nextEtag;
       await render();
-    } catch (error) { note(`Save uncertain: ${error.message}. Preserve this text and inspect the file before retrying.`); }
-    finally { busy = false; refreshButtons(); }
+      note('Local draft saved and read back. Policy is not adopted.');
+    } catch (error) {
+      note(`Save failed: ${error.message}`, true);
+      throw error;
+    } finally { setSaving(false); }
+  };
+
+  root.addEventListener('click', async event => {
+    const property = event.target.closest?.('[data-edit-id][data-edit-key]');
+    if (property && root.contains(property)) {
+      const record = findRecord(property.dataset.editId);
+      if (record) openEditor('update', record, property.dataset.editKey, property);
+      return;
+    }
+    const action = event.target.closest?.('[data-control-action][data-control-id]');
+    if (!action || !root.contains(action) || action.disabled) return;
+    const record = findRecord(action.dataset.controlId);
+    if (!record) return;
+    if (action.dataset.controlAction === 'create') openEditor('create', record, 'id', action);
+    if (action.dataset.controlAction === 'delete' && globalThis.confirm(`delete ${record.id}?`)) {
+      try { await saveCandidate(deleteLeaf({ source, id: record.id })); }
+      catch { /* status already describes the failure; never retry automatically */ }
+    }
   });
 
+  saveButton.addEventListener('click', async () => {
+    if (saving || !editing) return;
+    editorError.textContent = '';
+    try {
+      const value = JSON.parse(input.value);
+      const candidate = editing.mode === 'update'
+        ? updateRecord({ source, id: editing.id, value })
+        : createChild({ source, parentId: editing.id, value });
+      await saveCandidate(candidate);
+      dialog.close();
+    } catch (error) { editorError.textContent = error.message; }
+  });
+  document.querySelector('#cancel').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => {
+    editorError.textContent = '';
+    if (editing?.trigger?.isConnected) editing.trigger.focus();
+    else if (editing?.mode === 'update') root.querySelector(`[data-edit-id="${CSS.escape(editing.id)}"][data-edit-key="${CSS.escape(editing.key)}"]`)?.focus();
+    else root.querySelector(`[data-control-action="create"][data-control-id="${CSS.escape(editing?.id ?? '')}"]`)?.focus();
+  });
   reloadButton.addEventListener('click', async () => {
-    if (busy || (candidate !== source && !globalThis.confirm('Discard unsaved local change?'))) return;
-    busy = true; refreshButtons();
+    if (saving || (dialog.open && !globalThis.confirm('Discard unsaved text and reload?'))) return;
     try {
       const next = await loadControlInput();
-      invariant(/^"sha256-[a-f0-9]{64}"$/u.test(next.controlEtag ?? ''), 'strong Control ETag required');
-      source = next.control; candidate = source; etag = next.controlEtag;
-      selected = null; selection.textContent = 'Select a property in the Control tree.'; value.value = '';
-      await render(); note('Reloaded.');
-    } catch (error) { note(`Reload failed: ${error.message}`); }
-    finally { busy = false; refreshButtons(); }
+      invariant(strongEtag(next.controlEtag), 'strong Control ETag required');
+      source = next.control; etag = next.controlEtag; live = next;
+      if (dialog.open) dialog.close();
+      await render();
+      note('Reloaded local data.');
+    } catch (error) { note(`Reload failed: ${error.message}`, true); }
   });
 
   await render();
-  refreshButtons();
-
   document.documentElement.dataset.status = 'pass';
+  if (fatal) fatal.hidden = true;
 };
 
 boot().catch(error => {
   document.documentElement.dataset.status = 'fail';
   const fatal = document.querySelector('#fatal');
-  if (fatal) {
-    fatal.hidden = false;
-    fatal.textContent = `BLOCKED · ${error.message}`;
-  }
+  if (fatal) { fatal.hidden = false; fatal.textContent = `BLOCKED · ${error.message}`; }
   globalThis.controlUiProof = Object.freeze({ status: 'FAIL', error: String(error.message) });
 });
