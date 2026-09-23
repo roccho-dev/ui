@@ -95,6 +95,11 @@ test('same-size disposable fixture: conditional save, readback, and bounded reje
     const leafLines = stored.toString('utf8').split('\n');
     leafLines[leaf.line - 1] = JSON.stringify({ ...leaf, id: `${leaf.id}-renamed` });
     await reject(leafLines.join('\n'), {}, 400);
+    const movable = allRecords.find(record => record.rel?.parent !== firstRecord.id && record.rel?.parent && !parentIds.has(record.id));
+    assert.ok(movable, 'graph-valid reparent candidate required');
+    const movedLines = stored.toString('utf8').split('\n');
+    movedLines[movable.line - 1] = JSON.stringify({ ...movable, rel: { ...movable.rel, parent: firstRecord.id } });
+    await reject(movedLines.join('\n'), {}, 400);
     for (const target of ['/apps/control/main.mjs', '/%2e%2e/policy/control.jsonl', '/%5csecret', '/.env']) {
       const response = await fetch(`${origin}${target}`, { method: 'PUT', headers: { Origin: origin }, body: 'x' });
       assert.ok(response.status >= 400);
