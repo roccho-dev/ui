@@ -1,0 +1,20 @@
+name: ADRS authenticated decision view
+on:
+  pull_request:
+    branches: [proposals]
+    paths:
+      - 'packages/adrs318-decision-view/**'
+      - '.github/workflows/adrs-318-decision-view.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test packages/adrs318-decision-view/tests/test.mjs
