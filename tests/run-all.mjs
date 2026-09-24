@@ -11,6 +11,7 @@ import "./check-contract-model-atlas-artifact.mjs";
 import "./check-editor-to-queue-to-ui-boundary.mjs";
 import "./check-ui-forbidden-authority-boundary.mjs";
 import "./check-repo-map-read-model-boundary-doc.mjs";
+import "./check-modeling-proposal-evidence-view.mjs";
 import "./check-repo-map-svgpanzoom-core.mjs";
 import "./check-repo-map-svgpanzoom-external-input.mjs";
 import "./check-repo-map-stable-read-model-boundary.mjs";
