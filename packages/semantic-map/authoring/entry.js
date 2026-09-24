@@ -1,7 +1,9 @@
 import { createSemanticMap, parseSemanticMapRecords } from '../domain/index.js';
+import { layoutMap, splitStateRecords } from '../layout/state.js';
+import { createGraphLayout } from '../pattern/index.js';
 import { createDecisionLog, createEnvelope, defaultViewForPattern, inspectEnvelope, normalizeView } from '../protocol/index.js';
 import { ModuleResolver } from '../module-embedding/index.js';
-import { compileTwoSetTopologyPresentation, validateSceneGraph } from '../projection/index.js';
+import { compileTwoSetTopologyPresentation, createPresentationProjection, validateSceneGraph } from '../projection/index.js';
 import { DecisionRuntime } from './runtime.js';
 import { nextFrame, readJson } from './shared.js';
 import { createSemanticMapArtifactModuleBridge } from './artifact-module.js';
@@ -112,13 +114,43 @@ function installPatternControls(runtime, editor) {
   return changePattern;
 }
 
+// Canonical state carries layout records beside the semantic ones, so the
+// domain is built from the semantic records alone - createSemanticMap accepts
+// only meta, region and relation - while the layout records are kept for the
+// view that can honour them.
+const semanticRecordsOf = records => splitStateRecords(records).semanticRecords;
+
+// A graph drawn with the pins the log itself carries. `createGraphLayout`
+// already places a pinned region at its stored bounds and leaves every other
+// one to automatic layout; this only hands that result to the projector the
+// editor already uses. Regions the plan does not hold - one hidden below the
+// detail threshold, say - are left out, because the projector refuses a layout
+// entry it cannot place.
+const GRAPH_PATTERN = 'graph/1';
+
+function graphPinPresentation(domain, view, pins) {
+  if (pins.size === 0 || normalizeView(view).pattern !== GRAPH_PATTERN) return null;
+  const pinned = createGraphLayout(domain, { pins });
+  const placed = createGraphLayout(domain).bounds;
+  const layout = [...pinned.bounds]
+    .filter(([regionId]) => placed.has(regionId))
+    .map(([regionId, bounds]) => ({ regionId, bounds }));
+  if (layout.length === 0) return null;
+  return createPresentationProjection({
+    id: 'graph-layout-pins',
+    pattern: GRAPH_PATTERN,
+    layout,
+    interactions: [],
+  });
+}
+
 async function start() {
   const config = pageConfig;
   setRouteState('Loading', String(config.title ?? 'Semantic Map'));
   const envelope = await bootstrapEnvelope(config);
   const moduleResolver = new ModuleResolver();
   const validateRecords = async (records, context) => {
-    const domain = createSemanticMap(records);
+    const domain = createSemanticMap(semanticRecordsOf(records));
     const modules = await moduleResolver.resolve(domain, context);
     const scenes = validateSceneGraph(domain, modules, context.view);
     return Object.freeze({ modules, scenes });
@@ -133,7 +165,7 @@ async function start() {
   routeMessage.textContent = mapTitle.textContent;
 
   const { createSemanticMapEditor } = await import('./main.js');
-  const initialDomain = createSemanticMap(runtime.records);
+  const initialDomain = createSemanticMap(semanticRecordsOf(runtime.records));
   const initialModules = await moduleResolver.resolve(initialDomain, { mapId: runtime.mapId, head: runtime.head, view: runtime.view });
   validateSceneGraph(initialDomain, initialModules, runtime.view);
   const setTopologyProof = config.setTopologyProof === true;
@@ -141,7 +173,9 @@ async function start() {
   const editor = await createSemanticMapEditor(initialDomain, {
     view: runtime.view,
     prepareOperation: operation => runtime.prepareLocalOperation(operation),
-    projectPresentation: setTopologyProof ? domain => compileTwoSetTopologyPresentation(domain, { profile: setTopologyProjectionProfile }) : undefined,
+    projectPresentation: setTopologyProof
+      ? domain => compileTwoSetTopologyPresentation(domain, { profile: setTopologyProjectionProfile })
+      : (domain, view) => graphPinPresentation(domain, view, layoutMap(splitStateRecords(runtime.records).layoutRecords, domain)),
     translateOperation: setTopologyProof ? translateSetTopologyOperation : undefined,
     moduleResolver,
     moduleContext: () => ({ mapId: runtime.mapId, head: runtime.head }),
