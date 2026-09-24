@@ -2,6 +2,7 @@ export { canonicalClone, canonicalJson, canonicalValue } from '../domain/index.j
 export { SHA256_PATTERN, sha256 } from './sha256.js';
 export { stateHash } from './state-hash.js';
 export { normalizeStateInputRecords, parseStateJSONL, stateRecordsToJSONL } from './input-jsonl.js';
+export { LAYOUT_BOUNDS_SCHEMA, layoutBoundsFor } from './layout-bounds.js';
 export {
   DECISION_SCHEMA,
   appendDecision,
