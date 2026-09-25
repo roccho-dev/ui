@@ -74,10 +74,58 @@ assert.throws(
   /layout region not found/u,
 );
 
+// What the public embed entry has to do with a canonical state that carries
+// layout records: build the domain from the semantic records alone, because
+// createSemanticMap accepts only meta, region and relation, and keep the
+// layout records for the view that can honour them. Handing the whole state
+// straight to createSemanticMap is what made the embed fail with "unknown
+// record type".
+const pinnedState = `${text}{"type":"layout","regionId":"review","pin":"hard","bounds":[600,400,140,64]}\n`;
+const pinnedRecords = parseStateJSONL(pinnedState);
+
+assert.throws(
+  () => createSemanticMap(pinnedRecords),
+  /unknown record type/u,
+  'the domain refuses layout records, so the entry must split them out first',
+);
+
+const split = splitStateRecords(pinnedRecords);
+const embedDomain = createSemanticMap(split.semanticRecords);
+assert.equal(split.layoutRecords.length, 1);
+assert.ok(embedDomain.regions.has('review'));
+
+// The pins that state carries must reach the layout, and only the pinned
+// region may move: everything else keeps the position it had without pins.
+const embedPins = layoutMap(split.layoutRecords, embedDomain);
+const pinnedLayout = createGraphLayout(embedDomain, { direction: 'LR', pins: embedPins });
+assert.deepEqual(
+  pinnedLayout.bounds.get('review'),
+  { x: 600, y: 400, width: 140, height: 64 },
+  'a pinned region is placed at its stored bounds',
+);
+assert.notDeepEqual(
+  pinnedLayout.bounds.get('review'),
+  automatic.bounds.get('review'),
+  'and that is not where automatic layout put it',
+);
+for (const [regionId, bounds] of automatic.bounds) {
+  if (regionId === 'review' || regionId === domain.meta.root) continue;
+  assert.deepEqual(pinnedLayout.bounds.get(regionId), bounds, `${regionId} must keep its automatic layout`);
+}
+
+// The projector refuses a layout entry for a region its plan does not hold,
+// so the entry may only offer entries the plan can place.
+assert.ok(
+  [...pinnedLayout.bounds.keys()].every(regionId => createGraphLayout(embedDomain, { direction: 'LR' }).bounds.has(regionId)),
+  'pinned layout must not invent regions the plain plan does not place',
+);
+
 console.log(JSON.stringify({
-  schema: 'semantic-map-layout-hint-test/1',
+  schema: 'semantic-map-layout-hint-test/2',
   status: 'PASS',
   pin: 'hard',
   roundtrip: true,
   autoLayoutPreserved: true,
+  embedSplit: true,
+  embedPinnedBounds: [600, 400, 140, 64],
 }));
