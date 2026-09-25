@@ -164,6 +164,15 @@ try {
     const withPins = await draw(pinned, 'pinned');
     const offScreen = await draw(offCanvas, 'off-canvas');
 
+    // The public layout contract must answer with the same positions this
+    // embed actually drew. It is what a consumer places things against, so a
+    // number that drifts from the screen would send it somewhere wrong.
+    const bounds = await import('/semantic-map/protocol/index.js');
+    const contract = {
+      auto: bounds.layoutBoundsFor((await protocol.verifyDecisionLog(withEdge.log)).records, { pattern: 'graph/1' }),
+      pinned: bounds.layoutBoundsFor((await protocol.verifyDecisionLog(pinned.log)).records, { pattern: 'graph/1' }),
+    };
+
     // The embed must stay read-only: the host cannot replace this input, so the
     // provider's own lock must refuse an operation and an accept.
     const refusal = kind => {
@@ -188,6 +197,7 @@ try {
 
     const stripFrame = ({ frame, ...rest }) => rest;
     return {
+      contract,
       pinnedBounds: PINNED,
       offCanvasBounds: OFF_CANVAS,
       offCanvas: stripFrame(offScreen),
@@ -237,6 +247,23 @@ try {
       JSON.stringify(observed.geometryAfterRefusal) === JSON.stringify(pinnedCell),
       { before: pinnedCell, after: observed.geometryAfterRefusal });
   }
+
+  // Contract parity: same canonical log, same numbers as the screen.
+  const sameCell = (drawn, tuple) => drawn !== null && tuple !== undefined
+    && drawn.x === tuple[0] && drawn.y === tuple[1] && drawn.w === tuple[2] && drawn.h === tuple[3];
+  for (const [label, rendered] of [['without pins', 'auto'], ['with a pin', 'pinned']]) {
+    const drawnCells = observed[rendered].cells;
+    const reported = observed.contract[rendered];
+    check(`the layout contract reports what the embed drew ${label}`,
+      observed[rendered].error === null
+        && reported.pattern === 'graph/1'
+        && ['node-a', 'node-b', 'node-c'].every(id => sameCell(drawnCells[id], reported.bounds[id])),
+      { drawn: drawnCells, reported: reported.bounds });
+  }
+  check('the contract names the pinned region, and only when it is pinned',
+    JSON.stringify(observed.contract.auto.pinned) === '[]'
+      && JSON.stringify(observed.contract.pinned.pinned) === '["node-c"]',
+    { auto: observed.contract.auto.pinned, pinned: observed.contract.pinned.pinned });
 
   check('a pin the view cannot place does not throw',
     observed.offCanvas.error === null, observed.offCanvas.error);
