@@ -4,6 +4,53 @@ const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';
 const EMBED_READY_SCHEMA = 'semantic-map-embed-ready/1';
 export const VISIBLE_FRAME_SCHEMA = 'semantic-map-visible-frame/1';
 const GRAPH_PATTERN = 'graph/1';
+
+// Rectangles as edges, which is the only shape an intersection is simple in.
+const edgesOfRect = rect => ({
+  left: rect.left, top: rect.top, right: rect.left + rect.width, bottom: rect.top + rect.height,
+});
+const intersectEdges = (a, b) => {
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+};
+
+// A transform this contract can see through. Intersecting axis-aligned
+// rectangles only answers correctly while the mapping from the host's
+// coordinates to the embed's is a translation: a rotation or a skew turns the
+// visible region into a shape no rectangle describes, and a scale breaks the
+// one-pixel-to-one-pixel assumption the conversion below rests on.
+const translationOnly = value =>
+  value === 'none' || value === '' || /^matrix\(\s*1\s*,\s*-?0\s*,\s*-?0\s*,\s*1\s*,/u.test(value);
+
+// The part of `element` the host actually shows, in the host document's own
+// client coordinates, after every ancestor that does not let its overflow
+// escape. `getBoundingClientRect` of such an ancestor is already the box it is
+// showing, so the same intersection is exact whether the overflow is hidden,
+// clipped, scrolled or automatic.
+//
+// The browser viewport is deliberately not part of this. Page scroll is
+// something a person can undo, and this contract speaks for the drawn pane, not
+// for what happens to be on screen. A `clip-path` is a shape rather than a
+// rectangle, so it is refused instead of approximated.
+const hostVisibleEdges = element => {
+  const view = element.ownerDocument?.defaultView;
+  if (typeof view?.getComputedStyle !== 'function') return null;
+  let edges = edgesOfRect(element.getBoundingClientRect());
+  for (let node = element; node !== null; node = node.parentElement) {
+    const style = view.getComputedStyle(node);
+    if (style.clipPath !== 'none') return null;
+    if (!translationOnly(style.transform)) return null;
+    if (node === element) continue;
+    if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
+      edges = intersectEdges(edges, edgesOfRect(node.getBoundingClientRect()));
+      if (edges === null) return null;
+    }
+  }
+  return edges;
+};
 const invariant = (condition, message) => { if (!condition) throw new Error(`semantic-map-package: ${message}`); };
 const waitForEmbedReady = (document, frame, targetOrigin, timeoutMs = 15000) => {
   const parentWindow = document.defaultView;
@@ -149,8 +196,14 @@ export async function executeArtifactPackage({ document, input, inputAction = nu
  * consumer that a spot is visible. The renderer culls against this frame,
  * inflated by a margin so that a band just outside it is built but not seen.
  * This returns that frame *uninflated*, in the same coordinates
- * `layoutBoundsFor` reports, so a spot fully inside it is a spot the pane
- * actually shows.
+ * `layoutBoundsFor` reports, and narrowed to the part of the pane the host
+ * actually shows - a host that hides its overflow cuts the embed short, and
+ * everything past the cut is still inside the embed's own viewport and on
+ * nobody's screen. So a spot fully inside this frame is a spot the pane shows.
+ *
+ * "Shows" means inside the drawn pane. It does not mean inside the browser
+ * window: page scroll is something a person can undo, so it is left out, and a
+ * pane scrolled out of the window still reports its frame.
  *
  * Synchronous and immediate: it reads what is true now and never waits. It
  * looks the embed up in `surfaceMount` on every call, because a re-render
@@ -160,8 +213,10 @@ export async function executeArtifactPackage({ document, input, inputAction = nu
  *
  * `null` means "no answer right now", not "nothing is visible": no embed, not
  * ready, a different origin, a pattern this contract cannot speak for, a
- * camera gesture in flight, or a pane with no size. A consumer must treat it as
- * "cannot check", never as "refuse silently".
+ * camera gesture in flight, a pane with no size, nothing of the pane left after
+ * the host's clipping, or a host transform this cannot see through - a rotation
+ * or a scale, where an axis-aligned rectangle would be a guess. A consumer must
+ * treat it as "cannot check", never as "refuse silently".
  *
  * Returns a frozen
  *   { schema, pattern, head, frame: [x, y, w, h] }
@@ -204,9 +259,70 @@ export function visibleFrameOf(surfaceMount) {
     const measured = [viewport?.x, viewport?.y, viewport?.width, viewport?.height];
     if (!measured.every(Number.isFinite)) return null;
     if (!(measured[2] > 0) || !(measured[3] > 0)) return null;
+
+    // What the embed would show if the host gave it the room it asked for is
+    // not what a person sees. A host that hides its overflow cuts the iframe
+    // short, and everything past the cut is still inside the embed's own
+    // viewport, still has a cell in the document, and is on nobody's screen. So
+    // the frame is narrowed to the part of the graph container the host shows.
+    const container = adapter.container;
+    if (typeof container?.getBoundingClientRect !== 'function') return null;
+    const clientWidth = container.clientWidth;
+    if (!(clientWidth > 0) || !(container.clientHeight > 0)) return null;
+
+    // One host pixel must be one embed pixel for the conversion below. A scale
+    // anywhere above the iframe shows up here and nowhere else.
+    const frameRect = frames[0].getBoundingClientRect();
+    const embedView = frames[0].contentWindow;
+    if (Math.abs(frameRect.width - embedView.innerWidth) > 1) return null;
+    if (Math.abs(frameRect.height - embedView.innerHeight) > 1) return null;
+
+    const shown = hostVisibleEdges(frames[0]);
+    if (shown === null) return null;
+
+    // The container's own box, moved from the embed's coordinates into the
+    // host's, and cut down to what the host shows.
+    const containerRect = container.getBoundingClientRect();
+    const box = {
+      left: frameRect.left + containerRect.left,
+      top: frameRect.top + containerRect.top,
+      width: containerRect.width,
+      height: containerRect.height,
+    };
+    const visible = intersectEdges(shown, edgesOfRect(box));
+    if (visible === null) return null;
+
+    // How much of the pane each edge loses, in host pixels. Expressed as insets
+    // rather than rebuilt from the rectangle, so a pane the host does not clip
+    // answers with the view's own viewport exactly rather than with the same
+    // number re-derived through a rounded client size.
+    const inset = {
+      left: visible.left - box.left,
+      top: visible.top - box.top,
+      right: box.left + box.width - visible.right,
+      bottom: box.top + box.height - visible.bottom,
+    };
+    const SUBPIXEL = 0.5;
+    const clipped = Object.values(inset).some(value => value > SUBPIXEL);
+    let measuredVisible = measured;
+    if (clipped) {
+      // Host pixels back to the view's own coordinates. The camera scales both
+      // axes alike, so one ratio converts both.
+      const scale = clientWidth / measured[2];
+      if (!Number.isFinite(scale) || !(scale > 0)) return null;
+      measuredVisible = [
+        measured[0] + inset.left / scale,
+        measured[1] + inset.top / scale,
+        measured[2] - (inset.left + inset.right) / scale,
+        measured[3] - (inset.top + inset.bottom) / scale,
+      ];
+    }
+    if (!measuredVisible.every(Number.isFinite)) return null;
+    if (!(measuredVisible[2] > 0) || !(measuredVisible[3] > 0)) return null;
+
     // A camera at the origin negates zero. Negative zero says nothing about
     // where the pane is and only makes a consumer's comparison fail.
-    const frame = measured.map(value => (value === 0 ? 0 : value));
+    const frame = measuredVisible.map(value => (value === 0 ? 0 : value));
 
     return Object.freeze({
       schema: VISIBLE_FRAME_SCHEMA,

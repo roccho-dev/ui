@@ -36,11 +36,20 @@ const TYPES = new Map(Object.entries({
 }));
 
 // Two panes of deliberately different widths, so the same embedded state is
-// shown through two different cameras.
+// shown through two different cameras. `clipped` is a host that gives the embed
+// far less room than the embed asks for and hides the overflow: the iframe is
+// its full height, the graph container inside it is too, and most of it is not
+// on the screen at all. `scrolled` is the same shape with the overflow
+// scrollable instead of hidden. `skewed` puts the embed under a transform this
+// contract cannot invert.
 const HOST_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>visible frame proof</title></head>
 <body>
 <div id="working" style="width:520px;height:620px"></div>
 <div id="confirmed" style="width:900px;height:620px"></div>
+<div id="clipped" style="width:520px;height:120px;overflow:hidden"></div>
+<div id="scrolled" style="width:520px;height:120px;overflow:auto"></div>
+<div id="rotated" style="width:520px;height:620px;transform:rotate(7deg)"></div>
+<div id="translated" style="width:520px;height:620px;transform:translate(13px,29px)"></div>
 </body></html>`;
 
 const server = http.createServer((request, response) => {
@@ -254,7 +263,72 @@ try {
     const emptyMount = document.createElement('div');
     document.body.append(emptyMount);
 
+    // A host that hides the overflow shows only part of the pane. The frame has
+    // to say what is on the screen, not what the iframe would show if the host
+    // had given it the room: a part below the cut is inside the iframe's own
+    // viewport, has a cell connected to the document, and is not visible.
+    const firstClipped = await draw(base, 'clipped');
+    const strip = runtime.visibleFrameOf(firstClipped);
+    // One part inside the strip the host shows, one just below it. Both are
+    // inside the embed's own viewport; only the first is on the screen.
+    const clippedSpots = {
+      'node-a': [strip.frame[0] + 20, strip.frame[1] + 10, 180, 60],
+      'node-b': [strip.frame[0] + 20, strip.frame[1] + strip.frame[3] + 40, 180, 60],
+    };
+    const clipPin = await protocol.createDecision(base.head, [{
+      type: 'PinRegions',
+      items: Object.entries(clippedSpots).map(([regionId, bounds]) => ({ regionId, bounds })),
+    }], base.records);
+    const clippedLog = await protocol.appendDecision(base.log, clipPin.decision);
+    const clippedMount = await draw(clippedLog, 'clipped');
+    const clippedFrame = runtime.visibleFrameOf(clippedMount);
+    const clippedMeasure = (() => {
+      const frameElement = clippedMount.querySelector('iframe[data-package="semantic-map"]');
+      const container = frameElement.contentDocument.querySelector('#graph-container');
+      const host = clippedMount.getBoundingClientRect();
+      const iframeRect = frameElement.getBoundingClientRect();
+      // The container does not start at the iframe's top edge, so the rows the
+      // host shows are the overlap of its own box with the container's, not
+      // simply the host's height.
+      const containerRect = container.getBoundingClientRect();
+      const shownTop = Math.max(host.y, iframeRect.y + containerRect.y);
+      const shownBottom = Math.min(host.y + host.height, iframeRect.y + containerRect.y + containerRect.height);
+      return {
+        host: { x: host.x, y: host.y, w: host.width, h: host.height },
+        iframe: { x: iframeRect.x, y: iframeRect.y, w: iframeRect.width, h: iframeRect.height },
+        container: { w: container.clientWidth, h: container.clientHeight, top: containerRect.y, h_rect: containerRect.height },
+        shownHostRows: Math.max(0, shownBottom - shownTop),
+        insideViewport: frameElement.contentWindow.semanticMapApp.adapter.viewport(),
+      };
+    })();
+
+    // The same shape with the overflow scrollable: getBoundingClientRect on a
+    // scroll container already reports the box it is showing, so the same
+    // intersection is exact there too.
+    const scrolledMount = await draw(base, 'scrolled');
+    const scrolledFrame = runtime.visibleFrameOf(scrolledMount);
+
+    // A rotation cannot be inverted by intersecting axis-aligned rectangles, so
+    // the honest answer is none. A pure translation can, so it must still work.
+    const rotatedMount = await draw(base, 'rotated');
+    const rotatedFrame = runtime.visibleFrameOf(rotatedMount);
+    const translatedMount = await draw(base, 'translated');
+    const translatedFrame = runtime.visibleFrameOf(translatedMount);
+
     return {
+      clipped: {
+        frame: clippedFrame,
+        strip: strip.frame,
+        measure: clippedMeasure,
+        painted: painted(clippedMount),
+        layout: protocol.layoutBoundsFor(
+          (await protocol.verifyDecisionLog(clippedLog.log)).records, { pattern: 'graph/1' },
+        ).bounds,
+        spots: clippedSpots,
+      },
+      scrolled: { frame: scrolledFrame },
+      rotated: { frame: rotatedFrame },
+      translated: { frame: translatedFrame },
       first,
       rawViewport,
       layoutBounds: layout.bounds,
@@ -349,6 +423,75 @@ try {
   check('a mount with no embed, and no mount at all, answer null rather than throwing',
     observed.emptyMount === null && observed.noMount === null);
 
+  // R's counterexample on 03f5c09: a host mount of 520x120 with the overflow
+  // hidden, holding an iframe the embed sizes at 520x702. Everything below the
+  // cut is inside the iframe's own viewport and on nobody's screen.
+  const clip = observed.clipped;
+  check('the clipped host really does cut the embed short',
+    clip.measure.iframe.h - clip.measure.host.h > 400
+      && clip.measure.container.h > clip.measure.host.h,
+    clip.measure);
+
+  check('a clipped host still gets an answer',
+    clip.frame !== null, clip.frame);
+
+  if (clip.frame !== null) {
+    // The scale the embed is drawing at, taken from its own numbers.
+    const scale = clip.measure.container.w / clip.measure.insideViewport.width;
+    const expectedHeight = clip.measure.shownHostRows / scale;
+    check('the frame is cut to what the host shows, not what the iframe holds',
+      clip.frame.frame[3] < clip.measure.insideViewport.height - 100
+        && Math.abs(clip.frame.frame[3] - expectedHeight) < 2,
+      { frame: clip.frame.frame, insideViewport: clip.measure.insideViewport, expectedHeight, measure: clip.measure });
+
+    // The claim the contract makes, checked against paint: every part the frame
+    // fully contains is painted inside the host's own box, and the parts it
+    // excludes are not - even though their cells are in the document.
+    // painted() measures shapes inside the iframe, so the host's box has to be
+    // brought into the iframe's coordinates before the two can be compared.
+    const hostRect = {
+      x: clip.measure.host.x - clip.measure.iframe.x,
+      y: clip.measure.host.y - clip.measure.iframe.y,
+      w: clip.measure.host.w,
+      h: clip.measure.host.h,
+    };
+    const visibleInHost = item => {
+      if (item.rect === null) return 0;
+      const w = Math.max(0, Math.min(item.rect.x + item.rect.w, hostRect.x + hostRect.w) - Math.max(item.rect.x, hostRect.x));
+      const h = Math.max(0, Math.min(item.rect.y + item.rect.h, hostRect.y + hostRect.h) - Math.max(item.rect.y, hostRect.y));
+      return w * h;
+    };
+    const clipFrame = clip.frame.frame;
+    const insideClipFrame = bounds => bounds[0] >= clipFrame[0] && bounds[1] >= clipFrame[1]
+      && bounds[0] + bounds[2] <= clipFrame[0] + clipFrame[2]
+      && bounds[1] + bounds[3] <= clipFrame[1] + clipFrame[3];
+    const verdicts = Object.entries(clip.painted)
+      .filter(([regionId]) => regionId !== 'root')
+      .map(([regionId, item]) => ({
+        regionId,
+        promised: insideClipFrame(clip.layout[regionId] ?? [0, 0, 0, 0]),
+        visibleInHost: visibleInHost(item),
+        connected: item.connected,
+      }));
+    check('every part the clipped frame contains is painted inside the host box',
+      verdicts.filter(v => v.promised).length > 0
+        && verdicts.filter(v => v.promised).every(v => v.visibleInHost > 0),
+      verdicts);
+    check('a part the clipped frame excludes has a cell and is not shown',
+      verdicts.filter(v => !v.promised).length > 0
+        && verdicts.filter(v => !v.promised).every(v => v.visibleInHost === 0),
+      verdicts);
+  }
+
+  check('a scrollable host is measured the same exact way',
+    observed.scrolled.frame !== null
+      && observed.scrolled.frame.frame[3] < observed.clipped.measure.insideViewport.height - 100,
+    observed.scrolled.frame);
+
+  check('a rotation this cannot invert answers null, a pure translation still answers',
+    observed.rotated.frame === null && observed.translated.frame !== null,
+    { rotated: observed.rotated.frame, translated: observed.translated.frame });
+
   check('nothing was written to storage', observed.storage === 0, observed.storage);
   check('the page raised no error', pageErrors.length === 0, pageErrors);
 
@@ -363,6 +506,14 @@ try {
       inPane: observed.pinnedPaint['node-a'],
       inMarginBand: observed.pinnedPaint['node-b'],
       twoPanes: [observed.twoPanes.working.frame, observed.twoPanes.confirmed.frame],
+      hostClip: {
+        hostBox: observed.clipped.measure.host,
+        iframeBox: observed.clipped.measure.iframe,
+        insideEmbedViewport: observed.clipped.measure.insideViewport,
+        frame: observed.clipped.frame.frame,
+        shownHostRows: observed.clipped.measure.shownHostRows,
+      },
+      rotatedHost: observed.rotated.frame,
       checks: checks.length,
     }));
   }
