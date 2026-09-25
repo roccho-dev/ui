@@ -55,6 +55,11 @@ const normalizeItems = scene => {
   return Object.freeze([...regions.values(), ...relations]);
 };
 
+// A host that asked for the diagram alone (executeArtifactPackage presentation
+// 'chrome-free') gets no list over it. The list is left hidden rather than
+// styled away, so what snapshot() reports is what is on screen.
+const suppressedByPresentation = () => document.documentElement?.dataset?.presentation === 'chrome-free';
+
 export const mountActiveList = ({ host, onActivate }) => {
   if (!(host instanceof Element)) throw new TypeError('active-list host must be an Element');
   if (typeof onActivate !== 'function') throw new TypeError('active-list onActivate must be a function');
@@ -68,6 +73,7 @@ export const mountActiveList = ({ host, onActivate }) => {
   heading.textContent = 'Active';
   const list = document.createElement('ul');
   root.append(heading, list);
+  root.hidden = suppressedByPresentation();
   host.append(root);
 
   let selected = new Set();
@@ -93,7 +99,7 @@ export const mountActiveList = ({ host, onActivate }) => {
       row.append(button);
       return row;
     }));
-    root.hidden = items.length === 0;
+    root.hidden = items.length === 0 || suppressedByPresentation();
     paintSelection();
     return items;
   };

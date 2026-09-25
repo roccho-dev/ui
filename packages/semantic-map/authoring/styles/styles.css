@@ -169,3 +169,15 @@ html[data-artifact-module="true"] .resource-element-host,
 html[data-artifact-module="true"] .resource-document-host { display: none !important; }
 html[data-artifact-module="true"] .workspace { grid-row: 1; }
 html[data-artifact-module="true"] #graph-container { background-color: #fff; background-image: none; }
+/* A read-only host that shows only the diagram (executeArtifactPackage
+   presentation 'chrome-free'): the page's own topbar, editing dock, status
+   line, toast and the copy-stable-ID chip a selection brings up are not
+   drawn, and the graph takes the whole shell. The Active-elements list is
+   left out by active-list.js itself, so the state it reports stays true. */
+html[data-presentation="chrome-free"] .app-shell { grid-template-rows: minmax(0, 1fr); }
+html[data-presentation="chrome-free"] .topbar,
+html[data-presentation="chrome-free"] .editor-dock,
+html[data-presentation="chrome-free"] .status,
+html[data-presentation="chrome-free"] .toast,
+html[data-presentation="chrome-free"] .semantic-id-chip { display: none !important; }
+html[data-presentation="chrome-free"] .workspace { grid-row: 1; }
