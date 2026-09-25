@@ -62,10 +62,15 @@ const fakeHost = ({
   hostGutter = 0,
   hostDirection = 'ltr',
   hostWritingMode = 'horizontal-tb',
+  hostContain = 'none',
+  hostContentVisibility = 'visible',
+  hostRadius = 0,
+  hostOpacity = '1',
   shadowHost = false,
   slotted = false,
   frameTransform = 'none',
   frameClipPath = 'none',
+  frameVisibility = 'visible',
   outerOverflow = 'visible',
   outerHeight = null,
   omit = null,
@@ -106,6 +111,8 @@ const fakeHost = ({
   const styleOf = ({
     overflow = 'visible', transform = 'none', clipPath = 'none',
     border = 0, gutter = 0, direction = 'ltr', writingMode = 'horizontal-tb',
+    contain = 'none', contentVisibility = 'visible', radius = 0,
+    opacity = '1', visibility = 'visible',
   } = {}) => ({
     overflowX: overflow,
     overflowY: overflow,
@@ -113,6 +120,14 @@ const fakeHost = ({
     clipPath,
     direction,
     writingMode,
+    contain,
+    contentVisibility,
+    opacity,
+    visibility,
+    borderTopLeftRadius: `${radius}px`,
+    borderTopRightRadius: `${radius}px`,
+    borderBottomRightRadius: `${radius}px`,
+    borderBottomLeftRadius: `${radius}px`,
     borderLeftWidth: `${border}px`,
     borderTopWidth: `${border}px`,
     borderRightWidth: `${border}px`,
@@ -137,6 +152,8 @@ const fakeHost = ({
   const mountStyle = styleOf({
     overflow: hostOverflow, transform: hostTransform, clipPath: hostClipPath,
     border: hostBorder, gutter: hostGutter, direction: hostDirection, writingMode: hostWritingMode,
+    contain: hostContain, contentVisibility: hostContentVisibility, radius: hostRadius,
+    opacity: hostOpacity,
   });
   const mount = boxNode(shadowHost === true ? null : outer, mountBox, mountStyle);
   mount.querySelectorAll = () => frames;
@@ -145,7 +162,9 @@ const fakeHost = ({
   if (shadowHost === true) mount.getRootNode = () => ({ host: outer });
   if (slotted === true) mount.assignedSlot = { name: '' };
 
-  const frameStyle = styleOf({ transform: frameTransform, clipPath: frameClipPath });
+  const frameStyle = styleOf({
+    transform: frameTransform, clipPath: frameClipPath, visibility: frameVisibility,
+  });
   const frame = boxNode(mount, frameBox, frameStyle);
   Object.defineProperty(frame, 'contentWindow', {
     get() {
@@ -252,6 +271,14 @@ const nulls = [
   ['a host in a vertical writing mode', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostWritingMode: 'vertical-rl' })],
   // Slotted into a shadow tree: the boxes that clip it are that tree's.
   ['an embed slotted into a shadow tree', fakeMount(fakeSite(), { slotted: true })],
+  // A rounded clip cuts the corners away and no rectangle says which pixels.
+  ['a host that clips with rounded corners', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostRadius: 24 })],
+  ['a host whose paint containment has rounded corners', fakeMount(fakeSite(), { hostContain: 'paint', hostRadius: 8 })],
+  // Nothing is on the screen at all.
+  ['a fully transparent host', fakeMount(fakeSite(), { hostOpacity: '0' })],
+  ['an embed that is not visible', fakeMount(fakeSite(), { frameVisibility: 'hidden' })],
+  ['an embed that is collapsed', fakeMount(fakeSite(), { frameVisibility: 'collapse' })],
+  ['a host whose contents are not painted at all', fakeMount(fakeSite(), { hostContentVisibility: 'hidden' })],
 ];
 for (const [label, mount] of nulls) {
   let observed;
@@ -355,6 +382,41 @@ assert.deepEqual(
   visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), { hostOverflow: 'auto', hostGutter: 15 })).frame,
   [0, 0, 1250, 960],
   'the gutter comes off the reported width',
+);
+
+// 8b. Paint containment clips just as a hidden overflow does, and leaves the
+// computed overflow at `visible` while doing it. R measured this on 82f2e4c: a
+// host with `contain: paint` reported the whole pane, and a candidate at the
+// bottom of it was connected and shown nowhere.
+for (const containing of [
+  { contain: 'paint' },
+  { contain: 'strict' },
+  { contain: 'content' },
+  { contain: 'layout paint style' },
+  { contentVisibility: 'auto' },
+]) {
+  const observed = visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+    hostHeight: 120,
+    hostContain: containing.contain ?? 'none',
+    hostContentVisibility: containing.contentVisibility ?? 'visible',
+  }));
+  assert.deepEqual(observed.frame, [0, 0, 1280, 240], JSON.stringify(containing));
+}
+// A containment that does not include paint clips nothing.
+for (const contain of ['none', 'layout', 'size', 'style', 'size layout']) {
+  assert.deepEqual(
+    visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), { hostHeight: 120, hostContain: contain })).frame,
+    [0, 0, 1280, 960],
+    contain,
+  );
+}
+// Paint containment clips at the padding box too, so a border is still outside it.
+assert.deepEqual(
+  visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+    hostHeight: 200, hostContain: 'paint', hostBorder: BORDER,
+  })).frame,
+  [80, 80, 1120, 240],
+  'paint containment and a hidden overflow take the same box',
 );
 
 // 9. The walk has to cross a shadow boundary. R measured this on 26dad4a: a

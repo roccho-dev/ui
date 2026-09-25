@@ -30,6 +30,28 @@ const cssLength = value => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const CORNER_RADII = [
+  'borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomRightRadius', 'borderBottomLeftRadius',
+];
+// Paint containment clips a box's descendants to its padding box, exactly as a
+// hidden overflow does - and leaves the computed overflow at `visible` while
+// doing it. `content-visibility` brings paint containment with it.
+const PAINT_CONTAINMENT = new Set(['paint', 'strict', 'content']);
+const clipsDescendants = style => {
+  if (style.overflowX !== 'visible' || style.overflowY !== 'visible') return true;
+  if (String(style.contain ?? '').split(/\s+/u).some(token => PAINT_CONTAINMENT.has(token))) return true;
+  return style.contentVisibility === 'auto' || style.contentVisibility === 'hidden';
+};
+
+// A rounded clip cuts the corners away, and no axis-aligned rectangle says which
+// pixels those are. Rather than claim them, refuse.
+const hasRoundedClip = style => CORNER_RADII.some(name => cssLength(style[name]) > 0);
+
+const opacityOf = style => {
+  const parsed = Number.parseFloat(style.opacity);
+  return Number.isFinite(parsed) ? parsed : 1;
+};
+
 // Where an ancestor actually cuts its descendants off. Overflow clips at the
 // *padding* box, so a border sits outside the clip and `getBoundingClientRect` -
 // which is the border box - covers a band that is showing nothing. A scrollbar
@@ -79,14 +101,23 @@ const flatTreeParent = node => {
 const hostVisibleEdges = element => {
   const view = element.ownerDocument?.defaultView;
   if (typeof view?.getComputedStyle !== 'function') return null;
+  // The embed's own visibility already carries whatever its ancestors inherit to
+  // it, and an ancestor's `visibility: hidden` can be overridden below it, so
+  // this is the one place worth reading it.
+  const own = view.getComputedStyle(element);
+  if (own.visibility !== 'visible') return null;
   let edges = edgesOfRect(element.getBoundingClientRect());
   for (let node = element; node !== null; node = flatTreeParent(node)) {
     if (node.assignedSlot != null) return null;
     const style = view.getComputedStyle(node);
     if (style.clipPath !== 'none') return null;
     if (!translationOnly(style.transform)) return null;
+    // A transparent layer cannot be made visible again from inside it.
+    if (opacityOf(style) === 0) return null;
+    if (style.contentVisibility === 'hidden') return null;
     if (node === element) continue;
-    if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
+    if (clipsDescendants(style)) {
+      if (hasRoundedClip(style)) return null;
       const clip = clipEdgesOf(node, style);
       if (clip === null) return null;
       edges = intersectEdges(edges, clip);

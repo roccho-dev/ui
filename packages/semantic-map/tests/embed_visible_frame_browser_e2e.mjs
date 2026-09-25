@@ -50,6 +50,11 @@ const HOST_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>visib
 <div id="scrolled" style="width:520px;height:120px;overflow:auto"></div>
 <div id="bordered" style="width:520px;height:200px;overflow:hidden;border:40px solid #333;padding:0"></div>
 <div id="shadow-outer" style="width:520px;height:120px;overflow:hidden"></div>
+<div id="contained" style="width:520px;height:120px;contain:paint"></div>
+<div id="content-visibility" style="width:520px;height:120px;content-visibility:auto"></div>
+<div id="rounded" style="width:520px;height:120px;overflow:hidden;border-radius:24px"></div>
+<div id="transparent" style="width:520px;height:620px;opacity:0"></div>
+<div id="invisible" style="width:520px;height:620px;visibility:hidden"></div>
 <div id="rotated" style="width:520px;height:620px;transform:rotate(7deg)"></div>
 <div id="translated" style="width:520px;height:620px;transform:translate(13px,29px)"></div>
 </body></html>`;
@@ -363,6 +368,63 @@ try {
       };
     })();
 
+    // Paint containment clips exactly like a hidden overflow, and leaves the
+    // computed overflow at `visible` while doing it. A predicate that only reads
+    // overflow sees nothing to intersect and reports the whole pane.
+    const containedMount = await draw(base, 'contained');
+    const containedFrame = runtime.visibleFrameOf(containedMount);
+    const containedMeasure = (() => {
+      const frameElement = containedMount.querySelector('iframe[data-package="semantic-map"]');
+      const container = frameElement.contentDocument.querySelector('#graph-container');
+      const style = getComputedStyle(containedMount);
+      const host = containedMount.getBoundingClientRect();
+      const iframeRect = frameElement.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const shownTop = Math.max(host.y, iframeRect.y + containerRect.y);
+      const shownBottom = Math.min(host.y + host.height, iframeRect.y + containerRect.y + containerRect.height);
+      return {
+        computedOverflow: `${style.overflowX}/${style.overflowY}`,
+        computedContain: style.contain,
+        host: { x: host.x, y: host.y, w: host.width, h: host.height },
+        iframe: { x: iframeRect.x, y: iframeRect.y, w: iframeRect.width, h: iframeRect.height },
+        containerClient: { w: container.clientWidth, h: container.clientHeight },
+        shownHostRows: Math.max(0, shownBottom - shownTop),
+        insideViewport: frameElement.contentWindow.semanticMapApp.adapter.viewport(),
+      };
+    })();
+    // A candidate spot at the bottom of the embed's own viewport - which is
+    // exactly what a predicate blind to paint containment reported as the frame.
+    // It is connected, and painted nowhere a person can see.
+    const containedBottom = [
+      containedMeasure.insideViewport.x + 20,
+      containedMeasure.insideViewport.y + containedMeasure.insideViewport.height - 80,
+      180, 60,
+    ];
+    const containedPin = await protocol.createDecision(base.head, [{
+      type: 'PinRegions', items: [{ regionId: 'node-a', bounds: containedBottom }],
+    }], base.records);
+    const containedLog = await protocol.appendDecision(base.log, containedPin.decision);
+    const containedPinned = await draw(containedLog, 'contained');
+    const containedPaint = painted(containedPinned);
+    const containedPinnedFrame = runtime.visibleFrameOf(containedPinned);
+
+    const contentVisibilityMount = await draw(base, 'content-visibility');
+    const contentVisibilityFrame = runtime.visibleFrameOf(contentVisibilityMount);
+    const contentVisibilityOverflow = (() => {
+      const style = getComputedStyle(contentVisibilityMount);
+      return `${style.overflowX}/${style.overflowY} contentVisibility=${style.contentVisibility}`;
+    })();
+
+    // A rounded clip cuts the corners off, and no axis-aligned rectangle says
+    // which pixels those are. A fully transparent or hidden ancestor shows
+    // nothing at all. None of the three may come back as a visible frame.
+    const roundedMount = await draw(base, 'rounded');
+    const roundedFrame = runtime.visibleFrameOf(roundedMount);
+    const transparentMount = await draw(base, 'transparent');
+    const transparentFrame = runtime.visibleFrameOf(transparentMount);
+    const invisibleMount = await draw(base, 'invisible');
+    const invisibleFrame = runtime.visibleFrameOf(invisibleMount);
+
     // A rotation cannot be inverted by intersecting axis-aligned rectangles, so
     // the honest answer is none. A pure translation can, so it must still work.
     const rotatedMount = await draw(base, 'rotated');
@@ -384,6 +446,17 @@ try {
       scrolled: { frame: scrolledFrame },
       bordered: { frame: borderedFrame, measure: borderedMeasure },
       shadow: { frame: shadowFrame, measure: shadowMeasure },
+      contained: {
+        frame: containedFrame,
+        pinnedFrame: containedPinnedFrame,
+        measure: containedMeasure,
+        candidate: containedBottom,
+        painted: containedPaint['node-a'] ?? null,
+      },
+      contentVisibility: { frame: contentVisibilityFrame, computed: contentVisibilityOverflow },
+      rounded: { frame: roundedFrame },
+      transparent: { frame: transparentFrame },
+      invisible: { frame: invisibleFrame },
       rotated: { frame: rotatedFrame },
       translated: { frame: translatedFrame },
       first,
@@ -610,6 +683,65 @@ try {
       Math.abs(shadow.frame.frame[3] - shownRows / scale) < 2,
       { frame: shadow.frame.frame, shownRows, expected: shownRows / scale });
   }
+
+  // R's counterexample on 82f2e4c: paint containment clips while the computed
+  // overflow stays `visible`, so a predicate that reads only overflow sees
+  // nothing to intersect.
+  const contained = observed.contained;
+  check('the contained host really clips with its overflow still visible',
+    contained.measure.computedOverflow === 'visible/visible'
+      && contained.measure.computedContain.includes('paint')
+      && contained.measure.insideViewport.height - contained.measure.shownHostRows > 400,
+    contained.measure);
+
+  if (contained.frame !== null) {
+    const scale = contained.measure.containerClient.w / contained.measure.insideViewport.width;
+    const expected = contained.measure.shownHostRows / scale;
+    check('paint containment cuts the frame down to what it shows',
+      Math.abs(contained.frame.frame[3] - expected) < 2
+        && contained.frame.frame[3] < contained.measure.insideViewport.height - 100,
+      { frame: contained.frame.frame, expected, measure: contained.measure });
+  } else {
+    check('the contained host reports a frame at all', false, null);
+  }
+
+  // Measured against the host's own box, not the graph container's: the
+  // container is what paint containment is cutting short.
+  const containedHostInFrame = {
+    x: contained.measure.host.x - contained.measure.iframe.x,
+    y: contained.measure.host.y - contained.measure.iframe.y,
+    w: contained.measure.host.w,
+    h: contained.measure.host.h,
+  };
+  const containedVisibleInHost = (() => {
+    const item = contained.painted;
+    if (item?.rect == null) return null;
+    const w = Math.max(0, Math.min(item.rect.x + item.rect.w, containedHostInFrame.x + containedHostInFrame.w) - Math.max(item.rect.x, containedHostInFrame.x));
+    const h = Math.max(0, Math.min(item.rect.y + item.rect.h, containedHostInFrame.y + containedHostInFrame.h) - Math.max(item.rect.y, containedHostInFrame.y));
+    return w * h;
+  })();
+  check('the bottom candidate the uncorrected frame allowed is connected and shown nowhere in the host',
+    contained.painted !== null && contained.painted.connected === true
+      && containedVisibleInHost === 0,
+    { candidate: contained.candidate, painted: contained.painted, visibleInHost: containedVisibleInHost, hostInFrame: containedHostInFrame });
+  check('and the corrected frame no longer contains that candidate',
+    contained.pinnedFrame !== null
+      && !(contained.candidate[1] >= contained.pinnedFrame.frame[1]
+        && contained.candidate[1] + contained.candidate[3]
+          <= contained.pinnedFrame.frame[1] + contained.pinnedFrame.frame[3]),
+    { candidate: contained.candidate, frame: contained.pinnedFrame?.frame ?? null });
+
+  // content-visibility: auto brings paint containment, and may skip painting the
+  // subtree altogether. Either way it must never come back as the whole pane.
+  check('content-visibility never reports the whole pane',
+    observed.contentVisibility.frame === null
+      || observed.contentVisibility.frame.frame[3] < observed.contained.measure.insideViewport.height - 100,
+    observed.contentVisibility);
+
+  check('a rounded clip, a transparent ancestor and a hidden ancestor all answer null',
+    observed.rounded.frame === null && observed.transparent.frame === null
+      && observed.invisible.frame === null,
+    { rounded: observed.rounded.frame, transparent: observed.transparent.frame, invisible: observed.invisible.frame });
 
   check('a rotation this cannot invert answers null, a pure translation still answers',
     observed.rotated.frame === null && observed.translated.frame !== null,
