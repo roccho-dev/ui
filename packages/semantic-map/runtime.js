@@ -25,27 +25,71 @@ const intersectEdges = (a, b) => {
 const translationOnly = value =>
   value === 'none' || value === '' || /^matrix\(\s*1\s*,\s*-?0\s*,\s*-?0\s*,\s*1\s*,/u.test(value);
 
+const cssLength = value => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+// Where an ancestor actually cuts its descendants off. Overflow clips at the
+// *padding* box, so a border sits outside the clip and `getBoundingClientRect` -
+// which is the border box - covers a band that is showing nothing. A scrollbar
+// takes a further gutter out of the padding box, which `clientWidth` and
+// `clientHeight` already account for.
+//
+// Which side the vertical gutter sits on is only known for left-to-right text,
+// and a vertical writing mode moves it again, so both are refused rather than
+// guessed.
+const clipEdgesOf = (node, style) => {
+  const rect = node.getBoundingClientRect();
+  const borderLeft = cssLength(style.borderLeftWidth);
+  const borderTop = cssLength(style.borderTopWidth);
+  const paddingBoxWidth = rect.width - borderLeft - cssLength(style.borderRightWidth);
+  const paddingBoxHeight = rect.height - borderTop - cssLength(style.borderBottomWidth);
+  const width = Math.min(paddingBoxWidth, node.clientWidth ?? paddingBoxWidth);
+  const height = Math.min(paddingBoxHeight, node.clientHeight ?? paddingBoxHeight);
+  if (![paddingBoxWidth, paddingBoxHeight, width, height].every(Number.isFinite)) return null;
+  if (style.writingMode !== 'horizontal-tb') return null;
+  if (paddingBoxWidth - width > 0.5 && style.direction !== 'ltr') return null;
+  const left = rect.left + borderLeft;
+  const top = rect.top + borderTop;
+  return { left, top, right: left + width, bottom: top + height };
+};
+
+// Up the flat tree rather than the light one: a mount inside a shadow tree has
+// no `parentElement`, and the shadow host clips what is inside it like any other
+// box, so the walk has to continue there.
+const flatTreeParent = node => {
+  if (node.parentElement != null) return node.parentElement;
+  const root = typeof node.getRootNode === 'function' ? node.getRootNode() : null;
+  return root?.host ?? null;
+};
+
 // The part of `element` the host actually shows, in the host document's own
 // client coordinates, after every ancestor that does not let its overflow
-// escape. `getBoundingClientRect` of such an ancestor is already the box it is
-// showing, so the same intersection is exact whether the overflow is hidden,
-// clipped, scrolled or automatic.
+// escape - a shadow host included. The same intersection serves whether that
+// overflow is hidden, clipped, scrolled or automatic, because each of those
+// reports the box it is showing.
 //
 // The browser viewport is deliberately not part of this. Page scroll is
 // something a person can undo, and this contract speaks for the drawn pane, not
 // for what happens to be on screen. A `clip-path` is a shape rather than a
-// rectangle, so it is refused instead of approximated.
+// rectangle, so it is refused instead of approximated, and so is an element
+// slotted into a shadow tree, whose clipping boxes are that tree's rather than
+// the ones this walk can reach.
 const hostVisibleEdges = element => {
   const view = element.ownerDocument?.defaultView;
   if (typeof view?.getComputedStyle !== 'function') return null;
   let edges = edgesOfRect(element.getBoundingClientRect());
-  for (let node = element; node !== null; node = node.parentElement) {
+  for (let node = element; node !== null; node = flatTreeParent(node)) {
+    if (node.assignedSlot != null) return null;
     const style = view.getComputedStyle(node);
     if (style.clipPath !== 'none') return null;
     if (!translationOnly(style.transform)) return null;
     if (node === element) continue;
     if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
-      edges = intersectEdges(edges, edgesOfRect(node.getBoundingClientRect()));
+      const clip = clipEdgesOf(node, style);
+      if (clip === null) return null;
+      edges = intersectEdges(edges, clip);
       if (edges === null) return null;
     }
   }

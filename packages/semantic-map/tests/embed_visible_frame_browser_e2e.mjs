@@ -48,6 +48,8 @@ const HOST_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>visib
 <div id="confirmed" style="width:900px;height:620px"></div>
 <div id="clipped" style="width:520px;height:120px;overflow:hidden"></div>
 <div id="scrolled" style="width:520px;height:120px;overflow:auto"></div>
+<div id="bordered" style="width:520px;height:200px;overflow:hidden;border:40px solid #333;padding:0"></div>
+<div id="shadow-outer" style="width:520px;height:120px;overflow:hidden"></div>
 <div id="rotated" style="width:520px;height:620px;transform:rotate(7deg)"></div>
 <div id="translated" style="width:520px;height:620px;transform:translate(13px,29px)"></div>
 </body></html>`;
@@ -308,6 +310,59 @@ try {
     const scrolledMount = await draw(base, 'scrolled');
     const scrolledFrame = runtime.visibleFrameOf(scrolledMount);
 
+    // Overflow clips at the padding box, so a border shows nothing. A frame
+    // that reached into it would promise a band of solid #333 as pane.
+    const borderedMount = await draw(base, 'bordered');
+    const borderedFrame = runtime.visibleFrameOf(borderedMount);
+    const borderedMeasure = (() => {
+      const frameElement = borderedMount.querySelector('iframe[data-package="semantic-map"]');
+      const container = frameElement.contentDocument.querySelector('#graph-container');
+      const style = getComputedStyle(borderedMount);
+      const rect = borderedMount.getBoundingClientRect();
+      const border = {
+        left: Number.parseFloat(style.borderLeftWidth),
+        top: Number.parseFloat(style.borderTopWidth),
+      };
+      return {
+        borderBox: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+        border,
+        paddingBox: {
+          x: rect.x + border.left, y: rect.y + border.top,
+          w: borderedMount.clientWidth, h: borderedMount.clientHeight,
+        },
+        iframe: (r => ({ x: r.x, y: r.y, w: r.width, h: r.height }))(frameElement.getBoundingClientRect()),
+        container: (r => ({ x: r.x, y: r.y, w: r.width, h: r.height }))(container.getBoundingClientRect()),
+        containerClient: { w: container.clientWidth, h: container.clientHeight },
+        insideViewport: frameElement.contentWindow.semanticMapApp.adapter.viewport(),
+      };
+    })();
+
+    // A mount inside a shadow tree whose host clips it. The mount has no
+    // parentElement at all, so a walk that only follows parentElement sees no
+    // clipping box and reports the whole pane.
+    const shadowOuter = document.querySelector('#shadow-outer');
+    const shadowRoot = shadowOuter.attachShadow({ mode: 'open' });
+    const shadowMount = document.createElement('div');
+    shadowMount.style.cssText = 'width:520px;height:620px';
+    shadowRoot.append(shadowMount);
+    const shadowEnvelope = await protocol.createEnvelope(base.log, null, { pattern: 'graph/1' });
+    await runtime.executeArtifactPackage({ document, input: { envelope: shadowEnvelope }, surfaceMount: shadowMount });
+    await ready(shadowMount.querySelector('iframe[data-package="semantic-map"]'));
+    const shadowFrame = runtime.visibleFrameOf(shadowMount);
+    const shadowMeasure = (() => {
+      const frameElement = shadowMount.querySelector('iframe[data-package="semantic-map"]');
+      const container = frameElement.contentDocument.querySelector('#graph-container');
+      return {
+        mountHasParentElement: shadowMount.parentElement !== null,
+        rootHost: shadowMount.getRootNode()?.host === shadowOuter,
+        outer: (r => ({ x: r.x, y: r.y, w: r.width, h: r.height }))(shadowOuter.getBoundingClientRect()),
+        iframe: (r => ({ x: r.x, y: r.y, w: r.width, h: r.height }))(frameElement.getBoundingClientRect()),
+        container: (r => ({ x: r.x, y: r.y, w: r.width, h: r.height }))(container.getBoundingClientRect()),
+        containerClient: { w: container.clientWidth, h: container.clientHeight },
+        insideViewport: frameElement.contentWindow.semanticMapApp.adapter.viewport(),
+      };
+    })();
+
     // A rotation cannot be inverted by intersecting axis-aligned rectangles, so
     // the honest answer is none. A pure translation can, so it must still work.
     const rotatedMount = await draw(base, 'rotated');
@@ -327,6 +382,8 @@ try {
         spots: clippedSpots,
       },
       scrolled: { frame: scrolledFrame },
+      bordered: { frame: borderedFrame, measure: borderedMeasure },
+      shadow: { frame: shadowFrame, measure: shadowMeasure },
       rotated: { frame: rotatedFrame },
       translated: { frame: translatedFrame },
       first,
@@ -487,6 +544,72 @@ try {
     observed.scrolled.frame !== null
       && observed.scrolled.frame.frame[3] < observed.clipped.measure.insideViewport.height - 100,
     observed.scrolled.frame);
+
+  // R's first counterexample on 26dad4a: overflow clips at the padding box, so a
+  // 40 px border is a band that shows nothing. Measuring the border box put that
+  // band inside the frame.
+  const bordered = observed.bordered;
+  check('the bordered host really has a border outside its clip',
+    bordered.measure.border.left === 40 && bordered.measure.border.top === 40
+      && bordered.measure.paddingBox.w === bordered.measure.borderBox.w - 80
+      && bordered.measure.paddingBox.h === bordered.measure.borderBox.h - 80,
+    bordered.measure);
+
+  if (bordered.frame !== null) {
+    // The frame, converted back to host pixels, must lie inside the padding box.
+    const scale = bordered.measure.containerClient.w / bordered.measure.insideViewport.width;
+    const [fx, fy, fw, fh] = bordered.frame.frame;
+    const originX = bordered.measure.iframe.x + bordered.measure.container.x;
+    const originY = bordered.measure.iframe.y + bordered.measure.container.y;
+    const claimed = {
+      left: originX + (fx - bordered.measure.insideViewport.x) * scale,
+      top: originY + (fy - bordered.measure.insideViewport.y) * scale,
+      right: originX + (fx - bordered.measure.insideViewport.x + fw) * scale,
+      bottom: originY + (fy - bordered.measure.insideViewport.y + fh) * scale,
+    };
+    const pad = bordered.measure.paddingBox;
+    check('the frame the bordered host reports stays inside its padding box',
+      claimed.left >= pad.x - 0.6 && claimed.top >= pad.y - 0.6
+        && claimed.right <= pad.x + pad.w + 0.6 && claimed.bottom <= pad.y + pad.h + 0.6,
+      { claimed, paddingBox: pad, borderBox: bordered.measure.borderBox });
+    // The border only takes room where the host is the smaller box - here that
+    // is the height, since a content-box width of 520 puts the border outside
+    // the iframe's own 520. Measuring the border box instead would have added
+    // exactly the border's 40 rows of solid colour to the frame.
+    const containerTop = bordered.measure.iframe.y + bordered.measure.container.y;
+    const containerBottom = containerTop + bordered.measure.container.h;
+    const rowsFromPaddingBox = Math.min(pad.y + pad.h, containerBottom) - Math.max(pad.y, containerTop);
+    const rowsFromBorderBox = Math.min(
+      bordered.measure.borderBox.y + bordered.measure.borderBox.h, containerBottom,
+    ) - Math.max(bordered.measure.borderBox.y, containerTop);
+    check('the frame is the padding box\'s rows, not the border box\'s',
+      Math.abs(fh - rowsFromPaddingBox / scale) < 2
+        && rowsFromBorderBox - rowsFromPaddingBox >= 39,
+      { frame: bordered.frame.frame, rowsFromPaddingBox, rowsFromBorderBox, scale });
+  } else {
+    check('the bordered host reports a frame at all', false, null);
+  }
+
+  // R's second counterexample: a mount inside a shadow tree has no
+  // parentElement, so a clipping shadow host was never looked at.
+  const shadow = observed.shadow;
+  check('the shadow mount really has no parentElement, and its root has a host',
+    shadow.measure.mountHasParentElement === false && shadow.measure.rootHost === true,
+    shadow.measure);
+  check('a clipping shadow host cuts the frame down',
+    shadow.frame !== null
+      && shadow.frame.frame[3] < shadow.measure.insideViewport.height - 100,
+    { frame: shadow.frame, insideViewport: shadow.measure.insideViewport, outer: shadow.measure.outer });
+  if (shadow.frame !== null) {
+    const scale = shadow.measure.containerClient.w / shadow.measure.insideViewport.width;
+    const shownRows = Math.max(0, Math.min(
+      shadow.measure.outer.y + shadow.measure.outer.h,
+      shadow.measure.iframe.y + shadow.measure.container.y + shadow.measure.container.h,
+    ) - Math.max(shadow.measure.outer.y, shadow.measure.iframe.y + shadow.measure.container.y));
+    check('and it is cut to exactly the rows the shadow host shows',
+      Math.abs(shadow.frame.frame[3] - shownRows / scale) < 2,
+      { frame: shadow.frame.frame, shownRows, expected: shownRows / scale });
+  }
 
   check('a rotation this cannot invert answers null, a pure translation still answers',
     observed.rotated.frame === null && observed.translated.frame !== null,

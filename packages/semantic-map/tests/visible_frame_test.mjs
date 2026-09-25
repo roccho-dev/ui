@@ -58,6 +58,12 @@ const fakeHost = ({
   hostOverflow = 'visible',
   hostTransform = 'none',
   hostClipPath = 'none',
+  hostBorder = 0,
+  hostGutter = 0,
+  hostDirection = 'ltr',
+  hostWritingMode = 'horizontal-tb',
+  shadowHost = false,
+  slotted = false,
   frameTransform = 'none',
   frameClipPath = 'none',
   outerOverflow = 'visible',
@@ -97,19 +103,52 @@ const fakeHost = ({
   const site = { ready, editor, runtime: { head, view: { pattern: declaredPattern } } };
 
   const styles = new Map();
-  const outer = {
-    parentElement: null,
-    getBoundingClientRect: () => outerBox,
-  };
-  const mount = {
-    parentElement: outer,
-    getBoundingClientRect: () => mountBox,
-    querySelectorAll: () => frames,
-  };
-  const frame = {
-    parentElement: mount,
-    getBoundingClientRect: () => frameBox,
-    get contentWindow() {
+  const styleOf = ({
+    overflow = 'visible', transform = 'none', clipPath = 'none',
+    border = 0, gutter = 0, direction = 'ltr', writingMode = 'horizontal-tb',
+  } = {}) => ({
+    overflowX: overflow,
+    overflowY: overflow,
+    transform,
+    clipPath,
+    direction,
+    writingMode,
+    borderLeftWidth: `${border}px`,
+    borderTopWidth: `${border}px`,
+    borderRightWidth: `${border}px`,
+    borderBottomWidth: `${border}px`,
+    __border: border,
+    __gutter: gutter,
+  });
+
+  // A box whose client size is its padding box less any scrollbar gutter, which
+  // is what a browser reports and what the clip has to be taken from.
+  const boxNode = (parent, outerRect, style) => ({
+    parentElement: parent,
+    assignedSlot: null,
+    getBoundingClientRect: () => outerRect,
+    clientWidth: outerRect.width - 2 * style.__border - style.__gutter,
+    clientHeight: outerRect.height - 2 * style.__border,
+    getRootNode: () => ({ host: undefined }),
+  });
+
+  const outerStyle = styleOf({ overflow: outerOverflow });
+  const outer = boxNode(null, outerBox, outerStyle);
+  const mountStyle = styleOf({
+    overflow: hostOverflow, transform: hostTransform, clipPath: hostClipPath,
+    border: hostBorder, gutter: hostGutter, direction: hostDirection, writingMode: hostWritingMode,
+  });
+  const mount = boxNode(shadowHost === true ? null : outer, mountBox, mountStyle);
+  mount.querySelectorAll = () => frames;
+  // A mount inside a shadow tree has no parentElement; the flat tree continues
+  // at the host element, which clips it like any other box.
+  if (shadowHost === true) mount.getRootNode = () => ({ host: outer });
+  if (slotted === true) mount.assignedSlot = { name: '' };
+
+  const frameStyle = styleOf({ transform: frameTransform, clipPath: frameClipPath });
+  const frame = boxNode(mount, frameBox, frameStyle);
+  Object.defineProperty(frame, 'contentWindow', {
+    get() {
       if (throwing) throw new DOMException('Blocked a frame with origin', 'SecurityError');
       return {
         semanticMapSite: site,
@@ -117,13 +156,13 @@ const fakeHost = ({
         innerHeight: innerHeight ?? frameBox.height,
       };
     },
-    ownerDocument: {
-      defaultView: { getComputedStyle: node => styles.get(node) ?? { overflowX: 'visible', overflowY: 'visible', transform: 'none', clipPath: 'none' } },
-    },
+  });
+  frame.ownerDocument = {
+    defaultView: { getComputedStyle: node => styles.get(node) ?? styleOf() },
   };
-  styles.set(frame, { overflowX: 'visible', overflowY: 'visible', transform: frameTransform, clipPath: frameClipPath });
-  styles.set(mount, { overflowX: hostOverflow, overflowY: hostOverflow, transform: hostTransform, clipPath: hostClipPath });
-  styles.set(outer, { overflowX: outerOverflow, overflowY: outerOverflow, transform: 'none', clipPath: 'none' });
+  styles.set(frame, frameStyle);
+  styles.set(mount, mountStyle);
+  styles.set(outer, outerStyle);
   const frames = Array.from({ length: count }, () => frame);
   return mount;
 };
@@ -205,6 +244,14 @@ const nulls = [
   ['an embed under its own clip-path', fakeMount(fakeSite(), { frameClipPath: 'inset(10px)' })],
   ['a host whose pixels are not the embed\'s pixels', fakeMount(fakeSite(), { innerWidth: 320 })],
   ['a host whose rows are not the embed\'s rows', fakeMount(fakeSite(), { innerHeight: 240 })],
+  // A border thicker than the box leaves no padding box to show anything in.
+  ['a host whose border swallows its own box', fakeMount(fakeSite(), { hostHeight: 60, hostOverflow: 'hidden', hostBorder: 40 })],
+  // Which side a vertical gutter sits on is not knowable right-to-left, and a
+  // vertical writing mode moves it again.
+  ['a right-to-left host with a scrollbar gutter', fakeMount(fakeSite(), { hostOverflow: 'auto', hostGutter: 15, hostDirection: 'rtl' })],
+  ['a host in a vertical writing mode', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostWritingMode: 'vertical-rl' })],
+  // Slotted into a shadow tree: the boxes that clip it are that tree's.
+  ['an embed slotted into a shadow tree', fakeMount(fakeSite(), { slotted: true })],
 ];
 for (const [label, mount] of nulls) {
   let observed;
@@ -270,6 +317,59 @@ assert.deepEqual(
   visibleFrameOf(fakeMount(fakeSite(), { hostTransform: 'matrix(1, 0, 0, 1, 13, 29)' })).frame,
   [0, 0, 640, 480],
   'a host that only moves the embed is still measurable',
+);
+
+// 8. Overflow clips at the padding box, not at the border box. R measured this
+// on 26dad4a: a 40 px border on the clipping host made the frame 80 px wider
+// and taller than anything the host was showing, so a band of pure border came
+// back as visible.
+const BORDER = 40;
+const bordered = visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+  hostHeight: 200, hostOverflow: 'hidden', hostBorder: BORDER,
+}));
+// The host's border box is 640x200, so it shows 640-80 by 200-80 of the pane,
+// starting 40 px in from each edge. At half scale that is 1120x240 world units
+// from world (80, 80) - the container's own origin is (0,0) in host pixels, so
+// the first 40 rows and columns of the pane are behind the border.
+assert.deepEqual(bordered.frame, [80, 80, 1120, 240],
+  'the border is outside the clip, so none of it may be reported as pane');
+const borderless = visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+  hostHeight: 200, hostOverflow: 'hidden',
+}));
+assert.deepEqual(borderless.frame, [0, 0, 1280, 400], 'precondition: without the border');
+assert.ok(bordered.frame[2] < borderless.frame[2] && bordered.frame[3] < borderless.frame[3],
+  'a border can only ever take room away');
+// And no box the bordered frame claims may fall outside what the host shows.
+const shownInHost = { left: BORDER, top: BORDER, right: 640 - BORDER, bottom: 200 - BORDER };
+const backToHostPixels = ([x, y, w, h]) => ({
+  left: x * 0.5, top: y * 0.5, right: (x + w) * 0.5, bottom: (y + h) * 0.5,
+});
+const claimed = backToHostPixels(bordered.frame);
+assert.ok(claimed.left >= shownInHost.left - 0.5 && claimed.top >= shownInHost.top - 0.5
+  && claimed.right <= shownInHost.right + 0.5 && claimed.bottom <= shownInHost.bottom + 0.5,
+  `the frame must stay inside the host's padding box: ${JSON.stringify({ claimed, shownInHost })}`);
+
+// A scrollbar gutter is room the pane does not get either, and clientWidth is
+// what already knows about it.
+assert.deepEqual(
+  visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), { hostOverflow: 'auto', hostGutter: 15 })).frame,
+  [0, 0, 1250, 960],
+  'the gutter comes off the reported width',
+);
+
+// 9. The walk has to cross a shadow boundary. R measured this on 26dad4a: a
+// mount inside a shadow tree has no parentElement, so a clipping shadow host
+// was never looked at and the whole pane came back as visible.
+const inShadow = visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+  shadowHost: true, outerHeight: 120, outerOverflow: 'hidden',
+}));
+assert.deepEqual(inShadow.frame, [0, 0, 1280, 240], 'a clipping shadow host still cuts the pane');
+assert.deepEqual(
+  visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+    shadowHost: true, outerHeight: 120, outerOverflow: 'visible',
+  })).frame,
+  [0, 0, 1280, 960],
+  'a shadow host that lets its overflow escape cuts nothing',
 );
 
 console.log(JSON.stringify({
