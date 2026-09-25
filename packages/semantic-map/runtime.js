@@ -43,9 +43,31 @@ const clipsDescendants = style => {
   return style.contentVisibility === 'auto' || style.contentVisibility === 'hidden';
 };
 
-// A rounded clip cuts the corners away, and no axis-aligned rectangle says which
-// pixels those are. Rather than claim them, refuse.
-const hasRoundedClip = style => CORNER_RADII.some(name => cssLength(style[name]) > 0);
+// The largest corner radius this box could be rounded by, in pixels, over-
+// estimated on purpose. Pulling every side in by that much leaves a rectangle
+// wholly inside the rounded clip: a point at least one radius away from the box
+// corners in both axes is in the straight part of the outline, never in the arc
+// the corner cuts off. Over-estimating only ever gives away more room than it
+// has to, which is the safe direction.
+//
+// A percentage is resolved against the larger side, which is at least the real
+// resolved radius on either axis. Anything that does not resolve to a number -
+// a unit this cannot read - returns null so the caller refuses instead of
+// guessing a corner.
+const maxCornerRadius = (style, width, height) => {
+  let largest = 0;
+  for (const name of CORNER_RADII) {
+    for (const part of String(style[name] ?? '0').trim().split(/\s+/u)) {
+      if (part === '') continue;
+      const value = Number.parseFloat(part);
+      if (!Number.isFinite(value)) return null;
+      largest = Math.max(largest, part.endsWith('%')
+        ? (value / 100) * Math.max(width, height)
+        : value);
+    }
+  }
+  return largest;
+};
 
 const opacityOf = style => {
   const parsed = Number.parseFloat(style.opacity);
@@ -60,7 +82,8 @@ const opacityOf = style => {
 //
 // Which side the vertical gutter sits on is only known for left-to-right text,
 // and a vertical writing mode moves it again, so both are refused rather than
-// guessed.
+// guessed. A rounded box cuts its corners off, so the rectangle is pulled in by
+// one radius on every side - see `maxCornerRadius`.
 const clipEdgesOf = (node, style) => {
   const rect = node.getBoundingClientRect();
   const borderLeft = cssLength(style.borderLeftWidth);
@@ -72,9 +95,17 @@ const clipEdgesOf = (node, style) => {
   if (![paddingBoxWidth, paddingBoxHeight, width, height].every(Number.isFinite)) return null;
   if (style.writingMode !== 'horizontal-tb') return null;
   if (paddingBoxWidth - width > 0.5 && style.direction !== 'ltr') return null;
-  const left = rect.left + borderLeft;
-  const top = rect.top + borderTop;
-  return { left, top, right: left + width, bottom: top + height };
+  // The radius is declared on the border box, and the corner the padding box is
+  // clipped by is that radius less the border - so the outer value pulls in at
+  // least as far as it has to.
+  const radius = maxCornerRadius(style, rect.width, rect.height);
+  if (radius === null) return null;
+  const left = rect.left + borderLeft + radius;
+  const top = rect.top + borderTop + radius;
+  const right = rect.left + borderLeft + width - radius;
+  const bottom = rect.top + borderTop + height - radius;
+  if (!(right > left) || !(bottom > top)) return null;
+  return { left, top, right, bottom };
 };
 
 // Up the flat tree rather than the light one: a mount inside a shadow tree has
@@ -110,14 +141,19 @@ const hostVisibleEdges = element => {
   for (let node = element; node !== null; node = flatTreeParent(node)) {
     if (node.assignedSlot != null) return null;
     const style = view.getComputedStyle(node);
+    // A shape rather than a rectangle. A mask does not clip the layout box at
+    // all - the geometry stays exactly as it was - and still decides, pixel by
+    // pixel, what is painted: a gradient mask can leave the lower half of a box
+    // invisible while every rectangle involved says it is showing.
     if (style.clipPath !== 'none') return null;
+    if (style.maskImage !== undefined && style.maskImage !== 'none') return null;
+    if (style.webkitMaskImage !== undefined && style.webkitMaskImage !== 'none') return null;
     if (!translationOnly(style.transform)) return null;
     // A transparent layer cannot be made visible again from inside it.
     if (opacityOf(style) === 0) return null;
     if (style.contentVisibility === 'hidden') return null;
     if (node === element) continue;
     if (clipsDescendants(style)) {
-      if (hasRoundedClip(style)) return null;
       const clip = clipEdgesOf(node, style);
       if (clip === null) return null;
       edges = intersectEdges(edges, clip);

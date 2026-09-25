@@ -66,6 +66,7 @@ const fakeHost = ({
   hostContentVisibility = 'visible',
   hostRadius = 0,
   hostOpacity = '1',
+  hostMaskImage = 'none',
   shadowHost = false,
   slotted = false,
   frameTransform = 'none',
@@ -112,7 +113,7 @@ const fakeHost = ({
     overflow = 'visible', transform = 'none', clipPath = 'none',
     border = 0, gutter = 0, direction = 'ltr', writingMode = 'horizontal-tb',
     contain = 'none', contentVisibility = 'visible', radius = 0,
-    opacity = '1', visibility = 'visible',
+    opacity = '1', visibility = 'visible', maskImage = 'none',
   } = {}) => ({
     overflowX: overflow,
     overflowY: overflow,
@@ -124,10 +125,12 @@ const fakeHost = ({
     contentVisibility,
     opacity,
     visibility,
-    borderTopLeftRadius: `${radius}px`,
-    borderTopRightRadius: `${radius}px`,
-    borderBottomRightRadius: `${radius}px`,
-    borderBottomLeftRadius: `${radius}px`,
+    maskImage,
+    webkitMaskImage: maskImage,
+    borderTopLeftRadius: typeof radius === 'string' ? radius : `${radius}px`,
+    borderTopRightRadius: typeof radius === 'string' ? radius : `${radius}px`,
+    borderBottomRightRadius: typeof radius === 'string' ? radius : `${radius}px`,
+    borderBottomLeftRadius: typeof radius === 'string' ? radius : `${radius}px`,
     borderLeftWidth: `${border}px`,
     borderTopWidth: `${border}px`,
     borderRightWidth: `${border}px`,
@@ -153,7 +156,7 @@ const fakeHost = ({
     overflow: hostOverflow, transform: hostTransform, clipPath: hostClipPath,
     border: hostBorder, gutter: hostGutter, direction: hostDirection, writingMode: hostWritingMode,
     contain: hostContain, contentVisibility: hostContentVisibility, radius: hostRadius,
-    opacity: hostOpacity,
+    opacity: hostOpacity, maskImage: hostMaskImage,
   });
   const mount = boxNode(shadowHost === true ? null : outer, mountBox, mountStyle);
   mount.querySelectorAll = () => frames;
@@ -271,9 +274,12 @@ const nulls = [
   ['a host in a vertical writing mode', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostWritingMode: 'vertical-rl' })],
   // Slotted into a shadow tree: the boxes that clip it are that tree's.
   ['an embed slotted into a shadow tree', fakeMount(fakeSite(), { slotted: true })],
-  // A rounded clip cuts the corners away and no rectangle says which pixels.
-  ['a host that clips with rounded corners', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostRadius: 24 })],
-  ['a host whose paint containment has rounded corners', fakeMount(fakeSite(), { hostContain: 'paint', hostRadius: 8 })],
+  // A rounded clip whose corners swallow the whole box leaves no rectangle.
+  ['a host rounded into an ellipse', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostRadius: 320 })],
+  ['a host with a radius this cannot resolve', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostRadius: 'calc(10px + 2em)' })],
+  // A mask paints pixel by pixel and changes no rectangle at all.
+  ['a host under a gradient mask', fakeMount(fakeSite(), { hostMaskImage: 'linear-gradient(rgb(0, 0, 0) 0px 50%, rgba(0, 0, 0, 0) 50% 100%)' })],
+  ['a host under an image mask, clipping or not', fakeMount(fakeSite(), { hostOverflow: 'hidden', hostHeight: 120, hostMaskImage: 'url("m.png")' })],
   // Nothing is on the screen at all.
   ['a fully transparent host', fakeMount(fakeSite(), { hostOpacity: '0' })],
   ['an embed that is not visible', fakeMount(fakeSite(), { frameVisibility: 'hidden' })],
@@ -417,6 +423,49 @@ assert.deepEqual(
   })).frame,
   [80, 80, 1120, 240],
   'paint containment and a hidden overflow take the same box',
+);
+
+// 8c. Rounded corners take room away rather than the whole answer. R noted on
+// 4c005da that refusing outright makes a 4 px radius - ordinary UX - cost the
+// feature entirely. Every side is pulled in by one radius, which is provably
+// inside the rounded outline: a point at least one radius from the box corners
+// in both axes is on the straight part of the edge, never in the arc.
+for (const radius of [4, 24]) {
+  const observed = visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+    hostHeight: 200, hostOverflow: 'hidden', hostRadius: radius,
+  }));
+  assert.deepEqual(observed.frame, [radius * 2, radius * 2, 1280 - radius * 4, 400 - radius * 4],
+    `a radius of ${radius} costs one radius on each side, not the answer`);
+  // In host pixels, the claimed rectangle must sit a full radius inside each
+  // edge of the clip - which is what puts it inside the rounded outline.
+  const [x, y, w, h] = observed.frame;
+  const claimed = { left: x * 0.5, top: y * 0.5, right: (x + w) * 0.5, bottom: (y + h) * 0.5 };
+  assert.ok(claimed.left >= radius - 0.001 && claimed.top >= radius - 0.001
+    && claimed.right <= 640 - radius + 0.001 && claimed.bottom <= 200 - radius + 0.001,
+    `radius ${radius}: ${JSON.stringify(claimed)}`);
+}
+// An unrounded box is not pulled in at all.
+assert.deepEqual(
+  visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), { hostHeight: 200, hostOverflow: 'hidden' })).frame,
+  [0, 0, 1280, 400],
+  'no radius, no inset',
+);
+// A percentage radius is resolved against the larger side, which is at least the
+// real radius on either axis - more room given away, never less.
+assert.deepEqual(
+  visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+    hostHeight: 200, hostOverflow: 'hidden', hostRadius: '10%',
+  })).frame,
+  [128, 128, 1280 - 256, 400 - 256],
+  'ten per cent of the 640 px side - 64 host pixels - on every side',
+);
+// Paint containment rounds the same way.
+assert.deepEqual(
+  visibleFrameOf(fakeMount(fakeSite({ scale: 0.5 }), {
+    hostHeight: 200, hostContain: 'paint', hostRadius: 4,
+  })).frame,
+  [8, 8, 1264, 384],
+  'a rounded contain:paint box is inset like a rounded overflow:hidden one',
 );
 
 // 9. The walk has to cross a shadow boundary. R measured this on 26dad4a: a

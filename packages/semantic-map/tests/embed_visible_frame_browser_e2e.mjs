@@ -53,6 +53,8 @@ const HOST_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>visib
 <div id="contained" style="width:520px;height:120px;contain:paint"></div>
 <div id="content-visibility" style="width:520px;height:120px;content-visibility:auto"></div>
 <div id="rounded" style="width:520px;height:120px;overflow:hidden;border-radius:24px"></div>
+<div id="masked" style="width:520px;height:620px;mask-image:linear-gradient(black 0 50%, transparent 50% 100%)"></div>
+<div id="mask-control" style="width:520px;height:620px"></div>
 <div id="transparent" style="width:520px;height:620px;opacity:0"></div>
 <div id="invisible" style="width:520px;height:620px;visibility:hidden"></div>
 <div id="rotated" style="width:520px;height:620px;transform:rotate(7deg)"></div>
@@ -420,6 +422,41 @@ try {
     // nothing at all. None of the three may come back as a visible frame.
     const roundedMount = await draw(base, 'rounded');
     const roundedFrame = runtime.visibleFrameOf(roundedMount);
+    const roundedMeasure = (() => {
+      const frameElement = roundedMount.querySelector('iframe[data-package="semantic-map"]');
+      const container = frameElement.contentDocument.querySelector('#graph-container');
+      const style = getComputedStyle(roundedMount);
+      const host = roundedMount.getBoundingClientRect();
+      const iframeRect = frameElement.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      return {
+        radius: style.borderTopLeftRadius,
+        host: { x: host.x, y: host.y, w: host.width, h: host.height },
+        iframe: { x: iframeRect.x, y: iframeRect.y, w: iframeRect.width, h: iframeRect.height },
+        container: { x: containerRect.x, y: containerRect.y, w: containerRect.width, h: containerRect.height },
+        containerClient: { w: container.clientWidth, h: container.clientHeight },
+        insideViewport: frameElement.contentWindow.semanticMapApp.adapter.viewport(),
+      };
+    })();
+
+    // A mask changes no rectangle and still decides what is painted: the lower
+    // half of this host is fully transparent. The control is the same geometry
+    // with no mask, so the refusal cannot be mistaken for a geometry failure.
+    const maskedMount = await draw(base, 'masked');
+    const maskedFrame = runtime.visibleFrameOf(maskedMount);
+    const maskedMeasure = (() => {
+      const style = getComputedStyle(maskedMount);
+      const rect = maskedMount.getBoundingClientRect();
+      return {
+        maskImage: style.maskImage,
+        webkitMaskImage: style.webkitMaskImage,
+        computedOverflow: `${style.overflowX}/${style.overflowY}`,
+        box: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+      };
+    })();
+    const maskControlMount = await draw(base, 'mask-control');
+    const maskControlFrame = runtime.visibleFrameOf(maskControlMount);
+    const maskControlMask = getComputedStyle(maskControlMount).maskImage;
     const transparentMount = await draw(base, 'transparent');
     const transparentFrame = runtime.visibleFrameOf(transparentMount);
     const invisibleMount = await draw(base, 'invisible');
@@ -454,7 +491,9 @@ try {
         painted: containedPaint['node-a'] ?? null,
       },
       contentVisibility: { frame: contentVisibilityFrame, computed: contentVisibilityOverflow },
-      rounded: { frame: roundedFrame },
+      rounded: { frame: roundedFrame, measure: roundedMeasure },
+      masked: { frame: maskedFrame, measure: maskedMeasure },
+      maskControl: { frame: maskControlFrame, maskImage: maskControlMask },
       transparent: { frame: transparentFrame },
       invisible: { frame: invisibleFrame },
       rotated: { frame: rotatedFrame },
@@ -738,10 +777,50 @@ try {
       || observed.contentVisibility.frame.frame[3] < observed.contained.measure.insideViewport.height - 100,
     observed.contentVisibility);
 
-  check('a rounded clip, a transparent ancestor and a hidden ancestor all answer null',
-    observed.rounded.frame === null && observed.transparent.frame === null
-      && observed.invisible.frame === null,
-    { rounded: observed.rounded.frame, transparent: observed.transparent.frame, invisible: observed.invisible.frame });
+  check('a transparent ancestor and a hidden ancestor answer null',
+    observed.transparent.frame === null && observed.invisible.frame === null,
+    { transparent: observed.transparent.frame, invisible: observed.invisible.frame });
+
+  // R's counterexample on 4c005da: a gradient mask leaves the lower half of the
+  // host painting nothing, while every rectangle involved says it is showing.
+  check('the masked host really is masked, with its geometry untouched',
+    observed.masked.measure.maskImage !== 'none'
+      && observed.masked.measure.computedOverflow === 'visible/visible'
+      && observed.masked.measure.box.h > 600,
+    observed.masked.measure);
+  check('a masked ancestor answers null, and the same geometry without the mask does not',
+    observed.masked.frame === null
+      && observed.maskControl.maskImage === 'none'
+      && observed.maskControl.frame !== null,
+    { masked: observed.masked.frame, control: observed.maskControl });
+
+  // R also noted that refusing every rounded clip made an ordinary 4 px radius
+  // cost the feature. Rounded corners now take room away, not the answer.
+  check('a rounded clip answers with a frame pulled in by its radius',
+    observed.rounded.frame !== null && observed.rounded.measure.radius === '24px',
+    { frame: observed.rounded.frame, radius: observed.rounded.measure.radius });
+  if (observed.rounded.frame !== null) {
+    const m = observed.rounded.measure;
+    const radius = Number.parseFloat(m.radius);
+    const scale = m.containerClient.w / m.insideViewport.width;
+    const [fx, fy, fw, fh] = observed.rounded.frame.frame;
+    const originX = m.iframe.x + m.container.x;
+    const originY = m.iframe.y + m.container.y;
+    const claimed = {
+      left: originX + (fx - m.insideViewport.x) * scale,
+      top: originY + (fy - m.insideViewport.y) * scale,
+      right: originX + (fx - m.insideViewport.x + fw) * scale,
+      bottom: originY + (fy - m.insideViewport.y + fh) * scale,
+    };
+    // Inside the host's box by a full radius on every side, which is what puts
+    // it inside the rounded outline rather than in a cut corner.
+    check('and that frame sits a full radius inside every edge of the rounded box',
+      claimed.left >= m.host.x + radius - 0.6
+        && claimed.top >= m.host.y + radius - 0.6
+        && claimed.right <= m.host.x + m.host.w - radius + 0.6
+        && claimed.bottom <= m.host.y + m.host.h - radius + 0.6,
+      { claimed, host: m.host, radius });
+  }
 
   check('a rotation this cannot invert answers null, a pure translation still answers',
     observed.rotated.frame === null && observed.translated.frame !== null,
