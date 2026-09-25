@@ -6,6 +6,7 @@ import { createSemanticMap, parseSemanticMapRecords } from '../domain/index.js';
 import { SemanticDomainStore } from '../domain/authoring-store.js';
 import { createDecisionLog, createEnvelope, defaultViewForPattern, inspectEnvelope } from '../protocol/index.js';
 import { DecisionRuntime } from '../authoring/runtime.js';
+import { EMBED_PRESENTATIONS, executeArtifactPackage } from '../runtime.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const records = parseSemanticMapRecords(await fs.readFile(path.join(here, 'fixture.jsonl'), 'utf8'));
@@ -50,5 +51,28 @@ assert.equal(runtime.stateHash, acceptedHash);
 assert.equal(store.domain.regions.get('input').label, 'Input accepted');
 const rejectedInspection = await inspectEnvelope(rejected.envelope);
 assert.equal(rejectedInspection.base.head, acceptedHead);
+
+// The embed's presentation is refused before anything is created: an unknown
+// value, and chrome-free for an input the embed may edit. What each value
+// draws is proven in a real browser by embed_visible_frame_browser_e2e.mjs.
+assert.deepEqual(EMBED_PRESENTATIONS, ['default', 'chrome-free']);
+let framesCreated = 0;
+const hostDocument = { createElement: () => { framesCreated += 1; return {}; } };
+const hostMount = { replaceChildren: () => {} };
+await assert.rejects(
+  executeArtifactPackage({ document: hostDocument, input: { envelope }, surfaceMount: hostMount, presentation: 'bare' }),
+  /presentation must be one of default, chrome-free/u,
+);
+await assert.rejects(
+  executeArtifactPackage({
+    document: hostDocument,
+    input: { envelope },
+    surfaceMount: hostMount,
+    presentation: 'chrome-free',
+    inputAction: { enabled: true, inputId: 'input', replace: async () => null },
+  }),
+  /chrome-free is only for a read-only input/u,
+);
+assert.equal(framesCreated, 0, 'a refused presentation creates no frame');
 
 console.log(JSON.stringify({ schema: 'semantic-map-decision-runtime-test/1', status: 'PASS', acceptedHead }));

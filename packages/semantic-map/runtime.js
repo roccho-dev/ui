@@ -246,16 +246,32 @@ export const createEnvelopeInputBridge = ({ initialEnvelope, inputAction, site }
   });
 };
 
-export async function executeArtifactPackage({ document, input, inputAction = null, surfaceMount }) {
+// How the embed presents itself. 'default' is the authoring page as it has
+// always been. 'chrome-free' shows the diagram alone: the page's topbar,
+// editing dock, status line, toast and Active-elements list are not drawn over
+// it, for a host that owns every control around the diagram itself. It is only
+// for an input the embed cannot edit - hiding the editing controls of an
+// editable input would leave edits nobody can see how to make. Pan, zoom and
+// selection still work, read-only as before, and the camera is still the one
+// the envelope's View.frame asks for; this changes no camera logic.
+export const EMBED_PRESENTATIONS = Object.freeze(['default', 'chrome-free']);
+
+export async function executeArtifactPackage({ document, input, inputAction = null, surfaceMount, presentation = 'default' }) {
   invariant(document?.createElement, 'document is required');
   invariant(surfaceMount?.replaceChildren, 'surfaceMount is required');
   invariant(input && typeof input === 'object' && !Array.isArray(input), 'input is required');
+  invariant(EMBED_PRESENTATIONS.includes(presentation), `presentation must be one of ${EMBED_PRESENTATIONS.join(', ')}`);
+  invariant(
+    presentation === 'default' || inputAction?.enabled !== true,
+    'presentation chrome-free is only for a read-only input; an enabled inputAction keeps its editing controls',
+  );
   const inspection = await inspectEnvelope(input.envelope);
   const frame = document.createElement('iframe');
   const bridgeEnabled = inputAction?.enabled === true && typeof inputAction.replace === 'function';
   frame.title = 'Semantic Map';
   frame.dataset.inputAction = bridgeEnabled ? 'enabled' : 'read-only';
   frame.dataset.package = 'semantic-map';
+  frame.dataset.presentation = presentation;
   frame.setAttribute('allow', 'clipboard-read; clipboard-write');
   frame.style.cssText = 'display:block;width:100%;height:min(78vh,900px);min-height:560px;border:0;border-radius:12px;background:#f8fafb;pointer-events:none;';
   const frameUrl = new URL('./authoring/pages/embed.html', import.meta.url);
@@ -264,6 +280,13 @@ export async function executeArtifactPackage({ document, input, inputAction = nu
   frame.src = frameUrl.href;
   surfaceMount.replaceChildren(frame);
   await embedReady;
+  // Before the input is posted, so the page lays out, mounts its list and
+  // fits its camera without the chrome from the very first frame it draws.
+  if (presentation !== 'default') {
+    const root = frame.contentDocument?.documentElement;
+    invariant(root, 'the embed document is not reachable to set its presentation');
+    root.dataset.presentation = presentation;
+  }
   frame.contentWindow?.postMessage(
     Object.freeze({ schema: EMBED_INPUT_SCHEMA, envelope: structuredClone(inspection.envelope) }),
     targetOrigin,

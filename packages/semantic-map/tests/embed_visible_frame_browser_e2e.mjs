@@ -61,11 +61,21 @@ const HOST_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>visib
 <div id="translated" style="width:520px;height:620px;transform:translate(13px,29px)"></div>
 </body></html>`;
 
+// One full-width pane and nothing else, the way a host that shows only the
+// diagram lays it out.
+const PRESENTATION_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>presentation proof</title></head>
+<body style="margin:0"><div id="pane"></div></body></html>`;
+
 const server = http.createServer((request, response) => {
   const { pathname } = new URL(request.url, 'http://localhost');
   if (pathname === '/' || pathname === '/host.html') {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     response.end(HOST_PAGE);
+    return;
+  }
+  if (pathname === '/presentation.html') {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    response.end(PRESENTATION_PAGE);
     return;
   }
   const resolved = path.resolve(packagesRoot, `.${pathname}`);
@@ -829,6 +839,315 @@ try {
   check('nothing was written to storage', observed.storage === 0, observed.storage);
   check('the page raised no error', pageErrors.length === 0, pageErrors);
 
+  // presentation 'chrome-free', for a read-only host that shows only the
+  // diagram: nothing the embed draws itself - topbar, editing dock, status
+  // line, toast, Active-elements list - lies over any cell or label. Proved at
+  // two common laptop windows, for a small graph and for one whose Active list
+  // (23 elements) would fill its box. The camera is the envelope's own public
+  // View.frame, fitted to the laid-out graph; no camera logic is added. The
+  // default presentation keeps every piece of that chrome.
+  const CHROME = ['.topbar', '.editor-dock', '.status', '.toast'];
+  const presentationRun = async (viewport, size, presentation) => {
+    const view = await browser.newPage({ viewport });
+    const errors = [];
+    view.on('pageerror', error => errors.push(String(error)));
+    await view.goto(`${origin}/presentation.html`, { waitUntil: 'domcontentloaded' });
+    const result = await view.evaluate(async ({ size, presentation, chrome }) => {
+      const protocol = await import('/semantic-map/protocol/index.js');
+      const runtime = await import('/semantic-map/runtime.js');
+      const count = size === 'large' ? 12 : 3;
+      const records = [
+        { type: 'meta', schema: 'semantic-map-state/1', root: 'root', title: 'presentation' },
+        { type: 'region', id: 'root', parent: null, label: 'presentation', kind: 'boundary', bounds: [0, 0, 720, 260], summary: '' },
+        ...Array.from({ length: count }, (_, index) => ({
+          type: 'region', id: `node-${index + 1}`, parent: 'root', label: `node ${index + 1}`, kind: 'node',
+          bounds: [40 + index * 160, 90, 140, 64], summary: '',
+        })),
+        ...Array.from({ length: count - 1 }, (_, index) => ({
+          type: 'relation', id: `link-${index + 1}`, from: `node-${index + 1}`, to: `node-${index + 2}`, kind: 'flow', label: '',
+        })),
+      ];
+      const graph = await protocol.createDecisionLog(records, `presentation-${size}`);
+      const layout = protocol.layoutBoundsFor(records, { pattern: 'graph/1' });
+      const mount = document.querySelector('#pane');
+      // The pixels the graph gets in this presentation: the iframe's own
+      // width, and the height the embed gives itself, with no topbar row.
+      const pixels = [mount.clientWidth, Math.max(560, Math.min(innerHeight * 0.78, 900))];
+      const envelope = await protocol.createEnvelope(graph.log, null, {
+        pattern: 'graph/1',
+        frame: { bbox: [...layout.rootBounds], viewport: pixels },
+      });
+      await runtime.executeArtifactPackage({
+        document, input: { envelope }, surfaceMount: mount,
+        ...(presentation === 'default' ? {} : { presentation }),
+      });
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const frame = mount.querySelector('iframe[data-package="semantic-map"]');
+      const doc = frame.contentDocument;
+      const win = frame.contentWindow;
+      const adapter = win.semanticMapApp.adapter;
+      const container = doc.querySelector('#graph-container');
+      const pane = container.getBoundingClientRect();
+      const frameBox = frame.getBoundingClientRect();
+      const displayed = selector => {
+        const element = doc.querySelector(selector);
+        return element !== null && win.getComputedStyle(element).display !== 'none'
+          && element.getBoundingClientRect().width > 0;
+      };
+      const list = doc.querySelector('[data-maxgraph-active-list]');
+      const snapshot = adapter.activeList.snapshot();
+
+      // Nine points across every region's shape and label: a point is clear
+      // only if it is inside the pane and the window, the host page reaches the
+      // iframe there, and the embed reaches its own graph there.
+      const graphView = adapter.graph.getView();
+      const parts = [];
+      for (const [regionId, cell] of adapter.cellsByRegionId) {
+        if (regionId === 'root') continue;
+        const state = graphView.getState(cell);
+        for (const [part, node] of [['shape', state?.shape?.node], ['label', state?.text?.node]]) {
+          if (!node?.isConnected) {
+            parts.push({ regionId, part, drawn: false });
+            continue;
+          }
+          const rect = node.getBoundingClientRect();
+          let clear = 0;
+          const blockers = new Set();
+          for (const fx of [0.2, 0.5, 0.8]) {
+            for (const fy of [0.2, 0.5, 0.8]) {
+              const x = rect.x + rect.width * fx;
+              const y = rect.y + rect.height * fy;
+              const pageX = frameBox.left + frame.clientLeft + x;
+              const pageY = frameBox.top + frame.clientTop + y;
+              if (x < pane.left || x > pane.right || y < pane.top || y > pane.bottom) { blockers.add('outside-pane'); continue; }
+              if (pageX < 0 || pageY < 0 || pageX > innerWidth || pageY > innerHeight) { blockers.add('outside-window'); continue; }
+              if (document.elementFromPoint(pageX, pageY) !== frame) { blockers.add('host'); continue; }
+              const hit = doc.elementFromPoint(x, y);
+              if (hit !== null && container.contains(hit)) { clear += 1; continue; }
+              const owner = hit?.closest?.('[data-maxgraph-active-list], .topbar, .editor-dock, .status, .toast');
+              blockers.add(owner ? `chrome:${owner.className || owner.tagName}` : `other:${hit?.tagName ?? 'none'}`);
+            }
+          }
+          parts.push({ regionId, part, drawn: true, clear, blockers: [...blockers] });
+        }
+      }
+      const rendered = adapter.viewport();
+      return {
+        presentation: frame.dataset.presentation ?? null,
+        documentPresentation: doc.documentElement.dataset.presentation ?? null,
+        chrome: Object.fromEntries(chrome.map(selector => [selector, displayed(selector)])),
+        activeList: {
+          displayed: list !== null && !list.hidden && win.getComputedStyle(list).display !== 'none',
+          snapshotVisible: snapshot.visible,
+          items: snapshot.items.length,
+        },
+        elements: records.length - 2,
+        pane: { top: pane.top, height: pane.height, width: pane.width },
+        parts,
+        rendered: [rendered.x, rendered.y, rendered.width, rendered.height],
+        visible: runtime.visibleFrameOf(mount)?.frame ?? null,
+        bbox: [...layout.rootBounds],
+      };
+    }, { size, presentation, chrome: CHROME });
+    await view.close();
+    return { ...result, viewport, size, errors };
+  };
+
+  const near = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length
+    && a.every((value, index) => Math.abs(value - b[index]) <= 0.5);
+  const holds = (outer, inner) => Array.isArray(outer) && inner[0] >= outer[0] - 0.5 && inner[1] >= outer[1] - 0.5
+    && inner[0] + inner[2] <= outer[0] + outer[2] + 0.5 && inner[1] + inner[3] <= outer[1] + outer[3] + 0.5;
+  const presentations = [];
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 1366, height: 657 }]) {
+    for (const size of ['small', 'large']) {
+      const at = `${viewport.width}x${viewport.height} ${size}`;
+      const bare = await presentationRun(viewport, size, 'chrome-free');
+      const plain = await presentationRun(viewport, size, 'default');
+      presentations.push({ at, bare, plain });
+      const blocked = bare.parts.filter(item => !item.drawn || item.clear !== 9);
+      check(`chrome-free ${at}: the embed and its document are marked`,
+        bare.presentation === 'chrome-free' && bare.documentPresentation === 'chrome-free',
+        { presentation: bare.presentation, document: bare.documentPresentation });
+      check(`chrome-free ${at}: no topbar, dock, status or toast is displayed`,
+        Object.values(bare.chrome).every(shown => shown === false), bare.chrome);
+      check(`chrome-free ${at}: the Active list is hidden and says so`,
+        bare.activeList.displayed === false && bare.activeList.snapshotVisible === false
+          && bare.activeList.items === bare.elements,
+        { ...bare.activeList, elements: bare.elements });
+      check(`chrome-free ${at}: every shape and label is clear at 9/9 points`,
+        bare.parts.length === 2 * (size === 'large' ? 12 : 3) && blocked.length === 0, blocked);
+      check(`chrome-free ${at}: visibleFrameOf is the rendered camera and holds the View.frame bbox`,
+        near(bare.visible, bare.rendered) && holds(bare.visible, bare.bbox),
+        { visible: bare.visible, rendered: bare.rendered, bbox: bare.bbox });
+      check(`default ${at}: the page keeps its topbar, dock, status and Active list`,
+        plain.presentation === 'default' && plain.documentPresentation === null
+          && plain.chrome['.topbar'] && plain.chrome['.editor-dock'] && plain.chrome['.status']
+          && plain.activeList.displayed && plain.activeList.snapshotVisible,
+        { presentation: plain.presentation, document: plain.documentPresentation, chrome: plain.chrome, activeList: plain.activeList });
+      check(`${at}: no page error in either presentation`,
+        bare.errors.length === 0 && plain.errors.length === 0, { bare: bare.errors, plain: plain.errors });
+    }
+  }
+
+  // R's counterexample on 5e63141: a read-only click selects a cell, and the
+  // page's copy-stable-ID chip appears in the pane's bottom-left corner over
+  // whatever is drawn there - and stays after an empty click or a
+  // double-click. Here node-1 is put under that corner at scale 1 through the
+  // public View.frame, then real mouse clicks select node-2, click empty space
+  // and double-click node-2. After each, every shape and label is measured at
+  // nine points. A double-click also opens maxGraph's own in-cell editor
+  // (.mxCellEditor) over the cell, in both presentations; that is pre-existing
+  // and read-only-safe, and it is reported, never counted as clear.
+  const measureInteraction = target => target.evaluate(() => {
+    const frame = document.querySelector('#pane iframe[data-package="semantic-map"]');
+    const doc = frame.contentDocument;
+    const win = frame.contentWindow;
+    const adapter = win.semanticMapApp.adapter;
+    const container = doc.querySelector('#graph-container');
+    const pane = container.getBoundingClientRect();
+    const frameBox = frame.getBoundingClientRect();
+    const chip = doc.querySelector('#semantic-id-chip');
+    const chipShown = chip !== null && !chip.hidden && win.getComputedStyle(chip).display !== 'none'
+      && chip.getBoundingClientRect().width > 0;
+    const editor = doc.querySelector('.mxCellEditor');
+    const editorShown = editor !== null && win.getComputedStyle(editor).display !== 'none'
+      && editor.getBoundingClientRect().width > 0;
+    const graphView = adapter.graph.getView();
+    const parts = [];
+    const centers = {};
+    for (const [regionId, cell] of adapter.cellsByRegionId) {
+      if (regionId === 'root') continue;
+      const state = graphView.getState(cell);
+      const shapeRect = state?.shape?.node?.getBoundingClientRect?.();
+      if (shapeRect) {
+        centers[regionId] = [
+          frameBox.left + frame.clientLeft + shapeRect.x + shapeRect.width / 2,
+          frameBox.top + frame.clientTop + shapeRect.y + shapeRect.height / 2,
+        ];
+      }
+      for (const [part, node] of [['shape', state?.shape?.node], ['label', state?.text?.node]]) {
+        if (!node?.isConnected) {
+          parts.push({ regionId, part, drawn: false, clear: 0, chrome: 0, editor: 0, other: 9 });
+          continue;
+        }
+        const rect = node.getBoundingClientRect();
+        const tally = { clear: 0, chrome: 0, editor: 0, other: 0 };
+        for (const fx of [0.2, 0.5, 0.8]) {
+          for (const fy of [0.2, 0.5, 0.8]) {
+            const x = rect.x + rect.width * fx;
+            const y = rect.y + rect.height * fy;
+            const pageX = frameBox.left + frame.clientLeft + x;
+            const pageY = frameBox.top + frame.clientTop + y;
+            const inside = x >= pane.left && x <= pane.right && y >= pane.top && y <= pane.bottom
+              && pageX >= 0 && pageY >= 0 && pageX <= innerWidth && pageY <= innerHeight
+              && document.elementFromPoint(pageX, pageY) === frame;
+            const hit = inside ? doc.elementFromPoint(x, y) : null;
+            if (hit === null) tally.other += 1;
+            else if (hit.closest('.mxCellEditor')) tally.editor += 1;
+            else if (hit.closest('[data-maxgraph-active-list], .topbar, .editor-dock, .status, .toast, .semantic-id-chip')) tally.chrome += 1;
+            else if (container.contains(hit)) tally.clear += 1;
+            else tally.other += 1;
+          }
+        }
+        parts.push({ regionId, part, drawn: true, ...tally });
+      }
+    }
+    return {
+      chipShown,
+      chipBox: chipShown ? (({ x, y, width, height }) => [x, y, width, height])(chip.getBoundingClientRect()) : null,
+      editorShown,
+      selected: adapter.selectionSnapshot?.().regionIds ?? null,
+      parts,
+      centers,
+      emptyPoint: [frameBox.left + frame.clientLeft + pane.left + pane.width / 2, frameBox.top + frame.clientTop + pane.top + 24],
+      node1: parts.filter(item => item.regionId === 'node-1'),
+    };
+  });
+
+  const interactionRun = async (viewport, presentation) => {
+    const view = await browser.newPage({ viewport });
+    const errors = [];
+    view.on('pageerror', error => errors.push(String(error)));
+    await view.goto(`${origin}/presentation.html`, { waitUntil: 'domcontentloaded' });
+    await view.evaluate(async ({ presentation }) => {
+      const protocol = await import('/semantic-map/protocol/index.js');
+      const runtime = await import('/semantic-map/runtime.js');
+      const records = [
+        { type: 'meta', schema: 'semantic-map-state/1', root: 'root', title: 'interaction' },
+        { type: 'region', id: 'root', parent: null, label: 'interaction', kind: 'boundary', bounds: [0, 0, 720, 260], summary: '' },
+        ...[1, 2, 3].map(index => ({
+          type: 'region', id: `node-${index}`, parent: 'root', label: `node ${index}`, kind: 'node',
+          bounds: [40 + index * 160, 90, 140, 64], summary: '',
+        })),
+        { type: 'relation', id: 'link-1', from: 'node-1', to: 'node-2', kind: 'flow', label: '' },
+        { type: 'relation', id: 'link-2', from: 'node-2', to: 'node-3', kind: 'flow', label: '' },
+      ];
+      const graph = await protocol.createDecisionLog(records, 'interaction');
+      const node1 = protocol.layoutBoundsFor(records, { pattern: 'graph/1' }).bounds['node-1'];
+      const mount = document.querySelector('#pane');
+      // The graph container's size in each presentation: the iframe's width,
+      // and its height less the 48 px topbar row where that row is drawn.
+      const width = mount.clientWidth;
+      const height = Math.max(560, Math.min(innerHeight * 0.78, 900)) - (presentation === 'default' ? 48 : 0);
+      // A bbox the size of the container, at scale 1, whose bottom-left puts
+      // node-1 12 px in from the left and 20 px up from the bottom: under the
+      // chip's corner (left 12 px, bottom 82 px).
+      const bbox = [node1[0] - 12, node1[1] + node1[3] + 20 - height, width, height];
+      const envelope = await protocol.createEnvelope(graph.log, null, {
+        pattern: 'graph/1', frame: { bbox, viewport: [width, height] },
+      });
+      await runtime.executeArtifactPackage({
+        document, input: { envelope }, surfaceMount: mount,
+        ...(presentation === 'default' ? {} : { presentation }),
+      });
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }, { presentation });
+    const settle = () => view.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const steps = {};
+    steps.before = await measureInteraction(view);
+    await view.mouse.click(...steps.before.centers['node-2']);
+    await settle();
+    steps.selected = await measureInteraction(view);
+    await view.mouse.click(...steps.selected.emptyPoint);
+    await settle();
+    steps.emptyClick = await measureInteraction(view);
+    await view.mouse.dblclick(...steps.emptyClick.centers['node-2']);
+    await settle();
+    steps.doubleClick = await measureInteraction(view);
+    await view.close();
+    return { steps, errors };
+  };
+
+  const interactions = [];
+  const chromeOf = step => step.parts.reduce((sum, item) => sum + item.chrome, 0);
+  const allClear = step => step.parts.every(item => item.drawn && item.clear === 9);
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 1366, height: 657 }]) {
+    const at = `${viewport.width}x${viewport.height}`;
+    const bare = await interactionRun(viewport, 'chrome-free');
+    const plain = await interactionRun(viewport, 'default');
+    interactions.push({ at, bare, plain });
+    const b = bare.steps;
+    const p = plain.steps;
+    check(`chip ${at}: default shows the chip after a click, over node-1 - so the proof can see it`,
+      p.selected.chipShown && p.selected.node1.some(item => item.chrome > 0),
+      { chip: p.selected.chipBox, node1: p.selected.node1 });
+    check(`chip ${at}: chrome-free before any click, every shape and label 9/9`,
+      allClear(b.before) && !b.before.chipShown, b.before.parts);
+    check(`chip ${at}: chrome-free after selecting node-2, no chip and every part 9/9`,
+      JSON.stringify(b.selected.selected) === '["node-2"]' && !b.selected.chipShown && allClear(b.selected),
+      { selected: b.selected.selected, chip: b.selected.chipBox, parts: b.selected.parts });
+    check(`chip ${at}: chrome-free after an empty click, no chip and every part 9/9`,
+      !b.emptyClick.chipShown && allClear(b.emptyClick),
+      { chip: b.emptyClick.chipBox, parts: b.emptyClick.parts });
+    check(`chip ${at}: chrome-free after a double-click, no chip and no provider chrome over any part`,
+      !b.doubleClick.chipShown && chromeOf(b.doubleClick) === 0
+        && b.doubleClick.parts.every(item => item.drawn && item.clear + item.editor === 9),
+      { chip: b.doubleClick.chipBox, editor: b.doubleClick.editorShown, parts: b.doubleClick.parts });
+    check(`chip ${at}: no page error in either presentation`,
+      bare.errors.length === 0 && plain.errors.length === 0, { bare: bare.errors, plain: plain.errors });
+  }
+
   const failed = checks.filter(item => !item.ok);
   if (failed.length > 0) {
     fail('visible frame proof failed', failed);
@@ -848,6 +1167,30 @@ try {
         shownHostRows: observed.clipped.measure.shownHostRows,
       },
       rotatedHost: observed.rotated.frame,
+      presentation: presentations.map(({ at, bare, plain }) => ({
+        at,
+        elements: bare.elements,
+        chromeFreeClearParts: `${bare.parts.filter(item => item.clear === 9).length}/${bare.parts.length}`,
+        defaultClearParts: `${plain.parts.filter(item => item.clear === 9).length}/${plain.parts.length}`,
+        defaultBlockers: [...new Set(plain.parts.flatMap(item => item.blockers ?? []))],
+        pane: bare.pane,
+      })),
+      interaction: interactions.map(({ at, bare, plain }) => ({
+        at,
+        defaultChipAfterSelect: plain.steps.selected.chipBox,
+        defaultNode1ChromePoints: plain.steps.selected.node1.map(item => `${item.part}:${item.chrome}`),
+        chromeFree: Object.fromEntries(Object.entries(bare.steps).map(([step, value]) => [step, {
+          chip: value.chipShown,
+          chromePoints: chromeOf(value),
+          clearParts: `${value.parts.filter(item => item.clear === 9).length}/${value.parts.length}`,
+        }])),
+        // The pre-existing in-cell editor after a double-click: which parts it
+        // covered and at how many points, in each presentation.
+        doubleClickEditor: {
+          chromeFree: { shown: bare.steps.doubleClick.editorShown, covered: bare.steps.doubleClick.parts.filter(item => item.editor > 0).map(item => `${item.regionId}.${item.part}:${item.editor}/9`) },
+          default: { shown: plain.steps.doubleClick.editorShown, covered: plain.steps.doubleClick.parts.filter(item => item.editor > 0).map(item => `${item.regionId}.${item.part}:${item.editor}/9`) },
+        },
+      })),
       checks: checks.length,
     }));
   }
