@@ -27,6 +27,7 @@ import "./check-ui-gov-package-output.mjs";
 import "./check-markdown-document-renderer.mjs";
 import "./check-markdown-renderer-boundary-regressions.mjs";
 import "./check-document-cli.mjs";
+import "./check-source-layout.mjs";
 import "./check-static-artifact-closure-regressions.mjs";
 import "../packages/core-port/test/intent-client.test.mjs";
 import "./check-connectability.mjs";
