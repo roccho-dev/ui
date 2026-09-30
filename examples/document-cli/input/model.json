@@ -1,0 +1,15 @@
+{
+  "kind": "document.model.v1",
+  "blocks": [
+    { "kind": "heading", "depth": 1, "text": "配備の確認（例）" },
+    { "kind": "paragraph", "text": "これは表示用の例です。実際の配備・合意を示しません。" },
+    {
+      "kind": "table",
+      "columns": ["ID", "確認", "状態"],
+      "rows": [
+        { "ID": "check-1", "確認": "前提を確認する", "状態": "未実施" },
+        { "ID": "check-2", "確認": "結果を読み返す", "状態": "未実施" }
+      ]
+    }
+  ]
+}
