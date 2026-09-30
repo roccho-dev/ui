@@ -101,6 +101,22 @@ try {
     fs.symlinkSync(path.join(root, 'value.mjs'), path.join(root, 'alias.mjs'));
     write(root, 'index.mjs', 'import "./alias.mjs";\n');
   });
+  check('canonical-path-missing-behind-earlier-alias', root => {
+    write(root, 'z/real/index.js', 'import "../dep.js";\n');
+    write(root, 'dep.js');
+    fs.symlinkSync(path.join(root, 'z/real'), path.join(root, 'a_alias'));
+  }, 'missing-static-dependency');
+  check('alias-path-missing-behind-earlier-canonical', root => {
+    write(root, 'a/real/index.js', 'import "../dep.js";\n');
+    write(root, 'a/dep.js');
+    fs.symlinkSync(path.join(root, 'a/real'), path.join(root, 'z_alias'));
+  }, 'missing-static-dependency');
+  check('canonical-and-alias-dependencies-both-exist', root => {
+    write(root, 'z/real/index.js', 'import "../dep.js";\n');
+    write(root, 'dep.js');
+    write(root, 'z/dep.js');
+    fs.symlinkSync(path.join(root, 'z/real'), path.join(root, 'a_alias'));
+  });
   check('directory-symlink-cycle-is-bounded', root => {
     write(root, 'index.mjs');
     fs.symlinkSync(root, path.join(root, 'self'));

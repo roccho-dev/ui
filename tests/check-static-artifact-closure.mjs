@@ -22,11 +22,11 @@ const inside = target => {
 };
 const files = [];
 const failures = [];
-const visited = new Set();
+const ancestors = new Set();
 const walk = directory => {
   const actual = fs.realpathSync(directory);
-  if (visited.has(actual)) return;
-  visited.add(actual);
+  if (ancestors.has(actual)) return;
+  ancestors.add(actual);
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const target = path.join(directory, entry.name);
     let resolved;
@@ -40,6 +40,7 @@ const walk = directory => {
     if (stat.isDirectory()) walk(target);
     else if (stat.isFile() && /\.(?:mjs|js)$/u.test(entry.name)) files.push(target);
   }
+  ancestors.delete(actual);
 };
 walk(root);
 if (files.length === 0) failures.push({ reason: "empty-module-scope" });
