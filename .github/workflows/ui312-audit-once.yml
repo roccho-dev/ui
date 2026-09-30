@@ -1,0 +1,36 @@
+name: UI312 read-only source audit
+on:
+  push:
+    branches: [audit/ui-312-read-only-source]
+permissions:
+  contents: read
+jobs:
+  audit-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6ed79da2b92e19f0c9a97f7c3c6fc7b7f54ed485
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Export only the exact tracked source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=6ed79da2b92e19f0c9a97f7c3c6fc7b7f54ed485
+          test "$(git rev-parse HEAD)" = "$expected"
+          output="$RUNNER_TEMP/ui312-audit"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/source.sha"
+          git rev-parse HEAD^{tree} > "$output/source.tree"
+          git cat-file commit HEAD > "$output/source.commit"
+          git ls-tree -rz HEAD > "$output/source.entries"
+          git archive --format=tar HEAD | gzip -n > "$output/source.tar.gz"
+          (cd "$output" && sha256sum source.* > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui312-exact-source-6ed79da
+          path: ${{ runner.temp }}/ui312-audit/
+          if-no-files-found: error
+          retention-days: 1
