@@ -1,20 +1,48 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const root = path.resolve(process.argv[2] ?? "");
-if (!root || !fs.statSync(root).isDirectory()) {
-  throw new Error("artifact root directory is required");
+const reportFailure = failures => {
+  console.error(JSON.stringify({ status: "FAIL", failures }, null, 2));
+  process.exit(1);
+};
+const args = process.argv.slice(2);
+if (args.length !== 1 || !args[0].trim()) {
+  reportFailure([{ reason: "artifact-root-required" }]);
 }
-
+let root;
+try {
+  root = fs.realpathSync(path.resolve(args[0]));
+  if (!fs.statSync(root).isDirectory()) throw new Error("not-directory");
+} catch {
+  reportFailure([{ reason: "invalid-artifact-root" }]);
+}
+const inside = target => {
+  const relative = path.relative(root, target);
+  return relative === "" || (!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`));
+};
 const files = [];
+const failures = [];
+const visited = new Set();
 const walk = directory => {
+  const actual = fs.realpathSync(directory);
+  if (visited.has(actual)) return;
+  visited.add(actual);
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const target = path.join(directory, entry.name);
-    if (entry.isDirectory()) walk(target);
-    else if (entry.isFile() && /\.(?:mjs|js)$/u.test(entry.name)) files.push(target);
+    let resolved;
+    try { resolved = fs.realpathSync(target); }
+    catch { failures.push({ file: path.relative(root, target), reason: "unresolved-artifact-entry" }); continue; }
+    if (!inside(resolved)) {
+      failures.push({ file: path.relative(root, target), reason: "artifact-entry-escape" });
+      continue;
+    }
+    const stat = fs.statSync(target);
+    if (stat.isDirectory()) walk(target);
+    else if (stat.isFile() && /\.(?:mjs|js)$/u.test(entry.name)) files.push(target);
   }
 };
 walk(root);
+if (files.length === 0) failures.push({ reason: "empty-module-scope" });
 
 const staticModuleSpecifiers = source => {
   const specs = new Set();
@@ -47,7 +75,6 @@ const staticModuleSpecifiers = source => {
   return specs;
 };
 
-const failures = [];
 for (const file of files) {
   const source = fs.readFileSync(file, "utf8");
   for (const spec of staticModuleSpecifiers(source)) {
@@ -61,19 +88,22 @@ for (const file of files) {
     const target = spec.startsWith("/")
       ? path.join(root, clean.slice(1))
       : path.resolve(path.dirname(file), clean);
-    if (!fs.existsSync(target)) {
-      failures.push({
-        file: path.relative(root, file),
-        spec,
-        target: path.relative(root, target),
-        reason: "missing-static-dependency",
-      });
+    const item = { file: path.relative(root, file), spec, target: path.relative(root, target) };
+    if (!inside(target)) {
+      failures.push({ ...item, reason: "static-dependency-escape" });
+      continue;
+    }
+    try {
+      if (!inside(fs.realpathSync(target))) {
+        failures.push({ ...item, reason: "static-dependency-escape" });
+      } else if (!fs.statSync(target).isFile()) {
+        failures.push({ ...item, reason: "static-dependency-not-file" });
+      }
+    } catch {
+      failures.push({ ...item, reason: "missing-static-dependency" });
     }
   }
 }
 
-if (failures.length) {
-  console.error(JSON.stringify({ status: "FAIL", failures }, null, 2));
-  process.exit(1);
-}
+if (failures.length) reportFailure(failures);
 console.log(JSON.stringify({ schema: "ui-static-artifact-closure/1", status: "PASS", files: files.length }));
