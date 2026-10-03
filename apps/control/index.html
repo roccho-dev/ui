@@ -1,12 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Control</title>
+  <title>P/D Control · local draft</title>
+  <style>
+    .draft-bar{display:flex;gap:10px;align-items:center;padding:7px 12px;background:#fff;border-bottom:1px solid #ddd;font:11px/1.4 system-ui,sans-serif}
+    .draft-bar button,.dialog-actions button{padding:3px 8px;border:1px solid #bbb;border-radius:5px;background:#fff;cursor:pointer}
+    .property:is(button){border:0;cursor:text;text-align:left}
+    .property:is(button):hover{text-decoration:underline dotted}
+    .property:is(button):focus-visible,.relation-toggle:focus-visible,.grid-row button:focus-visible{outline:2px solid #5877a8;outline-offset:1px}
+    .grid-cell[data-control-column=control]>.actions{display:flex;gap:3px;margin-left:auto}
+    .actions button{padding:0 4px;border:1px solid #ccc;border-radius:5px;background:#fff;color:#444;font:10px/1.4 system-ui,sans-serif;cursor:pointer}
+    .actions button:disabled{opacity:.4;cursor:not-allowed}
+    dialog{width:min(720px,calc(100% - 24px));padding:12px;border:1px solid #bbb;border-radius:8px}
+    dialog::backdrop{background:#0004}
+    dialog h2{margin:0 0 8px;font:650 14px/1.4 system-ui,sans-serif}
+    dialog textarea{width:100%;height:min(48vh,320px);padding:8px;resize:vertical;border:1px solid #bbb;border-radius:6px;font:11px/1.45 ui-monospace,monospace}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:7px}
+    #editor-error{display:block;min-height:1.4em;margin-top:5px;color:#8b3030}
+    #status{position:fixed;right:10px;bottom:10px;z-index:3;max-width:min(560px,calc(100% - 20px));padding:5px 8px;border:1px solid #ccc;border-radius:6px;background:#fff;font:11px/1.4 system-ui,sans-serif;box-shadow:0 2px 8px #0002}
+    #status:empty{display:none}
+    #status.error{color:#8b3030}
+    #fatal{padding:10px;color:#8b3030;white-space:pre-wrap}
+  </style>
 </head>
 <body>
+  <header class="draft-bar"><strong>Control · local draft</strong><span>Save does not adopt policy.</span><button id="reload" type="button">Reload</button></header>
   <main id="feature"></main>
+  <dialog id="editor">
+    <h2><label id="editor-title" for="record-editor"></label></h2>
+    <textarea id="record-editor" spellcheck="false"></textarea>
+    <div class="dialog-actions"><button id="cancel" type="button">cancel</button><button id="save" type="button">save</button></div>
+    <output id="editor-error"></output>
+  </dialog>
+  <output id="status" role="status" aria-live="polite"></output>
   <pre id="fatal" hidden></pre>
   <script type="module" src="/apps/control/main.mjs"></script>
 </body>

@@ -54,9 +54,15 @@ const findJoinedRecord = ({ join, model, record }) => {
   invariant(matches.length <= 1, `${join.sourcePath} contains duplicate match for ${String(local)}`);
   return matches[0];
 };
-const propertyElement = ({ classes, document, key, value, rest = false, title = false }) => {
-  const item = document.createElement('span');
+const propertyElement = ({ classes, document, key, value, rest = false, title = false, editId = null }) => {
+  const item = document.createElement(editId && key !== 'id' ? 'button' : 'span');
   addClass(item, className(classes, 'property'));
+  if (item.tagName?.toLowerCase() === 'button') {
+    item.type = 'button';
+    item.dataset.editId = editId;
+    item.dataset.editKey = key;
+    item.setAttribute('aria-label', `edit ${key} of ${editId}`);
+  }
   item.dataset.key = key;
   item.dataset.value = valueText(value);
   if (rest) item.dataset.rest = 'true';
@@ -77,13 +83,17 @@ const appendSource = ({ classes, component, dataModel, document, properties, rec
   const idKey = rootKey(component.idPath);
   const title = readPath(record, component.titlePath);
   const id = readPath(record, component.idPath);
-  if (title !== undefined) properties.append(propertyElement({ classes, document, key: titleKey, value: title, title: true }));
+  const editId = component.editable ? id : null;
+  if (title !== undefined) properties.append(propertyElement({ classes, document, key: titleKey, value: title, title: true, editId }));
   properties.append(propertyElement({ classes, document, key: idKey, value: id }));
   appendDataPinMarker({ container: properties, dataModel, document, targetId: id });
   const excluded = new Set([titleKey, idKey, rootKey(component.parentPath), rootKey(component.relationKindPath)]);
   for (const [key, value] of Object.entries(record)) {
     if (excluded.has(key)) continue;
-    properties.append(propertyElement({ classes, document, key, value, rest: true }));
+    properties.append(propertyElement({ classes, document, key, value, rest: true, editId }));
+  }
+  if (component.editable && Object.hasOwn(record, 'rel')) {
+    properties.append(propertyElement({ classes, document, key: 'rel', value: record.rel, rest: true, editId }));
   }
 };
 const appendJoined = ({ classes, component, dataModel, document, joined, properties, record, missing }) => {
@@ -115,7 +125,9 @@ const validateColumn = (column, index) => {
 const definitions = [{
   name: 'TreeGrid',
   validate: component => {
-    assertExactKeys(component, ['id', 'component', 'sourcePath', 'idPath', 'parentPath', 'relationKindPath', 'titlePath', 'join', 'classes', 'columns'], [], 'TreeGrid');
+    assertExactKeys(component, ['id', 'component', 'sourcePath', 'idPath', 'parentPath', 'relationKindPath', 'titlePath', 'join', 'classes', 'columns'], ['editable', 'collapseDetails'], 'TreeGrid');
+    if (component.editable !== undefined) invariant(typeof component.editable === 'boolean', 'TreeGrid.editable must be boolean');
+    if (component.collapseDetails !== undefined) invariant(typeof component.collapseDetails === 'boolean', 'TreeGrid.collapseDetails must be boolean');
     for (const key of ['sourcePath', 'idPath', 'parentPath', 'relationKindPath', 'titlePath']) text(component[key], `TreeGrid.${key}`);
     validateJoin(component.join, 'TreeGrid.join');
     stringMap(component.classes, 'TreeGrid.classes');
@@ -191,6 +203,22 @@ const definitions = [{
         cells.push(cell);
       }
 
+      if (component.editable) {
+        const actions = document.createElement('div');
+        addClass(actions, className(component.classes, 'actions'));
+        for (const name of ['create', 'delete']) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = name;
+          button.dataset.controlAction = name;
+          button.dataset.controlId = id;
+          button.disabled = name === 'delete' && (record === roots[0] || children.get(id).length > 0);
+          button.dataset.locked = String(button.disabled);
+          actions.append(button);
+        }
+        cells[0].append(actions);
+      }
+
       const nested = children.get(id);
       const branches = [];
       if (nested.length) {
@@ -215,10 +243,13 @@ const definitions = [{
           toggle.dataset.controlToggle = kind;
           toggle.dataset.controlCount = String(members.length);
           const label = open => `${open ? '▾' : '▸'} ${kind} ${members.length}`;
-          toggle.textContent = label(true);
+          branch.hidden = component.collapseDetails === true && kind === 'details';
+          toggle.textContent = label(!branch.hidden);
+          toggle.setAttribute('aria-expanded', String(!branch.hidden));
           toggle.addEventListener('click', () => {
             branch.hidden = !branch.hidden;
             toggle.textContent = label(!branch.hidden);
+            toggle.setAttribute('aria-expanded', String(!branch.hidden));
           });
           controls.append(toggle);
         }
