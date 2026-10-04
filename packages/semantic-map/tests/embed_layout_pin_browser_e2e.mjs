@@ -203,7 +203,9 @@ try {
       const markers = paths.filter(node => node.getAttribute('fill') === color);
       const point = (node, length) => {
         const at = node.getPointAtLength(length);
-        const transformed = new DOMPoint(at.x, at.y).matrixTransform(node.getScreenCTM());
+        const matrix = node.getScreenCTM();
+        if (!matrix || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f, at.x, at.y].every(Number.isFinite)) return null;
+        const transformed = new DOMPoint(at.x, at.y).matrixTransform(matrix);
         return { x: transformed.x, y: transformed.y };
       };
       const shaft = shafts.length === 1 ? shafts[0] : null;
@@ -217,22 +219,59 @@ try {
           shape: state.style.shape ?? 'rectangle', ellipse: state.shape.node.querySelectorAll('ellipse').length };
       };
       const sourceBox = geometry(from), targetBox = geometry(to);
-      const onBoundary = (at, box) => {
-        if (!at || !(box.w > 0 && box.h > 0)) return false;
-        const x = Math.abs(at.x - box.x - box.w / 2) / (box.w / 2);
-        const y = Math.abs(at.y - box.y - box.h / 2) / (box.h / 2);
-        const measure = box.shape === 'ellipse' ? x * x + y * y
-          : box.shape === 'semanticDiamond' ? x + y : Math.max(x, y);
-        return Math.abs(measure - 1) <= 0.12;
+      const paintedBoundary = (at, id) => {
+        const state = view.getState(adapter.cellsByRegionId.get(id));
+        const primitives = [...state.shape.node.querySelectorAll('path,rect,ellipse')];
+        let distance = Infinity, tolerance = 0, visible = 0;
+        if (!at || ![at.x, at.y].every(Number.isFinite)) return { ok: false, reason: 'nonfinite endpoint' };
+        for (const node of primitives) {
+          const style = node.ownerDocument.defaultView.getComputedStyle(node);
+          const box = node.getBoundingClientRect(), matrix = node.getScreenCTM();
+          if (!node.isConnected || !matrix || style.display === 'none' || style.visibility !== 'visible'
+            || Number(style.opacity) === 0 || !(box.width > 0 && box.height > 0)
+            || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite)) continue;
+          if (node.getAttribute('fill') === 'none' && node.getAttribute('stroke') === 'none') continue;
+          const scale = Math.hypot(matrix.a, matrix.b) + Math.hypot(matrix.c, matrix.d);
+          const length = node.getTotalLength();
+          if (!(length > 0 && Number.isFinite(length) && scale > 0)) continue;
+          visible++;
+          // At most half a screen pixel between samples. Segment distance is
+          // independent of the producer's perimeter implementation, including
+          // rounded rectangles and the data node's actual slanted outline.
+          const samples = Math.ceil(length * scale * 2);
+          let previous = point(node, 0), nearest = Infinity;
+          for (let index = 1; index <= samples; index++) {
+            const next = point(node, length * index / samples);
+            if (!previous || !next) { nearest = Infinity; break; }
+            const dx = next.x - previous.x, dy = next.y - previous.y;
+            const t = Math.max(0, Math.min(1, ((at.x - previous.x) * dx + (at.y - previous.y) * dy) / (dx * dx + dy * dy || 1)));
+            nearest = Math.min(nearest, Math.hypot(at.x - previous.x - t * dx, at.y - previous.y - t * dy));
+            previous = next;
+          }
+          if (nearest < distance) {
+            distance = nearest;
+            // Painted stroke radii plus the explicit half-pixel sampling
+            // bound; no shape-relative percentage or conceptual bounding box.
+            const nodeScale = Math.max(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d));
+            const edgeMatrix = shaft?.getScreenCTM();
+            const edgeScale = edgeMatrix ? Math.max(Math.hypot(edgeMatrix.a, edgeMatrix.b), Math.hypot(edgeMatrix.c, edgeMatrix.d)) : 0;
+            tolerance = Number.parseFloat(style.strokeWidth) * nodeScale / 2
+              + Number.parseFloat(shaft?.getAttribute('stroke-width') ?? '1') * edgeScale / 2 + 0.5;
+          }
+        }
+        return { ok: visible > 0 && Number.isFinite(distance) && Number.isFinite(tolerance) && distance <= tolerance,
+          distance: Number.isFinite(distance) ? distance : null, tolerance, visible };
       };
+      const sourceBoundary = paintedBoundary(source, from), targetBoundary = paintedBoundary(target, to);
       const shaftEnd = shaft ? point(shaft, shaft.getTotalLength()) : null;
-      const direction = marker && shaftEnd
+      const direction = marker && target && shaftEnd
         ? (target.x - shaftEnd.x) * (targetBox.x + targetBox.w / 2 - sourceBox.x - sourceBox.w / 2)
           + (target.y - shaftEnd.y) * (targetBox.y + targetBox.h / 2 - sourceBox.y - sourceBox.h / 2) > 0
         : kind === 'association';
       paint.push({ name, error: null, edges: edges.length, shafts: shafts.length,
         markers: markers.length, directed: kind !== 'association', direction,
-        sourceBoundary: onBoundary(source, sourceBox), targetBoundary: onBoundary(target, targetBox),
+        sourceBoundary: sourceBoundary.ok, targetBoundary: targetBoundary.ok,
+        boundaryEvidence: { source: sourceBoundary, target: targetBoundary },
         sourceBox, targetBox, source, target,
         ellipse: [from, to].filter(id => ['start', 'end'].includes(id)).every(id => geometry(id).ellipse === 1),
         paths: paths.map(node => node.getAttribute('d')),
