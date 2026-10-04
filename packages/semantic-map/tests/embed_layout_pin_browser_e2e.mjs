@@ -88,7 +88,7 @@ const fail = (message, detail) => {
 
 let browser = null;
 try {
-  browser = await chromium.launch({ headless: true, channel: 'chromium' });
+  browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));
