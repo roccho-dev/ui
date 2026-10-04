@@ -197,8 +197,23 @@ try {
       const edges = [...adapter.edgesByProjectionKey.values()];
       const edge = edges.length === 1 ? view.getState(edges[0]) : null;
       const color = edge?.style.strokeColor;
+      const visiblePaint = node => {
+        const style = node.ownerDocument.defaultView.getComputedStyle(node);
+        const opaque = value => value !== 'none' && value !== 'transparent'
+          && !/^rgba\([^)]*,\s*0(?:\.0*)?\)$/u.test(value);
+        const painted = (opaque(style.fill) && Number(style.fillOpacity) > 0)
+          || (opaque(style.stroke) && Number(style.strokeOpacity) > 0 && Number.parseFloat(style.strokeWidth) > 0);
+        const box = node.getBoundingClientRect(), matrix = node.getScreenCTM();
+        if (!node.isConnected || !painted || !matrix || !(box.width > 0 || box.height > 0)
+          || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite)) return false;
+        for (let element = node; element; element = element.parentElement) {
+          const computed = element.ownerDocument.defaultView.getComputedStyle(element);
+          if (computed.display === 'none' || computed.visibility !== 'visible' || Number(computed.opacity) === 0) return false;
+        }
+        return true;
+      };
       const paths = [...(edge?.shape?.node?.querySelectorAll('path') ?? [])]
-        .filter(node => node.getAttribute('stroke') === color && node.getTotalLength() > 0);
+        .filter(node => node.getAttribute('stroke') === color && node.getTotalLength() > 0 && visiblePaint(node));
       const shafts = paths.filter(node => node.getAttribute('fill') === 'none');
       const markers = paths.filter(node => node.getAttribute('fill') === color);
       const point = (node, length) => {
@@ -206,7 +221,7 @@ try {
         const matrix = node.getScreenCTM();
         if (!matrix || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f, at.x, at.y].every(Number.isFinite)) return null;
         const transformed = new DOMPoint(at.x, at.y).matrixTransform(matrix);
-        return { x: transformed.x, y: transformed.y };
+        return [transformed.x, transformed.y].every(Number.isFinite) ? { x: transformed.x, y: transformed.y } : null;
       };
       const shaft = shafts.length === 1 ? shafts[0] : null;
       const marker = markers.length === 1 ? markers[0] : null;
@@ -221,16 +236,16 @@ try {
       const sourceBox = geometry(from), targetBox = geometry(to);
       const paintedBoundary = (at, id) => {
         const state = view.getState(adapter.cellsByRegionId.get(id));
-        const primitives = [...state.shape.node.querySelectorAll('path,rect,ellipse')];
+        const primitives = [...state.shape.node.querySelectorAll('path,rect,ellipse')].filter(visiblePaint);
         let distance = Infinity, tolerance = 0, visible = 0;
         if (!at || ![at.x, at.y].every(Number.isFinite)) return { ok: false, reason: 'nonfinite endpoint' };
+        if (primitives.length !== 1) return { ok: false, reason: 'expected one painted node primitive', primitives: primitives.length };
         for (const node of primitives) {
           const style = node.ownerDocument.defaultView.getComputedStyle(node);
           const box = node.getBoundingClientRect(), matrix = node.getScreenCTM();
           if (!node.isConnected || !matrix || style.display === 'none' || style.visibility !== 'visible'
             || Number(style.opacity) === 0 || !(box.width > 0 && box.height > 0)
             || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite)) continue;
-          if (node.getAttribute('fill') === 'none' && node.getAttribute('stroke') === 'none') continue;
           const scale = Math.hypot(matrix.a, matrix.b) + Math.hypot(matrix.c, matrix.d);
           const length = node.getTotalLength();
           if (!(length > 0 && Number.isFinite(length) && scale > 0)) continue;
