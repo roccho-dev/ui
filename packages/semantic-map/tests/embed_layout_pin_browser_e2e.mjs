@@ -74,8 +74,9 @@ const fail = (message, detail) => {
   process.exitCode = 1;
 };
 
-const browser = await chromium.launch({ headless: true, channel: 'chromium' });
+let browser = null;
 try {
+  browser = await chromium.launch({ headless: true, channel: 'chromium' });
   const page = await browser.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));
@@ -164,6 +165,80 @@ try {
     const withPins = await draw(pinned, 'pinned');
     const offScreen = await draw(offCanvas, 'off-canvas');
 
+    // Independent inline inputs exercise the public graph shapes and both
+    // directions. Inspect painted paths, not just logical edge membership.
+    const paintRecords = [
+      { type: 'meta', schema: 'semantic-map-state/1', root: 'root', title: 'paint proof' },
+      { type: 'region', id: 'root', parent: null, label: 'paint proof', kind: 'boundary', bounds: [0, 0, 960, 260], summary: '' },
+      ...['node', 'data', 'decision', 'start', 'end'].map((kind, index) => ({
+        type: 'region', id: kind, parent: 'root', label: kind, kind,
+        bounds: [40 + index * 180, 90, 120, 64], summary: '',
+      })),
+    ];
+    const paintBase = await protocol.createDecisionLog(paintRecords, 'paint-proof');
+    const cases = [
+      ['forward', 'node', 'data', 'flow'],
+      ['reverse', 'decision', 'data', 'flow'],
+      ['other-endpoint', 'start', 'decision', 'flow'],
+      ['terminal', 'start', 'end', 'flow'],
+      ['undirected', 'node', 'end', 'association'],
+    ];
+    const paint = [];
+    for (const [name, from, to, kind] of cases) {
+      const decision = await protocol.createDecision(paintBase.head, [{
+        type: 'ConnectRegions', relationId: name, from, to, kind, label: '',
+      }, { type: 'PinRegions', items: paintRecords.filter(record => record.type === 'region' && record.id !== 'root')
+        .map(record => ({ regionId: record.id, bounds: record.bounds })) }], paintBase.records);
+      const log = await protocol.appendDecision(paintBase.log, decision.decision);
+      const rendered = await draw(log, 'paint-' + name);
+      if (rendered.error !== null) { paint.push({ name, error: rendered.error }); continue; }
+      const adapter = rendered.frame.contentWindow.semanticMapApp.adapter;
+      const view = adapter.graph.getView();
+      const edges = [...adapter.edgesByProjectionKey.values()];
+      const edge = edges.length === 1 ? view.getState(edges[0]) : null;
+      const color = edge?.style.strokeColor;
+      const paths = [...(edge?.shape?.node?.querySelectorAll('path') ?? [])]
+        .filter(node => node.getAttribute('stroke') === color && node.getTotalLength() > 0);
+      const shafts = paths.filter(node => node.getAttribute('fill') === 'none');
+      const markers = paths.filter(node => node.getAttribute('fill') === color);
+      const point = (node, length) => {
+        const at = node.getPointAtLength(length);
+        const transformed = new DOMPoint(at.x, at.y).matrixTransform(node.getScreenCTM());
+        return { x: transformed.x, y: transformed.y };
+      };
+      const shaft = shafts.length === 1 ? shafts[0] : null;
+      const marker = markers.length === 1 ? markers[0] : null;
+      const source = shaft ? point(shaft, 0) : null;
+      const target = marker ? point(marker, 0) : shaft ? point(shaft, shaft.getTotalLength()) : null;
+      const geometry = id => {
+        const state = view.getState(adapter.cellsByRegionId.get(id));
+        const box = state.shape.node.getBoundingClientRect();
+        return { x: box.x, y: box.y, w: box.width, h: box.height,
+          shape: state.style.shape ?? 'rectangle', ellipse: state.shape.node.querySelectorAll('ellipse').length };
+      };
+      const sourceBox = geometry(from), targetBox = geometry(to);
+      const onBoundary = (at, box) => {
+        if (!at || !(box.w > 0 && box.h > 0)) return false;
+        const x = Math.abs(at.x - box.x - box.w / 2) / (box.w / 2);
+        const y = Math.abs(at.y - box.y - box.h / 2) / (box.h / 2);
+        const measure = box.shape === 'ellipse' ? x * x + y * y
+          : box.shape === 'semanticDiamond' ? x + y : Math.max(x, y);
+        return Math.abs(measure - 1) <= 0.12;
+      };
+      const shaftEnd = shaft ? point(shaft, shaft.getTotalLength()) : null;
+      const direction = marker && shaftEnd
+        ? (target.x - shaftEnd.x) * (targetBox.x + targetBox.w / 2 - sourceBox.x - sourceBox.w / 2)
+          + (target.y - shaftEnd.y) * (targetBox.y + targetBox.h / 2 - sourceBox.y - sourceBox.h / 2) > 0
+        : kind === 'association';
+      paint.push({ name, error: null, edges: edges.length, shafts: shafts.length,
+        markers: markers.length, directed: kind !== 'association', direction,
+        sourceBoundary: onBoundary(source, sourceBox), targetBoundary: onBoundary(target, targetBox),
+        sourceBox, targetBox, source, target,
+        ellipse: [from, to].filter(id => ['start', 'end'].includes(id)).every(id => geometry(id).ellipse === 1),
+        paths: paths.map(node => node.getAttribute('d')),
+      });
+    }
+
     // The public layout contract must answer with the same positions this
     // embed actually drew. It is what a consumer places things against, so a
     // number that drifts from the screen would send it somewhere wrong.
@@ -198,6 +273,7 @@ try {
     const stripFrame = ({ frame, ...rest }) => rest;
     return {
       contract,
+      paint,
       pinnedBounds: PINNED,
       offCanvasBounds: OFF_CANVAS,
       offCanvas: stripFrame(offScreen),
@@ -218,6 +294,14 @@ try {
   check('the log carries one layout record from PinRegions',
     observed.layoutRecords.length === 1 && observed.layoutRecords[0].regionId === 'node-c',
     observed.layoutRecords);
+  for (const item of observed.paint) {
+    check('actual painted shaft, marker and endpoints: ' + item.name,
+      item.error === null && item.edges === 1 && item.shafts === 1
+        && item.markers === (item.directed ? 1 : 0) && item.direction
+        && item.sourceBoundary && item.targetBoundary && item.ellipse,
+      item);
+  }
+  check('all paint controls ran', observed.paint.length === 5, observed.paint.length);
   check('a log without pins still renders', observed.auto.error === null, observed.auto.error);
   check('a log with pins renders at all', observed.pinned.error === null, observed.pinned.error);
 
@@ -293,6 +377,21 @@ try {
     }));
   }
 } finally {
-  await browser.close();
-  await new Promise(resolve => server.close(resolve));
+  // Launch failure must also release the ephemeral server. A browser close
+  // failure cannot bypass server cleanup or become a successful receipt.
+  try {
+    if (browser) {
+      let timer;
+      try {
+        await Promise.race([
+          browser.close(),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('browser cleanup timeout')), 30000); }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 }
