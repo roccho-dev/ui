@@ -75,15 +75,15 @@ assert.deepEqual(adapterArtifact.proof_execution.conditional_steps, ["Caddy inst
 const adapterText = read(adapterArtifact.path);
 for (const job of ["ui-base-checks", "artifact-runtime-core", "semantic-map-runtime-checks", "decision-packet-runtime-checks", "semantic-browser-proof", "ssg-hot-refresh-proof", "adapter-artifacts"]) assert.match(adapterText, new RegExp(`\\n  ${job}:`));
 requireText(adapterText, [
-  /python3 packages\/semantic-map\/tests\/browser_example\.py/,
+  /python3 capabilities\/semantic-map\/tests\/browser_example\.py/,
   /npm run proof:semantic-map-meaning-recovery/,
-  /python3 packages\/decision-packet\/tests\/browser-example\.py/,
+  /python3 capabilities\/decision-packet\/tests\/browser-example\.py/,
   /python3 apps\/artifact-shell\/tests\/browser-proof\.py/,
   /python3 apps\/artifact-shell\/tests\/decision-packet-browser-proof\.py/,
-  /node packages\/a2ui-adapter-artifacts\/scripts\/build\.mjs/,
+  /node adapters\/a2ui-adapter-artifacts\/scripts\/build\.mjs/,
   /node scripts\/build-contract-model-atlas-artifact\.mjs/,
-  /node packages\/a2ui-adapter-artifacts\/scripts\/build-repo-map-svgpanzoom\.mjs/,
-  /node packages\/a2ui-adapter-artifacts\/scripts\/check-geomap-final-gate\.mjs/,
+  /node adapters\/a2ui-adapter-artifacts\/scripts\/build-repo-map-svgpanzoom\.mjs/,
+  /node adapters\/a2ui-adapter-artifacts\/scripts\/check-geomap-final-gate\.mjs/,
   /CADDY_EXPECTED_VERSION:\s*v2\.11\.3/,
   /name:\s*adapter-artifact-index/,
 ]);
@@ -150,7 +150,7 @@ for (const value of [gestureJoin.entrypoint, gestureJoin.source]) forbidText(val
 const gestureJoinText = read(gestureJoin.path);
 requireText(gestureJoinText, [
   /name:\s*Semantic Map gesture-review join/,
-  /node packages\/semantic-map\/tests\/run\.mjs/,
+  /node capabilities\/semantic-map\/tests\/run\.mjs/,
   /npm --prefix apps\/preview run check/,
   /python3 apps\/preview\/tests\/unified-runtime-data-browser-proof\.py/,
   /set_topology_gesture_review_join_browser_e2e\.py/,

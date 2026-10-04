@@ -10,7 +10,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[3]
-PACKAGE = ROOT / "packages" / "semantic-map"
+PACKAGE = ROOT / "capabilities" / "semantic-map"
 FIXTURES = ROOT / "apps" / "artifact-shell" / "capabilities" / "render-semantic-map" / "fixtures"
 
 
