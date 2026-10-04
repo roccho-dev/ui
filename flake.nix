@@ -165,7 +165,7 @@
     {
       devShells = forEachSystem (pkgs: {
         semantic-map-browser-proof = pkgs.mkShell {
-          packages = [ pkgs.nodejs pkgs.playwright-driver pkgs.playwright-driver.browsers pkgs.tini pkgs.coreutils ];
+          packages = [ pkgs.nodejs pkgs.python3 pkgs.playwright-driver pkgs.playwright-driver.browsers pkgs.tini pkgs.coreutils ];
           PLAYWRIGHT_DRIVER_ROOT = "${pkgs.playwright-driver}";
           PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
         };
