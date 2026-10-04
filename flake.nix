@@ -164,10 +164,20 @@
     in
     {
       devShells = forEachSystem (pkgs: {
-        semantic-map-browser-proof = pkgs.mkShell {
-          packages = [ pkgs.nodejs pkgs.python3 pkgs.playwright-driver pkgs.playwright-driver.browsers pkgs.tini pkgs.coreutils ];
+        semantic-map-browser-proof = let
+          fontConfig = pkgs.writeText "semantic-map-browser-proof-fonts.conf" ''
+            <?xml version="1.0"?>
+            <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+            <fontconfig>
+              <dir>${pkgs.dejavu_fonts.minimal}/share/fonts/truetype</dir>
+              <cachedir prefix="xdg">fontconfig</cachedir>
+            </fontconfig>
+          '';
+        in pkgs.mkShell {
+          packages = [ pkgs.nodejs pkgs.python3 pkgs.playwright-driver pkgs.playwright-driver.browsers pkgs.tini pkgs.coreutils pkgs.fontconfig.bin ];
           PLAYWRIGHT_DRIVER_ROOT = "${pkgs.playwright-driver}";
           PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+          FONTCONFIG_FILE = "${fontConfig}";
         };
       });
 

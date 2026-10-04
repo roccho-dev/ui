@@ -23,6 +23,11 @@ import { createRequire } from 'node:module';
 // matching browsers. Never resolve an ambient npm package or download one.
 const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
 const browsersRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
+const fontConfig = process.env.FONTCONFIG_FILE;
+if (!fontConfig || !path.isAbsolute(fontConfig) || !fontConfig.startsWith('/nix/store/') ||
+    !fs.lstatSync(fontConfig).isFile() || fs.realpathSync(fontConfig) !== fontConfig) {
+  throw new Error('the semantic-map-browser-proof Nix shell must provide a regular realized font configuration');
+}
 if (!driverRoot || !path.isAbsolute(driverRoot) || !browsersRoot || !path.isAbsolute(browsersRoot)) {
   throw new Error('the semantic-map-browser-proof Nix shell must provide explicit driver and browser roots');
 }
