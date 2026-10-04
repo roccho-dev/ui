@@ -205,7 +205,7 @@ export function vertexStyle(representation, scale, theme) {
         ...common,
         shape: 'semanticParallelogram',
         rounded: false,
-        perimeter: 'rectanglePerimeter',
+        perimeter: 'semanticParallelogramPerimeter',
         spacingLeft: theme.vertex.graphShapeSpacing / scale,
         spacingRight: theme.vertex.graphShapeSpacing / scale,
       };
@@ -259,4 +259,3 @@ export function edgeStyle(relation, scale, theme) {
     disconnectable: false,
   };
 }
-

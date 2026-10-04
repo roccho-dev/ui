@@ -8,6 +8,7 @@ import { RectanglePerimeter } from '../vendor/maxgraph/view/style/perimeter/Rect
 import { RhombusPerimeter } from '../vendor/maxgraph/view/style/perimeter/RhombusPerimeter.js';
 import { EllipsePerimeter } from '../vendor/maxgraph/view/style/perimeter/EllipsePerimeter.js';
 import { DiamondShape, ParallelogramShape, SectorShape } from './shapes.js';
+import { ParallelogramPerimeter } from './parallelogram-shape.js';
 
 export const createSemanticGraph = options => {
   // BaseGraph leaves built-in registries empty; register only the primitives
@@ -17,6 +18,7 @@ export const createSemanticGraph = options => {
   PerimeterRegistry.add('rectanglePerimeter', RectanglePerimeter);
   PerimeterRegistry.add('rhombusPerimeter', RhombusPerimeter);
   PerimeterRegistry.add('ellipsePerimeter', EllipsePerimeter);
+  PerimeterRegistry.add('semanticParallelogramPerimeter', ParallelogramPerimeter);
   const graph = new BaseGraph(options);
   ShapeRegistry.add('semanticDiamond', DiamondShape);
   ShapeRegistry.add('semanticParallelogram', ParallelogramShape);

@@ -196,6 +196,8 @@ try {
     const cases = [
       ['forward', 'node', 'data', 'flow'],
       ['reverse', 'decision', 'data', 'flow'],
+      ['data-source-left', 'data', 'node', 'flow'],
+      ['data-source-right', 'data', 'decision', 'flow'],
       ['other-endpoint', 'start', 'decision', 'flow'],
       ['terminal', 'start', 'end', 'flow'],
       ['undirected', 'node', 'end', 'association'],
@@ -372,7 +374,7 @@ try {
         && item.sourceBoundary && item.targetBoundary && item.ellipse,
       item);
   }
-  check('all paint controls ran', observed.paint.length === 5, observed.paint.length);
+  check('all paint controls ran', observed.paint.length === 7, observed.paint.length);
   check('a log without pins still renders', observed.auto.error === null, observed.auto.error);
   check('a log with pins renders at all', observed.pinned.error === null, observed.pinned.error);
 
