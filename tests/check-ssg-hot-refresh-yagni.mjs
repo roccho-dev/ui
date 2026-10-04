@@ -142,7 +142,7 @@ assert.match(readme, /Wrangler `4\.112\.0` and Caddy `v2\.11\.3`/);
 assert.match(readme, /second server proof, not a second independent product consumer/);
 assert.match(readme, /heavy server proofs run only/);
 assert.match(readme, /no independent workflow or schedule/);
-assert.match(read(".gitignore"), /packages\/a2ui-adapter-artifacts\/\.generated\//);
+assert.match(read(".gitignore"), /adapters\/a2ui-adapter-artifacts\/\.generated\//);
 assert.match(read(".gitignore"), /tests\/fixtures\/ssg-hot-refresh-viewport\/dist\//);
 
 console.log(JSON.stringify({

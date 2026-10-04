@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-BUILD = ROOT / "packages" / "semantic-map" / "scripts" / "build-browser-example.mjs"
+BUILD = ROOT / "capabilities" / "semantic-map" / "scripts" / "build-browser-example.mjs"
 INPUT = ROOT / "examples" / "render.semantic-map.set-topology" / "input" / "envelope.json"
 
 
