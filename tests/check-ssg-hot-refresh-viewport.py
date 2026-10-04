@@ -18,8 +18,8 @@ from playwright.sync_api import Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "ssg-hot-refresh-viewport"
-BUILD_SCRIPT = ROOT / "packages" / "a2ui-adapter-artifacts" / "scripts" / "build-ssg-hot-refresh-proof.mjs"
-DEFAULT_ARTIFACT = ROOT / "packages" / "a2ui-adapter-artifacts" / ".generated" / "ssg-hot-refresh-viewport-artifact"
+BUILD_SCRIPT = ROOT / "adapters" / "a2ui-adapter-artifacts" / "scripts" / "build-ssg-hot-refresh-proof.mjs"
+DEFAULT_ARTIFACT = ROOT / "adapters" / "a2ui-adapter-artifacts" / ".generated" / "ssg-hot-refresh-viewport-artifact"
 TOLERANCE = 1e-9
 WRANGLER_VERSION = "4.112.0"
 DEFAULT_CADDY_VERSION = "v2.11.3"

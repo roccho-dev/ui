@@ -1,5 +1,5 @@
-import { validateArtifactInvocation } from "../../../packages/artifact-invocation/src/index.mjs";
-import { canonicalJson, canonicalValue, createUrlModuleUrl } from "../../../packages/url-module/src/index.mjs";
+import { validateArtifactInvocation } from "../../../capabilities/artifact-invocation/src/index.mjs";
+import { canonicalJson, canonicalValue, createUrlModuleUrl } from "../../../capabilities/url-module/src/index.mjs";
 
 export const ARTIFACT_STATE_ACTION_SCHEMA = "artifact-state-action/1";
 export const ARTIFACT_STATE_ACTION = "artifact.state.patch";

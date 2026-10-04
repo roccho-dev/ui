@@ -5,11 +5,11 @@ import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const pkg = path.join(root, 'packages/a2ui-adapter-artifacts');
+const pkg = path.join(root, 'adapters/a2ui-adapter-artifacts');
 for (const file of ['registry.json','ports.json','requirements/live.json','requirements/purpose.json','a2ui/live-surface.json','data/live-input.json','scripts/build.mjs']) assert.equal(fs.existsSync(path.join(pkg, file)), true, file);
 for (const generated of ['.generated','dist','preview','ci-artifacts']) assert.equal(fs.existsSync(path.join(pkg, generated)), false, `${generated} must not be tracked`);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-a2ui-adapter-'));
-execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, ADAPTER_ARTIFACT_OUT: tmp}});
+execFileSync(process.execPath, ['adapters/a2ui-adapter-artifacts/scripts/build.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, ADAPTER_ARTIFACT_OUT: tmp}});
 for (const adapter of ['live','purpose']) {
   const base = path.join(tmp, `${adapter}-adapter-artifact`);
   assert.equal(fs.existsSync(path.join(base, 'dist/a2ui', `${adapter}.surface.jsonl`)), true);
@@ -36,7 +36,7 @@ for (const broken of ['missing-source-digest', 'unexpected-action', 'unexpected-
   const badOut = fs.mkdtempSync(path.join(os.tmpdir(), `ui-a2ui-adapter-bad-${broken}-`));
   let failed = false;
   try {
-    execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build.mjs'], {cwd: root, stdio: 'pipe', env: {...process.env, UI_REPO_ROOT: root, ADAPTER_ARTIFACT_OUT: badOut, ADAPTER_ARTIFACT_BROKEN_ADAPTER: 'purpose', ADAPTER_ARTIFACT_BROKEN_CASE: broken}});
+    execFileSync(process.execPath, ['adapters/a2ui-adapter-artifacts/scripts/build.mjs'], {cwd: root, stdio: 'pipe', env: {...process.env, UI_REPO_ROOT: root, ADAPTER_ARTIFACT_OUT: badOut, ADAPTER_ARTIFACT_BROKEN_ADAPTER: 'purpose', ADAPTER_ARTIFACT_BROKEN_CASE: broken}});
   } catch (error) {
     failed = true;
     assert.notEqual(error.status, 0, `${broken} must exit non-zero`);

@@ -1,4 +1,4 @@
-import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
+import { createArtifactInvocationRuntime } from "../../../capabilities/artifact-invocation/src/index.mjs";
 import { createArtifactShellServices } from "./services.mjs";
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`artifact-pinned-view: ${message}`); };

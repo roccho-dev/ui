@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createUrlModuleUrl } from "../../../packages/url-module/src/index.mjs";
+import { createUrlModuleUrl } from "../../../capabilities/url-module/src/index.mjs";
 import { ARTIFACT_SHELL_BUILD } from "../generated/capability-registry.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

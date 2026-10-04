@@ -6,8 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const script = path.join(root, 'packages/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs');
-const runtime = path.join(root, 'packages/a2ui-adapter-artifacts/repo-map-svgpanzoom/test/svg-pan-zoom-runtime.stub.js');
+const script = path.join(root, 'adapters/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs');
+const runtime = path.join(root, 'adapters/a2ui-adapter-artifacts/repo-map-svgpanzoom/test/svg-pan-zoom-runtime.stub.js');
 const env = { ...process.env, REPO_MAP_SVGPANZOOM_RUNTIME: runtime };
 
 const fixtureOut = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-map-fixture-'));

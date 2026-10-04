@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-zip-parity-'));
-execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {
+execFileSync(process.execPath, ['adapters/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {
   cwd: root,
   stdio: 'inherit',
   env: {

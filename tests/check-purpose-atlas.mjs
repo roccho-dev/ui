@@ -38,7 +38,7 @@ function walkNoRetirementMarker(value, trail = []) {
 assert.equal(fs.existsSync(retiredPreviewPackageRoot), false, "retired Purpose Atlas preview package must be physically absent");
 
 const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-assert.deepEqual(rootPackage.workspaces, ["packages/core-port"], "current npm workspace must expose the core port only");
+assert.deepEqual(rootPackage.workspaces, ["capabilities/core-port"], "current npm workspace must expose the core port only");
 
 const flakeText = fs.readFileSync(path.join(root, "flake.nix"), "utf8");
 assert.equal(flakeText.includes("purpose-atlas-preview-html"), false, "retired Purpose Atlas runtime must not be a Nix package or check output");

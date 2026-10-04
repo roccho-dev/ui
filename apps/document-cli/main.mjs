@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
-import { renderMarkdownDocument } from '../../packages/core-port/src/markdown-document-renderer.mjs';
+import { renderMarkdownDocument } from '../../capabilities/core-port/src/markdown-document-renderer.mjs';
 
 const usage = 'Usage: node apps/document-cli/main.mjs model.json [template.jsonl]\n';
 const fail = (code, exit = 1) => {

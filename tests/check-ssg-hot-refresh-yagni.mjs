@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const implementationPaths = [
-  "packages/a2ui-adapter-artifacts/dev/ssg-output-refresh.js",
-  "packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs",
+  "adapters/a2ui-adapter-artifacts/dev/ssg-output-refresh.js",
+  "adapters/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs",
   "tests/fixtures/ssg-hot-refresh-viewport/static/viewer.js",
   "tests/fixtures/ssg-hot-refresh-viewport/src/compile-scene.mjs",
   "tests/check-ssg-hot-refresh-viewport.py",
@@ -26,14 +26,14 @@ const intentRows = read("ci.intent.v1.jsonl").trim().split(/\n+/).map((line) => 
 const registeredWorkflows = intentRows.flatMap((row) => row.kind === "ui.ciIntent.v1" ? row.entrypoints : [row.path]).sort();
 assert.deepEqual(workflows.map((name) => `.github/workflows/${name}`), registeredWorkflows, "the slice must reuse exactly the registered workflows");
 assert.deepEqual(packageJson.exports, {
-  ".": "./packages/core-port/src/index.mjs",
-  "./adapters": "./packages/core-port/src/adapters/index.mjs",
-  "./registry": "./packages/core-port/src/registry.mjs",
-  "./catalog": "./packages/core-port/src/catalog.mjs",
-  "./project": "./packages/core-port/src/project.mjs",
-  "./log": "./packages/core-port/src/log.mjs",
-  "./a2ui-shell-builder": "./packages/core-port/src/a2ui-shell-builder.mjs",
-  "./markdown-document-renderer": "./packages/core-port/src/markdown-document-renderer.mjs",
+  ".": "./capabilities/core-port/src/index.mjs",
+  "./adapters": "./capabilities/core-port/src/adapters/index.mjs",
+  "./registry": "./capabilities/core-port/src/registry.mjs",
+  "./catalog": "./capabilities/core-port/src/catalog.mjs",
+  "./project": "./capabilities/core-port/src/project.mjs",
+  "./log": "./capabilities/core-port/src/log.mjs",
+  "./a2ui-shell-builder": "./capabilities/core-port/src/a2ui-shell-builder.mjs",
+  "./markdown-document-renderer": "./capabilities/core-port/src/markdown-document-renderer.mjs",
 });
 assert.equal(packageJson.dependencies, undefined);
 assert.equal(packageJson.devDependencies, undefined);
@@ -90,8 +90,8 @@ assert.match(proof, /screenshot_name = "after-two-refreshes\.png" if args\.serve
 const expectedRelevantPaths = [
   ".github/workflows/a2ui-adapter-artifacts.yml",
   "package.json",
-  "packages/a2ui-adapter-artifacts/dev/ssg-output-refresh.js",
-  "packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs",
+  "adapters/a2ui-adapter-artifacts/dev/ssg-output-refresh.js",
+  "adapters/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs",
   "tests/check-ssg-hot-refresh-viewport.py",
   "tests/check-ssg-hot-refresh-yagni.mjs",
   "tests/fixtures/ssg-hot-refresh-viewport/**",
@@ -106,8 +106,8 @@ for (const relevantPath of expectedRelevantPaths) {
 for (const unrelatedPath of [
   "README.md",
   "docs/editor-to-queue-to-ui-boundary.md",
-  "packages/core-port/src/index.mjs",
-  "packages/ui-receipts/receipt.v1.json",
+  "capabilities/core-port/src/index.mjs",
+  "governance/ui-receipts/receipt.v1.json",
   "tests/check-purpose-atlas.mjs",
 ]) {
   assert.equal(relevantPattern.test(unrelatedPath), false, `heavy proof must skip unrelated path ${unrelatedPath}`);
@@ -142,7 +142,7 @@ assert.match(readme, /Wrangler `4\.112\.0` and Caddy `v2\.11\.3`/);
 assert.match(readme, /second server proof, not a second independent product consumer/);
 assert.match(readme, /heavy server proofs run only/);
 assert.match(readme, /no independent workflow or schedule/);
-assert.match(read(".gitignore"), /packages\/a2ui-adapter-artifacts\/\.generated\//);
+assert.match(read(".gitignore"), /adapters\/a2ui-adapter-artifacts\/\.generated\//);
 assert.match(read(".gitignore"), /tests\/fixtures\/ssg-hot-refresh-viewport\/dist\//);
 
 console.log(JSON.stringify({

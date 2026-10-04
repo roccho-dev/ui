@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = process.env.GEOMAP_ZIP_PARITY_ARTIFACT_OUT || fs.mkdtempSync(path.join(os.tmpdir(), 'ui-zip-rendered-'));
 if (!process.env.GEOMAP_ZIP_PARITY_ARTIFACT_OUT) {
-  execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ZIP_PARITY_ARTIFACT_OUT: out, GEOMAP_ZIP_PARITY_RENDER: '1'}});
+  execFileSync(process.execPath, ['adapters/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ZIP_PARITY_ARTIFACT_OUT: out, GEOMAP_ZIP_PARITY_RENDER: '1'}});
 }
 for (const file of ['screenshots/rendered-collapsed.png', 'screenshots/rendered-open.png', 'screenshots/rendered-detail.png', 'proof/rendered-ui-report.json']) assert.equal(fs.existsSync(path.join(out, file)), true, file);
 for (const file of ['screenshots/rendered-collapsed.png', 'screenshots/rendered-open.png', 'screenshots/rendered-detail.png']) {

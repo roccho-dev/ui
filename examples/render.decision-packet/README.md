@@ -5,8 +5,8 @@ This example proves one public, non-authoritative `decision-packet/1` through th
 ```text
 input/decision-packet.json
 + input/invocation.json
-→ packages/decision-packet
-→ packages/semantic-map
+→ capabilities/decision-packet
+→ capabilities/semantic-map
 → apps/artifact-shell/capabilities/render-decision-packet
 → dist/index.html
 + dist/agent.json

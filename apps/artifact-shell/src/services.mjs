@@ -11,13 +11,13 @@ const packageToken = value => {
 const loadPackageRuntime = packageId => {
   const token = packageToken(packageId);
   if (!packageRuntimes.has(token)) {
-    const href = new URL(`../../../packages/${token}/runtime.js`, import.meta.url).href;
+    const href = new URL(`../../../capabilities/${token}/runtime.js`, import.meta.url).href;
     packageRuntimes.set(token, import(href));
   }
   return packageRuntimes.get(token);
 };
 const loadTrustedRenderer = async () => {
-  if (!trustedRenderer) trustedRenderer = import("../../../packages/a2ui-browser/src/index.mjs").then(module => Object.freeze({
+  if (!trustedRenderer) trustedRenderer = import("../../../adapters/a2ui-browser/src/index.mjs").then(module => Object.freeze({
     catalog: module.createAtlasStageCatalog(),
     renderTrustedSurface: module.renderTrustedSurface,
   }));

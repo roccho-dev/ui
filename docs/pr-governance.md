@@ -39,7 +39,7 @@ The current purpose visualization path is the core-port projection, not a retire
 | data fixture | `tests/fixtures/purpose-atlas/atlas-data.json` |
 | data contract | `docs/purpose-atlas-v6-a2ui/A2UI-DATA-CONTRACT.md` |
 | semantic check | `tests/check-purpose-atlas.mjs` |
-| package entry | `packages/core-port` |
+| package entry | `capabilities/core-port` |
 
 The required meaning is purpose, gap, work_order, receipt, residual, closure object, selected gap, work order, receipt, residual next input, and minimum review actions.
 

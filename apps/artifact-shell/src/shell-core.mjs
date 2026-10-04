@@ -1,5 +1,5 @@
-import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
-import { readUrlModule } from "../../../packages/url-module/src/index.mjs";
+import { createArtifactInvocationRuntime } from "../../../capabilities/artifact-invocation/src/index.mjs";
+import { readUrlModule } from "../../../capabilities/url-module/src/index.mjs";
 import { ARTIFACT_INPUT_ACTION, ARTIFACT_STATE_ACTION, applyArtifactAction, createArtifactInvocationUrl } from "./invocation-action.mjs";
 import { createArtifactShellServices } from "./services.mjs";
 

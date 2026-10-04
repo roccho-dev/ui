@@ -38,19 +38,19 @@ assert.match(workflow, /path:\s*result-gov-package-output\//);
 
 const packageValidationWorkflow = read(".github/workflows/gov-package-validation.yml");
 assert.match(packageValidationWorkflow, /node tests\/check-ui-gov-package-output\.mjs/);
-assert.match(packageValidationWorkflow, /packages\/ui-projection-evidence\/readmeProjectionReceipt\.v1\.jsonl/);
+assert.match(packageValidationWorkflow, /governance\/ui-projection-evidence\/readmeProjectionReceipt\.v1\.jsonl/);
 
-const readmeProjectionReceipts = readJsonl("packages/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl");
+const readmeProjectionReceipts = readJsonl("governance/ui-projection-evidence/readmeProjectionReceipt.v1.jsonl");
 assert.equal(readmeProjectionReceipts.length, 3);
 for (const row of readmeProjectionReceipts) {
   assert.equal(row.kind, "readmeProjectionReceipt.v1");
   assert.equal(row.repoId, "roccho-dev/ui");
   assert.equal(row.authority, false);
   assert.equal(row.nonAuthority, true);
-  assert.equal(row.receiptRef, "packages/ui-receipts/receipt.v1.json");
+  assert.equal(row.receiptRef, "governance/ui-receipts/receipt.v1.json");
 }
 
-const packageResponses = readJsonl("packages/ui-claims/package-responses.v1.jsonl");
+const packageResponses = readJsonl("governance/ui-claims/package-responses.v1.jsonl");
 assert.equal(packageResponses.some((row) => row.repo === "roccho-dev/ui"), true);
 assert.equal(packageResponses.every((row) => row.authority_boundary?.adrs_meaning_authority !== true), true);
 

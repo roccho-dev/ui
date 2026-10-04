@@ -1,7 +1,7 @@
-import { getFeature } from '/packages/a2ui-browser/feature.mjs';
-import { mountFeature } from '/packages/a2ui-browser/src/feature-app.mjs';
-import * as planModule from '/packages/control/model.mjs';
-import { loadControlInput } from '/packages/control/live-input.mjs';
+import { getFeature } from '/adapters/a2ui-browser/feature.mjs';
+import { mountFeature } from '/adapters/a2ui-browser/src/feature-app.mjs';
+import * as planModule from '/capabilities/control/model.mjs';
+import { loadControlInput } from '/capabilities/control/live-input.mjs';
 
 const invariant = (condition, message) => {
   if (!condition) throw new Error(`control-app: ${message}`);

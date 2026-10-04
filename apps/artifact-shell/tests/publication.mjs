@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { createArtifactInvocationRuntime, validateArtifactCapabilityFixture } from "../../../packages/artifact-invocation/src/index.mjs";
+import { createArtifactInvocationRuntime, validateArtifactCapabilityFixture } from "../../../capabilities/artifact-invocation/src/index.mjs";
 import { assertPublicationOutsideSources, buildArtifactShellPublication } from "../src/publication.mjs";
 import { buildRegistry } from "../scripts/build-registry.mjs";
 
@@ -214,19 +214,19 @@ try {
   const kernelRoot = path.join(outputA, "kernel", first.kernel.digest.slice("sha256:".length));
   equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "shell-core.mjs")).then(() => true), true);
   equal(await fs.stat(path.join(kernelRoot, "apps", "artifact-shell", "src", "invocation-action.mjs")).then(() => true), true);
-  equal(await fs.stat(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).then(() => true), true);
-  equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "jsonl.mjs")).then(() => true), true);
-  equal(await fs.stat(path.join(kernelRoot, "packages", "core-port", "src", "project.mjs")).then(() => true), true);
-  equal(await fs.stat(path.join(kernelRoot, "packages", "semantic-map", "runtime.js")).then(() => true), true);
-  equal(await fs.stat(path.join(kernelRoot, "packages", "decision-packet", "runtime.js")).then(() => true), true);
-  equal(await fs.stat(path.join(kernelRoot, "packages", "decision-packet", "protocol", "packet.js")).then(() => true), true);
-  equal(await fs.stat(path.join(kernelRoot, "packages", "semantic-map", "vendor", "maxgraph", "view", "BaseGraph.js")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "adapters", "a2ui-browser", "src", "jsonl-surface.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "capabilities", "core-port", "src", "jsonl.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "capabilities", "core-port", "src", "project.mjs")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "capabilities", "semantic-map", "runtime.js")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "capabilities", "decision-packet", "runtime.js")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "capabilities", "decision-packet", "protocol", "packet.js")).then(() => true), true);
+  equal(await fs.stat(path.join(kernelRoot, "capabilities", "semantic-map", "vendor", "maxgraph", "view", "BaseGraph.js")).then(() => true), true);
   for (const excluded of ["tests", "scripts", "examples", "migration", "migration-manifest.json", "RETIREMENT.md"]) {
     let present = true;
-    try { await fs.access(path.join(kernelRoot, "packages", "semantic-map", excluded)); } catch (_) { present = false; }
+    try { await fs.access(path.join(kernelRoot, "capabilities", "semantic-map", excluded)); } catch (_) { present = false; }
     equal(present, false);
   }
-  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "packages", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
+  const jsonlProjector = await import(pathToFileURL(path.join(kernelRoot, "adapters", "a2ui-browser", "src", "jsonl-surface.mjs")).href);
 const publishedJsonl = {
   base: { canvas: false, nodes: 0, edges: 0 },
   graph: { canvas: true, nodes: 4, edges: 3 },

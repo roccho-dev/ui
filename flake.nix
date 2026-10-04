@@ -26,11 +26,24 @@
           mkdir -p "$out/apps" "$out/packages"
           cp ${self}/apps/control/index.html "$out/index.html"
           cp -R ${self}/apps/control "$out/apps/control"
-          cp -R ${self}/packages/a2ui-browser "$out/packages/a2ui-browser"
-          cp -R ${self}/packages/control "$out/packages/control"
+          cp -R ${self}/adapters/a2ui-browser "$out/packages/a2ui-browser"
+          cp -R ${self}/capabilities/control "$out/packages/control"
           cp ${self}/examples/control/design.json "$out/design.json"
           chmod -R u+w "$out/packages/control" "$out/packages/a2ui-browser"
           rm -rf "$out/packages/control/tests" "$out/packages/a2ui-browser/tests"
+          # Distribution keeps its existing public paths; source/kernel use current owners.
+          substituteInPlace "$out/apps/control/main.mjs" \
+            --replace-fail '/adapters/a2ui-browser/' '/packages/a2ui-browser/' \
+            --replace-fail '/capabilities/control/' '/packages/control/'
+          substituteInPlace "$out/packages/a2ui-browser/feature.mjs" \
+            --replace-fail 'adapters/a2ui-browser/' 'packages/a2ui-browser/' \
+            --replace-fail 'capabilities/control/' 'packages/control/' \
+            --replace-fail 'capabilities/presentation/' 'packages/presentation/' \
+            --replace-fail 'capabilities/semantic-map/' 'packages/semantic-map/'
+          substituteInPlace "$out/packages/a2ui-browser/src/jsonl-surface.mjs" \
+            --replace-fail '../../../capabilities/core-port/' '../../core-port/'
+          substituteInPlace "$out/packages/control/model.mjs" \
+            --replace-fail '../../adapters/a2ui-browser/' '../a2ui-browser/'
           node --check "$out/apps/control/main.mjs"
           node --check "$out/packages/control/live-input.mjs"
           test -s "$out/index.html"
@@ -43,9 +56,9 @@
         pkgs.runCommand "ui-ir" { } ''
           set -euo pipefail
           mkdir -p "$out/packages/ui-ir"
-          cp -R ${self}/packages/ui-ir/src "$out/packages/ui-ir/src"
-          cp -R ${self}/packages/ui-ir/schema "$out/packages/ui-ir/schema"
-          cp ${self}/packages/ui-ir/package.json "$out/packages/ui-ir/package.json"
+          cp -R ${self}/capabilities/ui-ir/src "$out/packages/ui-ir/src"
+          cp -R ${self}/capabilities/ui-ir/schema "$out/packages/ui-ir/schema"
+          cp ${self}/capabilities/ui-ir/package.json "$out/packages/ui-ir/package.json"
           test -s "$out/packages/ui-ir/src/index.mjs"
           test -s "$out/packages/ui-ir/schema/ui-ir.v1.schema.json"
         '';
@@ -53,13 +66,15 @@
         pkgs.runCommand "a2ui-browser" { } ''
           set -euo pipefail
           mkdir -p "$out/packages/a2ui-browser" "$out/packages/core-port/src"
-          cp -R ${self}/packages/a2ui-browser/src "$out/packages/a2ui-browser/src"
+          cp -R ${self}/adapters/a2ui-browser/src "$out/packages/a2ui-browser/src"
           chmod -R u+w "$out/packages/a2ui-browser/src"
           rm -f "$out/packages/a2ui-browser/src/web-core.mjs"
-          cp ${self}/packages/core-port/src/jsonl.mjs "$out/packages/core-port/src/jsonl.mjs"
-          cp ${self}/packages/core-port/src/project.mjs "$out/packages/core-port/src/project.mjs"
-          cp ${self}/packages/core-port/src/registry.mjs "$out/packages/core-port/src/registry.mjs"
-          cp ${self}/packages/core-port/src/catalog.mjs "$out/packages/core-port/src/catalog.mjs"
+          substituteInPlace "$out/packages/a2ui-browser/src/jsonl-surface.mjs" \
+            --replace-fail '../../../capabilities/core-port/' '../../core-port/'
+          cp ${self}/capabilities/core-port/src/jsonl.mjs "$out/packages/core-port/src/jsonl.mjs"
+          cp ${self}/capabilities/core-port/src/project.mjs "$out/packages/core-port/src/project.mjs"
+          cp ${self}/capabilities/core-port/src/registry.mjs "$out/packages/core-port/src/registry.mjs"
+          cp ${self}/capabilities/core-port/src/catalog.mjs "$out/packages/core-port/src/catalog.mjs"
           test -s "$out/packages/a2ui-browser/src/index.mjs"
           test -s "$out/packages/a2ui-browser/src/render/trusted-dom.mjs"
           test ! -e "$out/packages/a2ui-browser/src/web-core.mjs"
@@ -68,19 +83,21 @@
         pkgs.runCommand "semantic-map" { } ''
           set -euo pipefail
           mkdir -p "$out/packages"
-          cp -R ${self}/packages/semantic-map "$out/packages/semantic-map"
+          cp -R ${self}/capabilities/semantic-map "$out/packages/semantic-map"
           chmod -R u+w "$out/packages/semantic-map"
           rm -rf             "$out/packages/semantic-map/tests"             "$out/packages/semantic-map/scripts"             "$out/packages/semantic-map/examples"             "$out/packages/semantic-map/migration"
           rm -f "$out/packages/semantic-map/migration-manifest.json"
+          substituteInPlace "$out/packages/semantic-map/feature.mjs" \
+            --replace-fail 'capabilities/semantic-map/' 'packages/semantic-map/'
 
           mkdir -p             "$out/packages/data-pin"             "$out/packages/core-port/src"             "$out/packages/connectability/src"             "$out/packages/url-module/src"
-          cp ${self}/packages/data-pin/contract.mjs "$out/packages/data-pin/contract.mjs"
-          cp ${self}/packages/data-pin/policy.mjs "$out/packages/data-pin/policy.mjs"
-          cp ${self}/packages/core-port/src/intent-client.mjs "$out/packages/core-port/src/intent-client.mjs"
-          cp ${self}/packages/connectability/src/index.mjs "$out/packages/connectability/src/index.mjs"
-          cp ${self}/packages/url-module/src/data-transport.mjs "$out/packages/url-module/src/data-transport.mjs"
-          cp ${self}/packages/url-module/src/codec.mjs "$out/packages/url-module/src/codec.mjs"
-          cp ${self}/packages/url-module/src/canonical.mjs "$out/packages/url-module/src/canonical.mjs"
+          cp ${self}/capabilities/data-pin/contract.mjs "$out/packages/data-pin/contract.mjs"
+          cp ${self}/capabilities/data-pin/policy.mjs "$out/packages/data-pin/policy.mjs"
+          cp ${self}/capabilities/core-port/src/intent-client.mjs "$out/packages/core-port/src/intent-client.mjs"
+          cp ${self}/capabilities/connectability/src/index.mjs "$out/packages/connectability/src/index.mjs"
+          cp ${self}/capabilities/url-module/src/data-transport.mjs "$out/packages/url-module/src/data-transport.mjs"
+          cp ${self}/capabilities/url-module/src/codec.mjs "$out/packages/url-module/src/codec.mjs"
+          cp ${self}/capabilities/url-module/src/canonical.mjs "$out/packages/url-module/src/canonical.mjs"
 
           test -s "$out/packages/semantic-map/runtime.js"
           test -s "$out/packages/semantic-map/renderer-maxgraph/adapter.js"
@@ -119,9 +136,9 @@
           repoPurpose = "A2UI / SDUI component registry and renderer-neutral projection package";
           projectionMode = "proposal-preview";
           status = "evidence-producer";
-          packageInventory = builtins.readFile "${self}/packages/ui-claims/package-responses.v1.jsonl";
-          packageAssertions = builtins.readFile "${self}/packages/ui-claims/package-responses.v1.jsonl";
-          packageReceipts = (builtins.readFile "${self}/packages/ui-receipts/receipt.v1.json") + "\n" + (builtins.readFile "${self}/packages/ui-receipts/residuals.v1.jsonl");
+          packageInventory = builtins.readFile "${self}/governance/ui-claims/package-responses.v1.jsonl";
+          packageAssertions = builtins.readFile "${self}/governance/ui-claims/package-responses.v1.jsonl";
+          packageReceipts = (builtins.readFile "${self}/governance/ui-receipts/receipt.v1.json") + "\n" + (builtins.readFile "${self}/governance/ui-receipts/residuals.v1.jsonl");
           readmeProjectionReceipt = (builtins.toJSON {
             kind = "readmeProjectionReceipt.v1";
             repoId = "roccho-dev/ui";
@@ -152,11 +169,11 @@
             "roccho-dev/governance:tools/check-package-gov-package-output-provenance.py"
           ];
           sourcePaths = [
-            { role = "packageInventoryAndAssertions"; content = builtins.readFile "${self}/packages/ui-claims/package-responses.v1.jsonl"; required = true; }
-            { role = "packageReceipt"; content = builtins.readFile "${self}/packages/ui-receipts/receipt.v1.json"; required = true; }
-            { role = "packageResiduals"; content = builtins.readFile "${self}/packages/ui-receipts/residuals.v1.jsonl"; required = true; }
-            { role = "projectionEvidence"; content = builtins.readFile "${self}/packages/ui-projection-evidence/projection-evidence.v1.json"; required = true; }
-            { role = "artifactBoundaryProof"; content = builtins.readFile "${self}/packages/ui-projection-evidence/artifact-boundary-proof.v1.json"; required = true; }
+            { role = "packageInventoryAndAssertions"; content = builtins.readFile "${self}/governance/ui-claims/package-responses.v1.jsonl"; required = true; }
+            { role = "packageReceipt"; content = builtins.readFile "${self}/governance/ui-receipts/receipt.v1.json"; required = true; }
+            { role = "packageResiduals"; content = builtins.readFile "${self}/governance/ui-receipts/residuals.v1.jsonl"; required = true; }
+            { role = "projectionEvidence"; content = builtins.readFile "${self}/governance/ui-projection-evidence/projection-evidence.v1.json"; required = true; }
+            { role = "artifactBoundaryProof"; content = builtins.readFile "${self}/governance/ui-projection-evidence/artifact-boundary-proof.v1.json"; required = true; }
             { role = "providerCiIntent"; content = builtins.readFile "${self}/ci.intent.v1.jsonl"; required = true; }
             { role = "readmeProjectionSurface"; content = builtins.readFile "${self}/README.md"; required = true; }
           ];
@@ -222,7 +239,7 @@
         '';
 
         control-ui = pkgs.runCommand "control-ui-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-          node ${self}/packages/control/tests/live-input.mjs
+          node ${self}/capabilities/control/tests/live-input.mjs
           test -s ${controlUi}/index.html
           test -s ${controlUi}/design.json
           test -s ${controlUi}/apps/control/main.mjs

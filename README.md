@@ -15,7 +15,7 @@ Given an exact input, this repository must make four facts discoverable without 
 
 | Registry | Question it answers | Source |
 |---|---|---|
-| Component registry | Which recursive UI node/component IDs can a renderer execute? | `schemas/component-entry.schema.json` and `packages/a2ui-adapter-artifacts/registry.json` |
+| Component registry | Which recursive UI node/component IDs can a renderer execute? | `schemas/component-entry.schema.json` and `adapters/a2ui-adapter-artifacts/registry.json` |
 | Capability registry | What exact input can be sent, what will be rendered or executed, and what typed output may be returned? | `apps/artifact-shell/capabilities/<slug>/manifest.json` |
 
 The checked-in `apps/artifact-shell/generated/capability-registry.mjs` is a generated shell index. Capability manifests are the source declarations.
@@ -36,19 +36,19 @@ This table lists only capabilities that exist on the current branch. Planned or 
 
 | Responsibility | Path |
 |---|---|
-| Reusable protocol, domain, projection, renderer, and UI source | `packages/**` |
-| Semantic map protocol, reducer, projection, maxGraph renderer and authoring | `packages/semantic-map/**` |
+| Reusable protocol, domain, projection, renderer, and UI source | `capabilities/**` and `adapters/**` |
+| Semantic map protocol, reducer, projection, maxGraph renderer and authoring | `capabilities/semantic-map/**` |
 | Browser entrypoint and composition glue | `apps/artifact-shell/index.html` and `apps/artifact-shell/src/**` |
 | Additive capability declaration | `apps/artifact-shell/capabilities/<slug>/manifest.json` |
 | Thin capability-to-package adapter | `apps/artifact-shell/capabilities/<slug>/engine.mjs` |
 | Positive and destructive contract inputs | `apps/artifact-shell/capabilities/<slug>/fixtures/**` |
 | Generated shell registry | `apps/artifact-shell/generated/**` |
 | Reviewable example inputs | `examples/<capability-id>/input/**` |
-| Core package | `packages/core-port/src/**` |
-| A2UI adapter artifact producer | `packages/a2ui-adapter-artifacts/**` |
-| UI package claims | `packages/ui-claims/**` |
-| UI projection evidence | `packages/ui-projection-evidence/**` |
-| UI receipts and residuals | `packages/ui-receipts/**` |
+| Core package | `capabilities/core-port/src/**` |
+| A2UI adapter artifact producer | `adapters/a2ui-adapter-artifacts/**` |
+| UI package claims | `governance/ui-claims/**` |
+| UI projection evidence | `governance/ui-projection-evidence/**` |
+| UI receipts and residuals | `governance/ui-receipts/**` |
 | UI gov-package-output producer surface | `.#gov-package-output` |
 | Purpose Atlas fixture input | `tests/fixtures/purpose-atlas/**` |
 | Purpose Atlas source reference | `tests/reference/purpose-atlas-source/**` |
@@ -67,7 +67,7 @@ invocation decode
 → typed result and receipt routing
 ```
 
-It contains no domain-name switch and no domain semantics. Reusable implementation belongs under `packages/**`; each capability's `engine.mjs` is only the thin adapter between the generic shell and those packages. New capability directories must not require a shell-source change.
+It contains no domain-name switch and no domain semantics. Reusable implementation belongs under `capabilities/**` and `adapters/**`; each capability's `engine.mjs` is only the thin adapter between the generic shell and those owners. New capability directories must not require a shell-source change.
 
 See `apps/artifact-shell/README.md` for the executable boundary.
 

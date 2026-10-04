@@ -57,7 +57,7 @@ def build_preview(output: Path) -> None:
 def encode_data(source: Path, base: str) -> str:
     script = """
 import fs from 'node:fs/promises';
-import { createUrlModuleUrl } from './packages/url-module/src/index.mjs';
+import { createUrlModuleUrl } from './capabilities/url-module/src/index.mjs';
 const value = await fs.readFile(process.env.SOURCE_PATH, 'utf8');
 console.log(await createUrlModuleUrl({ base: process.env.BASE_URL, fragment: 'data', value }));
 """

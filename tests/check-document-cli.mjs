@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { renderMarkdownDocument } from '../packages/core-port/src/markdown-document-renderer.mjs';
+import { renderMarkdownDocument } from '../capabilities/core-port/src/markdown-document-renderer.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const cli = path.join(root, 'apps/document-cli/main.mjs');
@@ -116,10 +116,10 @@ try {
   check('bounded-local-import-closure', () => {
     const source = fs.readFileSync(cli, 'utf8');
     const imports = [...source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map(match => match[1]).sort();
-    assert.deepEqual(imports, ['../../packages/core-port/src/markdown-document-renderer.mjs', 'node:fs/promises']);
+    assert.deepEqual(imports, ['../../capabilities/core-port/src/markdown-document-renderer.mjs', 'node:fs/promises']);
     assert.doesNotMatch(source, /\bimport\s*\(/);
     assert.doesNotMatch(source, /\b(?:fetch|WebSocket|XMLHttpRequest)\s*\(/);
-    const renderer = fs.readFileSync(path.join(root, 'packages/core-port/src/markdown-document-renderer.mjs'), 'utf8');
+    const renderer = fs.readFileSync(path.join(root, 'capabilities/core-port/src/markdown-document-renderer.mjs'), 'utf8');
     const dependencies = [...renderer.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map(match => match[1]);
     assert.deepEqual(dependencies, ['node:crypto']);
     assert.doesNotMatch(renderer, /\bimport\s*\(|\b(?:fetch|WebSocket|XMLHttpRequest)\s*\(/);

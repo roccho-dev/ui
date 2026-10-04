@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { makeRepoMapFixtureJsonl, parseJsonl, snapshotRecordsToCrudEvents, reduceModelGraph, projectGraph } from '../packages/a2ui-adapter-artifacts/repo-map-svgpanzoom/src/core.mjs';
+import { makeRepoMapFixtureJsonl, parseJsonl, snapshotRecordsToCrudEvents, reduceModelGraph, projectGraph } from '../adapters/a2ui-adapter-artifacts/repo-map-svgpanzoom/src/core.mjs';
 
 const records = parseJsonl(makeRepoMapFixtureJsonl());
 const graph = reduceModelGraph(snapshotRecordsToCrudEvents(records));

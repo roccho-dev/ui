@@ -41,34 +41,34 @@ for (const required of [
   'examples/chart/sunburst.jsonl',
 ]) assert.equal(await exists(required), true, `missing canonical example: ${required}`);
 
-const business = await load('packages/business-model/feature.mjs');
+const business = await load('capabilities/business-model/feature.mjs');
 assert.deepEqual([...business.featureIds], ['graph', 'seq']);
 assert.equal(business.getFeature('graph').input, 'presentation');
 assert.equal(business.getFeature('seq').input, 'presentation');
-assert.equal(business.getFeature('graph').entry, 'packages/business-model/semantic-feature-runtime.mjs');
-assert.equal((await loadFeature('packages/business-model/feature.mjs', 'graph')).id, 'graph');
+assert.equal(business.getFeature('graph').entry, 'capabilities/business-model/semantic-feature-runtime.mjs');
+assert.equal((await loadFeature('capabilities/business-model/feature.mjs', 'graph')).id, 'graph');
 
-const a2ui = await load('packages/a2ui-browser/feature.mjs');
+const a2ui = await load('adapters/a2ui-browser/feature.mjs');
 assert.deepEqual([...a2ui.featureIds], ['control', 'presentation']);
 assert.deepEqual([...a2ui.getFeature('control').input], ['design', 'control', 'claims']);
 assert.deepEqual([...a2ui.getFeature('presentation').input], ['design', 'presentation']);
-assert.equal(a2ui.getFeature('control').entry, 'packages/a2ui-browser/src/feature-app.mjs');
+assert.equal(a2ui.getFeature('control').entry, 'adapters/a2ui-browser/src/feature-app.mjs');
 assert.equal(a2ui.getFeature('presentation').entry, a2ui.getFeature('control').entry);
-assert.equal((await loadFeature('packages/a2ui-browser/feature.mjs', 'presentation')).id, 'presentation');
+assert.equal((await loadFeature('adapters/a2ui-browser/feature.mjs', 'presentation')).id, 'presentation');
 
-const semantic = await load('packages/semantic-map/feature.mjs');
+const semantic = await load('capabilities/semantic-map/feature.mjs');
 assert.deepEqual([...semantic.featureIds], ['map', 'chart']);
 assert.equal(semantic.getFeature('map').input, 'map');
 const chartInput = semantic.getFeature('chart').input;
 assert.equal(chartInput.default, 'bar-horizontal');
-const chartModule = JSON.parse(await fs.readFile(path.join(repoRoot, 'packages/semantic-map/pattern/view-types/chart/module.json'), 'utf8'));
+const chartModule = JSON.parse(await fs.readFile(path.join(repoRoot, 'capabilities/semantic-map/pattern/view-types/chart/module.json'), 'utf8'));
 const contractVariants = chartModule.config.types.map(type => type.replace(/\/1$/u, ''));
 assert.deepEqual([...chartInput.variants], contractVariants, 'preview chart variants must match chart contract');
 for (const variant of contractVariants) {
   assert.equal(semantic.getFeature('chart', variant).view.chart.type, `${variant}/1`);
 }
 for (const compatible of ['graph', 'seq', 'map', 'chart']) {
-  assert.equal((await loadFeature('packages/semantic-map/feature.mjs', compatible)).id, compatible);
+  assert.equal((await loadFeature('capabilities/semantic-map/feature.mjs', compatible)).id, compatible);
 }
 
 const baselineCount = business.featureIds.length + a2ui.featureIds.length + 1 + chartInput.variants.length + 1;
@@ -84,7 +84,7 @@ assert.match(index, /img-src 'self' data: blob:/u);
 
 const main = await read('main.mjs');
 assert.match(main, /#data required/u);
-assert.match(main, /import\.meta\.glob\('\.\.\/\.\.\/packages\/\*\/feature\.mjs'/u);
+assert.ok(main.includes("import.meta.glob(['../../capabilities/*/feature.mjs', '../../adapters/*/feature.mjs'], { eager: true })"), 'discover both current source owners');
 assert.match(main, /jsonlExamples/u);
 assert.match(main, /jsonExamples/u);
 assert.match(main, /planModules/u);
@@ -99,7 +99,7 @@ console.log(JSON.stringify({
   status: 'PASS',
   cases: baselineCount,
   registry: false,
-  featureRuntimeSource: 'packages/*/feature.mjs',
+  featureRuntimeSource: 'capabilities/*/feature.mjs,adapters/*/feature.mjs',
   compositeInputs: true,
   orphanExamplesFailClosed: true,
 }));

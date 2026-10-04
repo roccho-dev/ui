@@ -37,7 +37,7 @@ if (!result.ok) throw new Error("Markdown renderer returned blocking diagnostics
 const modelText = JSON.stringify(model, null, 2) + "\n";
 write("README.md", result.markdown);
 write("document.model.json", modelText);
-write("sources.jsonl", JSON.stringify({ kind: "artifact.source.v1", artifact: "ui-readme", sourceKind: "renderer", ref: "roccho-dev/ui:packages/core-port/src/markdown-document-renderer.mjs", authority: false }) + "\n");
+write("sources.jsonl", JSON.stringify({ kind: "artifact.source.v1", artifact: "ui-readme", sourceKind: "renderer", ref: "roccho-dev/ui:capabilities/core-port/src/markdown-document-renderer.mjs", authority: false }) + "\n");
 writeJson("manifest.json", {
   kind: "repo.readmeArtifact.manifest.v1",
   repo: "roccho-dev/ui",
