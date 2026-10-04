@@ -17,7 +17,19 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
+
+// The repository's locked Nix shell provides one explicit driver and its
+// matching browsers. Never resolve an ambient npm package or download one.
+const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
+const browsersRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
+if (!driverRoot || !path.isAbsolute(driverRoot) || !browsersRoot || !path.isAbsolute(browsersRoot)) {
+  throw new Error('the semantic-map-browser-proof Nix shell must provide explicit driver and browser roots');
+}
+const driverPackage = JSON.parse(fs.readFileSync(path.join(driverRoot, 'package.json'), 'utf8'));
+if (driverPackage.name !== 'playwright-core') throw new Error('provided browser driver is not playwright-core');
+const { chromium } = createRequire(import.meta.url)(driverRoot);
+if (!fs.existsSync(chromium.executablePath())) throw new Error('the provided driver Chromium is unavailable');
 
 const packagesRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
