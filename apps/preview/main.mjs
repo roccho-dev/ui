@@ -1,17 +1,21 @@
-import { createDataTransport, createUrlModuleUrl } from '../../packages/url-module/src/index.mjs';
+import { createDataTransport, createUrlModuleUrl } from '../../capabilities/url-module/src/index.mjs';
 
 const invariant = (condition, message) => { if (!condition) throw new Error(`ui-preview: ${message}`); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-const featureModules = import.meta.glob('../../packages/*/feature.mjs', { eager: true });
+const featureModules = import.meta.glob(['../../capabilities/*/feature.mjs', '../../adapters/*/feature.mjs'], { eager: true });
 const runtimeModules = import.meta.glob([
-  '../../packages/**/feature-runtime.mjs',
-  '../../packages/**/*-feature-runtime.mjs',
-  '../../packages/**/feature-app.mjs',
-  '../../packages/**/render.mjs',
+  '../../capabilities/**/feature-runtime.mjs',
+  '../../adapters/**/feature-runtime.mjs',
+  '../../capabilities/**/*-feature-runtime.mjs',
+  '../../adapters/**/*-feature-runtime.mjs',
+  '../../capabilities/**/feature-app.mjs',
+  '../../adapters/**/feature-app.mjs',
+  '../../capabilities/**/render.mjs',
+  '../../adapters/**/render.mjs',
 ]);
-const planModules = import.meta.glob('../../packages/**/model.mjs');
-const styleModules = import.meta.glob('../../packages/**/*.css');
+const planModules = import.meta.glob(['../../capabilities/**/model.mjs', '../../adapters/**/model.mjs']);
+const styleModules = import.meta.glob(['../../capabilities/**/*.css', '../../adapters/**/*.css']);
 const jsonlExamples = import.meta.glob('../../examples/**/*.jsonl', { eager: true, query: '?raw', import: 'default' });
 const jsonExamples = import.meta.glob('../../examples/**/*.json', { eager: true, import: 'default' });
 const moduleKey = path => `../../${path}`;

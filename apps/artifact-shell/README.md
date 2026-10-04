@@ -26,7 +26,7 @@ The other layers live here:
 
 | Layer | Path |
 |---|---|
-| Reusable implementation | `packages/**` |
+| Reusable implementation | `capabilities/**`, `adapters/**` |
 | Capability declaration | `apps/artifact-shell/capabilities/<slug>/manifest.json` |
 | Thin capability adapter | `apps/artifact-shell/capabilities/<slug>/engine.mjs` |
 | Positive and destructive inputs | `apps/artifact-shell/capabilities/<slug>/fixtures/**` |

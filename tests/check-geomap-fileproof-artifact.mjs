@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-geomap-proof-'));
-execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ARTIFACT_OUT: out}});
+execFileSync(process.execPath, ['adapters/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ARTIFACT_OUT: out}});
 
 for (const file of [
   'dist/a2ui/property-map.surface.v0.9.jsonl',

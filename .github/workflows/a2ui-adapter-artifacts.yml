@@ -115,9 +115,9 @@ jobs:
           PY
       - name: Prove semantic-map and decision-packet in Chromium
         run: |
-          python3 packages/semantic-map/tests/browser_example.py
+          python3 capabilities/semantic-map/tests/browser_example.py
           npm run proof:semantic-map-meaning-recovery
-          python3 packages/decision-packet/tests/browser-example.py
+          python3 capabilities/decision-packet/tests/browser-example.py
           python3 apps/artifact-shell/tests/browser-proof.py
           python3 apps/artifact-shell/tests/decision-packet-browser-proof.py
 
@@ -177,7 +177,7 @@ jobs:
             select_proof "comparison-diff-failed"
           fi
           printf '%s\n' "$changed"
-          relevant='^(\.github/workflows/a2ui-adapter-artifacts\.yml|package\.json|packages/a2ui-adapter-artifacts/dev/ssg-output-refresh\.js|packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof\.mjs|tests/check-ssg-hot-refresh-viewport\.py|tests/check-ssg-hot-refresh-yagni\.mjs|tests/fixtures/ssg-hot-refresh-viewport/)'
+          relevant='^(\.github/workflows/a2ui-adapter-artifacts\.yml|package\.json|adapters/a2ui-adapter-artifacts/dev/ssg-output-refresh\.js|adapters/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof\.mjs|tests/check-ssg-hot-refresh-viewport\.py|tests/check-ssg-hot-refresh-yagni\.mjs|tests/fixtures/ssg-hot-refresh-viewport/)'
           if printf '%s\n' "$changed" | grep -Eq "$relevant"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "reason=relevant-path" >> "$GITHUB_OUTPUT"
@@ -249,27 +249,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fonts-noto-cjk
           fc-cache -f
-      - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
+      - run: node adapters/a2ui-adapter-artifacts/scripts/build.mjs
         env:
           ADAPTER_ARTIFACT_OUT: adapter-result
       - run: node scripts/build-contract-model-atlas-artifact.mjs --out adapter-result/contract-model-atlas-artifact
-      - run: node packages/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs
+      - run: node adapters/a2ui-adapter-artifacts/scripts/build-repo-map-svgpanzoom.mjs
         env:
           REPO_MAP_SVGPANZOOM_ARTIFACT_OUT: adapter-result/repo-map-svgpanzoom-artifact
-      - run: node packages/a2ui-adapter-artifacts/scripts/patch-repo-map-svgpanzoom-preview.mjs adapter-result/repo-map-svgpanzoom-artifact
-      - run: node packages/a2ui-adapter-artifacts/scripts/smoke-repo-map-svgpanzoom.mjs adapter-result/repo-map-svgpanzoom-artifact
-      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
+      - run: node adapters/a2ui-adapter-artifacts/scripts/patch-repo-map-svgpanzoom-preview.mjs adapter-result/repo-map-svgpanzoom-artifact
+      - run: node adapters/a2ui-adapter-artifacts/scripts/smoke-repo-map-svgpanzoom.mjs adapter-result/repo-map-svgpanzoom-artifact
+      - run: node adapters/a2ui-adapter-artifacts/scripts/build-geomap-proof.mjs
         env:
           GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-artifact
-      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs
+      - run: node adapters/a2ui-adapter-artifacts/scripts/build-geomap-zip-parity.mjs
         env:
           GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
           GEOMAP_ZIP_PARITY_RENDER: "1"
           GEOMAP_ZIP_PARITY_INTERACTION: "1"
-      - run: node packages/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs
+      - run: node adapters/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs
         env:
           GEOMAP_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact
-      - run: node packages/a2ui-adapter-artifacts/scripts/check-geomap-final-gate.mjs
+      - run: node adapters/a2ui-adapter-artifacts/scripts/check-geomap-final-gate.mjs
         env:
           GEOMAP_ZIP_PARITY_ARTIFACT_OUT: adapter-result/property-map-zip-parity-artifact
           GEOMAP_RUNTIME_ARTIFACT_OUT: adapter-result/property-map-geo-runtime-hardening-artifact

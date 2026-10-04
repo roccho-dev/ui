@@ -27,7 +27,7 @@ function collectFiles(dir, prefix = "") {
 }
 assert.deepEqual(collectFiles(sourceRefRoot).filter((file) => file.endsWith(".py")), [], "source reference sentinel must not track Python files");
 
-const catalogText = fs.readFileSync(path.join(root, "packages/core-port/src/catalog.mjs"), "utf8");
+const catalogText = fs.readFileSync(path.join(root, "capabilities/core-port/src/catalog.mjs"), "utf8");
 assert.ok(catalogText.includes("tests/fixtures/purpose-atlas/surface.v0.9.jsonl"), "catalog must point to the fixture A2UI shell");
 assert.ok(!catalogText.includes("tests/fixtures/purpose-atlas-v6-a2ui"), "catalog must not point to the legacy fixture app path");
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const packageRoot = path.join(root, 'packages', 'decision-packet');
+const packageRoot = path.join(root, 'capabilities', 'decision-packet');
 const shellSource = await Promise.all((await fs.readdir(path.join(root, 'apps', 'artifact-shell', 'src')))
   .filter(file => file.endsWith('.mjs'))
   .map(async file => [file, await fs.readFile(path.join(root, 'apps', 'artifact-shell', 'src', file), 'utf8')]));

@@ -41,7 +41,7 @@ def build_preview(output: Path) -> None:
 def encoded_hash(include_claims: bool) -> str:
     code = """
 import fs from 'node:fs/promises';
-import { createUrlModuleUrl } from './packages/url-module/src/index.mjs';
+import { createUrlModuleUrl } from './capabilities/url-module/src/index.mjs';
 const design = JSON.parse(await fs.readFile(process.argv[1], 'utf8'));
 const control = await fs.readFile(process.argv[2], 'utf8');
 const claims = await fs.readFile(process.argv[3], 'utf8');

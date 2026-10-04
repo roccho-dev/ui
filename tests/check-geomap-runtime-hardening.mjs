@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'ui-geomap-runtime-'));
-execFileSync(process.execPath, ['packages/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ARTIFACT_OUT: out}});
+execFileSync(process.execPath, ['adapters/a2ui-adapter-artifacts/scripts/build-geomap-runtime-hardening.mjs'], {cwd: root, stdio: 'inherit', env: {...process.env, UI_REPO_ROOT: root, GEOMAP_ARTIFACT_OUT: out}});
 
 const reportFile = path.join(out, 'proof/geomap-runtime-hardening-report.json');
 assert.equal(fs.existsSync(reportFile), true, 'runtime hardening report is required');

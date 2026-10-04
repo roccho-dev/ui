@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createArtifactInvocationRuntime } from '../../../packages/artifact-invocation/src/index.mjs';
-import { projectDecisionPacket } from '../../../packages/decision-packet/projection/to-semantic-map.js';
+import { createArtifactInvocationRuntime } from '../../../capabilities/artifact-invocation/src/index.mjs';
+import { projectDecisionPacket } from '../../../capabilities/decision-packet/projection/to-semantic-map.js';
 import { buildRegistry } from '../scripts/build-registry.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));

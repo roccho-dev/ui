@@ -1,1 +1,1 @@
-import '../packages/connectability/tests/run.mjs';
+import '../capabilities/connectability/tests/run.mjs';

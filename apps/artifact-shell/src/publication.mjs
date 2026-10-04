@@ -9,8 +9,8 @@ import {
   validateArtifactCapabilityDeclaration,
   validateArtifactCapabilityFixture,
   validateArtifactCapabilityManifest,
-} from "../../../packages/artifact-invocation/src/index.mjs";
-import { canonicalJson } from "../../../packages/url-module/src/index.mjs";
+} from "../../../capabilities/artifact-invocation/src/index.mjs";
+import { canonicalJson } from "../../../capabilities/url-module/src/index.mjs";
 import { buildRegistry } from "../scripts/build-registry.mjs";
 
 export const ARTIFACT_CAPABILITY_PUBLICATION_SCHEMA = "artifact-capability-publication/2";

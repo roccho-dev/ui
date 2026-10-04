@@ -5,7 +5,7 @@
     "directory": "./dist"
   },
   "build": {
-    "command": "node ../../../../packages/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs --dev",
+    "command": "node ../../../../adapters/a2ui-adapter-artifacts/scripts/build-ssg-hot-refresh-proof.mjs --dev",
     "watch_dir": [
       "./content",
       "./src"

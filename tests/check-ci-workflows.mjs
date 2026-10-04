@@ -133,8 +133,8 @@ const gestureJoin = byRole("semantic_map_gesture_review_join");
 assert.equal(gestureJoin.path, ".github/workflows/semantic-map-gesture-review-join.yml");
 assert.deepEqual(gestureJoin.dispatch, ["pull_request", "workflow_dispatch"]);
 const expectedGesturePaths = [
-  "packages/semantic-map/**",
-  "packages/business-model/**",
+  "capabilities/semantic-map/**",
+  "capabilities/business-model/**",
   "examples/shared/**",
   "examples/chart/**",
   "examples/render.semantic-map.set-topology/**",

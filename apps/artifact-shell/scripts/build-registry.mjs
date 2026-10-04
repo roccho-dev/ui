@@ -7,8 +7,8 @@ import {
   validateArtifactCapabilityDeclaration,
   validateArtifactCapabilityManifest,
   validateArtifactCapabilityFixture,
-} from "../../../packages/artifact-invocation/src/index.mjs";
-import { canonicalJson } from "../../../packages/url-module/src/index.mjs";
+} from "../../../capabilities/artifact-invocation/src/index.mjs";
+import { canonicalJson } from "../../../capabilities/url-module/src/index.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, "..");
@@ -37,22 +37,22 @@ const noModuleDependencies = source => {
 };
 
 const baseRuntimeSourceRoots = Object.freeze([
-  path.join(repoRoot, "packages", "artifact-invocation", "src"),
-  path.join(repoRoot, "packages", "artifact-invocation", "package.json"),
-  path.join(repoRoot, "packages", "url-module", "src"),
-  path.join(repoRoot, "packages", "url-module", "package.json"),
-  path.join(repoRoot, "packages", "artifact-reference", "src"),
-  path.join(repoRoot, "packages", "artifact-reference", "package.json"),
-  path.join(repoRoot, "packages", "a2ui-browser", "src"),
-  path.join(repoRoot, "packages", "a2ui-browser", "package.json"),
-  path.join(repoRoot, "packages", "data-pin", "contract.mjs"),
-  path.join(repoRoot, "packages", "data-pin", "policy.mjs"),
-  path.join(repoRoot, "packages", "core-port", "src", "jsonl.mjs"),
-  path.join(repoRoot, "packages", "core-port", "src", "project.mjs"),
-  path.join(repoRoot, "packages", "core-port", "src", "catalog.mjs"),
-  path.join(repoRoot, "packages", "core-port", "src", "registry.mjs"),
-  path.join(repoRoot, "packages", "core-port", "src", "intent-client.mjs"),
-  path.join(repoRoot, "packages", "connectability", "src", "index.mjs"),
+  path.join(repoRoot, "capabilities", "artifact-invocation", "src"),
+  path.join(repoRoot, "capabilities", "artifact-invocation", "package.json"),
+  path.join(repoRoot, "capabilities", "url-module", "src"),
+  path.join(repoRoot, "capabilities", "url-module", "package.json"),
+  path.join(repoRoot, "capabilities", "artifact-reference", "src"),
+  path.join(repoRoot, "capabilities", "artifact-reference", "package.json"),
+  path.join(repoRoot, "adapters", "a2ui-browser", "src"),
+  path.join(repoRoot, "adapters", "a2ui-browser", "package.json"),
+  path.join(repoRoot, "capabilities", "data-pin", "contract.mjs"),
+  path.join(repoRoot, "capabilities", "data-pin", "policy.mjs"),
+  path.join(repoRoot, "capabilities", "core-port", "src", "jsonl.mjs"),
+  path.join(repoRoot, "capabilities", "core-port", "src", "project.mjs"),
+  path.join(repoRoot, "capabilities", "core-port", "src", "catalog.mjs"),
+  path.join(repoRoot, "capabilities", "core-port", "src", "registry.mjs"),
+  path.join(repoRoot, "capabilities", "core-port", "src", "intent-client.mjs"),
+  path.join(repoRoot, "capabilities", "connectability", "src", "index.mjs"),
   path.join(appRoot, "fixtures", "jsonl"),
   path.join(appRoot, "src", "invocation-action.mjs"),
   path.join(appRoot, "src", "pinned-view.mjs"),
@@ -102,7 +102,7 @@ const packageIdForManifest = manifest => {
 };
 
 const createRuntimeBuild = async manifests => {
-  const packageRoots = manifests.map(packageIdForManifest).filter(Boolean).map(packageId => path.join(repoRoot, "packages", packageId));
+  const packageRoots = manifests.map(packageIdForManifest).filter(Boolean).map(packageId => path.join(repoRoot, "capabilities", packageId));
   const baseFiles = (await Promise.all(baseRuntimeSourceRoots.map(collectFiles))).flat();
   const packageFiles = (await Promise.all(packageRoots.map(collectPackageRuntimeFiles))).flat();
   const files = [...new Set([...baseFiles, ...packageFiles])].sort();

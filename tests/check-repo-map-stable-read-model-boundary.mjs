@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { REPO_MAP_KINDS, makeRepoMapFixtureJsonl, makeLegacyRepoMapFixtureJsonl, parseJsonl, snapshotRecordsToCrudEvents, reduceModelGraph, projectGraph, normalizeRepoMapProjection } from '../packages/a2ui-adapter-artifacts/repo-map-svgpanzoom/src/core.mjs';
+import { REPO_MAP_KINDS, makeRepoMapFixtureJsonl, makeLegacyRepoMapFixtureJsonl, parseJsonl, snapshotRecordsToCrudEvents, reduceModelGraph, projectGraph, normalizeRepoMapProjection } from '../adapters/a2ui-adapter-artifacts/repo-map-svgpanzoom/src/core.mjs';
 
 const stableRecords = parseJsonl(makeRepoMapFixtureJsonl());
 assert.equal(stableRecords[0].kind, REPO_MAP_KINDS.policy);

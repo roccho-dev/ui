@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 const roots = Object.freeze({
-  semanticMap: path.join(root, 'packages/semantic-map'),
-  profiles: path.join(root, 'packages/semantic-map-profiles'),
-  govProfile: path.join(root, 'packages/semantic-map-profiles/gov-package-output'),
-  connectability: path.join(root, 'packages/connectability'),
+  semanticMap: path.join(root, 'capabilities/semantic-map'),
+  profiles: path.join(root, 'capabilities/semantic-map-profiles'),
+  govProfile: path.join(root, 'capabilities/semantic-map-profiles/gov-package-output'),
+  connectability: path.join(root, 'capabilities/connectability'),
 });
 const EXCLUDED_SEGMENTS = new Set(['tests', 'test', 'examples', 'fixtures', 'vendor', 'migration']);
 const EXCLUDED_FILES = new Set(['check.mjs']);
@@ -208,9 +208,9 @@ assert.equal(
 );
 assert.equal(
   resolveImportAlias('#connectability/wire', {
-    '#connectability/*': './packages/connectability/*',
+    '#connectability/*': './capabilities/connectability/*',
   }),
-  './packages/connectability/wire',
+  './capabilities/connectability/wire',
 );
 assert.equal(
   classifySpecifier({
@@ -300,7 +300,7 @@ assert.equal(profileRows[0].generatedArtifactsAreAuthority, false);
 const profileFiles = await walk(roots.govProfile);
 const activeProjectors = profileFiles.filter(file => path.basename(file) === 'project.mjs');
 assert.deepEqual(activeProjectors.map(relative), [
-  'packages/semantic-map-profiles/gov-package-output/project.mjs',
+  'capabilities/semantic-map-profiles/gov-package-output/project.mjs',
 ]);
 const profileProductionSource = await Promise.all(
   profileFiles.map(async file => [file, await fs.readFile(file, 'utf8')]),
@@ -336,24 +336,24 @@ const intentionalLocalPrimitives = Object.freeze([
   Object.freeze({
     responsibility: 'semantic-state-canonicalization',
     owner: 'semantic-map',
-    path: 'packages/semantic-map/domain/canonical-json.js',
+    path: 'capabilities/semantic-map/domain/canonical-json.js',
     wireNewline: false,
   }),
   Object.freeze({
     responsibility: 'proposal-wire-canonicalization',
     owner: 'connectability',
-    path: 'packages/connectability/src/index.mjs',
+    path: 'capabilities/connectability/src/index.mjs',
     wireNewline: true,
   }),
   Object.freeze({
     responsibility: 'semantic-protocol-digest',
     owner: 'semantic-map',
-    path: 'packages/semantic-map/protocol/sha256.js',
+    path: 'capabilities/semantic-map/protocol/sha256.js',
   }),
   Object.freeze({
     responsibility: 'prepared-proposal-digest',
     owner: 'connectability',
-    path: 'packages/connectability/src/index.mjs',
+    path: 'capabilities/connectability/src/index.mjs',
   }),
 ]);
 for (const item of intentionalLocalPrimitives) await fs.access(path.join(root, item.path));

@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createArtifactInvocationRuntime } from "../../../packages/artifact-invocation/src/index.mjs";
+import { createArtifactInvocationRuntime } from "../../../capabilities/artifact-invocation/src/index.mjs";
 import { buildRegistry } from "../scripts/build-registry.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,7 @@ const digestFiles = async roots => {
 };
 
 const coreRoots = [
-  path.join(repoRoot, "packages", "artifact-invocation", "src"),
+  path.join(repoRoot, "capabilities", "artifact-invocation", "src"),
   path.join(appRoot, "src"),
   path.join(appRoot, "index.html"),
 ];

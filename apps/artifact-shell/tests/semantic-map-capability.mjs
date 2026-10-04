@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createArtifactInvocationRuntime } from '../../../packages/artifact-invocation/src/index.mjs';
-import { inspectEnvelope } from '../../../packages/semantic-map/protocol/index.js';
-import { createEnvelopeInputBridge, lockDetachedAuthoring } from '../../../packages/semantic-map/runtime.js';
+import { createArtifactInvocationRuntime } from '../../../capabilities/artifact-invocation/src/index.mjs';
+import { inspectEnvelope } from '../../../capabilities/semantic-map/protocol/index.js';
+import { createEnvelopeInputBridge, lockDetachedAuthoring } from '../../../capabilities/semantic-map/runtime.js';
 import { buildRegistry } from '../scripts/build-registry.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));

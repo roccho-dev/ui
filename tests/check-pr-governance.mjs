@@ -19,7 +19,7 @@ for (const phrase of ["Linked issue", "Scope", "Non-scope", "Direct purpose", "U
 }
 
 const docs = read("docs/pr-governance.md");
-for (const phrase of ["Issue-first rule", "PR body guard", "Current-fact test rule", "Current purpose visualization entrypoint", "Human approval gate", "tests/fixtures/purpose-atlas/surface.v0.9.jsonl", "tests/fixtures/purpose-atlas/atlas-data.json", "tests/check-purpose-atlas.mjs", "packages/core-port"]) {
+for (const phrase of ["Issue-first rule", "PR body guard", "Current-fact test rule", "Current purpose visualization entrypoint", "Human approval gate", "tests/fixtures/purpose-atlas/surface.v0.9.jsonl", "tests/fixtures/purpose-atlas/atlas-data.json", "tests/check-purpose-atlas.mjs", "capabilities/core-port"]) {
   assert.ok(docs.includes(phrase));
 }
 
