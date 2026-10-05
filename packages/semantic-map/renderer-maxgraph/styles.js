@@ -27,12 +27,14 @@ function explicitPaint(appearance, name) {
   return paint;
 }
 
+// Explicit colours replace only the colour; fillOpacity/strokeOpacity keep
+// their existing appearance meaning.
 function withPaint(style, paint, scale) {
   if (Object.keys(paint).length === 0) return style;
   return {
     ...style,
-    ...(paint.fillColor ? { fillColor: paint.fillColor, fillOpacity: 100 } : {}),
-    ...(paint.strokeColor ? { strokeColor: paint.strokeColor, strokeOpacity: 100 } : {}),
+    ...(paint.fillColor ? { fillColor: paint.fillColor } : {}),
+    ...(paint.strokeColor ? { strokeColor: paint.strokeColor } : {}),
     ...(paint.strokeWidth ? { strokeWidth: paint.strokeWidth / scale } : {}),
     ...(paint.dashed !== undefined ? { dashed: paint.dashed } : {}),
   };

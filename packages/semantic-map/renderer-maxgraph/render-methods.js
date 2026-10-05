@@ -45,8 +45,9 @@ function motionOf(item) {
 }
 
 // Motion is a data attribute on maxGraph's own shape node; page CSS animates it.
-// maxGraph keeps the node across redraws but replaces it with a new shape, so
-// marks are reapplied after every render and camera change.
+// A redraw keeps the node, but maxGraph may create a new shape (and node) for a
+// cell, so marks are reapplied after every render, camera change and label
+// refresh.
 function markMotion() {
   const view = this.graph.getView();
   for (const cell of [...this.cellsByRegionId.values(), ...this.edgesByProjectionKey.values()]) {
@@ -270,10 +271,16 @@ function refreshRenderedLabels() {
   } finally {
     this.projecting = previousProjecting;
   }
+  this.markMotion();
 }
 
 function render(scene) {
+  // Validate motion and compute every style before any mutation, so an invalid
+  // scene throws with the previous surface, graph, cell maps and lastScene intact.
   for (const item of [...scene.representations, ...scene.relations]) motionOf(item);
+  const styleScale = styleScaleFor(scene.scale);
+  const vertexStyles = new Map(scene.representations.map((item) => [item.regionId, vertexStyle(item, styleScale, this.theme)]));
+  const edgeStyles = new Map(scene.relations.map((item) => [relationProjectionKey(item), edgeStyle(item, styleScale, this.theme)]));
   const nextCompositionKey = JSON.stringify(scene.resourceComposition ?? null);
   if (this.surfaceCompositionKey !== nextCompositionKey) {
     renderResourceTarget({
@@ -300,7 +307,6 @@ function render(scene) {
   const cellsByRegionId = new Map(this.cellsByRegionId);
   const edgesByProjectionKey = new Map(this.edgesByProjectionKey);
   const model = graph.getDataModel();
-  const styleScale = styleScaleFor(scene.scale);
   const labelContext = this.labelContext(scene);
 
   this.projecting = true;
@@ -333,7 +339,7 @@ function render(scene) {
       for (const representation of ordered) {
         const { x, y, width, height } = representation.bounds;
         let cell = cellsByRegionId.get(representation.regionId);
-        const style = vertexStyle(representation, styleScale, this.theme);
+        const style = vertexStyles.get(representation.regionId);
         const styleKey = JSON.stringify(style);
         const displayLabel = this.regionDisplayLabel(representation, scene, labelContext);
         if (!cell) {
@@ -369,7 +375,7 @@ function render(scene) {
         const target = cellsByRegionId.get(relation.to);
         if (!source || !target) continue;
         let edge = edgesByProjectionKey.get(key);
-        const style = edgeStyle(relation, styleScale, this.theme);
+        const style = edgeStyles.get(key);
         const styleKey = JSON.stringify(style);
         const displayLabel = this.relationDisplayLabel(relation, scene, labelContext);
         if (!edge) {

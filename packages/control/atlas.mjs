@@ -120,6 +120,7 @@ export const startLiveAtlas = () => {
     adapter.setCamera(next, translateX + at.x / next - at.x / scale, translateY + at.y / next - at.y / scale);
     draw();
   };
+  window.addEventListener('resize', () => fit());
   container.addEventListener('wheel', event => {
     event.preventDefault();
     const box = container.getBoundingClientRect();

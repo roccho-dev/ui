@@ -267,8 +267,10 @@ const painted = vertexStyle({ ...node, visual: { appearance: { fillColor: '#1234
 assert.deepEqual([painted.fillColor, painted.strokeColor, painted.strokeWidth, painted.dashed], ['#123456', '#abcdef', 1.5, true]);
 const unpainted = vertexStyle(node, 2, DEFAULT_THEME);
 for (const key of Object.keys(unpainted)) {
-  if (!['fillColor', 'strokeColor', 'strokeWidth', 'fillOpacity', 'strokeOpacity'].includes(key)) assert.deepEqual(painted[key], unpainted[key], `paint leaves ${key} alone`);
+  if (!['fillColor', 'strokeColor', 'strokeWidth'].includes(key)) assert.deepEqual(painted[key], unpainted[key], `paint leaves ${key} alone`);
 }
+const translucent = vertexStyle({ ...node, visual: { appearance: { fillColor: '#123456', fillOpacity: 40, strokeOpacity: 25 } } }, 1, DEFAULT_THEME);
+assert.deepEqual([translucent.fillColor, translucent.fillOpacity, translucent.strokeOpacity], ['#123456', 40, 25], 'explicit colour keeps the appearance opacity');
 for (const appearance of [{ fillColor: 'red' }, { strokeColor: '#12345' }, { strokeWidth: 0 }, { strokeWidth: 13 }, { dashed: 'yes' }]) {
   assert.throws(() => vertexStyle({ ...node, visual: { appearance } }, 1, DEFAULT_THEME), /appearance/u);
 }

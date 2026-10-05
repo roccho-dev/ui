@@ -186,6 +186,47 @@ try {
     await page.evaluate(() => window.liveAtlas.fit());
     check('fit returns to far', await page.evaluate(() => window.liveAtlas.projection.lod) === 'far');
 
+    // Motion marks live on maxGraph's native shape nodes through every redraw path.
+    const marks = async () => Object.fromEntries((await page.evaluate(readChips)).map(chip => [chip.id, chip]));
+    await page.evaluate(() => window.liveAtlas.select('ws-docs'));
+    let mark = await marks();
+    check('motion marks survive a selection change', mark['ws-render'].motion === 'pulse' && mark['ws-docs'].motion === 'none', { render: mark['ws-render'].motion, docs: mark['ws-docs'].motion });
+    await page.locator('#atlas-rev').fill('0');
+    mark = await marks();
+    check('status transition clears motion (rev 1: ws-history blocked)', mark['ws-history'].token === '!1' && mark['ws-history'].motion === 'none', mark['ws-history']);
+    await page.locator('#atlas-rev').fill('3');
+    mark = await marks();
+    check('status transition sets motion (rev 5: ws-history running)', mark['ws-history'].token === '▶1' && mark['ws-history'].motion === 'pulse', mark['ws-history']);
+    await page.setViewportSize({ width: 1100, height: 700 });
+    await page.waitForFunction(() => document.getElementById('atlas').clientWidth === 1100);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    mark = await marks();
+    check('motion marks survive a viewport resize', mark['ws-render'].motion === 'pulse' && mark['ws-docs'].motion === 'none', { render: mark['ws-render'].motion, docs: mark['ws-docs'].motion });
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // An invalid paint value is rejected before render mutates anything.
+    const rollback = await page.evaluate(() => {
+      const adapter = window.liveAtlas.adapter;
+      const snapshot = () => ({
+        regions: [...adapter.cellsByRegionId.keys()].join('|'),
+        edges: [...adapter.edgesByProjectionKey.keys()].join('|'),
+        cells: adapter.graph.getChildCells(adapter.graph.getDefaultParent(), true, true).length,
+        connected: [...adapter.cellsByRegionId.values()].every(cell => adapter.graph.getDataModel().contains(cell)),
+      });
+      const previous = adapter.lastScene;
+      const before = snapshot();
+      const bad = { ...previous, relations: [], representations: previous.representations.map((item, index) => (index === 0 ? { ...item, visual: { appearance: { fillColor: 'red' } } } : item)) };
+      let error = null;
+      try { adapter.render(bad); } catch (thrown) { error = String(thrown.message); }
+      const after = snapshot();
+      const kept = adapter.lastScene === previous;
+      window.liveAtlas.fit();
+      return { error, before, after, kept, recovered: adapter.lastScene !== previous && snapshot().cells === before.cells };
+    });
+    check('invalid paint throws and leaves graph, cell maps and lastScene unchanged',
+      /fillColor must be #rrggbb/u.test(rollback.error ?? '') && rollback.kept && JSON.stringify(rollback.before) === JSON.stringify(rollback.after) && rollback.before.edges.length > 0 && rollback.after.connected, rollback);
+    check('a following valid render recovers', rollback.recovered && (await marks())['ws-render'].motion === 'pulse', rollback);
+
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const reduced = (await page.evaluate(readChips)).find(chip => chip.id === 'ws-render');
     check('reduced motion stops animation but keeps the static token', reduced.animation === 'none' && reduced.text.startsWith('▶3'), reduced);
