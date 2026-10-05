@@ -1,0 +1,156 @@
+{
+  "kind": "ui.liveAtlasHistory.v1",
+  "note": "Synthetic sample, not business authority. At build time a channel {rows} becomes one JSON line per row, {source} becomes the exact repository file bytes, and a named row list may start with another name whose rows it then replaces by id or extends.",
+  "complete": true,
+  "snapshots": [
+    {
+      "kind": "ui.liveAtlasInput.v1", "rev": 1, "asOf": "2026-10-06T00:10:00Z", "maxAgeMs": 900000,
+      "channels": {
+        "topology": { "rows": "@topology" },
+        "control": { "source": "examples/control/control.jsonl" },
+        "claims": { "source": "examples/control/claims.jsonl" },
+        "observations": { "rows": [
+          { "t": "work", "id": "w-render-1", "scope": "ws-render", "actors": ["agent-1"], "status": "running", "observedAt": "2026-10-06T00:09:00Z", "evidence": [{ "kind": "pr", "ref": "ui#330", "href": "https://github.com/roccho-dev/ui/pull/330" }, { "kind": "worktree", "ref": "wt/atlas-render" }] },
+          { "t": "work", "id": "w-render-2", "scope": "ws-render", "actors": ["agent-2"], "status": "running", "observedAt": "2026-10-06T00:08:00Z", "evidence": [{ "kind": "worktree", "ref": "wt/atlas-chips" }] },
+          { "t": "work", "id": "w-render-3", "scope": "ws-render", "actors": ["agent-1", "agent-2"], "status": "running", "observedAt": "2026-10-06T00:09:30Z", "evidence": [{ "kind": "issue", "ref": "ui#320", "href": "https://github.com/roccho-dev/ui/issues/320" }] },
+          { "t": "work", "id": "w-history-1", "scope": "ws-history", "actors": ["agent-3"], "status": "blocked", "observedAt": "2026-10-06T00:09:40Z", "evidence": [{ "kind": "log", "ref": "waiting on snapshot contract" }] },
+          { "t": "work", "id": "w-ci-1", "scope": "ws-ci", "actors": ["agent-4", "agent-2"], "status": "running", "observedAt": "2026-10-06T00:07:00Z" },
+          { "t": "ref", "id": "r-1", "actor": "agent-1", "target": "t-purpose", "observedAt": "2026-10-06T00:09:00Z" },
+          { "t": "ref", "id": "r-2", "actor": "agent-2", "target": "t-policy", "observedAt": "2026-10-06T00:08:00Z" },
+          { "t": "ref", "id": "r-3", "actor": "agent-4", "target": "t-code", "observedAt": "2026-10-06T00:07:00Z" },
+          { "t": "ref", "id": "r-4", "actor": "lead-ui", "target": "t-meta", "observedAt": "2026-10-06T00:06:00Z" },
+          { "t": "status", "id": "s-deploy", "subject": "ws-deploy", "status": "stopped", "observedAt": "2026-10-06T00:05:00Z", "evidence": [{ "kind": "receipt", "ref": "deploy paused by P" }] },
+          { "t": "status", "id": "s-release", "subject": "proj-release", "status": "running", "observedAt": "2026-10-06T00:05:00Z" }
+        ] }
+      }
+    },
+    {
+      "kind": "ui.liveAtlasInput.v1", "rev": 2, "asOf": "2026-10-06T00:20:00Z", "maxAgeMs": 900000,
+      "channels": {
+        "topology": { "rows": "@topology" },
+        "control": { "source": "examples/control/control.jsonl" },
+        "claims": { "source": "examples/control/claims.jsonl" },
+        "observations": { "rows": [
+          { "t": "work", "id": "w-render-1", "scope": "ws-render", "actors": ["agent-1"], "status": "running", "observedAt": "2026-10-06T00:19:00Z", "evidence": [{ "kind": "pr", "ref": "ui#330", "href": "https://github.com/roccho-dev/ui/pull/330" }, { "kind": "worktree", "ref": "wt/atlas-render" }] },
+          { "t": "work", "id": "w-render-2", "scope": "ws-render", "actors": ["agent-2"], "status": "running", "observedAt": "2026-10-06T00:18:00Z", "evidence": [{ "kind": "worktree", "ref": "wt/atlas-chips" }] },
+          { "t": "work", "id": "w-render-3", "scope": "ws-render", "actors": ["agent-1", "agent-2"], "status": "running", "observedAt": "2026-10-06T00:19:30Z", "evidence": [{ "kind": "issue", "ref": "ui#320", "href": "https://github.com/roccho-dev/ui/issues/320" }] },
+          { "t": "work", "id": "w-history-1", "scope": "ws-history", "actors": ["agent-3"], "status": "blocked", "observedAt": "2026-10-06T00:19:40Z", "evidence": [{ "kind": "log", "ref": "waiting on snapshot contract" }] },
+          { "t": "work", "id": "w-audit-1", "scope": "ws-audit", "actors": ["agent-3"], "status": "created", "createdAt": "2026-10-06T00:15:00Z", "observedAt": "2026-10-06T00:16:00Z", "evidence": [{ "kind": "issue", "ref": "ui#320 audit" }] },
+          { "t": "work", "id": "w-ci-1", "scope": "ws-ci", "actors": ["agent-4", "agent-2"], "status": "running", "observedAt": "2026-10-06T00:17:00Z" },
+          { "t": "ref", "id": "r-1", "actor": "agent-1", "target": "t-purpose", "observedAt": "2026-10-06T00:19:00Z" },
+          { "t": "ref", "id": "r-2", "actor": "agent-2", "target": "t-code", "observedAt": "2026-10-06T00:18:00Z" },
+          { "t": "ref", "id": "r-3", "actor": "agent-4", "target": "t-code", "observedAt": "2026-10-06T00:17:00Z" },
+          { "t": "ref", "id": "r-4", "actor": "lead-ui", "target": "t-meta", "observedAt": "2026-10-06T00:16:00Z" },
+          { "t": "status", "id": "s-deploy", "subject": "ws-deploy", "status": "stopped", "observedAt": "2026-10-06T00:15:00Z", "evidence": [{ "kind": "receipt", "ref": "deploy paused by P" }] },
+          { "t": "status", "id": "s-release", "subject": "proj-release", "status": "running", "observedAt": "2026-10-06T00:15:00Z" }
+        ] }
+      }
+    },
+    {
+      "kind": "ui.liveAtlasInput.v1", "rev": 3, "asOf": "2026-10-06T00:30:00Z", "maxAgeMs": 900000,
+      "channels": {
+        "topology": { "rows": "@topology" },
+        "control": { "source": "examples/control/control.jsonl" },
+        "claims": { "source": "examples/control/claims.jsonl" },
+        "observations": { "rows": [
+          { "t": "work", "id": "w-render-1", "scope": "ws-render", "actors": ["agent-1"], "status": "running", "observedAt": "2026-10-06T00:29:00Z", "evidence": [{ "kind": "pr", "ref": "ui#330", "href": "https://github.com/roccho-dev/ui/pull/330" }, { "kind": "worktree", "ref": "wt/atlas-render" }] },
+          { "t": "work", "id": "w-render-2", "scope": "ws-render", "actors": ["agent-2"], "status": "running", "observedAt": "2026-10-06T00:28:00Z", "evidence": [{ "kind": "worktree", "ref": "wt/atlas-chips" }] },
+          { "t": "work", "id": "w-render-3", "scope": "ws-render", "actors": ["agent-1", "agent-2"], "status": "completed", "observedAt": "2026-10-06T00:27:00Z", "evidence": [{ "kind": "pr", "ref": "ui#331 merged", "href": "https://github.com/roccho-dev/ui/pull/331" }] },
+          { "t": "work", "id": "w-history-1", "scope": "ws-history", "actors": ["agent-3"], "status": "running", "observedAt": "2026-10-06T00:29:40Z", "evidence": [{ "kind": "worktree", "ref": "wt/atlas-history" }] },
+          { "t": "work", "id": "w-audit-1", "scope": "ws-audit", "actors": ["agent-3"], "status": "running", "createdAt": "2026-10-06T00:15:00Z", "observedAt": "2026-10-06T00:26:00Z", "evidence": [{ "kind": "issue", "ref": "ui#320 audit" }] },
+          { "t": "work", "id": "w-ci-1", "scope": "ws-ci", "actors": ["agent-4", "agent-2"], "status": "running", "observedAt": "2026-10-06T00:27:00Z" },
+          { "t": "work", "id": "w-ci-2", "scope": "ws-ci", "actors": ["agent-4"], "status": "running", "observedAt": "2026-10-06T00:28:00Z" },
+          { "t": "ref", "id": "r-1", "actor": "agent-1", "target": "t-purpose", "observedAt": "2026-10-06T00:29:00Z" },
+          { "t": "ref", "id": "r-2", "actor": "agent-2", "target": "t-code", "observedAt": "2026-10-06T00:28:00Z" },
+          { "t": "ref", "id": "r-3", "actor": "agent-4", "target": "t-code", "observedAt": "2026-10-06T00:27:00Z" },
+          { "t": "ref", "id": "r-4", "actor": "lead-ui", "target": "t-meta", "observedAt": "2026-10-06T00:26:00Z" },
+          { "t": "status", "id": "s-deploy", "subject": "ws-deploy", "status": "residual", "observedAt": "2026-10-06T00:25:00Z", "evidence": [{ "kind": "receipt", "ref": "deploy residual: rollback pending" }] },
+          { "t": "status", "id": "s-release", "subject": "proj-release", "status": "running", "observedAt": "2026-10-06T00:25:00Z" }
+        ] }
+      }
+    },
+    {
+      "kind": "ui.liveAtlasInput.v1", "rev": 5, "asOf": "2026-10-06T00:50:00Z", "maxAgeMs": 900000,
+      "channels": {
+        "topology": { "rows": "@topology-rev5" },
+        "control": { "source": "examples/control/control.jsonl" },
+        "claims": { "source": "examples/control/claims.jsonl" },
+        "observations": { "rows": [
+          { "t": "work", "id": "w-render-2", "scope": "ws-render", "actors": ["agent-2"], "status": "running", "observedAt": "2026-10-06T00:48:00Z", "evidence": [{ "kind": "worktree", "ref": "wt/atlas-chips" }] },
+          { "t": "work", "id": "w-render-3", "scope": "ws-render", "actors": ["agent-1", "agent-2"], "status": "completed", "observedAt": "2026-10-06T00:47:00Z", "evidence": [{ "kind": "pr", "ref": "ui#331 merged", "href": "https://github.com/roccho-dev/ui/pull/331" }] },
+          { "t": "work", "id": "w-render-4", "scope": "ws-render", "actors": ["agent-1"], "status": "running", "observedAt": "2026-10-06T00:49:00Z", "evidence": [{ "kind": "worktree", "ref": "wt/atlas-motion" }] },
+          { "t": "work", "id": "w-render-5", "scope": "ws-render", "actors": ["agent-5"], "status": "running", "observedAt": "2026-10-06T00:49:30Z" },
+          { "t": "work", "id": "w-history-1", "scope": "ws-history", "actors": ["agent-3"], "status": "running", "observedAt": "2026-10-06T00:49:40Z", "evidence": [{ "kind": "worktree", "ref": "wt/atlas-history" }] },
+          { "t": "work", "id": "w-audit-1", "scope": "ws-audit", "actors": ["agent-3"], "status": "running", "createdAt": "2026-10-06T00:15:00Z", "observedAt": "2026-10-06T00:46:00Z", "evidence": [{ "kind": "issue", "ref": "ui#320 audit" }] },
+          { "t": "work", "id": "w-ci-1", "scope": "ws-ci", "actors": ["agent-4", "agent-2"], "status": "running", "observedAt": "2026-10-06T00:47:00Z" },
+          { "t": "work", "id": "w-ci-2", "scope": "ws-ci", "actors": ["agent-4"], "status": "blocked", "observedAt": "2026-10-06T00:48:00Z", "evidence": [{ "kind": "log", "ref": "flake lock drift" }] },
+          { "t": "ref", "id": "r-1", "actor": "agent-1", "target": "t-purpose", "observedAt": "2026-10-06T00:49:00Z" },
+          { "t": "ref", "id": "r-2", "actor": "agent-2", "target": "t-code", "observedAt": "2026-10-06T00:48:00Z" },
+          { "t": "ref", "id": "r-3", "actor": "agent-4", "target": "t-code", "observedAt": "2026-10-06T00:47:00Z" },
+          { "t": "ref", "id": "r-4", "actor": "lead-ui", "target": "t-meta", "observedAt": "2026-10-06T00:46:00Z" },
+          { "t": "ref", "id": "r-5", "actor": "agent-3", "target": "t-policy", "observedAt": "2026-10-06T00:49:40Z" },
+          { "t": "status", "id": "s-deploy", "subject": "ws-deploy", "status": "residual", "observedAt": "2026-10-06T00:45:00Z", "evidence": [{ "kind": "receipt", "ref": "deploy residual: rollback pending" }] },
+          { "t": "status", "id": "s-release", "subject": "proj-release", "status": "running", "observedAt": "2026-10-06T00:45:00Z" },
+          { "t": "status", "id": "s-agent-4", "subject": "agent-4", "status": "blocked", "observedAt": "2026-10-06T00:48:00Z", "evidence": [{ "kind": "log", "ref": "waiting for flake lock review" }] }
+        ] }
+      }
+    }
+  ],
+  "rows": {
+    "@topology": [
+      { "t": "scope", "id": "company", "label": "Company portfolio", "parent": null, "controlId": "/root" },
+      { "t": "scope", "id": "product-ui", "label": "UI product", "parent": "company", "controlId": "ui" },
+      { "t": "scope", "id": "product-ops", "label": "Ops product", "parent": "company", "controlId": "ops" },
+      { "t": "scope", "id": "proj-atlas", "label": "Live Atlas", "parent": "product-ui" },
+      { "t": "scope", "id": "proj-control", "label": "Control UI", "parent": "product-ui" },
+      { "t": "scope", "id": "proj-release", "label": "Release", "parent": "product-ops", "controlId": "release" },
+      { "t": "scope", "id": "ws-render", "label": "maxGraph render", "parent": "proj-atlas" },
+      { "t": "scope", "id": "ws-history", "label": "History", "parent": "proj-atlas" },
+      { "t": "scope", "id": "ws-audit", "label": "Audit", "parent": "proj-control" },
+      { "t": "scope", "id": "ws-docs", "label": "Docs", "parent": "proj-control" },
+      { "t": "scope", "id": "ws-ci", "label": "CI", "parent": "proj-release" },
+      { "t": "scope", "id": "ws-deploy", "label": "Deploy", "parent": "proj-release" },
+      { "t": "actor", "id": "ceo", "label": "CEO" },
+      { "t": "actor", "id": "cto", "label": "CTO", "controlId": "d" },
+      { "t": "actor", "id": "coo", "label": "COO" },
+      { "t": "actor", "id": "lead-ui", "label": "UI lead" },
+      { "t": "actor", "id": "lead-ops", "label": "Ops lead" },
+      { "t": "actor", "id": "agent-1", "label": "agent-1", "session": "opaque producer property" },
+      { "t": "actor", "id": "agent-2", "label": "agent-2" },
+      { "t": "actor", "id": "agent-3", "label": "agent-3" },
+      { "t": "actor", "id": "agent-4", "label": "agent-4" },
+      { "t": "actor", "id": "agent-5", "label": "agent-5" },
+      { "t": "target", "id": "t-purpose", "label": "#320 scope purpose", "class": "purpose" },
+      { "t": "target", "id": "t-meta", "label": "company sale", "class": "meta" },
+      { "t": "target", "id": "t-policy", "label": "organization.md", "class": "policy" },
+      { "t": "target", "id": "t-code", "label": "styles.js rules", "class": "code" },
+      { "t": "org", "id": "o-ceo-cto", "from": "ceo", "to": "cto" },
+      { "t": "org", "id": "o-ceo-coo", "from": "ceo", "to": "coo" },
+      { "t": "org", "id": "o-cto-lead-ui", "from": "cto", "to": "lead-ui" },
+      { "t": "org", "id": "o-coo-lead-ops", "from": "coo", "to": "lead-ops" },
+      { "t": "org", "id": "o-cto-lead-ops", "from": "cto", "to": "lead-ops" },
+      { "t": "org", "id": "o-lead-ui-agent-1", "from": "lead-ui", "to": "agent-1" },
+      { "t": "org", "id": "o-lead-ui-agent-2", "from": "lead-ui", "to": "agent-2" },
+      { "t": "org", "id": "o-lead-ui-agent-3", "from": "lead-ui", "to": "agent-3" },
+      { "t": "org", "id": "o-lead-ops-agent-4", "from": "lead-ops", "to": "agent-4" },
+      { "t": "org", "id": "o-lead-ops-agent-5", "from": "lead-ops", "to": "agent-5" },
+      { "t": "member", "id": "m-cto-ui", "actor": "cto", "scope": "product-ui" },
+      { "t": "member", "id": "m-coo-ops", "actor": "coo", "scope": "product-ops" },
+      { "t": "member", "id": "m-lead-ui-atlas", "actor": "lead-ui", "scope": "proj-atlas" },
+      { "t": "member", "id": "m-lead-ui-control", "actor": "lead-ui", "scope": "proj-control" },
+      { "t": "member", "id": "m-lead-ops-release", "actor": "lead-ops", "scope": "proj-release" },
+      { "t": "member", "id": "m-agent-1-render", "actor": "agent-1", "scope": "ws-render" },
+      { "t": "member", "id": "m-agent-2-render", "actor": "agent-2", "scope": "ws-render" },
+      { "t": "member", "id": "m-agent-2-ci", "actor": "agent-2", "scope": "ws-ci" },
+      { "t": "member", "id": "m-agent-3-history", "actor": "agent-3", "scope": "ws-history" },
+      { "t": "member", "id": "m-agent-3-audit", "actor": "agent-3", "scope": "ws-audit" },
+      { "t": "member", "id": "m-agent-4-ci", "actor": "agent-4", "scope": "ws-ci" },
+      { "t": "member", "id": "m-agent-5-deploy", "actor": "agent-5", "scope": "ws-deploy" }
+    ],
+    "@topology-rev5": [
+      "@topology",
+      { "t": "scope", "id": "ws-deploy", "label": "Deploy", "parent": "product-ops" },
+      { "t": "member", "id": "m-agent-5-render", "actor": "agent-5", "scope": "ws-render" }
+    ]
+  }
+}
