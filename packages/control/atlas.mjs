@@ -14,15 +14,19 @@ import { fitCamera, layoutTopology, lodFor, projectAtlas } from './src/live-atla
 const STYLE = `
 *{box-sizing:border-box}
 body{margin:0;font:13px/1.4 system-ui,sans-serif;color:#1f2937;background:#f8f9fa}
-#atlas-bar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;min-height:44px;padding:6px 10px;background:#fff;border-bottom:1px solid #dee2e6}
-#atlas-bar button{font:inherit;padding:2px 8px}
-#atlas-bar input[type=search]{font:inherit;width:16em}
+#atlas-screen{display:flex;flex-direction:column;height:100vh}
+#atlas-bar{flex:none;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:4px 8px;background:#fff;border-bottom:1px solid #dee2e6}
+#atlas-bar button{font:inherit;padding:1px 8px}
+#atlas-bar input[type=search]{font:inherit;width:14em}
 #atlas-mode{font-weight:650}
 #atlas-mode[data-current=false]{color:#c2255c}
-#atlas-summary{color:#495057}
-#atlas-banners{padding:0 10px}
-#atlas-banners p{margin:4px 0;padding:4px 8px;border-left:4px solid #c2255c;background:#fff5f8}
-#atlas{position:relative;width:100%;height:calc(100vh - 44px);overflow:hidden;background:#fff}
+#atlas-status{flex:none;display:flex;gap:10px;align-items:baseline;padding:2px 8px;background:#fff;border-bottom:1px solid #dee2e6;font-size:12px;min-width:0}
+#atlas-summary{flex:none;color:#495057;white-space:nowrap}
+#atlas-banners{flex:1;min-width:0}
+#atlas-banners>summary{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c2255c;cursor:pointer}
+#atlas-banners[open]{max-height:30vh;overflow:auto}
+#atlas-banners p{margin:2px 0;padding:2px 8px;border-left:4px solid #c2255c;background:#fff5f8}
+#atlas{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
 #atlas-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:12px}
 #atlas-detail section{min-width:0}
 #atlas-detail h2{font-size:14px;margin:8px 0}
@@ -31,7 +35,7 @@ td,th{border-bottom:1px solid #e9ecef;padding:2px 4px;text-align:left;vertical-a
 td code,pre{font:11px/1.35 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 tr[data-selected=true]{background:#fff3bf}
 button.link{border:0;background:none;color:#1864ab;cursor:pointer;padding:0;font:inherit;text-align:left}
-@media(max-width:800px){#atlas{height:70vh}#atlas-detail{grid-template-columns:1fr}}
+@media(max-width:800px){#atlas-detail{grid-template-columns:1fr}#atlas-status{flex-wrap:wrap}}
 @keyframes atlas-pulse{50%{stroke-width:4px;stroke-opacity:.5}}
 @keyframes atlas-flow{to{stroke-dashoffset:-14}}
 @media (prefers-reduced-motion:no-preference){
@@ -72,8 +76,13 @@ export const startLiveAtlas = () => {
     el('button', { type: 'button', text: 'Fit', onclick: () => fit() }),
     el('button', { type: 'button', text: '+', 'aria-label': 'Zoom in', onclick: () => zoomBy(1.6) }),
     el('button', { type: 'button', text: '−', 'aria-label': 'Zoom out', onclick: () => zoomBy(1 / 1.6) }),
-    revInput, revLabel, search, summary);
-  const banners = el('div', { id: 'atlas-banners', role: 'status' });
+    revInput, revLabel, search);
+  // One line for the far summary and notices, so the Atlas keeps the viewport;
+  // the first notice stays readable and the full list opens on demand.
+  const bannerSummary = el('summary');
+  const bannerList = el('div');
+  const banners = el('details', { id: 'atlas-banners', role: 'status' }, bannerSummary, bannerList);
+  const status = el('div', { id: 'atlas-status' }, summary, banners);
   const container = el('div', { id: 'atlas', 'aria-label': 'Live Agent Organization Atlas (maxGraph)' });
   const scopeList = el('tbody');
   const inspector = el('div', { id: 'atlas-inspector' });
@@ -87,7 +96,7 @@ export const startLiveAtlas = () => {
     el('section', {},
       el('h2', {}, 'Source audit ', auditCount),
       el('table', { id: 'atlas-audit' }, el('thead', {}, el('tr', {}, ...['source', 'line', 'state', 'claim', 'raw'].map(text => el('th', { text })))), auditBody)));
-  document.body.append(bar, banners, container, detail);
+  document.body.append(el('div', { id: 'atlas-screen' }, bar, status, container), detail);
 
   const adapter = createMaxGraphAdapter(container, { theme: DEFAULT_THEME });
   adapter.setTool('hand');
@@ -99,7 +108,9 @@ export const startLiveAtlas = () => {
     return history[page.revIndex];
   };
   const viewMode = () => (page.revIndex !== null && page.revIndex < page.state.history.length - 1 ? 'history' : page.mode);
-  const current = snapshot => currentness(snapshot, { mode: viewMode(), now: Date.now(), connected: page.connected });
+  const current = snapshot => currentness(snapshot, {
+    mode: viewMode(), now: Date.now(), connected: page.connected, attempt: viewMode() === 'live' ? page.state.attempt : null,
+  });
   const layoutOf = snapshot => {
     if (!page.layouts.has(snapshot.rev)) page.layouts.set(snapshot.rev, layoutTopology(snapshot.topology));
     return page.layouts.get(snapshot.rev);
@@ -174,29 +185,34 @@ export const startLiveAtlas = () => {
     const label = viewMode() === 'live'
       ? `LIVE · ${page.connected ? 'connected' : 'disconnected'}${snapshot ? ` · rev ${snapshot.rev} · as of ${snapshot.asOf}` : ' · waiting for producer'}`
       : `${viewMode() === 'history' ? 'HISTORY' : 'SAMPLE'}${snapshot ? ` · rev ${snapshot.rev} · as of ${snapshot.asOf}` : ''}`;
-    mode.textContent = `${label} · activity ${now.current ? 'current' : `UNKNOWN (${now.reason})`}${page.projection?.lod ? ` · ${page.projection.lod}` : ''}`;
+    // Activity comes first so a narrow bar never hides it.
+    mode.textContent = `activity ${now.current ? 'current' : `UNKNOWN (${now.reason})`} · ${label}${page.projection?.lod ? ` · ${page.projection.lod}` : ''}`;
     revInput.max = String(Math.max(0, state.history.length - 1));
     revInput.value = String(page.revIndex ?? Math.max(0, state.history.length - 1));
     revLabel.textContent = `history ${state.history.length} rev${state.complete ? '' : ' · incomplete'}${state.gaps.length ? ` · gaps ${state.gaps.map(gap => `${gap.fromRev}→${gap.toRev}`).join(', ')}` : ''}`;
+    // Notices that change what the picture means come first.
+    const critical = [];
     const notes = [];
+    if (page.projection && !page.projection.supported) critical.push(`Unsupported: ${page.projection.diagnostic}. Every source row stays in the audit below.`);
+    if (page.readability?.unreadable.length) critical.push(`Degraded: ${page.readability.unreadable.length} of ${page.readability.chips} scope chips are not readable at fit in this viewport; use the scope table below.`);
     if (state.attempt && state.attempt.outcome !== 'accepted') {
       const attempt = state.attempt;
-      notes.push(`Last update ${attempt.outcome}${attempt.evaluated.rev !== null ? ` (rev ${attempt.evaluated.rev})` : ''}: ${attempt.evaluated.diagnostic ?? 'not newer than the held revision'}. Showing the previous accepted revision.`);
+      critical.push(`Last update ${attempt.outcome}${attempt.evaluated.rev !== null ? ` (rev ${attempt.evaluated.rev})` : ''}: ${attempt.evaluated.diagnostic ?? 'not newer than the held revision'}. Showing the previous accepted revision.`);
     }
     for (const rejected of state.rejected ?? []) notes.push(`History snapshot ${rejected.outcome}: ${rejected.evaluated.diagnostic ?? `rev ${rejected.evaluated.rev}`}`);
     if (snapshot) {
-      for (const name of ['control', 'claims', 'observations']) {
+      for (const name of ['observations', 'control', 'claims']) {
         const channel = snapshot.channels[name];
-        if (channel.state !== 'accepted') notes.push(`${name} ${channel.state}${channel.diagnostic ? `: ${channel.diagnostic}` : ''}`);
+        if (channel.state !== 'accepted') (name === 'observations' ? critical : notes).push(`${name} ${channel.state}${channel.diagnostic ? `: ${channel.diagnostic}` : ''}`);
       }
       const unresolved = snapshot.joins.filter(join => !join.resolved);
       if (unresolved.length) notes.push(`${unresolved.length} Control joins unresolved because Control is ${snapshot.channels.control.state}`);
     }
-    if (page.projection && !page.projection.supported) notes.push(`Unsupported: ${page.projection.diagnostic}. Every source row stays in the audit below.`);
-    if (page.readability?.unreadable.length) notes.push(`Degraded: ${page.readability.unreadable.length} of ${page.readability.chips} scope chips are not readable at fit in this viewport; use the scope table below.`);
     const coverage = page.projection?.coverage;
     if (coverage && coverage.works.shown < coverage.works.total) notes.push(`${coverage.works.total - coverage.works.shown} work items not drawn at this zoom; all are in the scope table and audit.`);
-    banners.replaceChildren(...notes.map(text => el('p', { text })));
+    const all = [...critical, ...notes];
+    bannerSummary.textContent = all.length ? `${all.length} notice${all.length > 1 ? 's' : ''}: ${all[0]}` : 'no notices';
+    bannerList.replaceChildren(...all.map(text => el('p', { text })));
     if (snapshot && page.projection?.supported) {
       const values = [...page.projection.status.values()];
       const count = tone => values.filter(item => item.tone === tone).length;
@@ -351,8 +367,12 @@ export const startLiveAtlas = () => {
       if (key !== last) { last = key; update(); }
     }, 1000);
   }
-  const initial = decodeURIComponent((location.hash.match(/^#sel=(.+)$/u) ?? [])[1] ?? '');
-  if (initial) page.selected = initial;
+  try {
+    const initial = decodeURIComponent((location.hash.match(/^#sel=(.+)$/u) ?? [])[1] ?? '');
+    if (initial) page.selected = initial;
+  } catch {
+    // A malformed hash selects nothing.
+  }
   fit();
   panels();
   window.liveAtlas = Object.freeze({

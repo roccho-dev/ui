@@ -5,6 +5,7 @@
 // and writes only to a fresh temporary directory.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,7 +14,7 @@ import {
   applyEnvelope, createAtlasState, currentness, evaluateEnvelope, historyChanges, loadHistory,
   parseTopology, summarizeScopes, timelineFor, HISTORY_LIMIT,
 } from '../packages/control/src/live-atlas.mjs';
-import { fitCamera, layoutTopology, lodFor, MAX_SCENE_PRIMITIVES, projectAtlas } from '../packages/control/src/live-atlas-projection.mjs';
+import { fitCamera, layoutTopology, lodFor, MAX_SCENE_PRIMITIVES, projectAtlas, STATUS_PAINT } from '../packages/control/src/live-atlas-projection.mjs';
 import { MAX_SCENE_PRIMITIVES as PROJECTOR_BUDGET } from '../packages/semantic-map/projection/projector.js';
 import { displayedRegionLabel } from '../packages/semantic-map/renderer-maxgraph/labels.js';
 import { edgeStyle, vertexStyle } from '../packages/semantic-map/renderer-maxgraph/styles.js';
@@ -21,6 +22,62 @@ import { DEFAULT_THEME, paletteFor } from '../packages/semantic-map/renderer-max
 import { ATLAS_MODULE_ROOTS, buildLiveAtlas, resolveHistory } from '../scripts/build-live-atlas.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// Explicit packer-extraction parity proof, run only on direct invocation:
+//   node tests/check-live-atlas.mjs --builder-parity=<base commit>
+// It reads the base builder with Git and compares it with the current builder
+// on the same current source tree for the three existing CLI cases. run-all
+// never passes this flag, so the normal check needs no Git.
+const parityArg = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  ? process.argv.slice(2).find(arg => arg.startsWith('--builder-parity=')) : undefined;
+if (parityArg) {
+  const base = parityArg.slice('--builder-parity='.length);
+  const builder = 'packages/semantic-map/scripts/build-browser-example.mjs';
+  const shown = spawnSync('git', ['show', `${base}:${builder}`], { cwd: repoRoot });
+  assert.equal(shown.status, 0, String(shown.stderr));
+  // Same directory as the real builder so its import.meta.url resolves the same repository.
+  const baseModule = path.join(repoRoot, 'packages', 'semantic-map', 'scripts', `.builder-parity-base-${process.pid}.mjs`);
+  const outRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'builder-parity-'));
+  const outputs = [];
+  const topology = 'examples/render.semantic-map.set-topology/input/envelope.json';
+  const cases = {
+    default: [],
+    horizontal: [`--input=${topology}`, '--set-topology-proof=true', '--projection-profile=horizontal'],
+    vertical: [`--input=${topology}`, '--set-topology-proof=true', '--projection-profile=vertical'],
+  };
+  const results = {};
+  fs.writeFileSync(baseModule, shown.stdout, { flag: 'wx' });
+  try {
+    for (const [name, args] of Object.entries(cases)) {
+      const bytes = {};
+      for (const [side, script] of [['base', baseModule], ['head', path.join(repoRoot, builder)]]) {
+        const out = path.join(outRoot, `${name}-${side}`);
+        assert.equal(fs.existsSync(out), false, `fresh output ${out}`);
+        outputs.push(out);
+        const run = spawnSync(process.execPath, [script, ...args, `--out=${out}`], { cwd: repoRoot, encoding: 'utf8' });
+        assert.equal(run.status, 0, run.stderr);
+        bytes[side] = ['index.html', 'receipt.json'].map(file => fs.readFileSync(path.join(out, file)));
+      }
+      bytes.base.forEach((value, index) => assert.ok(value.equals(bytes.head[index]), `${name}: ${index ? 'receipt.json' : 'index.html'} differs`));
+      const receipt = JSON.parse(bytes.head[1]);
+      assert.ok(bytes.head[0].includes('id="embedded-third-party-notices"'));
+      const sha = value => createHash('sha256').update(value).digest('hex');
+      results[name] = { index: sha(bytes.head[0]), receipt: sha(bytes.head[1]), schema: receipt.schema, modules: receipt.modules, moduleRoots: receipt.moduleRoots };
+    }
+  } finally {
+    fs.unlinkSync(baseModule);
+    for (const out of outputs) {
+      for (const file of ['index.html', 'receipt.json']) {
+        try { fs.unlinkSync(path.join(out, file)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      }
+      try { fs.rmdirSync(out); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+    fs.rmdirSync(outRoot);
+  }
+  console.log(JSON.stringify({ status: 'builder-parity-pass', base, results }));
+  process.exit(0);
+}
+
 const fixturePath = path.join(repoRoot, 'tests', 'fixtures', 'live-atlas', 'history.json');
 const history = await resolveHistory(fixturePath);
 const jsonl = rows => `${rows.map(row => JSON.stringify(row)).join('\n')}\n`;
@@ -148,6 +205,46 @@ for (const [options, reason] of [
   assert.ok(projected.scene.representations.every(item => (item.visual?.motion ?? 'none') === 'none'), 'no motion without current activity');
   assert.ok([...projected.status.values()].every(item => item.token === '?'));
 }
+for (const outcome of ['rejected', 'conflict']) {
+  const untrusted = currentness(held, { mode: 'live', now: T0 + 1000, connected: true, attempt: { outcome } });
+  assert.equal(untrusted.current, false, `a newer ${outcome} update makes held activity unknown`);
+  assert.match(untrusted.reason, new RegExp(`latest update ${outcome}`, 'u'));
+}
+assert.equal(currentness(held, { mode: 'live', now: T0 + 1000, connected: true, attempt: { outcome: 'stale' } }).current, true, 'an older stale update changes nothing');
+
+// A running work that is no longer fresh is drawn as unknown, without motion.
+const staleHeld = applyEnvelope(createAtlasState(), envelope({ topology: scopes, maxAgeMs: 60000, observations: [work('w-stale', 'a', 'running', '2026-10-06T00:00:00Z'), work('w-live', 'a', 'running')] }), { now: T0 }).held;
+const staleNow = currentness(staleHeld, { mode: 'sample' });
+const staleProjection = projectAtlas(staleHeld, staleNow, { zoom: 3, scale: 1 });
+const glyph = id => staleProjection.scene.representations.find(item => item.regionId === id);
+assert.deepEqual([glyph('w-stale').visual.appearance, glyph('w-stale').visual.motion], [STATUS_PAINT.unknown, 'none']);
+assert.deepEqual([glyph('w-live').visual.appearance, glyph('w-live').visual.motion], [STATUS_PAINT.running, 'pulse']);
+assert.equal(summarizeScopes(staleHeld, staleNow).get('a').lanes, 1, 'the stale work is not counted either');
+
+// Producer status rows colour actors and relations; unknown activity clears them.
+const statusHeld = applyEnvelope(createAtlasState(), envelope({ topology: scopes, observations: [
+  { t: 'status', id: 's-y', subject: 'y', status: 'blocked', observedAt: '2026-10-06T00:09:00Z' },
+  { t: 'status', id: 's-o', subject: 'o', status: 'stopped', observedAt: '2026-10-06T00:09:00Z' },
+] }), { now: T0 }).held;
+const statusProjection = projectAtlas(statusHeld, currentness(statusHeld, { mode: 'sample' }), { zoom: 1, scale: 1 });
+const actorY = statusProjection.scene.representations.find(item => item.regionId === 'y');
+assert.deepEqual(actorY.visual.appearance, STATUS_PAINT.blocked);
+assert.match(actorY.label, /^! · Y$/u);
+assert.equal(statusProjection.scene.relations.find(item => item.relationIds[0] === 'org:x>y').visual.appearance.strokeColor, STATUS_PAINT.stopped.strokeColor);
+const unknownStatus = projectAtlas(statusHeld, currentness(statusHeld, { mode: 'live', now: T0, connected: false }), { zoom: 1, scale: 1 });
+assert.equal(unknownStatus.scene.representations.find(item => item.regionId === 'y').atlas.status, null);
+
+// A span whose observations were rejected keeps the change across it, flagged.
+let gapState = createAtlasState();
+gapState = applyEnvelope(gapState, envelope({ rev: 1, topology: scopes, observations: [work('wg', 'a', 'running')] }), { now: T0 });
+gapState = applyEnvelope(gapState, envelope({ rev: 2, topology: scopes, observations: '{"t":"work"}\n' }), { now: T0 });
+gapState = applyEnvelope(gapState, envelope({ rev: 3, topology: scopes, observations: [work('wg', 'a', 'blocked')] }), { now: T0 });
+assert.equal(gapState.history[1].channels.observations.state, 'rejected');
+const gapChanges = historyChanges(gapState.history);
+assert.ok(gapChanges.some(change => change.id === 'wg' && change.kind === 'status' && change.from === 'running' && change.to === 'blocked' && change.fromRev === 1 && change.toRev === 3 && change.observationGap === true), JSON.stringify(gapChanges));
+assert.ok(gapChanges.some(change => change.kind === 'unknown' && change.fromRev === 1 && change.toRev === 2));
+assert.ok(gapChanges.some(change => change.kind === 'unknown' && change.fromRev === 2 && change.toRev === 3));
+
 const sampleNow = currentness(held, { mode: 'sample' });
 assert.equal(sampleNow.now, held.asOfMs);
 assert.match(sampleNow.reason, /sample as of/u);
@@ -174,6 +271,8 @@ has('ws-deploy', 'topology', { change: 'changed', gap: true });
 assert.ok(!changes.some(change => change.id === 'w-render-1' && change.kind === 'status'), 'disappearance is not completion');
 assert.ok(changes.filter(change => change.kind !== 'created').every(change => change.at == null), 'no invented exact times');
 assert.ok(timelineFor(sample.history, 'ws-render').some(change => change.id === 'w-render-3'), 'scope timeline includes its work');
+assert.ok(timelineFor(sample.history, 'ws-render').some(change => change.id === 'w-render-1' && change.kind === 'notReported'), 'scope timeline keeps work that disappeared');
+assert.ok(timelineFor(sample.history, 'agent-2').some(change => change.id === 'r-2' && change.kind === 'retarget'), 'actor timeline includes its reference retarget');
 const scope = summarizeScopes(sample.held, currentness(sample.held, { mode: 'sample' }));
 assert.equal(scope.get('ws-render').lanes, 3);
 assert.equal(scope.get('ws-docs').reported, false);
@@ -233,9 +332,10 @@ for (const [scopeCount, actorCount] of [[300, 40], [300, 900]]) {
       const actorsDrawn = rows.filter(item => item.t === 'actor' && ids.includes(item.id)).length;
       const covered = projection.aggregates.reduce((sum, item) => sum + item.covers.length, 0);
       assert.equal(actorsDrawn + covered, actorCount, 'every actor drawn once or covered once');
-      if (selected) assert.ok(ids.includes(selected) || zoom === 1, `selection ${selected} reachable at ${lodFor(zoom)}`);
-      if (selected?.startsWith('a')) assert.ok(ids.includes(selected), 'a selected actor is materialized even when aggregated');
+      if (selected) assert.ok(ids.includes(selected), `selection ${selected} drawn at ${lodFor(zoom)}`);
       assert.ok(projection.coverage.works.shown <= projection.coverage.works.total);
+      assert.ok(projection.coverage.org.shown <= projection.coverage.org.total);
+      if (actorCount === 40) assert.equal(projection.coverage.org.shown, actorCount - 1, 'every org relation drawn');
     }
   }
 }
@@ -340,7 +440,7 @@ try {
     let connected = false;
     const log = [];
     const record = event => log.push({ event, held: state.held?.rev ?? null, outcome: state.attempt?.outcome ?? null, connected,
-      current: currentness(state.held, { mode: 'live', now: Date.now(), connected }) });
+      current: currentness(state.held, { mode: 'live', now: Date.now(), connected, attempt: state.attempt }) });
     const done = new Promise(resolve => {
       const client = connectLiveAtlas({ url: producer.url,
         onConnection: value => { connected = value; record(value ? 'open' : 'error'); },
@@ -356,6 +456,11 @@ try {
   const snapshots = log.filter(item => item.event === 'snapshot').map(item => [item.held, item.outcome]);
   assert.deepEqual(snapshots, [[1, 'accepted'], [3, 'accepted'], [3, 'stale'], [3, 'rejected'], [4, 'accepted'], [5, 'accepted'], [5, 'rejected'], [6, 'accepted'], [7, 'accepted']]);
   assert.equal(observations, 'rejected', 'a corrupt optional channel is rejected as a whole');
+  const snapshotLog = log.filter(item => item.event === 'snapshot');
+  assert.deepEqual(snapshotLog.slice(0, 5).map(item => [item.outcome, item.current.current, item.current.reason]), [
+    ['accepted', true, 'live'], ['accepted', true, 'live'], ['stale', true, 'live'],
+    ['rejected', false, 'latest update rejected'], ['accepted', true, 'live'],
+  ], 'a rejected update makes activity unknown until the next accepted one');
   const afterBadObservations = log.find(item => item.event === 'snapshot' && item.held === 5 && item.outcome === 'accepted');
   assert.equal(afterBadObservations.current.current, false, 'rejected observations make activity unknown immediately');
   const error = log.find(item => item.event === 'error');

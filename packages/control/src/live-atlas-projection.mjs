@@ -1,7 +1,7 @@
 // Projection from the Live Atlas read model to the existing semantic-map
 // maxGraph scene shape. World coordinates come from the selected topology only;
 // observations and the camera change colour, motion and detail, never position.
-import { currentRefs, summarizeScopes, TARGET_CLASSES } from './live-atlas.mjs';
+import { currentRefs, fresh, summarizeScopes, TARGET_CLASSES } from './live-atlas.mjs';
 
 // Same budget as packages/semantic-map/projection/projector.js.
 export const MAX_SCENE_PRIMITIVES = 2048;
@@ -189,7 +189,8 @@ export const projectAtlas = (snapshot, current, view) => {
   if (fixed > MAX_SCENE_PRIMITIVES) {
     return Object.freeze({ supported: false, diagnostic: `${scopeCount} scopes and ${topology.targets.size} targets need ${fixed} primitives; the scene budget is ${MAX_SCENE_PRIMITIVES}`, layout, lod });
   }
-  let budget = MAX_SCENE_PRIMITIVES - fixed;
+  // One primitive stays reserved so a selected hidden item can always be drawn.
+  let budget = MAX_SCENE_PRIMITIVES - fixed - 1;
   const representations = [];
   const relations = [];
   const selectionProxies = {};
@@ -214,6 +215,27 @@ export const projectAtlas = (snapshot, current, view) => {
     selectionProxies[`area:${id}`] = id;
   }
 
+  // Producer status rows for actors, org edges, memberships and references.
+  // Only fresh rows of current activity count; otherwise the status is unknown.
+  const statusRows = current.current ? new Map(snapshot.channels.observations.statuses
+    .filter(row => fresh(row, snapshot, current.now)).map(row => [row.subject, row.status])) : new Map();
+  const NEUTRAL_ACTOR = Object.freeze({ fillColor: '#ffffff', strokeColor: '#343a40', strokeWidth: 1.2, dashed: false });
+  const actorGlyph = id => {
+    const status = statusRows.get(id);
+    const token = status === 'running' ? '▶' : status === 'blocked' ? '!' : STATUS_GLYPH[status] ?? '';
+    return { status: status ?? null, token, appearance: status ? STATUS_PAINT[status] : NEUTRAL_ACTOR };
+  };
+  const actorRegion = (id, bounds, zIndex) => {
+    const glyph = actorGlyph(id);
+    return region(id, bounds, {
+      shape: 'graph-node', label: `${glyph.token ? `${glyph.token} · ` : ''}${topology.actors.get(id).label}`, zIndex,
+      activation: { type: 'select', id },
+      visual: { appearance: glyph.appearance, motion: motion(glyph.status === 'running') },
+      atlas: { kind: 'actor', status: glyph.status, token: glyph.token },
+    });
+  };
+  const SEVERITY = ['blocked', 'stopped', 'residual', 'running', 'created', 'completed'];
+
   // Actors: one individual glyph each when the budget allows, otherwise one
   // aggregate glyph per org depth that covers its members exactly once.
   const actorIds = [...layout.actors.keys()];
@@ -223,13 +245,7 @@ export const projectAtlas = (snapshot, current, view) => {
   const aggregates = [];
   if (individualActors) {
     for (const id of actorIds) {
-      const bounds = layout.actors.get(id);
-      representations.push(region(id, bounds, {
-        shape: 'graph-node', label: topology.actors.get(id).label, zIndex: 10_000,
-        activation: { type: 'select', id },
-        visual: { appearance: { fillColor: '#ffffff', strokeColor: '#343a40', strokeWidth: 1.2, dashed: false } },
-        atlas: { kind: 'actor' },
-      }));
+      representations.push(actorRegion(id, layout.actors.get(id), 10_000));
       visibleActor.set(id, id);
     }
     budget -= actorIds.length;
@@ -239,21 +255,19 @@ export const projectAtlas = (snapshot, current, view) => {
       const first = layout.actors.get(row.ids[0]);
       const selected = row.ids.filter(id => id === view.selected);
       const covered = row.ids.filter(id => id !== view.selected);
+      const statuses = covered.map(id => statusRows.get(id)).filter(Boolean);
+      const worst = SEVERITY.find(status => statuses.includes(status));
+      const blocked = statuses.filter(status => status === 'blocked').length;
       representations.push(region(glyph, { x: 0, y: first.y, width: ACTOR.width * 2, height: ACTOR.height }, {
-        shape: 'graph-node', label: `${covered.length} actors · org depth ${row.depth}`, zIndex: 10_000,
+        shape: 'graph-node', label: `${blocked ? `!${blocked} ` : ''}${covered.length} actors · org depth ${row.depth}`, zIndex: 10_000,
         activation: { type: 'select', id: glyph },
-        visual: { appearance: { fillColor: '#f1f3f5', strokeColor: '#343a40', strokeWidth: 1.2, dashed: true } },
-        atlas: { kind: 'aggregate', covers: covered },
+        visual: { appearance: worst ? { ...STATUS_PAINT[worst], dashed: true } : { ...NEUTRAL_ACTOR, fillColor: '#f1f3f5', dashed: true } },
+        atlas: { kind: 'aggregate', covers: covered, blocked },
       }));
       aggregates.push({ id: glyph, covers: covered });
       for (const id of covered) visibleActor.set(id, glyph);
       for (const id of selected) {
-        representations.push(region(id, layout.actors.get(id), {
-          shape: 'graph-node', label: topology.actors.get(id).label, zIndex: 10_001,
-          activation: { type: 'select', id },
-          visual: { appearance: { fillColor: '#ffffff', strokeColor: '#343a40', strokeWidth: 1.2, dashed: false } },
-          atlas: { kind: 'actor' },
-        }));
+        representations.push(actorRegion(id, layout.actors.get(id), 10_001));
         visibleActor.set(id, id);
       }
       budget -= 1 + selected.length;
@@ -270,8 +284,9 @@ export const projectAtlas = (snapshot, current, view) => {
     }));
   }
 
-  // Work glyphs sit in their scope's fixed lane slots. Far shows them only
-  // when every work fits; middle and near show them within the budget.
+  // Work glyphs sit in their scope's fixed lane slots. A work that is not
+  // fresh is drawn as unknown, never as running. Far shows work only when all
+  // of it fits, except the selected work, which is always drawn.
   const works = current.current
     ? snapshot.channels.observations.work.filter(work => Date.parse(work.observedAt) <= current.now)
     : [];
@@ -282,24 +297,24 @@ export const projectAtlas = (snapshot, current, view) => {
     workSlots.get(work.scope).push(work);
   }
   const showWork = lod !== 'far' || works.length <= budget / 4;
-  if (showWork) {
-    for (const scopeId of sortIds(workSlots.keys())) {
-      const list = workSlots.get(scopeId).sort((a, b) => (a.id < b.id ? -1 : 1));
-      const slots = layout.scopes.get(scopeId).lanes;
-      const shown = list.filter(work => work.id === view.selected).concat(list.filter(work => work.id !== view.selected)).slice(0, slots.length);
-      shown.forEach((work, index) => {
-        if (budget <= 0) return;
-        const evidence = (work.evidence ?? []).map(item => item.ref).join(' ');
-        representations.push(region(work.id, slots[index], {
-          shape: 'graph-node', label: lod === 'near' ? `${work.id} · ${evidence}` : '', zIndex: 20_000,
-          activation: { type: 'select', id: work.id },
-          visual: { appearance: STATUS_PAINT[work.status], motion: motion(work.status === 'running') },
-          atlas: { kind: 'work', status: work.status },
-        }));
-        coverage.works.shown += 1;
-        budget -= 1;
-      });
-    }
+  for (const scopeId of sortIds(workSlots.keys())) {
+    const list = workSlots.get(scopeId).sort((a, b) => (a.id < b.id ? -1 : 1));
+    const slots = layout.scopes.get(scopeId).lanes;
+    const selectedFirst = list.filter(work => work.id === view.selected).concat(showWork ? list.filter(work => work.id !== view.selected) : []);
+    selectedFirst.slice(0, slots.length).forEach((work, index) => {
+      if (budget <= 0 && work.id !== view.selected) return;
+      const isFresh = fresh(work, snapshot, current.now);
+      const tone = isFresh ? work.status : 'unknown';
+      const evidence = (work.evidence ?? []).map(item => item.ref).join(' ');
+      representations.push(region(work.id, slots[index], {
+        shape: 'graph-node', label: lod === 'near' ? `${work.id} · ${evidence}` : '', zIndex: 20_000,
+        activation: { type: 'select', id: work.id },
+        visual: { appearance: STATUS_PAINT[tone], motion: motion(isFresh && work.status === 'running') },
+        atlas: { kind: 'work', status: work.status, fresh: isFresh },
+      }));
+      coverage.works.shown += 1;
+      budget -= 1;
+    });
   }
 
   const visible = new Set(representations.map(item => item.regionId));
@@ -312,14 +327,23 @@ export const projectAtlas = (snapshot, current, view) => {
     budget -= 1;
     return true;
   };
-  const orgSeen = new Set();
+  // A relation's own status row paints its edge; an aggregated edge counts
+  // every org relation it stands for.
+  const relationPaint = (ids, fallback) => {
+    const status = SEVERITY.find(value => ids.some(id => statusRows.get(id) === value));
+    return status ? { ...fallback, strokeColor: STATUS_PAINT[status].strokeColor, strokeWidth: STATUS_PAINT[status].strokeWidth } : fallback;
+  };
+  const orgEdges = new Map();
   for (const org of topology.orgs) {
     const from = visibleActor.get(org.from);
     const to = visibleActor.get(org.to);
+    if (from === to) continue;
     const key = `${from}>${to}`;
-    if (from === to || orgSeen.has(key)) continue;
-    orgSeen.add(key);
-    if (edge(`org:${key}`, from, to, { strokeColor: '#343a40', strokeWidth: 1.4, dashed: false })) coverage.org.shown += 1;
+    if (!orgEdges.has(key)) orgEdges.set(key, { from, to, ids: [] });
+    orgEdges.get(key).ids.push(org.id);
+  }
+  for (const [key, group] of orgEdges) {
+    if (edge(`org:${key}`, group.from, group.to, relationPaint(group.ids, { strokeColor: '#343a40', strokeWidth: 1.4, dashed: false }))) coverage.org.shown += group.ids.length;
   }
   const refPairs = new Map();
   for (const ref of refs) {
@@ -330,7 +354,7 @@ export const projectAtlas = (snapshot, current, view) => {
   coverage.refs.total = refs.length;
   for (const [key, pair] of [...refPairs].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     const target = topology.targets.get(pair.to);
-    if (edge(`ref:${key}`, pair.from, pair.to, { strokeColor: CLASS_PAINT[target.class], strokeWidth: 1.6, dashed: true }, { moving: current.current })) {
+    if (edge(`ref:${key}`, pair.from, pair.to, relationPaint(pair.ids, { strokeColor: CLASS_PAINT[target.class], strokeWidth: 1.6, dashed: true }), { moving: current.current })) {
       coverage.refs.shown += pair.ids.length;
     }
   }
@@ -338,7 +362,7 @@ export const projectAtlas = (snapshot, current, view) => {
     const focus = view.selected;
     for (const member of topology.members) {
       if (member.actor !== focus && member.scope !== focus) continue;
-      if (edge(`member:${member.id}`, visibleActor.get(member.actor), member.scope, { strokeColor: '#868e96', strokeWidth: 1, dashed: false }, { directed: false })) coverage.members.shown += 1;
+      if (edge(`member:${member.id}`, visibleActor.get(member.actor), member.scope, relationPaint([member.id], { strokeColor: '#868e96', strokeWidth: 1, dashed: false }), { directed: false })) coverage.members.shown += 1;
     }
     if (lod === 'near') {
       for (const work of works) {

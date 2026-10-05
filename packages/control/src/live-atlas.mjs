@@ -304,13 +304,17 @@ export const loadHistory = (value, { limit = HISTORY_LIMIT } = {}) => {
 
 // Currentness of one accepted snapshot. Sample and history playback judge the
 // snapshot at its own asOf and are labelled as such; live needs a connected,
-// fresh, accepted observation channel.
-export const currentness = (snapshot, { mode, now, connected }) => {
+// fresh, accepted observation channel and no newer rejected or conflicting
+// update (the held revision is then known not to be the producer's latest).
+export const currentness = (snapshot, { mode, now, connected, attempt = null }) => {
   if (!snapshot) return Object.freeze({ current: false, now, reason: 'no accepted snapshot' });
   const observations = snapshot.channels.observations;
   if (observations.state !== 'accepted') return Object.freeze({ current: false, now, reason: `observations ${observations.state}` });
   if (mode !== 'live') return Object.freeze({ current: true, now: snapshot.asOfMs, reason: `${mode} as of ${snapshot.asOf}` });
   if (!connected) return Object.freeze({ current: false, now, reason: 'producer disconnected' });
+  if (attempt && (attempt.outcome === 'rejected' || attempt.outcome === 'conflict')) {
+    return Object.freeze({ current: false, now, reason: `latest update ${attempt.outcome}` });
+  }
   const age = now - snapshot.asOfMs;
   if (age < 0) return Object.freeze({ current: false, now, reason: 'snapshot asOf is in the future' });
   if (age > snapshot.maxAgeMs) return Object.freeze({ current: false, now, reason: 'snapshot is older than maxAgeMs' });
@@ -370,28 +374,34 @@ export const currentRefs = (snapshot, current) => (current.current
   ? snapshot.channels.observations.refs.filter(ref => fresh(ref, snapshot, current.now))
   : []);
 
-// Changes of the same stable ids between two accepted snapshots. Times are the
-// interval (prev.asOf, next.asOf] unless the producer gave createdAt.
-export const diffSnapshots = (prev, next) => {
+const observedChannel = snapshot => (snapshot?.channels.observations.state === 'accepted' ? snapshot.channels.observations : null);
+
+// Changes of the same stable ids between accepted snapshots. Topology compares
+// `prev` with `next`; observations compare the last snapshot whose observations
+// were accepted (`observedPrev`) with `next`, flagging any span in between whose
+// observations were not accepted. Times are the interval (from.asOf, next.asOf]
+// unless the producer gave createdAt.
+export const diffSnapshots = (prev, next, observedPrev = observedChannel(prev) ? prev : null) => {
   const changes = [];
-  const interval = Object.freeze([prev.asOf, next.asOf]);
-  const gap = next.rev > prev.rev + 1;
-  const push = change => changes.push(Object.freeze({ ...change, fromRev: prev.rev, toRev: next.rev, interval, gap }));
-  const observed = snapshot => (snapshot.channels.observations.state === 'accepted' ? snapshot.channels.observations : null);
-  const before = observed(prev);
-  const after = observed(next);
   const strip = row => { const { line, ...rest } = row; return JSON.stringify(rest); };
+  const pushFrom = (from, extra) => change => changes.push(Object.freeze({
+    ...change, fromRev: from.rev, toRev: next.rev, interval: Object.freeze([from.asOf, next.asOf]), gap: next.rev > from.rev + 1, ...extra,
+  }));
+  const push = pushFrom(prev, {});
   for (const row of next.topology.rows) {
     const old = prev.topology.byId.get(row.id);
     if (!old) push({ id: row.id, entity: row.t, kind: 'topology', change: 'added' });
     else if (strip(old) !== strip(row)) push({ id: row.id, entity: row.t, kind: 'topology', change: 'changed', from: old, to: row });
   }
   for (const row of prev.topology.rows) if (!next.topology.byId.has(row.id)) push({ id: row.id, entity: row.t, kind: 'topology', change: 'removed' });
-  if (!before || !after) {
-    push({ id: null, entity: 'observations', kind: 'unknown', change: `observations ${before ? 'accepted' : prev.channels.observations.state} -> ${after ? 'accepted' : next.channels.observations.state}` });
-    return changes;
+  const after = observedChannel(next);
+  if (!after || observedPrev !== prev) {
+    push({ id: null, entity: 'observations', kind: 'unknown', change: `observations ${observedChannel(prev) ? 'accepted' : prev.channels.observations.state} -> ${after ? 'accepted' : next.channels.observations.state}` });
   }
-  const createdIn = row => row.createdAt !== undefined && Date.parse(row.createdAt) > prev.asOfMs && Date.parse(row.createdAt) <= next.asOfMs;
+  if (!after || !observedPrev) return changes;
+  const before = observedChannel(observedPrev);
+  const observe = pushFrom(observedPrev, { observationGap: observedPrev !== prev });
+  const createdIn = row => row.createdAt !== undefined && Date.parse(row.createdAt) > observedPrev.asOfMs && Date.parse(row.createdAt) <= next.asOfMs;
   const lifecycle = (key, entity, oldList, newList) => {
     const oldBy = new Map(oldList.map(row => [row[key], row]));
     const newBy = new Map(newList.map(row => [row[key], row]));
@@ -399,12 +409,12 @@ export const diffSnapshots = (prev, next) => {
       const old = oldBy.get(id);
       if (!old) {
         const explicit = createdIn(row) || row.status === 'created';
-        push({ id, entity, kind: explicit ? 'created' : 'appeared', status: row.status, at: createdIn(row) ? row.createdAt : null, evidence: row.evidence ?? [] });
+        observe({ id, entity, kind: explicit ? 'created' : 'appeared', status: row.status, at: createdIn(row) ? row.createdAt : null, evidence: row.evidence ?? [] });
       } else if (old.status !== row.status) {
-        push({ id, entity, kind: row.status === 'running' ? 'activity' : 'status', from: old.status, to: row.status, evidence: row.evidence ?? [] });
+        observe({ id, entity, kind: row.status === 'running' ? 'activity' : 'status', from: old.status, to: row.status, evidence: row.evidence ?? [] });
       }
     }
-    for (const id of oldBy.keys()) if (!newBy.has(id)) push({ id, entity, kind: 'notReported', from: oldBy.get(id).status });
+    for (const id of oldBy.keys()) if (!newBy.has(id)) observe({ id, entity, kind: 'notReported', from: oldBy.get(id).status });
   };
   lifecycle('id', 'work', before.work, after.work);
   lifecycle('subject', 'status', before.statuses, after.statuses);
@@ -412,25 +422,31 @@ export const diffSnapshots = (prev, next) => {
   const newRefs = new Map(after.refs.map(row => [row.id, row]));
   for (const [id, row] of newRefs) {
     const old = oldRefs.get(id);
-    if (!old) push({ id, entity: 'ref', kind: 'appeared', to: row.target, actor: row.actor });
-    else if (old.target !== row.target || old.actor !== row.actor) push({ id, entity: 'ref', kind: 'retarget', from: old.target, to: row.target, actor: row.actor });
+    if (!old) observe({ id, entity: 'ref', kind: 'appeared', to: row.target, actor: row.actor });
+    else if (old.target !== row.target || old.actor !== row.actor) observe({ id, entity: 'ref', kind: 'retarget', from: old.target, to: row.target, actor: row.actor });
   }
-  for (const [id, row] of oldRefs) if (!newRefs.has(id)) push({ id, entity: 'ref', kind: 'notReported', from: row.target, actor: row.actor });
+  for (const [id, row] of oldRefs) if (!newRefs.has(id)) observe({ id, entity: 'ref', kind: 'notReported', from: row.target, actor: row.actor });
   return changes;
 };
 
-export const historyChanges = history => history.slice(1).flatMap((next, index) => diffSnapshots(history[index], next));
+export const historyChanges = history => {
+  const changes = [];
+  let observed = observedChannel(history[0]) ? history[0] : null;
+  for (let index = 1; index < history.length; index += 1) {
+    changes.push(...diffSnapshots(history[index - 1], history[index], observed));
+    if (observedChannel(history[index])) observed = history[index];
+  }
+  return changes;
+};
 
-// Changes that concern one id: the entity itself, status rows about it and
-// work in a scope or performed by an actor.
+// Changes that concern one id: the entity itself, status rows about it, its
+// references, and work in a scope or by an actor in any held revision.
 export const timelineFor = (history, id) => {
-  const changes = historyChanges(history);
-  const latest = history.at(-1);
-  return changes.filter(change => {
-    if (change.id === id) return true;
-    const work = latest?.channels.observations.state === 'accepted'
-      ? latest.channels.observations.work.find(row => row.id === change.id) : null;
-    return Boolean(work && (work.scope === id || work.actors.includes(id)));
+  const works = new Map();
+  for (const snapshot of history) for (const row of observedChannel(snapshot)?.work ?? []) works.set(row.id, [...(works.get(row.id) ?? []), row]);
+  return historyChanges(history).filter(change => {
+    if (change.id === id || change.actor === id) return true;
+    return (works.get(change.id) ?? []).some(work => work.scope === id || work.actors.includes(id));
   });
 };
 

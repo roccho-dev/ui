@@ -90,7 +90,8 @@
           { "t": "ref", "id": "r-4", "actor": "lead-ui", "target": "t-meta", "observedAt": "2026-10-06T00:46:00Z" },
           { "t": "ref", "id": "r-5", "actor": "agent-3", "target": "t-policy", "observedAt": "2026-10-06T00:49:40Z" },
           { "t": "status", "id": "s-deploy", "subject": "ws-deploy", "status": "residual", "observedAt": "2026-10-06T00:45:00Z", "evidence": [{ "kind": "receipt", "ref": "deploy residual: rollback pending" }] },
-          { "t": "status", "id": "s-release", "subject": "proj-release", "status": "running", "observedAt": "2026-10-06T00:45:00Z" }
+          { "t": "status", "id": "s-release", "subject": "proj-release", "status": "running", "observedAt": "2026-10-06T00:45:00Z" },
+          { "t": "status", "id": "s-agent-4", "subject": "agent-4", "status": "blocked", "observedAt": "2026-10-06T00:48:00Z", "evidence": [{ "kind": "log", "ref": "waiting for flake lock review" }] }
         ] }
       }
     }

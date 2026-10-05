@@ -97,6 +97,24 @@ const readChips = () => {
   });
 };
 
+// Every drawn maxGraph cell against the actual browser viewport, without scrolling.
+const readScreen = () => {
+  const atlas = window.liveAtlas;
+  const view = atlas.adapter.graph.getView();
+  const outside = [];
+  let cells = 0;
+  for (const item of atlas.projection.scene.representations) {
+    const box = view.getState(atlas.adapter.cellsByRegionId.get(item.regionId))?.shape?.node?.getBoundingClientRect();
+    if (!box || !(box.width > 0 && box.height > 0)) { outside.push(`${item.regionId}: not painted`); continue; }
+    cells += 1;
+    if (box.left < -1 || box.top < -1 || box.right > innerWidth + 1 || box.bottom > innerHeight + 1) outside.push(`${item.regionId} (${item.atlas?.kind ?? item.mode}) at ${Math.round(box.left)},${Math.round(box.top)}-${Math.round(box.right)},${Math.round(box.bottom)}`);
+  }
+  const atlasBox = document.getElementById('atlas').getBoundingClientRect();
+  const kinds = {};
+  for (const item of atlas.projection.scene.representations) kinds[item.atlas?.kind ?? item.mode] = (kinds[item.atlas?.kind ?? item.mode] ?? 0) + 1;
+  return { cells, outside, kinds, scrollY, viewport: { width: innerWidth, height: innerHeight }, atlas: { top: atlasBox.top, bottom: atlasBox.bottom } };
+};
+
 const readable = (chips, viewport) => {
   const problems = [];
   for (const chip of chips) {
@@ -121,7 +139,8 @@ try {
   browser = await chromium.launch({ headless: true });
 
   // Offline sample and 300 scopes from file:// with every network request refused.
-  for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
+    const required = viewport.height !== 720;
     const context = await browser.newContext({ viewport });
     await context.setOffline(true);
     const requests = [];
@@ -130,14 +149,24 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-    await page.goto(largeUrl);
+    await page.goto(largeUrl, { timeout: 60000 });
     await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+    const screen = await page.evaluate(readScreen);
+    check(`300-scope far scene entirely inside the browser viewport at ${viewport.width}x${viewport.height}`,
+      screen.outside.length === 0 && screen.scrollY === 0 && screen.atlas.bottom <= viewport.height + 1 && screen.kinds.scope === 300 && screen.kinds.actor === 40 && screen.kinds.target === 4,
+      { ...screen, outside: screen.outside.slice(0, 10) });
     const chips = await page.evaluate(readChips);
-    const box = await page.locator('#atlas').boundingBox();
-    const problems = readable(chips, { width: viewport.width, height: box.y + box.height });
-    check(`300 scopes all drawn and readable at ${viewport.width}x${viewport.height}`, chips.length === 300 && problems.length === 0, { chips: chips.length, problems: problems.slice(0, 10) });
-    const banner = await page.locator('#atlas-banners').innerText();
-    check(`no degraded/unsupported banner at ${viewport.width}x${viewport.height}`, !/Degraded|Unsupported/u.test(banner), banner);
+    const problems = readable(chips, viewport);
+    const banner = await page.locator('#atlas-banners').textContent();
+    if (required) {
+      check(`300 scopes all drawn and readable at ${viewport.width}x${viewport.height}`, chips.length === 300 && problems.length === 0, { chips: chips.length, problems: problems.slice(0, 10) });
+      check(`no degraded/unsupported banner at ${viewport.width}x${viewport.height}`, !/Degraded|Unsupported/u.test(banner), banner);
+    } else {
+      const unreadable = problems.filter(problem => /lacks/u.test(problem)).length;
+      check(`at ${viewport.width}x${viewport.height} every chip is readable or the degrade is announced with its count`,
+        chips.length === 300 && problems.every(problem => /lacks/u.test(problem)) && (unreadable === 0 ? !/Degraded/u.test(banner) : banner.includes(`Degraded: ${unreadable} of 300`)),
+        { unreadable, problems: problems.slice(0, 5), banner: banner.slice(0, 300) });
+    }
     const summary = await page.locator('#atlas-summary').innerText();
     check(`far summary without interaction at ${viewport.width}x${viewport.height}`, /300 scopes/u.test(summary) && /blocked [1-9]/u.test(summary) && /missing [1-9]/u.test(summary) && /parallel≥3 [1-9]/u.test(summary), summary);
     check(`no page errors at ${viewport.width}x${viewport.height}`, errors.length === 0, errors);
@@ -160,7 +189,25 @@ try {
     const byId = Object.fromEntries(chips.map(chip => [chip.id, chip]));
     check('sample tokens: parallel, blocked, residual, missing', byId['ws-render']?.token === '▶3' && /!1/u.test(byId['ws-ci']?.token ?? '') && byId['ws-deploy']?.token === '~' && byId['ws-docs']?.token === '—', Object.fromEntries(chips.map(chip => [chip.id, chip.token])));
     check('running chip pulses on its maxGraph shape node', byId['ws-render'].motion === 'pulse' && byId['ws-render'].animation === 'atlas-pulse', byId['ws-render']);
-    check('mode is labelled sample as of', /SAMPLE · rev 5 · as of 2026-10-06T00:50:00Z · activity current/u.test(await page.locator('#atlas-mode').innerText()));
+    check('mode is labelled sample as of', /^activity current · SAMPLE · rev 5 · as of 2026-10-06T00:50:00Z/u.test(await page.locator('#atlas-mode').innerText()));
+    const sampleScreen = await page.evaluate(readScreen);
+    check('sample far scene inside the 1280x800 browser viewport (scopes, actors, all four reference targets)',
+      sampleScreen.outside.length === 0 && sampleScreen.scrollY === 0 && sampleScreen.kinds.target === 4 && sampleScreen.kinds.actor === 10, sampleScreen);
+    const actorStatus = await page.evaluate(() => {
+      const atlas = window.liveAtlas;
+      const item = atlas.projection.scene.representations.find(rep => rep.regionId === 'agent-4');
+      const node = atlas.adapter.graph.getView().getState(atlas.adapter.cellsByRegionId.get('agent-4'))?.text?.node;
+      return { status: item.atlas.status, stroke: item.visual.appearance.strokeColor, text: node?.textContent ?? '' };
+    });
+    check('a blocked actor status is drawn on its glyph', actorStatus.status === 'blocked' && actorStatus.stroke === '#c2255c', actorStatus);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.waitForFunction(() => innerHeight === 720);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const shortScreen = await page.evaluate(readScreen);
+    check('sample far scene refits inside a 1280x720 browser viewport', shortScreen.outside.length === 0 && shortScreen.scrollY === 0 && shortScreen.kinds.target === 4, shortScreen);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForFunction(() => innerHeight === 800);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
     const before = byId['ws-render'];
     await page.mouse.click(before.box.x + before.box.w / 2, before.box.y + before.box.h / 2);
@@ -274,10 +321,13 @@ try {
     await page.goto(`${sampleUrl}?events=${encodeURIComponent(producer.url)}`);
     await page.waitForFunction(() => window.liveAtlas?.state.held?.rev === 1, null, { timeout: 15000 });
     const mode = () => page.locator('#atlas-mode').innerText();
-    check('live connected and current', /LIVE · connected · rev 1 .* activity current/u.test(await mode()), await mode());
+    check('live connected and current', /^activity current · LIVE · connected · rev 1/u.test(await mode()), await mode());
     const liveBefore = (await page.evaluate(readChips)).find(chip => chip.id === 'ws-render');
     await page.waitForFunction(() => window.liveAtlas.state.attempt?.outcome === 'rejected', null, { timeout: 15000 });
-    check('invalid topology rejected, previous revision kept', /rejected/u.test(await page.locator('#atlas-banners').innerText()) && await page.evaluate(() => window.liveAtlas.state.held.rev) === 1);
+    check('invalid topology rejected, previous revision kept', /rejected/u.test(await page.locator('#atlas-banners').textContent()) && await page.evaluate(() => window.liveAtlas.state.held.rev) === 1);
+    const afterReject = await page.evaluate(readChips);
+    check('a rejected update makes held activity unknown at once',
+      /^activity UNKNOWN \((?:latest update rejected|producer disconnected)\)/u.test(await mode()) && afterReject.every(chip => chip.token === '?' && chip.motion === 'none'), await mode());
     // Read the disconnected frame inside the page before EventSource reconnects.
     const disconnected = await (await page.waitForFunction(() => {
       const atlas = window.liveAtlas;
