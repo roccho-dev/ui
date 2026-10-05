@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { embeddedNoticesScript, moduleId, packBrowserModules } from './browser-module-closure.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(packageRoot, '../..');
@@ -14,10 +15,6 @@ const args = Object.fromEntries(process.argv.slice(2).map(argument => {
 const inputPath = path.resolve(repoRoot, args.input ?? path.join('examples', 'render.semantic-map', 'input', 'envelope.json'));
 const outputRoot = path.resolve(repoRoot, args.out ?? path.join('examples', 'render.semantic-map', 'dist'));
 const appEntry = 'packages/semantic-map/authoring/index.js';
-const importOrExport = /\b(?:import|export)\s+(?:(?:[^;]*?)\s+from\s+)?(["'])([^"']+)\1/gmu;
-const dynamicImport = /\bimport\(\s*(["'])([^"']+)\1\s*\)/gmu;
-const moduleId = relative => `ui:${relative.split(path.sep).join('/')}`;
-const dataUrl = source => `data:text/javascript;charset=utf-8;base64,${Buffer.from(source).toString('base64')}`;
 const sha256 = bytes => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 const BROWSER_MODULE_ROOTS = Object.freeze([
   'packages/semantic-map/',
@@ -26,57 +23,6 @@ const BROWSER_MODULE_ROOTS = Object.freeze([
   'packages/connectability/',
   'packages/url-module/',
 ]);
-
-const resolveModule = (current, specifier) => {
-  if (!specifier.startsWith('.')) throw new Error(`external module is forbidden: ${current} -> ${specifier}`);
-  const target = path.posix.normalize(path.posix.join(path.posix.dirname(current), specifier));
-  if (target.startsWith('../') || target === '..') throw new Error(`module escapes repository: ${current} -> ${specifier}`);
-  if (!BROWSER_MODULE_ROOTS.some(root => target.startsWith(root))) {
-    throw new Error(`browser module owner is not allowed: ${current} -> ${target}`);
-  }
-  if (!target.endsWith('.js') && !target.endsWith('.mjs')) {
-    throw new Error(`module must use explicit .js or .mjs: ${current} -> ${specifier}`);
-  }
-  return target;
-};
-
-const specifiers = source => {
-  const result = [];
-  for (const match of source.matchAll(importOrExport)) result.push(match[2]);
-  for (const match of source.matchAll(dynamicImport)) result.push(match[2]);
-  return result;
-};
-
-const discover = async entry => {
-  const pending = [entry];
-  const found = new Set();
-  while (pending.length) {
-    const relative = pending.pop();
-    if (found.has(relative)) continue;
-    const target = path.join(repoRoot, relative);
-    const source = await fs.readFile(target, 'utf8');
-    found.add(relative);
-    for (const specifier of specifiers(source)) {
-      const next = resolveModule(relative, specifier);
-      if (!found.has(next)) pending.push(next);
-    }
-  }
-  return [...found].sort();
-};
-
-const rewrite = (relative, source, known) => {
-  const replaceStatic = (_whole, quote, specifier) => {
-    const target = resolveModule(relative, specifier);
-    if (!known.has(target)) throw new Error(`missing module: ${relative} -> ${target}`);
-    return _whole.replace(`${quote}${specifier}${quote}`, `${quote}${moduleId(target)}${quote}`);
-  };
-  const replaceDynamic = (_whole, quote, specifier) => {
-    const target = resolveModule(relative, specifier);
-    if (!known.has(target)) throw new Error(`missing dynamic module: ${relative} -> ${target}`);
-    return `import(${quote}${moduleId(target)}${quote})`;
-  };
-  return source.replace(importOrExport, replaceStatic).replace(dynamicImport, replaceDynamic);
-};
 
 const inlineStyle = async (html, href, file, attrs = '') => {
   const marker = `<link rel="stylesheet" href="${href}">`;
@@ -92,13 +38,7 @@ if (!create?.records?.length) throw new Error('example envelope does not contain
 const mapId = create.mapId;
 const records = create.records;
 
-const modules = await discover(appEntry);
-const known = new Set(modules);
-const imports = {};
-for (const relative of modules) {
-  const source = await fs.readFile(path.join(repoRoot, relative), 'utf8');
-  imports[moduleId(relative)] = dataUrl(rewrite(relative, source, known));
-}
+const { modules, imports } = await packBrowserModules({ repoRoot, entry: appEntry, roots: BROWSER_MODULE_ROOTS });
 const importMap = JSON.stringify({ imports });
 
 let html = await fs.readFile(path.join(packageRoot, 'authoring', 'pages', 'app.html'), 'utf8');
@@ -116,8 +56,7 @@ const config = {
 };
 html = html.replace('<!-- @PAGE_CONFIG -->', JSON.stringify(config).replaceAll('</', '<\\/'));
 html = html.replace('<!-- @INITIAL_DOCUMENT -->', records.map(record => JSON.stringify(record)).join('\n').replaceAll('</', '<\\/'));
-const notices = `${await fs.readFile(path.join(packageRoot, 'THIRD_PARTY_NOTICES.md'), 'utf8')}\n\n${await fs.readFile(path.join(packageRoot, 'LICENSE.maxGraph'), 'utf8')}`;
-html = html.replace('<!-- @EMBEDDED_NOTICES -->', `<script hidden id="embedded-third-party-notices" type="text/plain">\n${notices.replaceAll('</', '<\\/')}\n</script>`);
+html = html.replace('<!-- @EMBEDDED_NOTICES -->', await embeddedNoticesScript(packageRoot));
 for (const marker of ['@INLINE_IMPORTMAP', '@PAGE_CONFIG', '@INITIAL_DOCUMENT', '@EMBEDDED_NOTICES']) {
   if (html.includes(marker)) throw new Error(`unresolved marker: ${marker}`);
 }

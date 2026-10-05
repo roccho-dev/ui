@@ -1,6 +1,49 @@
 import { paletteFor } from './theme.js';
 
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/u;
+const MAX_STROKE_WIDTH = 12;
+
+// Optional explicit paint lets a projection choose fixed colours without the
+// hashed palette, which can give two different keys the same colour.
+function explicitPaint(appearance, name) {
+  if (!appearance) return {};
+  const paint = {};
+  for (const key of ['fillColor', 'strokeColor']) {
+    if (appearance[key] === undefined) continue;
+    if (typeof appearance[key] !== 'string' || !HEX_COLOR.test(appearance[key])) throw new Error(`${name}.${key} must be #rrggbb`);
+    paint[key] = appearance[key];
+  }
+  if (appearance.strokeWidth !== undefined) {
+    const width = appearance.strokeWidth;
+    if (!(typeof width === 'number' && Number.isFinite(width) && width > 0 && width <= MAX_STROKE_WIDTH)) {
+      throw new Error(`${name}.strokeWidth must be in (0, ${MAX_STROKE_WIDTH}]`);
+    }
+    paint.strokeWidth = width;
+  }
+  if (appearance.dashed !== undefined) {
+    if (typeof appearance.dashed !== 'boolean') throw new Error(`${name}.dashed must be boolean`);
+    paint.dashed = appearance.dashed;
+  }
+  return paint;
+}
+
+function withPaint(style, paint, scale) {
+  if (Object.keys(paint).length === 0) return style;
+  return {
+    ...style,
+    ...(paint.fillColor ? { fillColor: paint.fillColor, fillOpacity: 100 } : {}),
+    ...(paint.strokeColor ? { strokeColor: paint.strokeColor, strokeOpacity: 100 } : {}),
+    ...(paint.strokeWidth ? { strokeWidth: paint.strokeWidth / scale } : {}),
+    ...(paint.dashed !== undefined ? { dashed: paint.dashed } : {}),
+  };
+}
+
 export function vertexStyle(representation, scale, theme) {
+  const paint = explicitPaint(representation.visual?.appearance, 'Region appearance');
+  return withPaint(paletteVertexStyle(representation, scale, theme), paint, scale);
+}
+
+function paletteVertexStyle(representation, scale, theme) {
   const visual = representation.visual ?? null;
   const [softColor, accentColor] = paletteFor(theme, visual?.paletteKey ?? representation.kind);
   const appearance = visual?.appearance ?? null;
@@ -241,7 +284,9 @@ export function edgeStyle(relation, scale, theme) {
     rounded: theme.edge.defaultRounded,
   });
   const directlyEditable = !relation.readOnly && relation.relationIds.length === 1;
-  return {
+  const paint = explicitPaint(relation.visual?.appearance, 'Relation appearance');
+  if (paint.fillColor) throw new Error('Relation appearance.fillColor is not supported');
+  return withPaint({
     strokeColor: visual.stroke,
     strokeWidth: visual.width / scale,
     endArrow: relation.directed ? theme.edge.directedArrow : theme.edge.undirectedArrow,
@@ -257,5 +302,5 @@ export function edgeStyle(relation, scale, theme) {
     deletable: directlyEditable,
     bendable: false,
     disconnectable: false,
-  };
+  }, paint, scale);
 }
