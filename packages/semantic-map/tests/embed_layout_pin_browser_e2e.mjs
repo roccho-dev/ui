@@ -17,7 +17,24 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
+
+// The repository's locked Nix shell provides one explicit driver and its
+// matching browsers. Never resolve an ambient npm package or download one.
+const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
+const browsersRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
+const fontConfig = process.env.FONTCONFIG_FILE;
+if (!fontConfig || !path.isAbsolute(fontConfig) || !fontConfig.startsWith('/nix/store/') ||
+    !fs.lstatSync(fontConfig).isFile() || fs.realpathSync(fontConfig) !== fontConfig) {
+  throw new Error('the semantic-map-browser-proof Nix shell must provide a regular realized font configuration');
+}
+if (!driverRoot || !path.isAbsolute(driverRoot) || !browsersRoot || !path.isAbsolute(browsersRoot)) {
+  throw new Error('the semantic-map-browser-proof Nix shell must provide explicit driver and browser roots');
+}
+const driverPackage = JSON.parse(fs.readFileSync(path.join(driverRoot, 'package.json'), 'utf8'));
+if (driverPackage.name !== 'playwright-core') throw new Error('provided browser driver is not playwright-core');
+const { chromium } = createRequire(import.meta.url)(driverRoot);
+if (!fs.existsSync(chromium.executablePath())) throw new Error('the provided driver Chromium is unavailable');
 
 const packagesRoot = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
@@ -74,8 +91,9 @@ const fail = (message, detail) => {
   process.exitCode = 1;
 };
 
-const browser = await chromium.launch({ headless: true, channel: 'chromium' });
+let browser = null;
 try {
+  browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));
@@ -164,6 +182,136 @@ try {
     const withPins = await draw(pinned, 'pinned');
     const offScreen = await draw(offCanvas, 'off-canvas');
 
+    // Independent inline inputs exercise the public graph shapes and both
+    // directions. Inspect painted paths, not just logical edge membership.
+    const paintRecords = [
+      { type: 'meta', schema: 'semantic-map-state/1', root: 'root', title: 'paint proof' },
+      { type: 'region', id: 'root', parent: null, label: 'paint proof', kind: 'boundary', bounds: [0, 0, 960, 260], summary: '' },
+      ...['node', 'data', 'decision', 'start', 'end'].map((kind, index) => ({
+        type: 'region', id: kind, parent: 'root', label: kind, kind,
+        bounds: [40 + index * 180, 90, 120, 64], summary: '',
+      })),
+    ];
+    const paintBase = await protocol.createDecisionLog(paintRecords, 'paint-proof');
+    const cases = [
+      ['forward', 'node', 'data', 'flow'],
+      ['reverse', 'decision', 'data', 'flow'],
+      ['data-source-left', 'data', 'node', 'flow'],
+      ['data-source-right', 'data', 'decision', 'flow'],
+      ['other-endpoint', 'start', 'decision', 'flow'],
+      ['terminal', 'start', 'end', 'flow'],
+      ['undirected', 'node', 'end', 'association'],
+    ];
+    const paint = [];
+    for (const [name, from, to, kind] of cases) {
+      const decision = await protocol.createDecision(paintBase.head, [{
+        type: 'ConnectRegions', relationId: name, from, to, kind, label: '',
+      }, { type: 'PinRegions', items: paintRecords.filter(record => record.type === 'region' && record.id !== 'root')
+        .map(record => ({ regionId: record.id, bounds: record.bounds })) }], paintBase.records);
+      const log = await protocol.appendDecision(paintBase.log, decision.decision);
+      const rendered = await draw(log, 'paint-' + name);
+      if (rendered.error !== null) { paint.push({ name, error: rendered.error }); continue; }
+      const adapter = rendered.frame.contentWindow.semanticMapApp.adapter;
+      const view = adapter.graph.getView();
+      const edges = [...adapter.edgesByProjectionKey.values()];
+      const edge = edges.length === 1 ? view.getState(edges[0]) : null;
+      const color = edge?.style.strokeColor;
+      const visiblePaint = node => {
+        const style = node.ownerDocument.defaultView.getComputedStyle(node);
+        const opaque = value => value !== 'none' && value !== 'transparent'
+          && !/^rgba\([^)]*,\s*0(?:\.0*)?\)$/u.test(value);
+        const painted = (opaque(style.fill) && Number(style.fillOpacity) > 0)
+          || (opaque(style.stroke) && Number(style.strokeOpacity) > 0 && Number.parseFloat(style.strokeWidth) > 0);
+        const box = node.getBoundingClientRect(), matrix = node.getScreenCTM();
+        if (!node.isConnected || !painted || !matrix || !(box.width > 0 || box.height > 0)
+          || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite)) return false;
+        for (let element = node; element; element = element.parentElement) {
+          const computed = element.ownerDocument.defaultView.getComputedStyle(element);
+          if (computed.display === 'none' || computed.visibility !== 'visible' || Number(computed.opacity) === 0) return false;
+        }
+        return true;
+      };
+      const paths = [...(edge?.shape?.node?.querySelectorAll('path') ?? [])]
+        .filter(node => node.getAttribute('stroke') === color && node.getTotalLength() > 0 && visiblePaint(node));
+      const shafts = paths.filter(node => node.getAttribute('fill') === 'none');
+      const markers = paths.filter(node => node.getAttribute('fill') === color);
+      const point = (node, length) => {
+        const at = node.getPointAtLength(length);
+        const matrix = node.getScreenCTM();
+        if (!matrix || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f, at.x, at.y].every(Number.isFinite)) return null;
+        const transformed = new DOMPoint(at.x, at.y).matrixTransform(matrix);
+        return [transformed.x, transformed.y].every(Number.isFinite) ? { x: transformed.x, y: transformed.y } : null;
+      };
+      const shaft = shafts.length === 1 ? shafts[0] : null;
+      const marker = markers.length === 1 ? markers[0] : null;
+      const source = shaft ? point(shaft, 0) : null;
+      const target = marker ? point(marker, 0) : shaft ? point(shaft, shaft.getTotalLength()) : null;
+      const geometry = id => {
+        const state = view.getState(adapter.cellsByRegionId.get(id));
+        const box = state.shape.node.getBoundingClientRect();
+        return { x: box.x, y: box.y, w: box.width, h: box.height,
+          shape: state.style.shape ?? 'rectangle', ellipse: state.shape.node.querySelectorAll('ellipse').length };
+      };
+      const sourceBox = geometry(from), targetBox = geometry(to);
+      const paintedBoundary = (at, id) => {
+        const state = view.getState(adapter.cellsByRegionId.get(id));
+        const primitives = [...state.shape.node.querySelectorAll('path,rect,ellipse')].filter(visiblePaint);
+        let distance = Infinity, tolerance = 0, visible = 0;
+        if (!at || ![at.x, at.y].every(Number.isFinite)) return { ok: false, reason: 'nonfinite endpoint' };
+        if (primitives.length !== 1) return { ok: false, reason: 'expected one painted node primitive', primitives: primitives.length };
+        for (const node of primitives) {
+          const style = node.ownerDocument.defaultView.getComputedStyle(node);
+          const box = node.getBoundingClientRect(), matrix = node.getScreenCTM();
+          if (!node.isConnected || !matrix || style.display === 'none' || style.visibility !== 'visible'
+            || Number(style.opacity) === 0 || !(box.width > 0 && box.height > 0)
+            || ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite)) continue;
+          const scale = Math.hypot(matrix.a, matrix.b) + Math.hypot(matrix.c, matrix.d);
+          const length = node.getTotalLength();
+          if (!(length > 0 && Number.isFinite(length) && scale > 0)) continue;
+          visible++;
+          // At most half a screen pixel between samples. Segment distance is
+          // independent of the producer's perimeter implementation, including
+          // rounded rectangles and the data node's actual slanted outline.
+          const samples = Math.ceil(length * scale * 2);
+          let previous = point(node, 0), nearest = Infinity;
+          for (let index = 1; index <= samples; index++) {
+            const next = point(node, length * index / samples);
+            if (!previous || !next) { nearest = Infinity; break; }
+            const dx = next.x - previous.x, dy = next.y - previous.y;
+            const t = Math.max(0, Math.min(1, ((at.x - previous.x) * dx + (at.y - previous.y) * dy) / (dx * dx + dy * dy || 1)));
+            nearest = Math.min(nearest, Math.hypot(at.x - previous.x - t * dx, at.y - previous.y - t * dy));
+            previous = next;
+          }
+          if (nearest < distance) {
+            distance = nearest;
+            // Painted stroke radii plus the explicit half-pixel sampling
+            // bound; no shape-relative percentage or conceptual bounding box.
+            const nodeScale = Math.max(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d));
+            const edgeMatrix = shaft?.getScreenCTM();
+            const edgeScale = edgeMatrix ? Math.max(Math.hypot(edgeMatrix.a, edgeMatrix.b), Math.hypot(edgeMatrix.c, edgeMatrix.d)) : 0;
+            tolerance = Number.parseFloat(style.strokeWidth) * nodeScale / 2
+              + Number.parseFloat(shaft?.getAttribute('stroke-width') ?? '1') * edgeScale / 2 + 0.5;
+          }
+        }
+        return { ok: visible > 0 && Number.isFinite(distance) && Number.isFinite(tolerance) && distance <= tolerance,
+          distance: Number.isFinite(distance) ? distance : null, tolerance, visible };
+      };
+      const sourceBoundary = paintedBoundary(source, from), targetBoundary = paintedBoundary(target, to);
+      const shaftEnd = shaft ? point(shaft, shaft.getTotalLength()) : null;
+      const direction = marker && target && shaftEnd
+        ? (target.x - shaftEnd.x) * (targetBox.x + targetBox.w / 2 - sourceBox.x - sourceBox.w / 2)
+          + (target.y - shaftEnd.y) * (targetBox.y + targetBox.h / 2 - sourceBox.y - sourceBox.h / 2) > 0
+        : kind === 'association';
+      paint.push({ name, error: null, edges: edges.length, shafts: shafts.length,
+        markers: markers.length, directed: kind !== 'association', direction,
+        sourceBoundary: sourceBoundary.ok, targetBoundary: targetBoundary.ok,
+        boundaryEvidence: { source: sourceBoundary, target: targetBoundary },
+        sourceBox, targetBox, source, target,
+        ellipse: [from, to].filter(id => ['start', 'end'].includes(id)).every(id => geometry(id).ellipse === 1),
+        paths: paths.map(node => node.getAttribute('d')),
+      });
+    }
+
     // The public layout contract must answer with the same positions this
     // embed actually drew. It is what a consumer places things against, so a
     // number that drifts from the screen would send it somewhere wrong.
@@ -198,6 +346,7 @@ try {
     const stripFrame = ({ frame, ...rest }) => rest;
     return {
       contract,
+      paint,
       pinnedBounds: PINNED,
       offCanvasBounds: OFF_CANVAS,
       offCanvas: stripFrame(offScreen),
@@ -218,6 +367,14 @@ try {
   check('the log carries one layout record from PinRegions',
     observed.layoutRecords.length === 1 && observed.layoutRecords[0].regionId === 'node-c',
     observed.layoutRecords);
+  for (const item of observed.paint) {
+    check('actual painted shaft, marker and endpoints: ' + item.name,
+      item.error === null && item.edges === 1 && item.shafts === 1
+        && item.markers === (item.directed ? 1 : 0) && item.direction
+        && item.sourceBoundary && item.targetBoundary && item.ellipse,
+      item);
+  }
+  check('all paint controls ran', observed.paint.length === 7, observed.paint.length);
   check('a log without pins still renders', observed.auto.error === null, observed.auto.error);
   check('a log with pins renders at all', observed.pinned.error === null, observed.pinned.error);
 
@@ -293,6 +450,21 @@ try {
     }));
   }
 } finally {
-  await browser.close();
-  await new Promise(resolve => server.close(resolve));
+  // Launch failure must also release the ephemeral server. A browser close
+  // failure cannot bypass server cleanup or become a successful receipt.
+  try {
+    if (browser) {
+      let timer;
+      try {
+        await Promise.race([
+          browser.close(),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('browser cleanup timeout')), 30000); }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 }
