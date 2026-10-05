@@ -35,7 +35,31 @@ function applySelfLoopGeometry(edge, source, relation, model) {
   model.setGeometry(edge, next);
 }
 
+const MOTIONS = new Set(['none', 'pulse', 'flow']);
+
+function motionOf(item) {
+  const motion = item?.visual?.motion;
+  if (motion === undefined) return 'none';
+  if (!MOTIONS.has(motion)) throw new Error(`unsupported visual motion: ${motion}`);
+  return motion;
+}
+
+// Motion is a data attribute on maxGraph's own shape node; page CSS animates it.
+// maxGraph keeps the node across redraws but replaces it with a new shape, so
+// marks are reapplied after every render and camera change.
+function markMotion() {
+  const view = this.graph.getView();
+  for (const cell of [...this.cellsByRegionId.values(), ...this.edgesByProjectionKey.values()]) {
+    const node = view.getState(cell)?.shape?.node;
+    if (!node) continue;
+    const motion = motionOf(cell.semantic);
+    if (motion === 'none') node.removeAttribute('data-visual-motion');
+    else if (node.getAttribute('data-visual-motion') !== motion) node.setAttribute('data-visual-motion', motion);
+  }
+}
+
 function renderOverlays(scene = this.lastScene) {
+  this.markMotion();
   const svg = this.overlaySvg;
   const root = this.overlayRoot;
   if (!svg || !root) return;
@@ -249,6 +273,7 @@ function refreshRenderedLabels() {
 }
 
 function render(scene) {
+  for (const item of [...scene.representations, ...scene.relations]) motionOf(item);
   const nextCompositionKey = JSON.stringify(scene.resourceComposition ?? null);
   if (this.surfaceCompositionKey !== nextCompositionKey) {
     renderResourceTarget({
@@ -431,6 +456,7 @@ function render(scene) {
 
 
 export const renderMethods = Object.freeze({
+  markMotion,
   renderOverlays,
   setReviewOverlay,
   clearReviewOverlay,
