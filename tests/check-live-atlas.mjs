@@ -14,7 +14,8 @@ import {
   applyEnvelope, createAtlasState, currentness, evaluateEnvelope, historyChanges, loadHistory,
   parseTopology, summarizeScopes, timelineFor, HISTORY_LIMIT,
 } from '../packages/control/src/live-atlas.mjs';
-import { fitCamera, layoutTopology, lodFor, MAX_SCENE_PRIMITIVES, projectAtlas, STATUS_PAINT } from '../packages/control/src/live-atlas-projection.mjs';
+import { fitCamera } from '../packages/semantic-map/camera-fit.js';
+import { layoutTopology, lodFor, MAX_SCENE_PRIMITIVES, projectAtlas, STATUS_PAINT } from '../packages/control/src/live-atlas-projection.mjs';
 import { MAX_SCENE_PRIMITIVES as PROJECTOR_BUDGET } from '../packages/semantic-map/projection/projector.js';
 import { displayedRegionLabel } from '../packages/semantic-map/renderer-maxgraph/labels.js';
 import { edgeStyle, vertexStyle } from '../packages/semantic-map/renderer-maxgraph/styles.js';
@@ -294,6 +295,21 @@ for (const snapshot of [first, last]) {
   const deploy = layout.scopes.get('ws-deploy').area;
   const parent = layout.scopes.get(snapshot.topology.scopes.get('ws-deploy').parent).area;
   assert.ok(deploy.x >= parent.x && deploy.y >= parent.y && deploy.x + deploy.width <= parent.x + parent.width && deploy.y + deploy.height <= parent.y + parent.height, `rev ${snapshot.rev}: inside its own parent`);
+}
+
+// Shared inputs must survive composition (ui#328): a later consumer must not
+// inherit writes from layout/Fit. Clone Maps and nested arrays, not just roots.
+for (const snapshot of [held, ...sample.history]) {
+  const topologyBefore = structuredClone(snapshot.topology);
+  const layout = layoutTopology(snapshot.topology);
+  assert.deepEqual(snapshot.topology, topologyBefore, `rev ${snapshot.rev}: layout preserves topology`);
+  const layoutBefore = structuredClone(layout);
+  for (const viewport of [{ width: 1280, height: 756 }, { width: 1440, height: 856 }]) {
+    const viewportBefore = { ...viewport };
+    fitCamera(layout.world, viewport);
+    assert.deepEqual(layout, layoutBefore, `rev ${snapshot.rev}: Fit preserves the shared layout`);
+    assert.deepEqual(viewport, viewportBefore, `rev ${snapshot.rev}: Fit preserves viewport`);
+  }
 }
 
 // --- every scope at every LOD, unique actors, budget and coverage ---
