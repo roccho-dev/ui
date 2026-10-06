@@ -3,6 +3,7 @@
 // resolved sample history as inert JSON, and the maxGraph notices.
 //
 //   node scripts/build-live-atlas.mjs --out=<new directory> [--input=tests/fixtures/live-atlas/history.json]
+//   node scripts/build-live-atlas.mjs --consumer=example --out=<new directory> [--input=examples/atlas/input/example.jsonl]
 //
 // Open <out>/index.html directly (sample) or serve it and add
 // ?events=<SSE URL> to consume an external producer (live).
@@ -14,6 +15,7 @@ import { embeddedNoticesScript, moduleId, packBrowserModules } from '../packages
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ATLAS_ENTRY = 'packages/control/atlas.mjs';
+export const ATLAS_EXAMPLE_ENTRY = 'examples/atlas/entry.mjs';
 export const ATLAS_MODULE_ROOTS = Object.freeze([
   'packages/control/',
   'packages/semantic-map/',
@@ -77,16 +79,26 @@ const PAGE = `<!doctype html>
 </html>
 `;
 
-export const buildLiveAtlas = async ({ input, out }) => {
+export const buildLiveAtlas = async ({ input, out, consumer = 'app' }) => {
+  if (!['app', 'example'].includes(consumer)) throw new Error(`live-atlas build: unsupported consumer ${consumer}`);
   const inputPath = path.resolve(repoRoot, input);
   const outputRoot = path.resolve(repoRoot, out);
-  const history = await resolveHistory(inputPath);
-  const { modules, imports } = await packBrowserModules({ repoRoot, entry: ATLAS_ENTRY, roots: ATLAS_MODULE_ROOTS });
+  const inputBytes = await fs.readFile(inputPath);
+  const inputText = inputBytes.toString('utf8');
+  const history = consumer === 'app' ? await resolveHistory(inputPath) : null;
+  const entry = consumer === 'app' ? ATLAS_ENTRY : ATLAS_EXAMPLE_ENTRY;
+  const { modules, imports } = await packBrowserModules({ repoRoot, entry, roots: ATLAS_MODULE_ROOTS });
+  const embeddedInput = consumer === 'app'
+    ? `<script type="application/json" id="live-atlas-input">${JSON.stringify(history).replaceAll('<', '\\u003c')}</script>`
+    : `<script type="application/x-ndjson" id="live-atlas-input">${inputText.replaceAll('<', '\\u003c')}</script>`;
+  const bootstrap = consumer === 'app'
+    ? `import { startLiveAtlas } from ${JSON.stringify(moduleId(entry))}; startLiveAtlas();`
+    : `import ${JSON.stringify(moduleId(entry))};`;
   const parts = {
     '@IMPORTMAP': `<script type="importmap">${JSON.stringify({ imports }).replaceAll('</', '<\\/')}</script>`,
-    '@INPUT': `<script type="application/json" id="live-atlas-input">${JSON.stringify(history).replaceAll('<', '\\u003c')}</script>`,
+    '@INPUT': embeddedInput,
     '@NOTICES': await embeddedNoticesScript(path.join(repoRoot, 'packages', 'semantic-map')),
-    '@ENTRY': `<script type="module">import { startLiveAtlas } from ${JSON.stringify(moduleId(ATLAS_ENTRY))}; startLiveAtlas();</script>`,
+    '@ENTRY': `<script type="module">${bootstrap}</script>`,
   };
   // A function replacer keeps `$` sequences in the inserted text literal.
   const html = PAGE.replace(/@IMPORTMAP|@INPUT|@NOTICES|@ENTRY/gu, marker => parts[marker]);
@@ -96,11 +108,11 @@ export const buildLiveAtlas = async ({ input, out }) => {
   const receipt = {
     schema: 'live-atlas-build/1',
     status: 'PASS',
-    input: { path: path.relative(repoRoot, inputPath), sha256: sha256(await fs.readFile(inputPath)) },
+    input: { path: path.relative(repoRoot, inputPath), sha256: sha256(inputBytes) },
     output: { path: 'index.html', bytes: htmlBytes.byteLength, sha256: sha256(htmlBytes) },
     modules: modules.length,
     moduleRoots: ATLAS_MODULE_ROOTS,
-    snapshots: history.snapshots.map(item => item.rev),
+    snapshots: history ? history.snapshots.map(item => item.rev) : [],
     authority: false,
   };
   await fs.writeFile(path.join(outputRoot, 'receipt.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
@@ -114,5 +126,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     return [argument.slice(2, index), argument.slice(index + 1)];
   }));
   if (!args.out) throw new Error('live-atlas build: --out=<new directory> is required');
-  console.log(JSON.stringify(await buildLiveAtlas({ input: args.input ?? 'tests/fixtures/live-atlas/history.json', out: args.out })));
+  const consumer = args.consumer ?? 'app';
+  const defaultInput = consumer === 'example' ? 'examples/atlas/input/example.jsonl' : 'tests/fixtures/live-atlas/history.json';
+  console.log(JSON.stringify(await buildLiveAtlas({ input: args.input ?? defaultInput, out: args.out, consumer })));
 }

@@ -1,54 +1,35 @@
-# Atlas composition example
+# Atlas application-usecase example
 
-This is the smallest executable **composition witness** for Atlas-shaped UI in `ui`.
-
-It is not the Live Atlas application and does not own Project / Organization / Agent runtime / business meaning. Final application ownership remains `apps` per #321 / roccho-dev/apps#66; this witness stays in `ui`.
-
-## Contract
+This example proves the reusable UI capability needed by the Live Agent Organization Atlas application.
 
 ```text
-input/example.jsonl
-  -> existing semantic-map builder
-  -> current UI Parts / maxGraph adapter
-  -> dist/index.html
+AtlasApp     = AppSourceAdapter + SharedAtlasUI
+AtlasExample = FixtureAdapter   + SharedAtlasUI
 ```
 
-- `input/example.jsonl` is the exact input: **this is what you pass**.
-- `dist/index.html` is generated review output: **this is what it draws**.
-- `dist/receipt.json` binds the actual input/output bytes by SHA-256 and output byte count.
-- `dist/` is generated-only, ignored by Git, and never source authority.
-- No Atlas-specific runtime, controller, registry, renderer, server, or state authority is introduced.
+Both consumers pack and execute the same `packages/control/atlas-ui.mjs` screen, the same Live Atlas read-model/projection, and the same semantic-map/maxGraph primitives. The fixture adapter never copies the screen.
 
-## Visible claims
+## Exact input
 
-The same input has two existing projections.
+`input/example.jsonl` is a one-line deterministic fixture record containing:
 
-### Graph — default
+- actual `ui.liveAtlasInput.v1` snapshots;
+- a small accepted history with a revision gap;
+- example-only scripted connection/snapshot steps with explicit times;
+- provenance stating that this is synthetic UI evidence, not OCI activity or business authority.
 
-`graph/1` shows:
-
-- nested Atlas / Scope A / Scope B regions;
-- generic actor/work/review nodes;
-- handoff/work/review relations;
-- existing selection, zoom, camera and fit/reset behavior.
-
-### Seq — explicit Pattern switch
-
-Use the existing **Pattern → Seq** control. The two existing ordinal temporal fields project the same Work A / Work B data into existing actor lanes and ordinal sequence positions.
-
-This proves reusable Graph/Seq projection only. It does **not** prove live agent activity, wall-clock telemetry, Control execution, or application authority.
+The small dataset is intentionally chosen to retain the observable application-usecase capabilities: hierarchy, actor/org/member relations, work/parallel/status, references, Control/claim/pin, Inspector, search/audit, history/timeline, camera/LOD, UNKNOWN and recovery.
 
 ## Build
 
-From the repository root:
-
 ```sh
-node packages/semantic-map/scripts/build-browser-example.mjs \
+node scripts/build-live-atlas.mjs \
+  --consumer=example \
   --input=examples/atlas/input/example.jsonl \
   --out=examples/atlas/dist
 ```
 
-Generated locally:
+Generated output:
 
 ```text
 examples/atlas/dist/
@@ -56,50 +37,43 @@ examples/atlas/dist/
 └─ receipt.json
 ```
 
-The existing builder packages the current semantic-map browser closure and vendored maxGraph into one HTML file. No example-specific server or renderer is added.
+`dist/` is generated review output, ignored by Git and never source authority.
 
-## View
+## Use
 
-Direct file target:
+Open `dist/index.html` directly or through the repository's existing static host.
 
-```text
-examples/atlas/dist/index.html
-```
+The shared Atlas screen starts on the deterministic sample history. Use **Next scripted update** to step through:
 
-The page is a single-file module closure. `file://` is a proof target and must be exercised independently; successful packaging alone is not a `file://` PASS.
+1. accepted/current live revision;
+2. rejected update → UNKNOWN while the previous accepted revision is retained;
+3. disconnected → UNKNOWN;
+4. reconnect while the rejected attempt is still visible;
+5. accepted recovery → current.
 
-Optional shared development host:
+This bounded replay does not open EventSource and does not imply a real OCI producer.
 
-```sh
-npm run host
-```
+## Capability evidence
 
-Default URL:
+| Application-usecase capability | Example action/evidence |
+|---|---|
+| hierarchy / org / membership | nested scopes plus actors/org/member rows; membership edge at non-far focused selection |
+| work / state / refs | parallel running work, blocked/residual work, missing scope, purpose/policy refs |
+| SVG + HTML selection | maxGraph activation and scope/audit controls converge on the same selected id/focus |
+| Inspector / Control | scope/actor/work/evidence plus one real Control/claim/pin join |
+| search / audit | raw source rows, unknown producer property search, exact-id selection |
+| history / timeline | revision slider, gap, create/activity change, ref retarget and topology/status change |
+| camera / LOD | Fit, wheel zoom, pan, far→middle→near, near work evidence |
+| currentness | current, rejected/disconnected UNKNOWN, accepted recovery |
+| closure | offline single-file module closure using the same SharedAtlasUI subset as the app artifact |
 
-```text
-http://127.0.0.1:18083/examples/atlas/dist/index.html
-```
-
-The repository's existing generic static server is shared; this example owns no server.
-
-## Reproducibility
-
-`packages/semantic-map/tests/example_reproducibility.mjs`:
-
-1. builds this exact input twice into owned temporary output directories;
-2. checks the existing receipt against the actual input bytes, actual HTML bytes, and byte count;
-3. requires byte-identical HTML and equal receipts across repeated generation;
-4. removes only expected `index.html` and `receipt.json`, then removes the empty owned directories.
-
-The builder's legacy `receipt.input.path` is not used as the exact Atlas locator. Identity is the actual supplied file plus its receipt hash.
-
-`preview.png` is optional review convenience only; interactive HTML is the proof surface.
+Large-scale 300-scope/readability/budget/rollback and real EventSource transport remain shared/application regression tests; the example does not duplicate those workloads.
 
 ## Relations
 
-- Refs #322 — order / Atlas extraction gate; this witness fills the explicit Atlas composition proof
-- Refs #328 — composition rule
-- Refs #327 — surface rule; Graph/Seq use the existing SVG semantic-map plane
-- Refs #321 — final Atlas application ownership is `apps`
-- Historical foundation: #330 / #331, adopted into `proposals`
-- Related: roccho-dev/apps#66 — application migration handoff; this example remains in `ui`
+- Refs #322 — Atlas extraction/application-usecase witness
+- Refs #328 — shared composable UI, no example-only screen
+- Refs #327 — HTML shell + SVG spatial plane
+- Related: roccho-dev/apps#66 — later application ownership handoff; no apps implementation is performed here
+
+Historical v2 Graph/Seq witness remains partial evidence only.
