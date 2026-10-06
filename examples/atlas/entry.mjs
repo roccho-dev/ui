@@ -14,15 +14,18 @@ const ui = mountAtlasUI({ root: document.body, state, mode: 'sample', connected:
 const controls = document.createElement('div');
 controls.id = 'atlas-example-controls';
 Object.assign(controls.style, {
-  position: 'fixed', top: '6px', right: '8px', zIndex: '1000',
-  display: 'flex', gap: '6px', alignItems: 'center',
-  padding: '4px 6px', background: 'rgba(255,255,255,.95)', border: '1px solid #dee2e6',
+  display: 'flex', gap: '6px', alignItems: 'center', marginLeft: 'auto',
+  paddingLeft: '6px', whiteSpace: 'nowrap',
 });
 const button = document.createElement('button');
 button.id = 'atlas-example-next';
 button.type = 'button';
 const label = document.createElement('span');
 label.id = 'atlas-example-step';
+const provenance = document.createElement('span');
+provenance.id = 'atlas-example-provenance';
+provenance.textContent = 'fixture · synthetic';
+provenance.title = fixture.note ?? 'Synthetic Atlas fixture';
 
 let cursor = 0;
 const updateControl = () => {
@@ -53,8 +56,10 @@ const advance = () => {
   return step;
 };
 button.addEventListener('click', advance);
-controls.append(button, label);
-document.body.append(controls);
+controls.append(provenance, button, label);
+const bar = document.getElementById('atlas-bar');
+if (!bar) throw new Error('atlas example: shared screen bar missing');
+bar.append(controls);
 updateControl();
 
 const api = Object.freeze({

@@ -325,12 +325,42 @@ try {
     const initial = Object.fromEntries((await page.evaluate(readChips)).map(chip => [chip.id, chip]));
     check('example shows parallel/residual/missing Atlas states',
       initial['lane-a']?.token === '▶2' && initial['lane-b']?.token === '~' && initial.quiet?.token === '—', initial);
+
+    const controlsGeometry = await page.evaluate(() => {
+      const search = document.getElementById('atlas-search').getBoundingClientRect();
+      const controls = document.getElementById('atlas-example-controls').getBoundingClientRect();
+      const button = document.getElementById('atlas-example-next').getBoundingClientRect();
+      const overlap = !(search.right <= controls.left || controls.right <= search.left || search.bottom <= controls.top || controls.bottom <= search.top);
+      return {
+        search: { x: search.x, y: search.y, width: search.width, height: search.height },
+        controls: { x: controls.x, y: controls.y, width: controls.width, height: controls.height },
+        button: { x: button.x, y: button.y, width: button.width, height: button.height },
+        overlap,
+        provenance: document.getElementById('atlas-example-provenance').textContent,
+        buttonDisabled: document.getElementById('atlas-example-next').disabled,
+      };
+    });
+    check('example replay controls do not obstruct Search and provenance is visible',
+      !controlsGeometry.overlap
+      && controlsGeometry.search.width > 0
+      && controlsGeometry.button.width > 0
+      && controlsGeometry.provenance === 'fixture · synthetic'
+      && !controlsGeometry.buttonDisabled,
+      controlsGeometry);
+
     const organization = await page.evaluate(() => ({
       actors: window.liveAtlas.projection.scene.representations.filter(item => item.atlas?.kind === 'actor').map(item => item.regionId),
       org: window.liveAtlas.projection.scene.relations.filter(item => item.relationIds?.[0]?.startsWith('org:')).length,
-      targets: window.liveAtlas.projection.scene.representations.filter(item => item.atlas?.kind === 'target').map(item => item.regionId),
+      targets: window.liveAtlas.projection.scene.representations
+        .filter(item => item.atlas?.kind === 'target')
+        .map(item => ({ id: item.regionId, class: item.atlas.class })),
     }));
-    check('example shows actors, org relations and targets', organization.actors.length === 3 && organization.org === 2 && organization.targets.length === 2, organization);
+    const targetClasses = organization.targets.map(item => item.class).sort();
+    check('example shows actors, org relations and all four observable target classes',
+      organization.actors.length === 3
+      && organization.org === 2
+      && JSON.stringify(targetClasses) === JSON.stringify(['code', 'meta', 'policy', 'purpose']),
+      organization);
 
     const laneA = initial['lane-a'];
     await page.mouse.click(laneA.box.x + laneA.box.w / 2, laneA.box.y + laneA.box.h / 2);

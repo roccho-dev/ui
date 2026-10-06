@@ -43,7 +43,7 @@ examples/atlas/dist/
 
 Open `dist/index.html` directly or through the repository's existing static host.
 
-The shared Atlas screen starts on the deterministic sample history. Use **Next scripted update** to step through:
+The shared Atlas screen starts on the deterministic sample history. The visible **fixture · synthetic** replay controls live in the shared top bar's normal flex flow, so they do not cover Search. Use **Next scripted update** to step through:
 
 1. accepted/current live revision;
 2. rejected update → UNKNOWN while the previous accepted revision is retained;
@@ -58,7 +58,7 @@ This bounded replay does not open EventSource and does not imply a real OCI prod
 | Application-usecase capability | Example action/evidence |
 |---|---|
 | hierarchy / org / membership | nested scopes plus actors/org/member rows; membership edge at non-far focused selection |
-| work / state / refs | parallel running work, blocked/residual work, missing scope, purpose/policy refs |
+| work / state / refs | parallel running work, blocked/residual work, missing scope, purpose/meta/policy/code refs |
 | SVG + HTML selection | maxGraph activation and scope/audit controls converge on the same selected id/focus |
 | Inspector / Control | scope/actor/work/evidence plus one real Control/claim/pin join |
 | search / audit | raw source rows, unknown producer property search, exact-id selection |
