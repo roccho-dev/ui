@@ -20,7 +20,7 @@ import { MAX_SCENE_PRIMITIVES as PROJECTOR_BUDGET } from '../packages/semantic-m
 import { displayedRegionLabel } from '../packages/semantic-map/renderer-maxgraph/labels.js';
 import { edgeStyle, vertexStyle } from '../packages/semantic-map/renderer-maxgraph/styles.js';
 import { DEFAULT_THEME, paletteFor } from '../packages/semantic-map/renderer-maxgraph/theme.js';
-import { ATLAS_MODULE_ROOTS, buildLiveAtlas, resolveHistory } from '../scripts/build-live-atlas.mjs';
+import { ATLAS_ENTRY, ATLAS_EXAMPLE_ENTRY, ATLAS_MODULE_ROOTS, buildLiveAtlas, resolveHistory } from '../scripts/build-live-atlas.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -80,6 +80,7 @@ if (parityArg) {
 }
 
 const fixturePath = path.join(repoRoot, 'tests', 'fixtures', 'live-atlas', 'history.json');
+const exampleFixturePath = path.join(repoRoot, 'examples', 'atlas', 'input', 'example.jsonl');
 const history = await resolveHistory(fixturePath);
 const jsonl = rows => `${rows.map(row => JSON.stringify(row)).join('\n')}\n`;
 const lines = text => text.split(/\r?\n/u).filter(line => line.trim()).length;
@@ -436,6 +437,60 @@ try {
     assert.equal(packed.replace(specifier, '""'), source.replace(specifier, '""'), `${relative}: only specifiers differ`);
   }
   for (const required of ['packages/control/atlas.mjs', 'packages/semantic-map/renderer-maxgraph/adapter.js', 'packages/control/src/control-graph.mjs']) assert.ok(imports[`ui:${required}`], required);
+
+  // --- application/example shared-screen identity + exact example artifact ---
+  const exampleOut = path.join(tmp, 'example');
+  own(exampleOut);
+  const exampleReceipt = await buildLiveAtlas({ input: exampleFixturePath, out: exampleOut, consumer: 'example' });
+  own(path.join(exampleOut, 'index.html')); own(path.join(exampleOut, 'receipt.json'));
+  const exampleHtmlBytes = fs.readFileSync(path.join(exampleOut, 'index.html'));
+  const exampleHtml = exampleHtmlBytes.toString('utf8');
+  const exampleInputBytes = fs.readFileSync(exampleFixturePath);
+  const digest = bytes => `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+  assert.equal(exampleReceipt.input.sha256, digest(exampleInputBytes));
+  assert.equal(exampleReceipt.output.sha256, digest(exampleHtmlBytes));
+  assert.equal(exampleReceipt.output.bytes, exampleHtmlBytes.byteLength);
+  assert.deepEqual(exampleReceipt.moduleRoots, ATLAS_MODULE_ROOTS);
+
+  const importMap = text => JSON.parse(text.match(/<script type="importmap">([\s\S]*?)<\/script>/u)[1].replaceAll('<\\/', '</')).imports;
+  const exampleImports = importMap(exampleHtml);
+  const packedSource = (map, key) => Buffer.from(map[key].slice(map[key].indexOf(',') + 1), 'base64').toString('utf8');
+  const appEntryKey = `ui:${ATLAS_ENTRY}`;
+  const exampleEntryKey = `ui:${ATLAS_EXAMPLE_ENTRY}`;
+  const sharedEntryKey = 'ui:packages/control/atlas-ui.mjs';
+  assert.ok(imports[appEntryKey]);
+  assert.ok(exampleImports[exampleEntryKey]);
+  assert.ok(imports[sharedEntryKey] && exampleImports[sharedEntryKey]);
+  assert.match(packedSource(imports, appEntryKey), /ui:packages\/control\/atlas-ui\.mjs/u);
+  assert.match(packedSource(exampleImports, exampleEntryKey), /ui:packages\/control\/atlas-ui\.mjs/u);
+  assert.deepEqual(Object.keys(exampleImports).filter(key => key.startsWith('ui:examples/atlas/')), [exampleEntryKey],
+    'the example entry has no example-local executable helper');
+
+  for (const [key, url] of Object.entries(exampleImports)) {
+    const relative = key.slice('ui:'.length);
+    if (key !== exampleEntryKey) assert.ok(ATLAS_MODULE_ROOTS.some(root => relative.startsWith(root)), relative);
+    assert.ok(url.startsWith('data:text/javascript;charset=utf-8;base64,'));
+    const packed = packedSource(exampleImports, key);
+    const source = fs.readFileSync(path.join(repoRoot, relative), 'utf8');
+    assert.equal(packed.replace(specifier, '""'), source.replace(specifier, '""'), `${relative}: only specifiers differ`);
+  }
+
+  const sharedKeys = Object.keys(imports).filter(key => key !== appEntryKey && Object.hasOwn(exampleImports, key));
+  for (const required of [
+    sharedEntryKey,
+    'ui:packages/control/src/live-atlas.mjs',
+    'ui:packages/control/src/live-atlas-projection.mjs',
+    'ui:packages/semantic-map/camera-fit.js',
+    'ui:packages/semantic-map/renderer-maxgraph/adapter.js',
+  ]) assert.ok(sharedKeys.includes(required), `shared closure missing ${required}`);
+  for (const key of sharedKeys) assert.equal(imports[key], exampleImports[key], `shared packed module differs: ${key}`);
+
+  const repeatOut = path.join(tmp, 'example-repeat');
+  own(repeatOut);
+  const repeatReceipt = await buildLiveAtlas({ input: exampleFixturePath, out: repeatOut, consumer: 'example' });
+  own(path.join(repeatOut, 'index.html')); own(path.join(repeatOut, 'receipt.json'));
+  assert.ok(exampleHtmlBytes.equals(fs.readFileSync(path.join(repeatOut, 'index.html'))), 'example HTML must be byte deterministic');
+  assert.deepEqual(exampleReceipt, repeatReceipt, 'example receipts must be deterministic');
 
   // --- real WHATWG EventSource against the finite producer (child process) ---
   const child = `

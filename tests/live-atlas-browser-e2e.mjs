@@ -27,6 +27,7 @@ const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = path.join(repoRoot, 'tests', 'fixtures', 'live-atlas', 'history.json');
+const exampleFixture = path.join(repoRoot, 'examples', 'atlas', 'input', 'example.jsonl');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'live-atlas-e2e-'));
 const created = [];
 const own = file => { created.unshift(file); return file; };
@@ -71,8 +72,11 @@ const largeInput = own(path.join(tmp, 'large.json'));
 fs.writeFileSync(largeInput, JSON.stringify(largeHistory()), { flag: 'wx' });
 await buildLiveAtlas({ input: largeInput, out: own(path.join(tmp, 'large')) });
 own(path.join(tmp, 'large', 'index.html')); own(path.join(tmp, 'large', 'receipt.json'));
+const example = await buildLiveAtlas({ input: exampleFixture, out: own(path.join(tmp, 'example')), consumer: 'example' });
+own(path.join(tmp, 'example', 'index.html')); own(path.join(tmp, 'example', 'receipt.json'));
 const sampleUrl = pathToFileURL(path.join(tmp, 'sample', 'index.html')).href;
 const largeUrl = pathToFileURL(path.join(tmp, 'large', 'index.html')).href;
+const exampleUrl = pathToFileURL(path.join(tmp, 'example', 'index.html')).href;
 
 // Painted chip geometry, label text and motion, read from maxGraph's own states.
 const readChips = () => {
@@ -301,6 +305,134 @@ try {
     check('history playback is labelled', /HISTORY · rev 1/u.test(await page.locator('#atlas-mode').innerText()));
     check('sample page raised no error', errors.length === 0, errors);
     check('sample page made no network request', requests.length === 0, requests);
+    await context.close();
+  }
+
+
+  // Application-usecase example: same SharedAtlasUI, small deterministic fixture.
+  {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await context.setOffline(true);
+    const requests = [];
+    context.on('request', request => { if (!/^(?:file|data):/u.test(request.url())) requests.push(request.url()); });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(String(error)));
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    await page.goto(exampleUrl);
+    await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true');
+
+    const initial = Object.fromEntries((await page.evaluate(readChips)).map(chip => [chip.id, chip]));
+    check('example shows parallel/residual/missing Atlas states',
+      initial['lane-a']?.token === '▶2' && initial['lane-b']?.token === '~' && initial.quiet?.token === '—', initial);
+    const organization = await page.evaluate(() => ({
+      actors: window.liveAtlas.projection.scene.representations.filter(item => item.atlas?.kind === 'actor').map(item => item.regionId),
+      org: window.liveAtlas.projection.scene.relations.filter(item => item.relationIds?.[0]?.startsWith('org:')).length,
+      targets: window.liveAtlas.projection.scene.representations.filter(item => item.atlas?.kind === 'target').map(item => item.regionId),
+    }));
+    check('example shows actors, org relations and targets', organization.actors.length === 3 && organization.org === 2 && organization.targets.length === 2, organization);
+
+    const laneA = initial['lane-a'];
+    await page.mouse.click(laneA.box.x + laneA.box.w / 2, laneA.box.y + laneA.box.h / 2);
+    await page.waitForFunction(() => window.liveAtlas.page.selected === 'lane-a');
+    check('example SVG selection updates HTML Inspector', (await page.locator('#atlas-inspector h3').first().innerText()) === 'lane-a');
+    await page.locator('#atlas-scopes button').filter({ hasText: 'Ops lane' }).first().click();
+    await page.waitForFunction(() => window.liveAtlas.page.selected === 'lane-b');
+    check('example HTML scope selection updates SVG focus', await page.locator('[data-semantic-focus-region="lane-b"]').count() === 1);
+
+    await page.evaluate(() => window.liveAtlas.select('project'));
+    const projectInspector = await page.locator('#atlas-inspector').innerText();
+    check('example Inspector shows real Control claim and pin',
+      /Control ui: Example UI/u.test(projectInspector) && /claim claim-ui active by fixture/u.test(projectInspector) && /given: Atlas fixture control anchor/u.test(projectInspector),
+      projectInspector);
+
+    await page.evaluate(() => window.liveAtlas.select('work-new'));
+    check('example Inspector shows work evidence', /wt\/example/u.test(await page.locator('#atlas-inspector').innerText()));
+
+    await page.fill('#atlas-search', 'opaque demo property');
+    check('example search finds unknown producer property', await page.locator('#atlas-audit tbody tr').count() === 1);
+    await page.fill('#atlas-search', 'lane-a');
+    await page.press('#atlas-search', 'Enter');
+    check('example exact-id search selects through shared screen', await page.evaluate(() => window.liveAtlas.page.selected) === 'lane-a');
+    await page.fill('#atlas-search', '');
+
+    await page.evaluate(() => window.liveAtlas.select('work-new'));
+    const workTimeline = await page.locator('#atlas-timeline').innerText();
+    check('example timeline shows creation/activity and revision gap', /created/u.test(workTimeline) && /created → running/u.test(workTimeline) && /2→4 \(gap\)/u.test(workTimeline), workTimeline);
+    await page.evaluate(() => window.liveAtlas.select('ref-b'));
+    check('example timeline shows reference retarget', /retarget policy → purpose|retarget purpose → policy/u.test(await page.locator('#atlas-timeline').innerText()));
+    check('example history visibly records incomplete gap', /history 3 rev · incomplete · gaps 2→4/u.test(await page.locator('#atlas-rev-label').innerText()));
+
+    await page.evaluate(() => { window.liveAtlas.fit(); window.liveAtlas.zoomBy(2.5); window.liveAtlas.select('agent-a'); });
+    const middle = await page.evaluate(() => ({
+      lod: window.liveAtlas.projection.lod,
+      membership: window.liveAtlas.projection.scene.relations.some(item => item.relationIds?.includes('member:member-a')),
+      work: window.liveAtlas.adapter.cellsByRegionId.has('work-new'),
+    }));
+    check('example middle LOD shows focused membership and work', middle.lod === 'middle' && middle.membership && middle.work, middle);
+    await page.evaluate(() => window.liveAtlas.zoomBy(3));
+    const nearEvidence = await page.evaluate(() => window.liveAtlas.projection.scene.representations.find(item => item.regionId === 'work-new')?.label ?? '');
+    check('example near LOD shows work evidence', /wt\/example/u.test(nearEvidence), nearEvidence);
+
+    const atlasBox = await page.locator('#atlas').boundingBox();
+    const cameraBefore = await page.evaluate(() => window.liveAtlas.adapter.camera());
+    await page.mouse.move(atlasBox.x + 30, atlasBox.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(atlasBox.x + 110, atlasBox.y + 75, { steps: 4 });
+    await page.mouse.up();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const cameraAfter = await page.evaluate(() => window.liveAtlas.adapter.camera());
+    check('example performs actual pan interaction',
+      cameraAfter.scale === cameraBefore.scale && (cameraAfter.translateX !== cameraBefore.translateX || cameraAfter.translateY !== cameraBefore.translateY),
+      { before: cameraBefore, after: cameraAfter });
+    await page.evaluate(() => window.liveAtlas.fit());
+    check('example Fit returns to far LOD', await page.evaluate(() => window.liveAtlas.projection.lod) === 'far');
+
+    await page.evaluate(() => window.liveAtlas.select('lane-a'));
+    const liveWorldBefore = await page.evaluate(() => {
+      const cell = window.liveAtlas.adapter.cellsByRegionId.get('lane-a');
+      const geometry = cell.getGeometry();
+      return { x: geometry.x, y: geometry.y };
+    });
+
+    await page.locator('#atlas-example-next').click();
+    await page.waitForFunction(() => window.liveAtlas.state.held?.rev === 5);
+    check('example scripted accepted update becomes current',
+      /^activity current · LIVE · connected · rev 5/u.test(await page.locator('#atlas-mode').innerText()));
+
+    await page.locator('#atlas-example-next').click();
+    await page.waitForFunction(() => window.liveAtlas.state.attempt?.outcome === 'rejected');
+    check('example rejected update retains rev5 and becomes UNKNOWN',
+      await page.evaluate(() => window.liveAtlas.state.held.rev) === 5 && /activity UNKNOWN \(latest update rejected\)/u.test(await page.locator('#atlas-mode').innerText()));
+
+    await page.locator('#atlas-example-next').click();
+    check('example disconnect is UNKNOWN not stopped', /activity UNKNOWN \(producer disconnected\)/u.test(await page.locator('#atlas-mode').innerText()));
+
+    await page.locator('#atlas-example-next').click();
+    check('example reconnect preserves rejected UNKNOWN until recovery',
+      /activity UNKNOWN \(latest update rejected\)/u.test(await page.locator('#atlas-mode').innerText()));
+
+    await page.locator('#atlas-example-next').click();
+    await page.waitForFunction(() => window.liveAtlas.state.held?.rev === 7);
+    const recovered = await page.evaluate(() => {
+      const cell = window.liveAtlas.adapter.cellsByRegionId.get('lane-a');
+      const geometry = cell.getGeometry();
+      return {
+        selected: window.liveAtlas.page.selected,
+        world: { x: geometry.x, y: geometry.y },
+        connected: window.liveAtlas.page.connected,
+      };
+    });
+    check('example accepted recovery restores current with stable world/selection',
+      /^activity current · LIVE · connected · rev 7/u.test(await page.locator('#atlas-mode').innerText())
+      && recovered.selected === 'lane-a'
+      && recovered.connected
+      && JSON.stringify(recovered.world) === JSON.stringify(liveWorldBefore),
+      { before: liveWorldBefore, after: recovered });
+
+    check('example file proof raised no error', errors.length === 0, errors);
+    check('example file proof made no network request', requests.length === 0, requests);
+    check('example artifact receipt came from exact fixture', example.input.path === 'examples/atlas/input/example.jsonl', example);
     await context.close();
   }
 
