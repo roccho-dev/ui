@@ -402,15 +402,30 @@ try {
     check('example history visibly records incomplete gap', /history 3 rev · incomplete · gaps 2→4/u.test(await page.locator('#atlas-rev-label').innerText()));
 
     await page.evaluate(() => { window.liveAtlas.fit(); window.liveAtlas.zoomBy(2.5); window.liveAtlas.select('agent-a'); });
-    const middle = await page.evaluate(() => ({
+    const middleMembership = await page.evaluate(() => ({
       lod: window.liveAtlas.projection.lod,
       membership: window.liveAtlas.projection.scene.relations.some(item => item.relationIds?.includes('member:member-a')),
-      work: window.liveAtlas.adapter.cellsByRegionId.has('work-new'),
     }));
-    check('example middle LOD shows focused membership and work', middle.lod === 'middle' && middle.membership && middle.work, middle);
+    check('example middle LOD shows focused membership',
+      middleMembership.lod === 'middle' && middleMembership.membership, middleMembership);
+
+    await page.evaluate(() => window.liveAtlas.select('work-new'));
+    const middleWork = await page.evaluate(() => ({
+      lod: window.liveAtlas.projection.lod,
+      selected: window.liveAtlas.page.selected,
+      visible: window.liveAtlas.adapter.cellsByRegionId.has('work-new'),
+    }));
+    check('example middle LOD keeps selected overflow work visible',
+      middleWork.lod === 'middle' && middleWork.selected === 'work-new' && middleWork.visible, middleWork);
+
     await page.evaluate(() => window.liveAtlas.zoomBy(3));
-    const nearEvidence = await page.evaluate(() => window.liveAtlas.projection.scene.representations.find(item => item.regionId === 'work-new')?.label ?? '');
-    check('example near LOD shows work evidence', /wt\/example/u.test(nearEvidence), nearEvidence);
+    const nearEvidence = await page.evaluate(() => ({
+      lod: window.liveAtlas.projection.lod,
+      selected: window.liveAtlas.page.selected,
+      label: window.liveAtlas.projection.scene.representations.find(item => item.regionId === 'work-new')?.label ?? '',
+    }));
+    check('example near LOD shows evidence for selected overflow work',
+      nearEvidence.lod === 'near' && nearEvidence.selected === 'work-new' && /wt\/example/u.test(nearEvidence.label), nearEvidence);
 
     const atlasBox = await page.locator('#atlas').boundingBox();
     const cameraBefore = await page.evaluate(() => window.liveAtlas.adapter.camera());
