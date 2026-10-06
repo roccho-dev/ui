@@ -9,7 +9,8 @@ import {
   applyEnvelope, connectLiveAtlas, createAtlasState, currentness, currentRefs, descendants,
   loadHistory, sourceLines, summarizeScopes, timelineFor,
 } from './src/live-atlas.mjs';
-import { fitCamera, layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
+import { fitCamera } from '../semantic-map/camera-fit.js';
+import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}

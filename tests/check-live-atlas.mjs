@@ -14,7 +14,8 @@ import {
   applyEnvelope, createAtlasState, currentness, evaluateEnvelope, historyChanges, loadHistory,
   parseTopology, summarizeScopes, timelineFor, HISTORY_LIMIT,
 } from '../packages/control/src/live-atlas.mjs';
-import { fitCamera, layoutTopology, lodFor, MAX_SCENE_PRIMITIVES, projectAtlas, STATUS_PAINT } from '../packages/control/src/live-atlas-projection.mjs';
+import { fitCamera } from '../packages/semantic-map/camera-fit.js';
+import { layoutTopology, lodFor, MAX_SCENE_PRIMITIVES, projectAtlas, STATUS_PAINT } from '../packages/control/src/live-atlas-projection.mjs';
 import { MAX_SCENE_PRIMITIVES as PROJECTOR_BUDGET } from '../packages/semantic-map/projection/projector.js';
 import { displayedRegionLabel } from '../packages/semantic-map/renderer-maxgraph/labels.js';
 import { edgeStyle, vertexStyle } from '../packages/semantic-map/renderer-maxgraph/styles.js';
