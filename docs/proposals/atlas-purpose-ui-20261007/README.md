@@ -141,4 +141,9 @@ P actual v4 readback: N-3 / E-4 / MΔ0 / RΔ1 / SΔ5（新replacement provenance
 [更新したreplacement画像](view.removal.jpg)。残るcounterpart fieldsと理由未提供を確認。
 旧v3の反転例は履歴の討議例のみ。新ケースはnamed sourceのafterである。
 CI生成依存0、product/CI変更/実装GO0。
+# Current visual target
+
+See [integrated HTML candidate](integration.md) and [source template](integration.example.html).
+The former v5 placement agreement is preserved history; the current Human request is
+the 18185 baseline plus the v4 Purpose intent in one Atlas. Same-source agreement is pending.
 

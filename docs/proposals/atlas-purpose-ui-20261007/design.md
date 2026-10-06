@@ -1,6 +1,7 @@
 # P design v5 candidate — full display closure
 
-Status: same-version agreement requested; no product implementation GO.
+Status: v5 is preserved design history. Current visual candidate: integration.md.
+The prior placement is reopened; product implementation remains unstarted.
 Source refs: P 6025725543 / R 6025854933 / W3 6025888385 / P 6025902063.
 Visual examples: README / view.example.html / captured images.
 UI base: 3fd451996d05e304a38be2a6696acb18b3103a37.
