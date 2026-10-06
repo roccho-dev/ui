@@ -53,15 +53,14 @@ export const startLiveAtlas = () => {
     select: ui.select,
     fit: ui.fit,
     zoomBy: ui.zoomBy,
-    setSession: ui.setSession,
-    tick: ui.tick,
     get state() { return ui.state; },
     get projection() { return ui.projection; },
     lodFor: ui.lodFor,
     destroy() {
       if (timer !== null) clearInterval(timer);
-      source?.close();
       ui.destroy();
+      source?.close();
+      delete globalThis.liveAtlas;
       delete document.documentElement.dataset.liveAtlasReady;
     },
   });

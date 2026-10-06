@@ -63,8 +63,6 @@ const api = Object.freeze({
   select: ui.select,
   fit: ui.fit,
   zoomBy: ui.zoomBy,
-  setSession: ui.setSession,
-  tick: ui.tick,
   get state() { return ui.state; },
   get projection() { return ui.projection; },
   lodFor: ui.lodFor,
@@ -72,6 +70,8 @@ const api = Object.freeze({
     button.removeEventListener('click', advance);
     controls.remove();
     ui.destroy();
+    delete globalThis.liveAtlas;
+    delete globalThis.atlasExample;
     delete document.documentElement.dataset.liveAtlasReady;
   },
 });
