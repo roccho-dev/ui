@@ -108,3 +108,18 @@ E(s) = typed references。SΔは監査でありbusiness変更数へ合算しな�
 Purpose図は依然として表示意図の例。Activity同居・実entry/build・実UI consumeの全体設計は
 #333のP 6025279917に従い反復中。CI生成・製品実装・採用GOは追加しない。
 
+
+## Visual clarification v3 — independent replacement / counterpart detail
+
+HTMLへ2つ目の比較caseを追加。採用reducerで有効な13-record snapshotと10-record snapshotを
+独立したordered pairとして比較する。oldReduced+omissionによる削除とは主張しない。
+Pのactual操作: replacement caseのbeforeでgap.sourceを選びafterへ切替。
+追加0／未掲載3／意味変更0／relation追加0／relation未掲載4／RΔ1／SΔ1。
+同じselected IDを保持し、graphには存在しないがdetailにbeforeのlabel/kind/fields/raw/sourcesを残す。
+「このsnapshotに未掲載・理由未提供」「before snapshotの保持された内容」を明示。
+[不掲載/参照撤回の画像例](view.removal.jpg)。画像はPのlocal actual capture、CI生成なし。
+起動時にcase配列の初期化順エラーを実ブラウザで発見して是正し、再操作後に撮影。
+
+全体設計はP 6025725543の単一admission・可視縦積みを基準にR/W3反復中。
+この例はPurpose部分の議論資料で、Activity同居/production UI reuse/完成証拠ではない。
+
