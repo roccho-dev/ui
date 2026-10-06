@@ -1,4 +1,4 @@
-# P design v4 candidate — full display closure
+# P design v5 candidate — full display closure
 
 Status: same-version agreement requested; no product implementation GO.
 Source refs: P 6025725543 / R 6025854933 / W3 6025888385 / P 6025902063.
@@ -131,6 +131,22 @@ store.replaceRecords(records); surface.fit()
 surface.adapter.setSelection({regionIds:[projectedUiId]})
 No repeated mount/unmount is required.
 
+
+## Activity fixture replay — explicit app bootstrap responsibility
+The adopted Activity fixture script is not executed by loadHistory().
+web/app.mjs owns a bounded fixture adapter inside the same 11-path tree:
+- loadHistory for initial state; mount the existing Activity UI in sample mode;
+- consume the adopted finite script with explicit fixture clock/connection;
+- use the actual applyEnvelope/setSession/tick seams to publish each step;
+- expose an honest fixture replay control in the same product entry;
+- accepted -> rejected UNKNOWN -> disconnected UNKNOWN -> reconnect -> accepted recovery.
+Do not add a server, codec, generic replay framework or persistent producer.
+Purpose comparison cannot advance/change Activity replay state; Activity replay
+cannot change Purpose case/selection. Real OCI remains unproven/out of scope.
+The actual composed browser/P readback exercises these app controls, not a
+test-only direct mutation of internal UI state. UNKNOWN/recovery is not removed
+from the completion scope.
+
 ## Completion verification
 Pure: 7 meanings, all/multiple Purpose roots, late upstream/next, independent B/A,
 M/R/E/S, provenance-only/reference-only, N-/E-, injective/collision-safe ids,
@@ -163,4 +179,3 @@ flowchart LR
 Discussion uses local HTML/captured images/P readback; no CI generation dependency.
 Future affected existing checks use the production build; no new dev workflow,
 artifact ledger or CI-only alternative page. This document does not start them.
-
