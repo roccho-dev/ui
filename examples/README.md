@@ -1,6 +1,6 @@
 # Capability examples
 
-Each directory under `examples/` demonstrates one executable UI capability with both the exact input and a generated, reviewable output.
+Each directory under `examples/` demonstrates one executable UI capability with exact input and a reviewable browser output.
 
 ```text
 examples/<capability-id>/
@@ -13,13 +13,15 @@ examples/<capability-id>/
 
 ## Contract
 
-- `input/**` is the example input.
-- `dist/**` is a generated example artifact, not source authority.
-- `dist/**` must be reproducible from the adjacent input and current source.
-- Builds must write to a temporary directory first and compare against the checked-in example.
-- Example output must never be consumed as source or as a build input.
+- `input/**` is source input for the example.
+- `dist/**` is generated review output, never source authority or build input.
+- Each example README declares its output contract:
+  - **reference output**: checked-in output is compared with a fresh temporary build;
+  - **generated-only output**: output is rebuilt from current source and input, may exist locally for review, and is not committed.
+- Existing examples keep their current contract unless their own README says otherwise.
+- `examples/atlas` is generated-only: `dist/` is locally reviewable, ignored by Git, and verified from owned temporary outputs.
 - Production artifacts, receipts, deployment URLs, and release archives remain outside this directory.
-- A capability is listed as available only when its manifest, engine, fixtures, and example all agree.
+- A capability is listed as available only when its manifest, engine, fixtures, and applicable example/evidence agree.
 
 The capability declaration remains under:
 

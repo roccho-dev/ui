@@ -1,21 +1,42 @@
 # Atlas composition example
 
-This is the smallest executable **composition proof** for Atlas-shaped UI in `ui`.
+This is the smallest executable **composition witness** for Atlas-shaped UI in `ui`.
 
-It is not the Live Atlas application and does not own Project / Organization / Agent runtime / business meaning. The application remains temporary in `ui` until the extraction flow in #322 completes, then moves under `apps` per #321 / apps#66.
+It is not the Live Atlas application and does not own Project / Organization / Agent runtime / business meaning. Final application ownership remains `apps` per #321 / roccho-dev/apps#66; this witness stays in `ui`.
 
 ## Contract
 
 ```text
 input/example.jsonl
-  -> current semantic-map UI Parts / maxGraph adapter
+  -> existing semantic-map builder
+  -> current UI Parts / maxGraph adapter
   -> dist/index.html
 ```
 
 - `input/example.jsonl` is the exact input: **this is what you pass**.
 - `dist/index.html` is generated review output: **this is what it draws**.
-- The example proves only composition of existing generic pieces: nested scopes, nodes, relations, temporal metadata, camera/fit-capable SVG rendering.
-- It introduces no Atlas-specific runtime, controller, registry, renderer, or state authority.
+- `dist/receipt.json` binds the actual input/output bytes by SHA-256 and output byte count.
+- `dist/` is generated-only, ignored by Git, and never source authority.
+- No Atlas-specific runtime, controller, registry, renderer, server, or state authority is introduced.
+
+## Visible claims
+
+The same input has two existing projections.
+
+### Graph — default
+
+`graph/1` shows:
+
+- nested Atlas / Scope A / Scope B regions;
+- generic actor/work/review nodes;
+- handoff/work/review relations;
+- existing selection, zoom, camera and fit/reset behavior.
+
+### Seq — explicit Pattern switch
+
+Use the existing **Pattern → Seq** control. The two existing ordinal temporal fields project the same Work A / Work B data into existing actor lanes and ordinal sequence positions.
+
+This proves reusable Graph/Seq projection only. It does **not** prove live agent activity, wall-clock telemetry, Control execution, or application authority.
 
 ## Build
 
@@ -27,17 +48,25 @@ node packages/semantic-map/scripts/build-browser-example.mjs \
   --out=examples/atlas/dist
 ```
 
+Generated locally:
+
+```text
+examples/atlas/dist/
+├─ index.html
+└─ receipt.json
+```
+
 The existing builder packages the current semantic-map browser closure and vendored maxGraph into one HTML file. No example-specific server or renderer is added.
 
 ## View
 
-Direct file:
+Direct file target:
 
 ```text
 examples/atlas/dist/index.html
 ```
 
-The generated HTML is self-contained and intended to be reviewable with `file://`.
+The page is a single-file module closure. `file://` is a proof target and must be exercised independently; successful packaging alone is not a `file://` PASS.
 
 Optional shared development host:
 
@@ -45,25 +74,32 @@ Optional shared development host:
 npm run host
 ```
 
-Then open:
+Default URL:
 
 ```text
 http://127.0.0.1:18083/examples/atlas/dist/index.html
 ```
 
-The host is the repository's existing generic static server; this example does not own a server.
+The repository's existing generic static server is shared; this example owns no server.
 
 ## Reproducibility
 
-`packages/semantic-map/tests/example_reproducibility.mjs` builds this exact JSONL into a temporary directory and requires a successful `semantic-map-example-build/1` receipt plus a non-empty `dist/index.html`.
+`packages/semantic-map/tests/example_reproducibility.mjs`:
 
-`dist/` is generated output and is not source authority. `preview.png` is intentionally not required: a bitmap cannot prove zoom, selection, camera, or other browser behavior. A screenshot may be added later only as a review convenience.
+1. builds this exact input twice into owned temporary output directories;
+2. checks the existing receipt against the actual input bytes, actual HTML bytes, and byte count;
+3. requires byte-identical HTML and equal receipts across repeated generation;
+4. removes only expected `index.html` and `receipt.json`, then removes the empty owned directories.
+
+The builder's legacy `receipt.input.path` is not used as the exact Atlas locator. Identity is the actual supplied file plus its receipt hash.
+
+`preview.png` is optional review convenience only; interactive HTML is the proof surface.
 
 ## Relations
 
-- Refs #322 — order / Atlas extraction gate; Phase 4 requires exact input -> visible output
+- Refs #322 — order / Atlas extraction gate; this witness fills the explicit Atlas composition proof
 - Refs #328 — composition rule
-- Refs #327 — surface rule; this witness uses the existing SVG semantic-map plane
+- Refs #327 — surface rule; Graph/Seq use the existing SVG semantic-map plane
 - Refs #321 — final Atlas application ownership is `apps`
-- Depends on #331 — this PR is stacked on the exact #331 candidate so the witness is tested against that UI foundation
-- Related: roccho-dev/apps#66 — application migration handoff; this example stays in `ui`
+- Historical foundation: #330 / #331, adopted into `proposals`
+- Related: roccho-dev/apps#66 — application migration handoff; this example remains in `ui`
