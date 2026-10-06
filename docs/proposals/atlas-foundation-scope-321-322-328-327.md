@@ -1,6 +1,6 @@
-# Atlas基盤：完成形と検証のスコープ案 v3
+# Atlas基盤：完成形と検証のスコープ案 v4
 
-状態：P修正版。三者の明示合意待ち。設計討議であり、製品実装の完了証拠ではない。
+設計討議文書。合意の現在値はPR本文と、この版を指定した三者コメントで確認する。製品実装の完了証拠ではない。
 
 正本：[配置 #321](https://github.com/roccho-dev/ui/issues/321) / [順序・抽出gate #322](https://github.com/roccho-dev/ui/issues/322) / [合成 #328](https://github.com/roccho-dev/ui/issues/328) / [surface #327](https://github.com/roccho-dev/ui/issues/327)。
 規約本文をこの文書へ複製せず、具体的な実装への対応と検証を記す。
@@ -48,7 +48,7 @@ ui repo
 │  │  └─ src/
 │  │     ├─ live-atlas.mjs             # TEMP producer解釈、currentness、history、audit
 │  │     └─ live-atlas-projection.mjs  # TEMP application Parts/paint/LOD
-│  │                                   # 初回：既存pathのままlayout→fit閉包proof
+│  │                                   # 初回：既存layout→fitと既存試験を照合。差分0も可
 │  ├─ semantic-map/
 │  │  ├─ protocol/                    # 既存generic view/data契約
 │  │  ├─ projection/                  # 既存projection owner。丸ごとcoreへ移さない
@@ -70,16 +70,16 @@ ui repo
 │  └─ atlas相当                       # 必要な最小composition proofだけ
 │                                    # application固有意味・live producerを入れない
 └─ tests/
-   ├─ check-live-atlas.mjs            # 初回の主な追加予定：実関数の閉包/同値/入力不変
+   ├─ check-live-atlas.mjs            # 既存実証を優先。未証明の製品不変条件だけ必要時追加
    └─ 既存browser/build/ownership検証  # 変更経路に応じ再実行、最終gateでは全回帰
 ```
 
-初回#328 sliceは `layoutTopology` と `fitCamera`、それを現Atlasがconsumeする実経路を使ったproof。予定変更は既存 `tests/check-live-atlas.mjs` の意味ある追加が基本で、製品wrapperや移動はproofだけのためには追加しない。
+初回#328はevidence-firstとする。現sourceの `layoutTopology` → `layout.world` → `fitCamera` と、既存 `tests/check-live-atlas.mjs` の実証を先に照合する。予定製品差分は0でよい。未証明の製品不変条件があれば、そのassertionだけ最小追加する。既存source/試験で規約が閉じていれば新code/new testなしで成立を記録する。proofだけのproduction wrapper、test-only closure wrapper、移動を作らない。
 初回proofだけを#322完了と呼ばない。後続surface境界、最小proof、実Atlas consumer、抽出gateを順に確かめる。後段で実際の抽出が必要なら、その時点のsource/consumer根拠でexact file setを小さく固定してから実装する。初回の仮説を後段のscope許可へ流用しない。
 
 | 段階 | 予定差分・完成証拠 |
 |---|---|
-| #328 | 既存pathで実関数の契約・再合成を証明。synthetic Part frameworkを作らない |
+| #328 | 実関数・実consumer・既存証拠を照合。未証明invariantだけ必要時追加。既に成立ならzero-diff |
 | #327 | DOM flow / free geometryで既存責務を区別。mixed bridge/islandも明示。必要なseamだけ修正 |
 | 最小examples | 現proofを再利用し、未証明の組合せだけ最小追加。ディレクトリ数を完成条件にしない |
 | Atlas consumer | 根拠のあるPart/surface抽出があれば現Atlasでconsume。同名二重実装・domain逆流を残さない |
@@ -100,6 +100,8 @@ compose(compose(P,Q),R) ≡ compose(P,compose(Q,R))
 compose(id_A,P) ≡ P ≡ compose(P,id_B)
 # ≡ は許容入力での観測同値。副作用を持つ処理を再結合しない。
 # 合成結果も普通の関数なので、同じ規則で再び合成できる。
+# 式は設計則。普通のJS関数合成のidentity/association/closureを再テストしない。
+# 独立した理由で実composition実装を導入する時だけ、その実装固有behaviorを検証する。
 ```
 
 A/B/Cはproduct型・明示した複数引数を含めてよい。fan-out/joinも普通の関数で表す。全Partが読み書きする可変bagにはしない。
@@ -141,7 +143,7 @@ Sample/historyは既存のaccepted observationsとasOf clockの意味で判定�
 
 | 対象 | 自動/独立検証 | P目視・手動操作 | 実施時点 |
 |---|---|---|---|
-| 合成閉包 | 実関数/consumerのdirect-composed同値、合成結果の再合成、純粋変換のidentity/association、deepな入力不変、effect境界保持 | proofだけの差分なら不要。UI経路変更時は同経路を実操作 | 初回#328 |
+| 合成と製品invariant | 実関数/consumerと既存試験を照合。未証明なら入力非mutation・決定的output・effect境界等の製品assertionだけ追加。普通のJS合成の言語則テストは要求しない | evidence-onlyなら不要。UI経路変更時は同経路を実操作 | 初回#328。zero-diff可 |
 | 契約/依存 | 有効入力signature、既存拒否契約があれば同じ拒否、generic層の逆依存なし、新registry/controllerなし | 実装詳細がUser flowに出ない | 初回＋変更時 |
 | Surface責務 | 既存DOM nestingとspatial graphを実行。A2UI内SVG islandをHTML判定しない、graph/layoutのDOM再実装なし | HTML検索/InspectorとSVG selection/zoom/pan/Fit | #327＋影響時 |
 | 公開consumer | imports、exports、Nix/CI/build入口、artifact-shell、fixtureの実inventory。更新/互換export、単一implementation | 実際の既存公開URLから到達 | 移動/入口変更時 |
@@ -154,7 +156,8 @@ Sample/historyは既存のaccepted observationsとasOf clockの意味で判定�
 | 公開版一致 | PR base/head/tree/diff、exact公開headでaffected check。sandbox結果は同一性証明又は公開headで再実行 | Pは新headの生成物をUser入口で操作。旧18185artifactを新head証拠にしない | 各実装PR |
 | 抽出gate | 合成最終actual treeで#328/#327、minimal proof、現Atlas consumer、意味逆流なし、範囲内残件0 | ownershipを動かす前に現application実操作 | #322最終gate |
 
-proof/test-only sliceで製品sourceが変わらなければ、全300scope/SSE/browserを初回に重ねない。
+evidence-only / zero-diffを有効な初回結論とする。既存実compositionが#328を満たすなら「実装slice」を必須にしない。式だけを証明するlocal fitTopology helper、identity/association test、既存証拠と同じassertionは追加しない。
+未証明invariantだけのtest sliceで製品sourceが変わらなければ、全300scope/SSE/browserを初回に重ねない。
 `atlas.mjs`のFit等の実経路を変えれば、既存 `tests/check-live-atlas.mjs` と該当browser操作をそのsliceで行う。触れていない経路だけ後段へ置く。
 実装前にexact file set、command/required jobs、expected resultをその実装PRへ固定する。新seamを検証する意味ある試験だけ追加し、実装をなぞる重複テストを増やさない。
 
