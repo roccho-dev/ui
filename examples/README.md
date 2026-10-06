@@ -20,8 +20,8 @@ examples/<capability-id>/
   - **generated-only output**: output is rebuilt from current source and input, may exist locally for review, and is not committed.
 - Existing examples keep their current contract unless their own README says otherwise.
 - `examples/atlas` is generated-only: `dist/` is locally reviewable, ignored by Git, and verified from owned temporary outputs.
-- Production artifacts, receipts, deployment URLs, and release archives remain outside this directory.
-- A capability is listed as available only when its manifest, engine, fixtures, and applicable example/evidence agree.
+- Production artifacts and their production receipts, deployment URLs, and release archives remain outside this directory. A generated example build receipt may remain beside its generated review output under that example's `dist/`.
+- A capability is listed as available only when its manifest, engine, fixtures, and example all agree.
 
 The capability declaration remains under:
 
