@@ -11,6 +11,18 @@ examples/<capability-id>/
    └─ ... generated browser output
 ```
 
+## Principle
+
+> **examples = ui capability = for application usecase**
+
+An example uses exact, small input to demonstrate the screens and operations needed by a stated application use case through reusable UI Parts/adapters.
+
+- The dataset may be small; declared observable capability coverage must remain explicit.
+- Application and example consume the same reusable UI implementation.
+- Example-only copies do not prove reusable capability.
+- Actual input, build, and browser evidence are required; generic rendering success or an inventory alone is insufficient.
+- This principle does not imply a repository-wide rename or retrofit of unrelated examples.
+
 ## Contract
 
 - `input/**` is source input for the example.
