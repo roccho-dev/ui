@@ -354,11 +354,14 @@ try {
       targets: window.liveAtlas.projection.scene.representations
         .filter(item => item.atlas?.kind === 'target')
         .map(item => ({ id: item.regionId, class: item.atlas.class })),
+      refs: window.liveAtlas.projection.coverage.refs,
     }));
     const targetClasses = organization.targets.map(item => item.class).sort();
     check('example shows actors, org relations and all four observable target classes',
       organization.actors.length === 3
       && organization.org === 2
+      && organization.refs.total === 4
+      && organization.refs.shown === 4
       && JSON.stringify(targetClasses) === JSON.stringify(['code', 'meta', 'policy', 'purpose']),
       organization);
 
