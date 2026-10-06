@@ -61,6 +61,7 @@ const bar = document.getElementById('atlas-bar');
 if (!bar) throw new Error('atlas example: shared screen bar missing');
 bar.append(controls);
 updateControl();
+ui.fit();
 
 const api = Object.freeze({
   adapter: ui.adapter,

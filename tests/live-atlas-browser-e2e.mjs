@@ -335,6 +335,7 @@ try {
         search: { x: search.x, y: search.y, width: search.width, height: search.height },
         controls: { x: controls.x, y: controls.y, width: controls.width, height: controls.height },
         button: { x: button.x, y: button.y, width: button.width, height: button.height },
+        viewport: { width: innerWidth, height: innerHeight },
         overlap,
         provenance: document.getElementById('atlas-example-provenance').textContent,
         buttonDisabled: document.getElementById('atlas-example-next').disabled,
@@ -344,6 +345,10 @@ try {
       !controlsGeometry.overlap
       && controlsGeometry.search.width > 0
       && controlsGeometry.button.width > 0
+      && controlsGeometry.search.x >= 0
+      && controlsGeometry.search.x + controlsGeometry.search.width <= controlsGeometry.viewport.width
+      && controlsGeometry.controls.x >= 0
+      && controlsGeometry.controls.x + controlsGeometry.controls.width <= controlsGeometry.viewport.width
       && controlsGeometry.provenance === 'fixture · synthetic'
       && !controlsGeometry.buttonDisabled,
       controlsGeometry);
