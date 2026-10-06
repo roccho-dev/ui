@@ -296,6 +296,21 @@ for (const snapshot of [first, last]) {
   assert.ok(deploy.x >= parent.x && deploy.y >= parent.y && deploy.x + deploy.width <= parent.x + parent.width && deploy.y + deploy.height <= parent.y + parent.height, `rev ${snapshot.rev}: inside its own parent`);
 }
 
+// Shared inputs must survive composition (ui#328): a later consumer must not
+// inherit writes from layout/Fit. Clone Maps and nested arrays, not just roots.
+for (const snapshot of [held, ...sample.history]) {
+  const topologyBefore = structuredClone(snapshot.topology);
+  const layout = layoutTopology(snapshot.topology);
+  assert.deepEqual(snapshot.topology, topologyBefore, `rev ${snapshot.rev}: layout preserves topology`);
+  const layoutBefore = structuredClone(layout);
+  for (const viewport of [{ width: 1280, height: 756 }, { width: 1440, height: 856 }]) {
+    const viewportBefore = { ...viewport };
+    fitCamera(layout.world, viewport);
+    assert.deepEqual(layout, layoutBefore, `rev ${snapshot.rev}: Fit preserves the shared layout`);
+    assert.deepEqual(viewport, viewportBefore, `rev ${snapshot.rev}: Fit preserves viewport`);
+  }
+}
+
 // --- every scope at every LOD, unique actors, budget and coverage ---
 const largeRows = (scopeCount, actorCount) => {
   const rows = [];
