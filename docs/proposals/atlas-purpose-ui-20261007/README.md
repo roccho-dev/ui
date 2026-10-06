@@ -123,3 +123,22 @@ Pのactual操作: replacement caseのbeforeでgap.sourceを選びafterへ切替�
 全体設計はP 6025725543の単一admission・可視縦積みを基準にR/W3反復中。
 この例はPurpose部分の議論資料で、Activity同居/production UI reuse/完成証拠ではない。
 
+
+## Current candidate — design v4 / named replacement
+
+[完成形tree・数式・DOM・検証・閉包](design.md)が現在の同版候補。
+W3のactual UI ID max240 / reserved @mount / label max120に合わせ、
+全comparison casesのbusiness IDs/edge tuplesをcompact UI-only IDsへ一意に写し、
+full IDs/labels/rawをapp context/detailへ保持する。
+production buildは単一Nix atlas-dist、separate build.mjsを削りpurpose-panelを分ける。
+replacement fixture追加後の予定apps差分は11 paths。
+
+[明示synthetic replacement入力例](current.replacement.example.jsonl)を新たに供給し、
+adopted reducerで purpose + replacement を独立validate/canonicalizeした。
+これはv3のpair反転を後続sourceへ昇格したものではない。
+sourceRef=fixture:current-replacement@1、sourceDigestはactual pre-join payloadから生成。
+P actual v4 readback: N-3 / E-4 / MΔ0 / RΔ1 / SΔ5（新replacement provenance）。
+[更新したreplacement画像](view.removal.jpg)。残るcounterpart fieldsと理由未提供を確認。
+旧v3の反転例は履歴の討議例のみ。新ケースはnamed sourceのafterである。
+CI生成依存0、product/CI変更/実装GO0。
+

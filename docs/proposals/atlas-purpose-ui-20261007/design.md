@@ -1,7 +1,7 @@
-# P design v3 candidate — full display closure
+# P design v4 candidate — full display closure
 
 Status: same-version agreement requested; no product implementation GO.
-Source refs: P 6025725543 / R 6025432002 / W3 6025448785.
+Source refs: P 6025725543 / R 6025854933 / W3 6025888385 / P 6025902063.
 Visual examples: README / view.example.html / captured images.
 UI base: 3fd451996d05e304a38be2a6696acb18b3103a37.
 Apps base: 2022a8da358979b6360ef06795856b91b157185b.
@@ -26,14 +26,15 @@ apps/
     reduce.mjs                               0
     README.md                                ~
     presentation.mjs                         + # validate B/A; graph/detail/path/diff
-    build.mjs                                + # exact inputs + artifact closure/receipt
     web/
       index.html                             + # one app shell, anchors, visible stack
-      app.mjs                                + # both mounts, Purpose DOM, context, clocks
+      app.mjs                                + # both mounts, independent context, clocks
+      purpose-panel.mjs                      + # controls/details; existing graph surface
     fixtures/
       purpose.jsonl                          0
       current.jsonl                          0
       current.before.jsonl                   + # exact valid before source
+      current.replacement.jsonl              + # named independent replacement source
     tests/
       closure.test.mjs                       0
       presentation.test.mjs                  + # meaning/relation/provenance + ID cases
@@ -41,8 +42,8 @@ apps/
 ui production / runtime registry / CI files   0
 ```
 
-These are responsibility paths; a concrete source obstruction is reported before
-expanding them. Do not add purpose-panel merely for naming symmetry.
+Changed/new apps paths: 11. These are responsibility paths; a concrete source obstruction is reported before
+expanding them. purpose-panel separates the actual purpose-surface DOM owner from app composition; no separate builder source is required.
 
 ## One actual artifact boundary
 Use the single apps ui input, admitted to the above UI base for full composition.
@@ -51,8 +52,8 @@ Do not mix adopted control with older semantic-map, or add a second permanent UI
 input absent a demonstrated incompatibility. Voice's existing consumer behavior
 and artifact provenance are affected admission checks, not assumed unchanged.
 
-build.mjs consumes actual output roots and explicit representative input files.
-It produces index.html, all referenced app/closure/presentation modules, admitted
+The single production build is nix build .#atlas-dist. flake.nix owns admission and assembly from actual output roots and explicitly declared inputs; no separate build.mjs is required.
+It produces $out/site/index.html, app.mjs, purpose-panel.mjs, all referenced closure/presentation modules, admitted
 UI package siblings, embedded or served data, and an actual receipt.
 Relative imports resolve inside the artifact; overlapping copied files must have
 identical bytes. The mock HTML/images are not product build inputs.
@@ -60,8 +61,7 @@ Receipt binds actual app/UI revisions and actual input/reduced/output bytes.
 No manually transcribed hash becomes an execution gate.
 
 Activity input is a declared synthetic representative from adopted UI; it is not
-real OCI. The builder explicitly extracts UI-live input from any example envelope,
-rather than assuming the entire example-only playback wrapper is loadHistory input.
+real OCI. The adopted UI example is already a ui.liveAtlasHistory.v1 input accepted by loadHistory(); bind that exact input and hash. Do not invent another wrapper codec.
 
 ## DOM and lifecycle
 ```html
@@ -97,16 +97,39 @@ N+/N- are presence; NΔ compares M only; RΔ compares R; E+/- are edges; SΔ is 
 Do not sum these axes as a fictitious total business change count.
 Reference-only next/parents changes are not business meaning mutations.
 
-Projection preserves business id/label/kind/raw/sources.
-Its visual grouping root is collision-checked and UI-only.
-Edge encoding is injective over the typed tuple; delimiter concatenation cannot
-merge opaque IDs containing punctuation.
+Projection preserves full business id/label/kind/raw/sources in the app model.
+Actual UI ids are bounded (240 chars, reserved @mount/), while business IDs are not.
+Across all declared comparison cases, union/sort business IDs and edge tuples;
+assign distinct compact UI-only node/root/edge namespaces and keep inverse maps.
+The same business ID maps to the same UI id across B/A and case switching.
+Selection remains business-id-owned; generic adapter receives regionIds.
+Graph captions obey actual UI label limits (120 chars, including decorations),
+without broken Unicode; full original labels/fields remain in detail/raw.
+Root/edge/node namespaces cannot collide. No ID prefix infers business meaning.
 Graph geometry is existing UI's responsibility, not mock coordinates.
 
 Selected missing id remains selected logically: show the other snapshot's
 label/kind/fields/raw/sources and explicit "unlisted / reason not provided".
 Do not invent deletion/completion/reason. E- uses a valid reconciled replacement
 snapshot, never oldReduced + omission under monotonic join.
+
+
+## Two explicit product comparison cases
+Case A: purpose + current.before -> purpose + current (late arrival).
+Case B: prior valid snapshot -> purpose + named current.replacement input.
+Validate/canonicalize each side independently and bind all input/reduced hashes.
+The replacement has its own sourceRef/sourceDigest; no reversal is promoted into
+a later source claim and no oldReduced+omission is treated as withdrawal.
+N-/E- product proof is part of the same artifact and entry, not a test-only case.
+Discussion-only current.replacement.example.jsonl demonstrates the intended
+synthetic input; it is not production source or a real business observation.
+
+## Actual generic API
+new SemanticDomainStore(createSemanticMap(records))
+mountSemanticMapSurface({featureId:'graph',pattern:'graph/1',root,store,mode:'view'})
+store.replaceRecords(records); surface.fit()
+surface.adapter.setSelection({regionIds:[projectedUiId]})
+No repeated mount/unmount is required.
 
 ## Completion verification
 Pure: 7 meanings, all/multiple Purpose roots, late upstream/next, independent B/A,
