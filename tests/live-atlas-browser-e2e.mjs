@@ -444,7 +444,7 @@ try {
     const badTopology = { ...fresh(2), channels: { ...fresh(2).channels, topology: { text: '{"t":"scope","id":"x","label":"x","parent":"missing"}\n' } } };
     producer = await startAtlasProducer({ connections: [
       [{ data: fresh(1) }, { delayMs: 800 }, { data: badTopology }, { delayMs: 800 }, { close: true }],
-      [{ delayMs: 200 }, { data: fresh(3) }],
+      [{ delayMs: 200 }, { data: fresh(3) }, { delayMs: 900 }, { data: fresh(4) }],
     ] });
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
@@ -476,6 +476,15 @@ try {
     await page.waitForFunction(() => window.liveAtlas.state.held?.rev === 3 && window.liveAtlas.page.connected, null, { timeout: 15000 });
     const liveAfter = (await page.evaluate(readChips)).find(chip => chip.id === 'ws-render');
     check('reconnect resumes current activity without moving the world', /activity current/u.test(await mode()) && JSON.stringify(liveAfter.world) === JSON.stringify(liveBefore.world), { before: liveBefore.world, after: liveAfter.world });
+
+    await page.locator('#atlas-rev').fill('0');
+    check('live history browsing is explicit before another publication', /HISTORY · rev 1/u.test(await mode()), await mode());
+    await page.waitForFunction(() => window.liveAtlas.state.held?.rev === 4, null, { timeout: 15000 });
+    check('incoming live publication preserves explicit history browsing',
+      /HISTORY · rev 1/u.test(await mode()) && await page.locator('#atlas-rev').inputValue() === '0', await mode());
+    await page.locator('#atlas-rev').fill('2');
+    check('choosing latest returns to current live revision', /^activity current · LIVE · connected · rev 4/u.test(await mode()), await mode());
+
     check('live page raised no error', errors.length === 0, errors);
     await context.close();
   }

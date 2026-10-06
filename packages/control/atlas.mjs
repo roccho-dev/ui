@@ -40,7 +40,7 @@ export const startLiveAtlas = () => {
         const now = Date.now();
         const firstAccepted = !ui.state.held;
         const next = applyEnvelope(ui.state, data, { now });
-        ui.setSession({ state: next, mode: 'live', connected: ui.page.connected, now, latest: true });
+        ui.setSession({ state: next, mode: 'live', connected: ui.page.connected, now });
         if (firstAccepted && next.held) ui.fit();
       },
     });
