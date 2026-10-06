@@ -95,3 +95,16 @@ HTMLを操作対象、画像は補助。同じbuild入口を使い、CI-onlyの�
 product source/CI/registry変更、apps#66全面移行、real OCI収集、merge、closeは未GO。
 #329のP案は履歴。ここではUser訂正後のこのv1だけを議論の起点とする。
 
+
+## Visual clarification v2 — R/W3反証をreadbackへ反映
+
+関係R(kind)、business意味M、sources Sを分離する。
+M(n) = declared node fields - typed references - sources。
+E(s) = typed references。SΔは監査でありbusiness変更数へ合算しない。
+今回afterはnode追加3／意味変更0／relation追加4／参照更新record1／source更新1。
+「↗ 参照更新」と「~ 意味変更」を別legendにした。Pが同じviewportのHTMLで実確認。
+
+画像はvisual v2へ更新。上のv1 readbackは当時の経過記録で、raw-record変更1をbusiness意味変更へ流用しない。
+Purpose図は依然として表示意図の例。Activity同居・実entry/build・実UI consumeの全体設計は
+#333のP 6025279917に従い反復中。CI生成・製品実装・採用GOは追加しない。
+
