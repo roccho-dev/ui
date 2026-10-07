@@ -10,7 +10,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
-import { containmentIndex, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
+import { containmentIndex, entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 
 const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
 const browsersRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
@@ -226,6 +226,22 @@ try {
     if (!point) throw new Error('missing region cell ' + regionId);
     await page.mouse.click(point.x, point.y);
   };
+
+  const renderedEntityByKey = new Map(world.entities.map(item => [entityKey(item.ref), item]));
+  const shownContainmentGeometry = [];
+  for (const [childKey, parentKey] of afterContainment.parentByChild) {
+    const child = renderedEntityByKey.get(childKey);
+    const parent = renderedEntityByKey.get(parentKey);
+    if (!child || !parent) continue;
+    const [childBox, parentBox] = await Promise.all([
+      renderedBox(child.regionId),
+      renderedBox(parent.regionId),
+    ]);
+    shownContainmentGeometry.push({ childKey, parentKey, childBox, parentBox, inside: strictlyInside(childBox, parentBox) });
+  }
+  check('every shown explicit containment is nested inside its declared parent',
+    shownContainmentGeometry.length > 0 && shownContainmentGeometry.every(item => item.inside),
+    shownContainmentGeometry);
 
   const entityOf = (space, kind, id) => world.entities.find(item => item.ref.space === space && item.ref.kind === kind && item.ref.id === id);
   const company = entityOf('purpose', 'purpose', 'shared');
