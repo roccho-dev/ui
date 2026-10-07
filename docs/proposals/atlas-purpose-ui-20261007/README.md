@@ -53,8 +53,8 @@ RelationRefs/context must not be collapsed merely because endpoints/kind match.
 directory only. It does not replace apps business contracts, the current a2 world
 seam, owning production adapters, or other product authority.
 
-Historical files remain in the tree during this first normalization slice.
-They may leave the canonical surface only after the correspondence is closed:
+Historical cleanup is complete for the admitted superseded candidate set.
+Deletion was allowed only after this correspondence was closed:
 
 ```text
 old invariant
@@ -64,10 +64,9 @@ old invariant
 → interaction/oracle
 ```
 
-File-count reduction, image moves, or renames are not completion criteria.
-A historical file with unique live semantics stays until that semantic content is
-absorbed and proved. The older entries below are retained as history and are not
-current implementation requirements.
+File-count reduction, image moves, or renames were not completion criteria.
+Only history whose unique live semantics had been absorbed and proved was removed;
+the exact pre-cleanup tree remains the historical authority linked below.
 
 ## Historical derivation
 

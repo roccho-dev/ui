@@ -88,24 +88,24 @@ discussion implementation details. They must not be copied into generic a2/UI
 code. M/R/E classification, including relation context/containment meaning, is
 owner-defined and supplied explicitly.
 
-## Normalization correspondence and deletion gate
+## Normalization correspondence and historical cleanup
 
-This table is the first-slice mapping from live historical invariants into the
-current discussion entry. “Mapped” does **not** authorize deletion by itself;
-P/R must still prove the current input/reconstruction/interaction correspondence
-before a historical file is removed.
+This is the current preservation map from live historical invariants into the
+retained discussion entry. It records where each meaning now lives and which
+runtime/operation demonstrates it. It does **not** turn fixture implementation
+details or unproven production capabilities into generic product guarantees.
 
-| Live invariant | Saved here | Logical input | Reconstruction/runtime | Operation/oracle | First-slice state |
-| --- | --- | --- | --- | --- | --- |
-| Qualified identity; N+/N- are presence only | Comparison invariants; Unified interaction and identity | qualified Activity/Purpose refs in `unified.input.example.json` | `world()`, compact reversible projection IDs | Frame A/B switch; same qualified selection; raw-ID collision remains distinct | mapped; proof pending |
-| M/R/S/T remain distinct; old NΔ→MΔ | Comparison invariants | literal source records + sources + comparison basis | fixture `parts()/differences()` illustrates current classification only | visible MΔ/RΔ/SΔ/TΔ counters + selected raw/source/time detail | mapped; owner semantics ceiling explicit |
-| Explicit relation/bridge only; no label/title inference | Authority boundary; Explicit discussion inputs | literal `bridges` + sourceRef/sourceDigest | `world()` adds bridge only when supplied | bridge toggle off removes bridge; no inferred replacement | mapped |
-| Relation multiplicity/identity must not be collapsed generically | Comparison invariants | explicit relation records/bridge IDs; owning relation semantics remain external | current fixture edge tuple is marked example-only | edge selection exposes explicit relation/source; production identity not claimed | mapped; production comparator non-scope |
-| Unknown Purpose effective time; no same-time invention | Comparison invariants; Explicit discussion inputs | `purposeEffectiveAt: null` | assembler basis + derived `sameEffectiveTime` | basis/detail says Purpose time unavailable | mapped |
-| Independent named replacement; unlisted != deleted/completed | Comparison invariants; Explicit discussion inputs | literal `purposeSnapshots.replacement` + named case | assembler builds independent pair | replacement switch preserves selected counterpart and reason-not-provided | mapped |
-| Business Gap != Frame delta != observation gap | Comparison invariants; Recognition and API | owner Purpose records + explicit frame basis + Activity history | Purpose path/detail + Frame comparison + Activity history | Gap detail, Frame diff, observation-gap notice are separately readable | mapped |
-| One world, one qualified selection, explicit pair | Unified interaction and identity | one logical discussion input binding multiple source domains | one scene/adapter; before/after side | shared selection/detail/camera; counterpart survives absence | mapped |
-| Source/evidence authority != interaction policy | Authority boundary; Files and local assembly | immutable logical declarations vs runtime bridge-input variant | assembler binds source digests; runtime derives effective basis | input audit exposes declared/effective comparison separately | mapped |
+| Live invariant | Saved here | Logical input | Reconstruction/runtime | Operation/oracle |
+| --- | --- | --- | --- | --- |
+| Qualified identity; N+/N- are presence only | Comparison invariants; Unified interaction and identity | qualified Activity/Purpose refs in `unified.input.example.json` | `world()`, compact reversible projection IDs | Frame A/B switch; same qualified selection; raw-ID collision remains distinct |
+| M/R/S/T remain distinct; old NΔ→MΔ | Comparison invariants | literal source records + sources + comparison basis | fixture `parts()/differences()` illustrates current classification only | visible MΔ/RΔ/SΔ/TΔ counters + selected raw/source/time detail |
+| Explicit relation/bridge only; no label/title inference | Authority boundary; Explicit discussion inputs | literal `bridges` + sourceRef/sourceDigest | `world()` adds bridge only when supplied | bridge toggle off removes bridge; no inferred replacement |
+| Relation multiplicity/identity must not be collapsed generically | Comparison invariants | explicit relation records/bridge IDs; owning relation semantics remain external | current fixture edge tuple is marked example-only | edge selection exposes explicit relation/source; production relation-identity comparator is not claimed |
+| Unknown Purpose effective time; no same-time invention | Comparison invariants; Explicit discussion inputs | `purposeEffectiveAt: null` | assembler basis + derived `sameEffectiveTime` | basis/detail says Purpose time unavailable |
+| Independent named replacement; unlisted != deleted/completed | Comparison invariants; Explicit discussion inputs | literal `purposeSnapshots.replacement` + named case | assembler builds independent pair; adopted owner validator independently accepted the named replacement source | replacement switch preserves selected counterpart and reason-not-provided |
+| Business Gap != Frame delta != observation gap | Comparison invariants; Recognition and API | owner Purpose records + explicit frame basis + Activity history | Purpose path/detail + Frame comparison + Activity history | Gap detail, Frame diff, observation-gap notice are separately readable |
+| One world, one qualified selection, explicit pair | Unified interaction and identity | one logical discussion input binding multiple source domains | one scene/adapter; before/after side | shared selection/detail/camera; counterpart survives absence |
+| Source/evidence authority != interaction policy | Authority boundary; Files and local assembly | immutable logical declarations vs runtime bridge-input variant | assembler binds source digests; runtime derives effective basis | input audit exposes declared/effective comparison separately |
 
 The historical cleanup gate is now closed for the admitted candidate set. Independent
 review confirmed that no unique live invariant depended on those candidate files;
