@@ -127,10 +127,13 @@ export const projectAtlasWorld = ({
   selected,
   mode = 'sample',
   connected = false,
+  latest = true,
   scale = 1,
 } = {}) => {
   const index = indexWorldFrame(frame);
   const counterpartIndex = counterpart ? indexWorldFrame(counterpart) : null;
+  const liveLatest = mode === 'live' && latest;
+  const displayedActivity = declared => (liveLatest && !connected ? 'unknown' : declared);
   const areas = input.presentation.areas;
   const areaEntities = new Map(areas.map(area => [area.id, []]));
   for (const entity of frame.entities) areaEntities.get(entity.area)?.push(entity);
@@ -168,7 +171,8 @@ export const projectAtlasWorld = ({
     shown.forEach((entity, indexInArea) => {
       const key = entityKey(entity.ref);
       visibleEntityKeys.add(key);
-      const glyph = token[entity.activity];
+      const activity = displayedActivity(entity.activity);
+      const glyph = token[activity];
       representations.push(Object.freeze({
         regionId: regionId(key),
         sourceRegionId: regionId(key),
@@ -186,8 +190,14 @@ export const projectAtlasWorld = ({
         geometryEditable: false,
         labelEditable: false,
         activation: Object.freeze({ type: 'atlas.world.select', id: key }),
-        visual: Object.freeze({ appearance: appearance[entity.activity] }),
-        atlas: Object.freeze({ kind: 'entity', ref: entity.ref, area: entity.area, activity: entity.activity }),
+        visual: Object.freeze({ appearance: appearance[activity] }),
+        atlas: Object.freeze({
+          kind: 'entity',
+          ref: entity.ref,
+          area: entity.area,
+          activity,
+          declaredActivity: entity.activity,
+        }),
       }));
     });
   });
@@ -230,9 +240,15 @@ export const projectAtlasWorld = ({
     + ' · omitted entities ' + omittedEntities.length
     + ' · relations ' + frame.relations.length
     + ' · omitted relations ' + omittedIds.length;
-  const transport = mode === 'live' ? (connected ? 'SSE connected' : 'SSE disconnected') : 'SAMPLE';
+  const transport = mode === 'live'
+    ? (latest ? (connected ? 'SSE connected' : 'SSE disconnected') : 'HISTORY snapshot')
+    : 'SAMPLE';
   const selectedIdentity = record ? (record.ref.space + '/' + record.ref.kind + '/' + record.ref.id) : selected || 'none';
-  const activity = record?.activity ?? 'unknown';
+  const declaredActivity = record?.activity ?? 'unknown';
+  const activity = displayedActivity(declaredActivity);
+  const activityClaim = liveLatest && !connected
+    ? 'Activity: UNKNOWN · lastDeclared=' + String(declaredActivity).toUpperCase() + ' · transport=' + transport
+    : 'Activity: ' + String(activity).toUpperCase() + ' · declared=' + String(declaredActivity).toUpperCase() + ' · transport=' + transport;
   const directionLines = pathLabels.length === 0
     ? Object.freeze(['Direction: UNCONNECTED / UNKNOWN'])
     : Object.freeze([
@@ -249,7 +265,7 @@ export const projectAtlasWorld = ({
     'Record: ' + recordLabel,
     'Context: ' + context,
     ...directionLines,
-    'Activity: ' + String(activity).toUpperCase() + ' · transport=' + transport,
+    activityClaim,
     'Source state: ' + frame.sourceState,
     'Source: ' + sourceText(record?.source),
     'Time: ' + timeText(record?.time),

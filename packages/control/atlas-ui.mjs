@@ -474,6 +474,7 @@ export const mountAtlasWorldUI = ({
       selected: page.selected,
       mode: page.mode,
       connected: page.connected,
+      latest: page.latest,
       scale: adapter.camera().scale,
     });
     page.projection = projection;

@@ -332,6 +332,51 @@ try {
       && returnedControls.every(item => item.visible),
     { cameraBeforeFocus, cameraAfterFocus, cameraAfterReturn, returnedJudgement, returnedControls });
 
+  await page.click('#atlas-world-after');
+  await page.evaluate(() => window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' }));
+  await page.evaluate(() => window.liveAtlas.setSession({
+    input: window.liveAtlas.input,
+    mode: 'live',
+    connected: false,
+    latest: true,
+  }));
+  const disconnectedCurrent = await renderedJudgement();
+  const disconnectedEntity = await page.evaluate(() => {
+    const row = window.liveAtlas.projection.scene.representations.find(item => item.atlas?.ref?.space === 'agents' && item.atlas?.ref?.id === 'agent.1');
+    return row?.atlas ?? null;
+  });
+  check('live latest disconnect downgrades current activity to UNKNOWN while retaining the last declaration',
+    disconnectedCurrent.visible
+      && /Activity: UNKNOWN · lastDeclared=NOW · transport=SSE disconnected/u.test(disconnectedCurrent.text)
+      && disconnectedEntity?.activity === 'unknown'
+      && disconnectedEntity?.declaredActivity === 'now',
+    { disconnectedCurrent, disconnectedEntity });
+
+  await page.evaluate(() => window.liveAtlas.setSession({
+    input: window.liveAtlas.input,
+    mode: 'live',
+    connected: true,
+    latest: true,
+  }));
+  const reconnectedCurrent = await renderedJudgement();
+  check('live reconnect restores the declared activity without inventing idle/completion',
+    reconnectedCurrent.visible
+      && /Activity: NOW · declared=NOW · transport=SSE connected/u.test(reconnectedCurrent.text),
+    reconnectedCurrent);
+
+  await page.click('#atlas-world-before');
+  await page.evaluate(() => window.liveAtlas.setSession({
+    input: window.liveAtlas.input,
+    mode: 'live',
+    connected: false,
+    latest: false,
+  }));
+  const disconnectedHistory = await renderedJudgement();
+  check('historical frame keeps its time-bounded declared activity while live transport is disconnected',
+    disconnectedHistory.visible
+      && /Activity: NOW · declared=NOW · transport=HISTORY snapshot/u.test(disconnectedHistory.text),
+    disconnectedHistory);
+
   check('no browser page/console errors', pageErrors.length === 0 && consoleErrors.length === 0, { pageErrors, consoleErrors });
 } finally {
   try {
