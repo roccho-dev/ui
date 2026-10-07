@@ -1,0 +1,101 @@
+{
+  "authority": false,
+  "activity": {
+    "path": "tests/fixtures/live-atlas/history.json",
+    "uiRef": "3fd451996d05e304a38be2a6696acb18b3103a37"
+  },
+  "purpose": {
+    "path": "docs/proposals/atlas-purpose-ui-20261007/view.example.html",
+    "pairs": "original-before-after-and-named-replacement"
+  },
+  "bridgeSourceRef": "discussion:explicit-bridges@1",
+  "basisSourceRef": "discussion:frame-binding@1",
+  "bridges": [
+    {
+      "id": "ceo-serves-purpose",
+      "kind": "serves",
+      "from": {
+        "space": "activity",
+        "kind": "actor",
+        "id": "ceo"
+      },
+      "to": {
+        "space": "purpose",
+        "kind": "purpose",
+        "id": "purpose.company"
+      },
+      "authority": false,
+      "note": "CEO-labelled actorによる目的への関係を明示するsynthetic入力。role/person assignmentは主張しない。"
+    },
+    {
+      "id": "work-contributes-fill",
+      "kind": "contributes-to",
+      "from": {
+        "space": "activity",
+        "kind": "work",
+        "id": "w-render-3"
+      },
+      "to": {
+        "space": "purpose",
+        "kind": "fill",
+        "id": "fill.extraction"
+      },
+      "authority": false,
+      "note": "討議用の補助寄与を明示。実在PR#331がbootstrapを実施したという証拠ではない。"
+    }
+  ],
+  "comparisons": [
+    [
+      {
+        "frameId": "A0",
+        "activityRev": 3,
+        "purposeSnapshot": "before@1",
+        "purposeCase": 0,
+        "purposeSide": 0,
+        "purposeEffectiveAt": null,
+        "alignment": "synthetic scenario/version対応"
+      },
+      {
+        "frameId": "A1",
+        "activityRev": 5,
+        "purposeSnapshot": "after@2",
+        "purposeCase": 0,
+        "purposeSide": 1,
+        "purposeEffectiveAt": null,
+        "alignment": "synthetic scenario/version対応"
+      }
+    ],
+    [
+      {
+        "frameId": "B0",
+        "activityRev": 5,
+        "purposeSnapshot": "prior@2",
+        "purposeCase": 1,
+        "purposeSide": 0,
+        "purposeEffectiveAt": null,
+        "alignment": "synthetic scenario/version対応"
+      },
+      {
+        "frameId": "B1",
+        "activityRev": 5,
+        "purposeSnapshot": "named-replacement@1",
+        "purposeCase": 1,
+        "purposeSide": 1,
+        "purposeEffectiveAt": null,
+        "alignment": "synthetic scenario/version対応"
+      }
+    ]
+  ],
+  "bridgeInputVariants": [
+    {
+      "id": "bridged",
+      "supplied": "explicit-source"
+    },
+    {
+      "id": "unlinked",
+      "supplied": null
+    }
+  ],
+  "sameEffectiveTime": false
+}
+

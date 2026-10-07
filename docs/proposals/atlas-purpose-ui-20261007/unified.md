@@ -94,6 +94,12 @@ UI must not learn CEO/Purpose/Gap business predicates.
 
 ## Files and local assembly
 
+unified.input.example.json is the immutable discussion-input authority for the
+logical source references, full bridge assertions, comparison member revisions,
+null Purpose effective times and supplied/unlinked input variants. Assembly reads
+this file; bridge/source digests are computed from those actual declaration bytes.
+It is a fixture proposal, not an adopted production codec.
+
 unified.example.html — app shell/template.
 unified.example.mjs — discussion input projection/selection/compare host.
 unified.overview.jpg / bridge.jpg / gap.jpg / removal.jpg / narrow.jpg —
@@ -135,4 +141,3 @@ No reported console errors in the candidate.
 Completion here means same-source P/R/W3 HTML agreement only.
 Product source/admission/UNKNOWN recovery/voice impact/real OCI/merge/close remain
 outside this discussion's completion and authorization.
-
