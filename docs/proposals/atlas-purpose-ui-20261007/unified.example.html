@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas · 目的・組織・仕事を同じ関係図で読む</title>
+@IMPORTMAP
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f8f9fa;color:#1f2937;font:13px/1.4 system-ui,sans-serif}
+#chrome{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #dee2e6;padding:7px 12px}
+#controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}h1{font-size:17px;margin:0 12px 0 0}button,input,select{font:inherit}button{padding:3px 9px;cursor:pointer}button.link{padding:0;border:0;background:none;color:#1864ab;text-align:left}
+button[aria-pressed=true]{background:#e7f5ff;border-color:#74c0fc;color:#1864ab}#basis{font-size:11px;color:#495057;margin:5px 0;overflow-wrap:anywhere}#status{font-size:12px}
+#note{font-size:11px;background:#fff9db;padding:5px 12px}#canvas{height:580px;min-height:380px;position:relative;background:#fff;overflow:hidden;border-bottom:1px solid #dee2e6}
+#detail{padding:12px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}#detail section{min-width:0}h2{font-size:16px;margin:0 0 8px}h3{font-size:13px;margin:14px 0 6px}p{margin:5px 0}pre{background:#fff;border:1px solid #e9ecef;padding:8px;font:11px/1.4 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:250px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px}td,th{border-bottom:1px solid #e9ecef;text-align:left;padding:4px;vertical-align:top;overflow-wrap:anywhere}
+#legend{padding:5px 12px;font-size:11px;border-bottom:1px solid #dee2e6;background:#fff}#catalog{max-height:230px;overflow:auto}#relations{display:flex;gap:9px;flex-wrap:wrap}#proof{font-size:11px;color:#6f5b20}.path{padding:6px;border-left:3px solid #a5d8ff;background:#fff;margin:6px 0}
+@media(max-width:800px){#detail{grid-template-columns:1fr}#canvas{height:520px}#controls input{max-width:100%}}
+</style></head><body>
+<div id="chrome"><div id="controls"><h1>Atlas</h1><select id="comparison" aria-label="比較入力"><option value="0">比較A：活動とPurposeの後着</option><option value="1">比較B：Purposeの再調整</option></select><button id="before" aria-pressed="true">before</button><button id="after" aria-pressed="false">after</button><button id="fit">Fit</button><button id="focus">選択へ</button><button id="plus" aria-label="Zoom in">＋</button><button id="minus" aria-label="Zoom out">−</button><input type="search" id="search" aria-label="Search" placeholder="ID・意味・sourcesを探す"><label><input type="checkbox" id="bridge-input" checked>明示bridge入力（synthetic）</label></div><div id="basis"></div><div id="status"></div><div id="readability" style="font-size:11px;color:#c2255c"></div></div>
+<div id="note">討議HTML · 一つの既存maxGraph rendererと既存Activity/Purpose projectionを使う実験host。製品のSharedAtlasUI composition API・完成の証明ではありません。</div>
+<div id="legend">組織・scope・活動とPurposeは同じ関係図。位置は時刻ではありません。Business Gap＝Ideal↔Current / Snapshot difference＝前後の変化 / Observation gap＝履歴の欠落。紫の橋は明示synthetic主張。</div>
+<div id="canvas" aria-label="目的・組織・仕事の統合Atlas"></div>
+<div id="detail"><section><h2 id="selected-title"></h2><div id="selected-fields"></div><h3>宣言された関係を辿る</h3><div id="relations"></div><h3>最上位Purposeへの経路</h3><div id="paths"></div><details><summary>raw / sources・時点の根拠</summary><pre id="raw"></pre></details><details><summary>選択対象の before / after</summary><pre id="counterpart"></pre></details></section><section><h2>同じ比較操作で読む差</h2><p id="diff"></p><p id="activity-summary"></p><p id="observation-gap"></p><h3>対象一覧・source audit</h3><div id="catalog"></div><details><summary>比較Frameとbridge入力の正本</summary><pre id="input-audit"></pre></details><p id="proof"></p></section></div>
+@INPUT
+@NOTICES
+<script type="module">import "@ENTRY";</script>
+</body></html>
