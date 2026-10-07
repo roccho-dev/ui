@@ -114,3 +114,24 @@ nix develop .#semantic-map-browser-proof --command \
 ```
 
 A PASS is UI composition evidence for this synthetic input only. It is not evidence of real Codex acquisition, apps admission, production SSE, observer coverage, or Purpose achievement.
+
+
+## Explicit containment and nested presentation
+
+The a2 world seam can explicitly declare physical nesting on an existing relation with:
+
+`containment: "from-contains-to"` or `containment: "to-contains-from"`.
+
+Only that field activates nesting. Relation kind/name, arrow direction, entity kind, Project membership, p/r/w, review/collaboration, process trees, and Purpose ancestry do not imply containment.
+
+The current presentation is a single-node tree per area:
+
+- duplicate evidence for the same qualified parent/child is valid and every relation ID remains evidence;
+- one child with distinct qualified containment parents is rejected;
+- self/cyclic/cross-area containment is rejected;
+- arbitrary containment DAGs are not claimed;
+- a hidden or budget-omitted parent never promotes its descendant to a flat root.
+
+Nested bounds reuse the existing semantic-map graph layout with neutral temporary layout kinds. Source refs/kinds and relation source/time/context remain Atlas evidence.
+
+The synthetic fixture proves nested witnesses in Purpose, Projects + Work, and Agents while Work X remains one node across two ordinary Project memberships. This is UI capability evidence only; no production Purpose/Project/assignment adapter or real apps acquisition is claimed.

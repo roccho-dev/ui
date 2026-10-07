@@ -72,10 +72,17 @@ const normalizeFlags = (value, at) => {
 };
 
 const ACTIVITIES = new Set(['now', 'recent', 'unknown', 'none']);
+const CONTAINMENTS = new Set(['from-contains-to', 'to-contains-from']);
 const normalizeActivity = (value, at) => {
   const activity = value ?? 'none';
   check(ACTIVITIES.has(activity), at + ' must be now|recent|unknown|none');
   return activity;
+};
+
+const normalizeContainment = (value, at) => {
+  if (value === undefined || value === null) return null;
+  check(CONTAINMENTS.has(value), at + ' must be from-contains-to|to-contains-from|null');
+  return value;
 };
 
 const normalizeEntity = (value, at, areaIds) => {
@@ -99,7 +106,7 @@ const normalizeEntity = (value, at, areaIds) => {
 };
 
 const normalizeRelation = (value, at) => {
-  exactKeys(value, ['ref', 'from', 'to', 'kind', 'label', 'context', 'source', 'time', 'flags', 'path', 'visible', 'activity'], at);
+  exactKeys(value, ['ref', 'from', 'to', 'kind', 'label', 'context', 'source', 'time', 'flags', 'path', 'visible', 'activity', 'containment'], at);
   return Object.freeze({
     ref: normalizeWorldRef(value.ref, at + '.ref'),
     from: normalizeWorldRef(value.from, at + '.from'),
@@ -113,8 +120,57 @@ const normalizeRelation = (value, at) => {
     path: value.path === true,
     visible: value.visible !== false,
     activity: normalizeActivity(value.activity, at + '.activity'),
+    containment: normalizeContainment(value.containment, at + '.containment'),
   });
 };
+
+export const containmentEndpoints = relation => {
+  if (!relation?.containment) return null;
+  return relation.containment === 'from-contains-to'
+    ? Object.freeze({ parent: relation.from, child: relation.to })
+    : Object.freeze({ parent: relation.to, child: relation.from });
+};
+
+const deriveContainmentIndex = (entities, relations, at = 'frame') => {
+  const entityByKey = new Map(entities.map(entity => [entityKey(entity.ref), entity]));
+  const parentByChild = new Map();
+  const evidenceByChild = new Map();
+  const childrenByParent = new Map([...entityByKey.keys()].map(key => [key, []]));
+
+  for (const relation of relations) {
+    const endpoints = containmentEndpoints(relation);
+    if (!endpoints) continue;
+    const parent = entityKey(endpoints.parent);
+    const child = entityKey(endpoints.child);
+    check(entityByKey.has(parent), at + ': containment parent missing ' + parent);
+    check(entityByKey.has(child), at + ': containment child missing ' + child);
+    check(parent !== child, at + ': containment cannot self-parent ' + child);
+    check(entityByKey.get(parent).area === entityByKey.get(child).area,
+      at + ': containment must remain inside one presentation area');
+
+    const previous = parentByChild.get(child);
+    check(previous === undefined || previous === parent,
+      at + ': distinct multi-parent containment unsupported for ' + child);
+    parentByChild.set(child, parent);
+    if (!evidenceByChild.has(child)) evidenceByChild.set(child, []);
+    evidenceByChild.get(child).push(relationKey(relation.ref));
+  }
+
+  for (const child of parentByChild.keys()) {
+    const seen = new Set();
+    let current = child;
+    while (parentByChild.has(current)) {
+      check(!seen.has(current), at + ': containment cycle at ' + current);
+      seen.add(current);
+      current = parentByChild.get(current);
+    }
+  }
+
+  for (const [child, parent] of parentByChild) childrenByParent.get(parent).push(child);
+  return Object.freeze({ entityByKey, parentByChild, evidenceByChild, childrenByParent });
+};
+
+export const containmentIndex = frame => deriveContainmentIndex(frame.entities, frame.relations, 'frame');
 
 const normalizeCoverage = (value, at) => {
   if (value === undefined || value === null) return Object.freeze({ state: 'unknown', label: 'coverage unknown', observed: 0, unsupported: 0, unknown: 0 });
@@ -139,6 +195,7 @@ const normalizeFrame = (value, at, areaIds) => {
   const relationIds = relations.map(item => relationKey(item.ref));
   check(new Set(entityIds).size === entityIds.length, at + ': duplicate qualified entity ref');
   check(new Set(relationIds).size === relationIds.length, at + ': duplicate qualified relation ref');
+  deriveContainmentIndex(entities, relations, at);
   return Object.freeze({
     id: text(value.id, at + '.id'),
     rev: integer(value.rev, at + '.rev'),

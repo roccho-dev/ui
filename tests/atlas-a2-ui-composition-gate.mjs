@@ -10,7 +10,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
-import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
+import { containmentIndex, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 
 const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
 const browsersRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
@@ -85,6 +85,64 @@ try {
 }
 check('invalid frame asOf is rejected', invalidAsOfRejected);
 
+
+const parsedWorldInput = parseAtlasWorldInput(rawWorldInput);
+const afterFrame = parsedWorldInput.frames.at(-1);
+const afterContainment = containmentIndex(afterFrame);
+
+const teamAgent1Evidence = afterContainment.evidenceByChild.get('entity:agents:agent:agent.1') ?? [];
+check('duplicate same-parent containment evidence is accepted and preserved',
+  teamAgent1Evidence.length === 2
+    && teamAgent1Evidence.some(id => id.includes('team.agent1.containment.1'))
+    && teamAgent1Evidence.some(id => id.includes('team.agent1.containment.2')),
+  teamAgent1Evidence);
+
+const expectReject = (name, mutate) => {
+  const value = structuredClone(rawWorldInput);
+  mutate(value);
+  let rejected = false;
+  try { parseAtlasWorldInput(value); } catch { rejected = true; }
+  check(name, rejected);
+};
+
+expectReject('distinct multi-parent containment is rejected', value => {
+  const frame = value.frames.at(-1);
+  frame.relations.push({
+    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
+    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.multi-parent' },
+    from: { space: 'agents', kind: 'agent', id: 'shared' },
+    to: { space: 'agents', kind: 'agent', id: 'agent.1' },
+    containment: 'from-contains-to',
+  });
+});
+expectReject('self containment is rejected', value => {
+  const relation = value.frames.at(-1).relations.find(item => item.ref.id === 'team.agent1.containment.1');
+  relation.from = structuredClone(relation.to);
+});
+expectReject('containment cycle is rejected', value => {
+  const frame = value.frames.at(-1);
+  frame.relations.push({
+    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
+    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.cycle' },
+    from: { space: 'agents', kind: 'agent', id: 'agent.1' },
+    to: { space: 'agents', kind: 'actor', id: 'team.atlas' },
+    containment: 'from-contains-to',
+  });
+});
+expectReject('cross-area containment is rejected', value => {
+  const frame = value.frames.at(-1);
+  frame.relations.push({
+    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
+    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.cross-area' },
+    from: { space: 'projects', kind: 'project', id: 'project.a' },
+    to: { space: 'agents', kind: 'agent', id: 'agent.1' },
+    containment: 'from-contains-to',
+  });
+});
+expectReject('unknown containment orientation is rejected', value => {
+  value.frames.at(-1).relations.find(item => item.ref.id === 'team.agent1.containment.1').containment = 'primary';
+});
+
 let browser;
 try {
   browser = await chromium.launch({ headless: true });
@@ -104,7 +162,14 @@ try {
     const areas = scene.representations.filter(item => item.atlas?.kind === 'area')
       .map(item => ({ id: item.atlas.areaId, x: item.bounds.x, width: item.bounds.width }));
     const entities = scene.representations.filter(item => item.atlas?.kind === 'entity')
-      .map(item => ({ ref: item.atlas.ref, area: item.atlas.area, regionId: item.regionId }));
+      .map(item => ({
+        ref: item.atlas.ref,
+        area: item.atlas.area,
+        regionId: item.regionId,
+        parent: item.atlas.parent ?? null,
+        hasChildren: item.atlas.hasChildren === true,
+        containmentEvidence: item.atlas.containmentEvidence ?? [],
+      }));
     const relations = scene.relations.map(item => ({
       ids: item.relationIds,
       refs: item.atlas?.relationRefs ?? [],
@@ -124,6 +189,69 @@ try {
     world.entities.filter(item => item.ref.id === 'shared').length === 2
       && new Set(world.entities.filter(item => item.ref.id === 'shared').map(item => item.ref.space)).size === 2);
 
+  const entityOf = (space, kind, id) => world.entities.find(item => item.ref.space === space && item.ref.kind === kind && item.ref.id === id);
+  const company = entityOf('purpose', 'purpose', 'shared');
+  const purposeA = entityOf('purpose', 'purpose', 'purpose.a');
+  const idealA = entityOf('purpose', 'ideal', 'ideal.a');
+  const projectA = entityOf('projects', 'project', 'project.a');
+  const projectB = entityOf('projects', 'project', 'project.b');
+  const workX = entityOf('projects', 'work', 'work.x');
+  const workY = entityOf('projects', 'work', 'work.y');
+  const teamAtlas = entityOf('agents', 'actor', 'team.atlas');
+  const agentOne = entityOf('agents', 'agent', 'agent.1');
+  const agentTwo = entityOf('agents', 'agent', 'agent.2');
+  const agentThree = entityOf('agents', 'agent', 'shared');
+
+  const [companyBox, purposeABox, idealABox, projectABox, projectBBox, workXBox, workYBox, teamBox, agentOneBox, agentTwoBox, agentThreeBox] = await Promise.all([
+    company, purposeA, idealA, projectA, projectB, workX, workY, teamAtlas, agentOne, agentTwo, agentThree,
+  ].map(item => renderedBox(item?.regionId)));
+
+  check('Purpose explicit containment renders recursive nested geometry',
+    strictlyInside(purposeABox, companyBox) && strictlyInside(idealABox, purposeABox) && strictlyInside(idealABox, companyBox),
+    { companyBox, purposeABox, idealABox });
+  check('Projects explicit containment nests Work Y inside Project B',
+    strictlyInside(workYBox, projectBBox), { projectBBox, workYBox });
+  check('Agents explicit containment nests Agent 1/2 inside neutral-kind Team Atlas',
+    teamAtlas?.ref.kind === 'actor' && strictlyInside(agentOneBox, teamBox) && strictlyInside(agentTwoBox, teamBox),
+    { teamAtlas, teamBox, agentOneBox, agentTwoBox });
+  check('ordinary multi-project membership keeps Work X one node and non-nested',
+    world.entities.filter(item => item.ref.space === 'projects' && item.ref.id === 'work.x').length === 1
+      && !strictlyInside(workXBox, projectABox) && !strictlyInside(workXBox, projectBBox),
+    { workXBox, projectABox, projectBBox });
+  check('kind contains without explicit containment remains graph-only',
+    agentThree?.parent === null && !strictlyInside(agentThreeBox, teamBox), { agentThree, agentThreeBox, teamBox });
+
+  const membershipIds = new Set(world.relations.flatMap(item => item.refs.map(ref => ref.id)));
+  check('graph-only memberships and p-r-w/review/dependency evidence remain relations',
+    ['work.x.project.a','work.x.project.b','assign.a1.wx.p','assign.a2.wx.w','assign.a2.wx.r','agent1.agent2.collab','project.a.depends','team.agent3.graph-only']
+      .every(id => membershipIds.has(id)), [...membershipIds]);
+
+  const duplicateContainment = world.relations.find(item => {
+    const ids = item.refs.map(ref => ref.id);
+    return ids.includes('team.agent1.containment.1') && ids.includes('team.agent1.containment.2');
+  });
+  check('duplicate same-parent containment relation IDs remain recoverable',
+    Boolean(duplicateContainment) && duplicateContainment.ids.length >= 2, duplicateContainment);
+
+  const omittedEntityIds = await page.evaluate(() => window.liveAtlas.projection.omittedEntityIds);
+  check('omitted parent keeps visible descendant omitted instead of flattening it',
+    omittedEntityIds.some(id => id.includes('team.hidden')) && omittedEntityIds.some(id => id.includes('agent.hidden'))
+      && !world.entities.some(item => item.ref.id === 'team.hidden' || item.ref.id === 'agent.hidden'),
+    omittedEntityIds);
+
+  await clickBoundaryHeader(company.regionId);
+  await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'shared');
+  check('nested parent boundary is actual-click selectable',
+    await page.evaluate(() => window.liveAtlas.projection.selected.record?.ref?.id) === 'shared');
+  await clickBoundaryHeader(purposeA.regionId);
+  await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'purpose.a');
+  check('nested intermediate boundary is actual-click selectable',
+    await page.evaluate(() => window.liveAtlas.projection.selected.record?.ref?.id) === 'purpose.a');
+  await clickCell(idealA.regionId);
+  await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'ideal.a');
+  check('nested leaf is actual-click selectable',
+    await page.evaluate(() => window.liveAtlas.projection.selected.record?.ref?.id) === 'ideal.a');
+
   const aggregate = world.relations.find(item => {
     const ids = item.refs.map(ref => ref.id);
     return ids.includes('assign.a2.wx.w') && ids.includes('assign.a2.wx.r');
@@ -141,6 +269,31 @@ try {
       return { x: box.left + state.x + state.width / 2, y: box.top + state.y + state.height / 2 };
     }, regionId);
     if (!point) throw new Error('missing region cell ' + regionId);
+    await page.mouse.click(point.x, point.y);
+  };
+
+  const renderedBox = async regionId => page.evaluate(id => {
+    const adapter = window.liveAtlas.adapter;
+    const cell = adapter.cellsByRegionId.get(id);
+    const state = cell ? adapter.graph.getView().getState(cell) : null;
+    return state ? { x: state.x, y: state.y, width: state.width, height: state.height } : null;
+  }, regionId);
+
+  const strictlyInside = (child, parent) => Boolean(child && parent
+    && child.x > parent.x && child.y > parent.y
+    && child.x + child.width < parent.x + parent.width
+    && child.y + child.height < parent.y + parent.height);
+
+  const clickBoundaryHeader = async regionId => {
+    const point = await page.evaluate(id => {
+      const adapter = window.liveAtlas.adapter;
+      const cell = adapter.cellsByRegionId.get(id);
+      const state = cell ? adapter.graph.getView().getState(cell) : null;
+      if (!state) return null;
+      const box = document.getElementById('atlas-world').getBoundingClientRect();
+      return { x: box.left + state.x + 14, y: box.top + state.y + 14 };
+    }, regionId);
+    if (!point) throw new Error('missing boundary cell ' + regionId);
     await page.mouse.click(point.x, point.y);
   };
 
@@ -261,6 +414,24 @@ try {
   const timeOnlyDiff = await renderedJudgement();
   check('time-only evidence change remains a selected meaning/evidence diff',
     timeOnlyDiff.visible && /Diff: changed time/u.test(timeOnlyDiff.text), timeOnlyDiff);
+
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'project-participation', id: 'work.y.project.b' }));
+  const containmentRelationDiff = await renderedJudgement();
+  check('selected relation containment declaration change is inspectable in existing Diff',
+    containmentRelationDiff.visible && /Diff: changed .*containment/u.test(containmentRelationDiff.text), containmentRelationDiff);
+
+  await page.evaluate(() => window.liveAtlas.selectRef({ space: 'projects', kind: 'work', id: 'work.y' }));
+  const containmentEntityDiff = await renderedJudgement();
+  check('selected entity derived-parent change is inspectable in existing Diff',
+    containmentEntityDiff.visible && /Diff: changed containment/u.test(containmentEntityDiff.text), containmentEntityDiff);
+
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'contains', id: 'team.agent1.containment.1' }));
+  const containmentEvidence = await renderedJudgement();
+  check('containment relation provenance and time remain inspectable',
+    containmentEvidence.visible
+      && /Source: fixture:containment@1 \[synthetic\]/u.test(containmentEvidence.text)
+      && /observed=2026-10-07T06:00:00Z/u.test(containmentEvidence.text),
+    containmentEvidence);
 
   await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'reviews', id: 'agent3.agent2.review' }));

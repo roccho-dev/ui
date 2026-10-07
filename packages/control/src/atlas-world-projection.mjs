@@ -2,15 +2,12 @@
 // Owner contracts supply qualified entities/relations and explicit presentation areas;
 // this file never derives business meaning from labels or position.
 
-import { entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
+import { createGraphLayout } from '../../semantic-map/layout/graph.js';
+import { containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 
-const AREA_WIDTH = 320;
 const AREA_GAP = 40;
 const AREA_TOP = 56;
 const AREA_PAD = 22;
-const ENTITY_WIDTH = 276;
-const ENTITY_HEIGHT = 52;
-const ENTITY_GAP = 12;
 const DETAIL_GAP = 34;
 const DETAIL_LINE_HEIGHT = 44;
 const DETAIL_LINE_GAP = 6;
@@ -52,7 +49,7 @@ const recordKind = (index, selected) => index.entityByKey.has(selected) ? 'entit
 
 const changedFields = (current, other) => {
   if (!current || !other) return [];
-  const fields = ['label', 'activity', 'summary', 'kind', 'from', 'to', 'context', 'source', 'time', 'flags'];
+  const fields = ['label', 'activity', 'summary', 'kind', 'from', 'to', 'context', 'source', 'time', 'flags', 'containment'];
   return fields.filter(field => !same(current[field], other[field]));
 };
 
@@ -89,6 +86,96 @@ const directionPath = (frame, index, selected, directionTargets) => {
 const regionId = key => 'world:' + key;
 const areaRegionId = id => 'area:' + encodeURIComponent(id);
 
+const orderedKeys = (keys, entityByKey) => [...keys].sort((left, right) => {
+  const a = entityByKey.get(left), b = entityByKey.get(right);
+  return (a?.order ?? Number.MAX_SAFE_INTEGER) - (b?.order ?? Number.MAX_SAFE_INTEGER)
+    || left.localeCompare(right);
+});
+
+const markSubtreeOmitted = (key, childrenByParent, omitted) => {
+  if (omitted.has(key)) return;
+  omitted.add(key);
+  for (const child of childrenByParent.get(key) ?? []) markSubtreeOmitted(child, childrenByParent, omitted);
+};
+
+const nestedAreaLayout = ({ area, rows, containment }) => {
+  const entityByKey = new Map(rows.map(entity => [entityKey(entity.ref), entity]));
+  const childrenByParent = new Map([...entityByKey.keys()].map(key => [key, []]));
+  const roots = [];
+  for (const key of entityByKey.keys()) {
+    const parent = containment.parentByChild.get(key);
+    if (parent && entityByKey.has(parent)) childrenByParent.get(parent).push(key);
+    else roots.push(key);
+  }
+  for (const [parent, children] of childrenByParent) childrenByParent.set(parent, orderedKeys(children, entityByKey));
+
+  const shown = [];
+  const omitted = new Set();
+  const visit = key => {
+    const entity = entityByKey.get(key);
+    if (!entity?.visible || shown.length >= MAX_ENTITIES_PER_AREA) {
+      markSubtreeOmitted(key, childrenByParent, omitted);
+      return;
+    }
+    shown.push(key);
+    for (const child of childrenByParent.get(key) ?? []) visit(child);
+  };
+  for (const root of orderedKeys(roots, entityByKey)) visit(root);
+
+  const shownSet = new Set(shown);
+  const rootId = 'atlas-area-root:' + area.id;
+  const regions = new Map([[rootId, Object.freeze({
+    id: rootId, parent: null, label: area.label, kind: 'node', order: 0,
+  })]]);
+  const children = new Map([[rootId, []]]);
+  for (const key of shown) children.set(key, []);
+  for (const key of shown) {
+    const entity = entityByKey.get(key);
+    const declaredParent = containment.parentByChild.get(key);
+    const parent = declaredParent && shownSet.has(declaredParent) ? declaredParent : rootId;
+    regions.set(key, Object.freeze({
+      id: key,
+      parent,
+      label: entity.label,
+      kind: 'node',
+      order: entity.order,
+    }));
+    children.get(parent).push(key);
+  }
+
+  const layout = createGraphLayout({
+    meta: Object.freeze({ root: rootId }),
+    regions,
+    children,
+    relations: Object.freeze([]),
+  });
+  return Object.freeze({
+    layout,
+    rootId,
+    entityByKey,
+    childrenByParent,
+    shown: Object.freeze(shown),
+    shownSet,
+    omitted: Object.freeze([...omitted].sort()),
+  });
+};
+
+const containmentDepth = (key, parentByChild) => {
+  let depth = 1, current = key;
+  while (parentByChild.has(current)) {
+    depth += 1;
+    current = parentByChild.get(current);
+  }
+  return depth;
+};
+
+const translateBounds = (bounds, dx, dy) => Object.freeze({
+  x: bounds.x + dx,
+  y: bounds.y + dy,
+  width: bounds.width,
+  height: bounds.height,
+});
+
 const groupRelations = (frame, index, visibleEntityKeys) => {
   const groups = new Map();
   const omitted = [];
@@ -110,14 +197,21 @@ const groupRelations = (frame, index, visibleEntityKeys) => {
   return { drawn, omitted };
 };
 
-const selectedDiff = ({ frame, counterpart, index, counterpartIndex, selected }) => {
+const selectedDiff = ({
+  frame, counterpart, index, counterpartIndex, containment, counterpartContainment, selected,
+}) => {
   const current = recordFor(index, selected);
   const other = counterpartIndex ? recordFor(counterpartIndex, selected) : null;
   if (!current && !other) return 'not present in either compared frame';
   if (!current && other) return 'missing in ' + frame.id + ' · counterpart exists in ' + counterpart.id;
   if (current && !other) return counterpart ? 'present in ' + frame.id + ' · counterpart missing in ' + counterpart.id : 'no comparison frame';
   const changed = changedFields(current, other);
-  return changed.length ? 'changed ' + changed.join(', ') : 'no selected meaning change';
+  if (index.entityByKey.has(selected) && counterpartIndex?.entityByKey.has(selected)) {
+    const currentParent = containment.parentByChild.get(selected) ?? null;
+    const otherParent = counterpartContainment?.parentByChild.get(selected) ?? null;
+    if (currentParent !== otherParent) changed.push('containment');
+  }
+  return changed.length ? 'changed ' + [...new Set(changed)].join(', ') : 'no selected meaning change';
 };
 
 export const projectAtlasWorld = ({
@@ -136,30 +230,34 @@ export const projectAtlasWorld = ({
   const displayedActivity = declared => (
     liveLatest && !connected && declared !== 'none' ? 'unknown' : declared
   );
+  const containment = containmentIndex(frame);
+  const counterpartContainment = counterpart ? containmentIndex(counterpart) : null;
   const areas = input.presentation.areas;
   const areaEntities = new Map(areas.map(area => [area.id, []]));
   for (const entity of frame.entities) areaEntities.get(entity.area)?.push(entity);
-  for (const rows of areaEntities.values()) rows.sort((a, b) => a.order - b.order || entityKey(a.ref).localeCompare(entityKey(b.ref)));
 
   const representations = [];
   const visibleEntityKeys = new Set();
   const omittedEntityIds = [];
   const areaBounds = new Map();
   let worldHeight = 0;
-  areas.forEach((area, areaIndex) => {
+  let contentRight = AREA_PAD;
+
+  for (const area of areas) {
     const rows = areaEntities.get(area.id) ?? [];
-    const eligible = rows.filter(entity => entity.visible);
-    const shown = eligible.slice(0, MAX_ENTITIES_PER_AREA);
-    for (const entity of rows.filter(item => !item.visible)) omittedEntityIds.push(entityKey(entity.ref));
-    for (const entity of eligible.slice(MAX_ENTITIES_PER_AREA)) omittedEntityIds.push(entityKey(entity.ref));
-    const height = AREA_PAD * 2 + 34 + shown.length * (ENTITY_HEIGHT + ENTITY_GAP);
-    const x = AREA_PAD + areaIndex * (AREA_WIDTH + AREA_GAP);
-    const bounds = { x, y: AREA_TOP, width: AREA_WIDTH, height: Math.max(160, height) };
+    const nested = nestedAreaLayout({ area, rows, containment });
+    const rootBounds = nested.layout.rootBounds;
+    const dx = contentRight - rootBounds.x;
+    const dy = AREA_TOP - rootBounds.y;
+    const bounds = translateBounds(rootBounds, dx, dy);
     areaBounds.set(area.id, bounds);
     worldHeight = Math.max(worldHeight, bounds.y + bounds.height);
+    contentRight = bounds.x + bounds.width + AREA_GAP;
+    omittedEntityIds.push(...nested.omitted);
+
     representations.push(Object.freeze({
       regionId: areaRegionId(area.id),
-      label: area.label + (rows.length > shown.length ? ' · +' + (rows.length - shown.length) + ' omitted' : ''),
+      label: area.label + (nested.omitted.length ? ' · +' + nested.omitted.length + ' omitted' : ''),
       bounds,
       kind: 'area',
       depth: 0,
@@ -168,26 +266,27 @@ export const projectAtlasWorld = ({
       readOnly: true,
       geometryEditable: false,
       labelEditable: false,
-      atlas: Object.freeze({ kind: 'area', areaId: area.id, count: rows.length, omitted: rows.length - shown.length }),
+      atlas: Object.freeze({ kind: 'area', areaId: area.id, count: rows.length, omitted: nested.omitted.length }),
     }));
-    shown.forEach((entity, indexInArea) => {
-      const key = entityKey(entity.ref);
-      visibleEntityKeys.add(key);
+
+    for (const key of nested.shown) {
+      const entity = nested.entityByKey.get(key);
+      const localBounds = nested.layout.bounds.get(key);
+      const entityBounds = translateBounds(localBounds, dx, dy);
+      const shownChildren = (nested.childrenByParent.get(key) ?? []).filter(child => nested.shownSet.has(child));
+      const hasChildren = shownChildren.length > 0;
       const activity = displayedActivity(entity.activity);
       const glyph = token[activity];
+      visibleEntityKeys.add(key);
       representations.push(Object.freeze({
         regionId: regionId(key),
         sourceRegionId: regionId(key),
         label: (glyph ? glyph + ' · ' : '') + entity.label,
-        bounds: {
-          x: x + AREA_PAD,
-          y: AREA_TOP + 42 + AREA_PAD + indexInArea * (ENTITY_HEIGHT + ENTITY_GAP),
-          width: ENTITY_WIDTH,
-          height: ENTITY_HEIGHT,
-        },
+        bounds: entityBounds,
         kind: entity.ref.kind,
-        depth: 1,
-        shape: 'graph-node',
+        depth: containmentDepth(key, containment.parentByChild),
+        zIndex: containmentDepth(key, containment.parentByChild) * 10,
+        shape: hasChildren ? 'boundary' : 'graph-node',
         readOnly: true,
         geometryEditable: false,
         labelEditable: false,
@@ -199,10 +298,13 @@ export const projectAtlasWorld = ({
           area: entity.area,
           activity,
           declaredActivity: entity.activity,
+          parent: containment.parentByChild.get(key) ?? null,
+          containmentEvidence: Object.freeze([...(containment.evidenceByChild.get(key) ?? [])]),
+          hasChildren,
         }),
       }));
-    });
-  });
+    }
+  }
 
   const grouped = groupRelations(frame, index, visibleEntityKeys);
   const relations = [];
@@ -274,11 +376,13 @@ export const projectAtlasWorld = ({
     'Coverage: ' + frame.coverage.state + ' · ' + frame.coverage.label,
     'Coverage counts: ' + computedCoverage,
     'Flags: ' + flagsText(record?.flags),
-    'Diff: ' + selectedDiff({ frame, counterpart, index, counterpartIndex, selected }),
+    'Diff: ' + selectedDiff({
+      frame, counterpart, index, counterpartIndex, containment, counterpartContainment, selected,
+    }),
   ]);
 
   const detailY = worldHeight + DETAIL_GAP;
-  const totalWidth = AREA_PAD * 2 + areas.length * AREA_WIDTH + Math.max(0, areas.length - 1) * AREA_GAP;
+  const totalWidth = Math.max(640, contentRight - AREA_GAP + AREA_PAD);
   const controlSpecs = Object.freeze([
     Object.freeze({ id: 'before', label: '◀ Before · [', type: 'atlas.world.frame-before' }),
     Object.freeze({ id: 'after', label: 'After · ] ▶', type: 'atlas.world.frame-after' }),
