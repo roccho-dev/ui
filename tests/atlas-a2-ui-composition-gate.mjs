@@ -139,18 +139,33 @@ try {
     await page.mouse.click(point.x, point.y);
   };
 
+  const renderedJudgement = async () => page.evaluate(() => {
+    const adapter = window.liveAtlas.adapter;
+    const cell = adapter.cellsByRegionId.get('world:judgement');
+    const state = cell ? adapter.graph.getView().getState(cell) : null;
+    const node = state?.text?.node ?? null;
+    const svg = document.querySelector('#atlas-world svg');
+    const box = node?.getBoundingClientRect?.() ?? null;
+    const style = node ? getComputedStyle(node) : null;
+    return {
+      text: node?.textContent ?? '',
+      visible: Boolean(node && svg?.contains(node) && box && box.width > 0 && box.height > 0
+        && style?.display !== 'none' && style?.visibility !== 'hidden' && Number(style?.opacity ?? 1) !== 0),
+    };
+  });
+
   const agentOneRegion = world.entities.find(item => item.ref.space === 'agents' && item.ref.id === 'agent.1')?.regionId;
   await clickCell(agentOneRegion);
   await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent.1');
-  const agentJudgement = await page.evaluate(() => window.liveAtlas.projection.scene.representations
-    .find(item => item.atlas?.kind === 'judgement')?.label ?? '');
+  const agentJudgement = await renderedJudgement();
+  check('SVG judgement is actually rendered and visible', agentJudgement.visible, agentJudgement);
   check('SVG judgement shows explicit Purpose direction',
-    /Direction: Agent 1 → Work X → Fill X → Gap A → Ideal A → Purpose A/u.test(agentJudgement), agentJudgement);
+    /Direction: Agent 1 → Work X → Fill X → Gap A → Ideal A → Purpose A/u.test(agentJudgement.text), agentJudgement);
   check('SVG judgement separates activity/source/time/transport',
-    /Activity: NOW/u.test(agentJudgement)
-      && /transport=SAMPLE/u.test(agentJudgement)
-      && /fixture:runtime@1/u.test(agentJudgement)
-      && /effective=unknown/u.test(agentJudgement), agentJudgement);
+    /Activity: NOW/u.test(agentJudgement.text)
+      && /transport=SAMPLE/u.test(agentJudgement.text)
+      && /fixture:runtime@1/u.test(agentJudgement.text)
+      && /effective=unknown/u.test(agentJudgement.text), agentJudgement);
 
   await clickRelation(aggregate.ids[0]);
   await page.waitForFunction(() => window.liveAtlas.projection.aggregateRelationIds.length === 2);
@@ -160,36 +175,48 @@ try {
   const selectedBeforeCycle = await page.evaluate(() => window.liveAtlas.projection.selected.record?.ref?.id ?? null);
   await clickCell('world:aggregate-cycle');
   await page.waitForFunction(previous => window.liveAtlas.projection.selected.record?.ref?.id !== previous, selectedBeforeCycle);
-  const aggregateDetail = await page.evaluate(() => ({
-    selected: window.liveAtlas.projection.selected.record?.ref?.id ?? null,
-    label: window.liveAtlas.projection.scene.representations.find(item => item.atlas?.kind === 'judgement')?.label ?? '',
-  }));
+  const aggregateRendered = await renderedJudgement();
+  const aggregateDetail = {
+    selected: await page.evaluate(() => window.liveAtlas.projection.selected.record?.ref?.id ?? null),
+    rendered: aggregateRendered,
+  };
   check('aggregate member can be selected inside SVG', ['assign.a2.wx.w', 'assign.a2.wx.r'].includes(aggregateDetail.selected), aggregateDetail);
   check('aggregate member detail recovers p/r/w context and provenance',
-    /context mode=[wr]/u.test(aggregateDetail.label) && /fixture:assignment@1/u.test(aggregateDetail.label), aggregateDetail.label);
+    aggregateRendered.visible && /context mode=[wr]/u.test(aggregateRendered.text) && /fixture:assignment@1/u.test(aggregateRendered.text), aggregateDetail);
 
   await clickCell('world:omitted-cycle');
   await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent2.projecta.hidden');
-  const omittedDetail = await page.evaluate(() => window.liveAtlas.projection.scene.representations
-    .find(item => item.atlas?.kind === 'judgement')?.label ?? '');
+  const omittedDetail = await renderedJudgement();
   check('omitted relation remains recoverable from SVG coverage control',
-    /agent2.projecta.hidden/u.test(omittedDetail) && /omitted relations 1/u.test(omittedDetail), omittedDetail);
+    omittedDetail.visible && /agent2\.projecta\.hidden/u.test(omittedDetail.text) && /omitted relations 1/u.test(omittedDetail.text), omittedDetail);
+
+  await clickCell('world:omitted-entity-cycle');
+  await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent.hidden');
+  const omittedEntityDetail = await renderedJudgement();
+  check('omitted entity remains recoverable from SVG coverage control',
+    omittedEntityDetail.visible && /agent\.hidden/u.test(omittedEntityDetail.text) && /source-time-unknown/u.test(omittedEntityDetail.text), omittedEntityDetail);
 
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'project-participation', id: 'work.x.project.a' }));
-  const contextDiff = await page.evaluate(() => window.liveAtlas.projection.scene.representations
-    .find(item => item.atlas?.kind === 'judgement')?.label ?? '');
-  check('before/after diff includes context-only source meaning change', /Diff: changed .*context/u.test(contextDiff), contextDiff);
+  const contextDiff = await renderedJudgement();
+  check('before/after diff includes context-only source meaning change',
+    contextDiff.visible && /Diff: changed .*context/u.test(contextDiff.text), contextDiff);
+
+  await page.evaluate(() => window.liveAtlas.selectRef({ space: 'projects', kind: 'project', id: 'project.b' }));
+  const presentationOnlyDiff = await renderedJudgement();
+  check('presentation-only order change is not reported as meaning change',
+    presentationOnlyDiff.visible && /Diff: no selected meaning change/u.test(presentationOnlyDiff.text), presentationOnlyDiff);
 
   await page.click('#atlas-world-before');
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'reviews', id: 'agent3.agent2.review' }));
   await page.click('#atlas-world-after');
-  const missing = await page.evaluate(() => ({
-    selected: window.liveAtlas.page.selected,
-    frame: window.liveAtlas.page.input.frames[window.liveAtlas.page.frameIndex].id,
-    label: window.liveAtlas.projection.scene.representations.find(item => item.atlas?.kind === 'judgement')?.label ?? '',
-  }));
+  const missingRendered = await renderedJudgement();
+  const missing = {
+    selected: await page.evaluate(() => window.liveAtlas.page.selected),
+    frame: await page.evaluate(() => window.liveAtlas.page.input.frames[window.liveAtlas.page.frameIndex].id),
+    rendered: missingRendered,
+  };
   check('removed relation selection survives and shows counterpart instead of completion',
-    missing.frame === 'after' && /missing in after · counterpart exists in before/u.test(missing.label), missing);
+    missing.frame === 'after' && missingRendered.visible && /missing in after · counterpart exists in before/u.test(missingRendered.text), missing);
 
   check('routine judgement has no legacy visible Inspector/audit/catalog dependency',
     await page.locator('#atlas-detail,#atlas-inspector,#atlas-audit,#atlas-search').count() === 0);
