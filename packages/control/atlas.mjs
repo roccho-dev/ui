@@ -1,7 +1,8 @@
 // Live Agent Organization Atlas application adapter.
-// Acquisition/bootstrap stays here; the reusable screen lives in atlas-ui.mjs.
+// Acquisition/bootstrap stays here; reusable screens live in atlas-ui.mjs.
 import { applyEnvelope, connectLiveAtlas, createAtlasState, loadHistory } from './src/live-atlas.mjs';
-import { mountAtlasUI } from './atlas-ui.mjs';
+import { ATLAS_WORLD_KIND, parseAtlasWorldInput } from './src/atlas-world.mjs';
+import { mountAtlasUI, mountAtlasWorldUI } from './atlas-ui.mjs';
 
 const readInput = () => JSON.parse(document.getElementById('live-atlas-input').textContent);
 
@@ -13,19 +14,83 @@ const hashSelection = () => {
   }
 };
 
-export const startLiveAtlas = () => {
-  const params = new URLSearchParams(location.search);
-  const eventsUrl = params.get('events');
+const publishApi = (ui, cleanup) => {
+  const api = Object.freeze({
+    adapter: ui.adapter,
+    page: ui.page,
+    select: ui.select,
+    selectRef: ui.selectRef,
+    selectRelationRef: ui.selectRelationRef,
+    setFrame: ui.setFrame,
+    setSession: ui.setSession,
+    fit: ui.fit,
+    focusSelected: ui.focusSelected,
+    zoomBy: ui.zoomBy,
+    get state() { return ui.state; },
+    get input() { return ui.input; },
+    get projection() { return ui.projection; },
+    lodFor: ui.lodFor,
+    destroy() {
+      cleanup?.();
+      ui.destroy();
+      delete globalThis.liveAtlas;
+      delete document.documentElement.dataset.liveAtlasReady;
+    },
+  });
+  globalThis.liveAtlas = api;
+  document.documentElement.dataset.liveAtlasReady = 'true';
+  return api;
+};
+
+const startWorldAtlas = ({ input, eventsUrl, selected }) => {
+  const parsed = parseAtlasWorldInput(input);
+  const ui = mountAtlasWorldUI({
+    root: document.body,
+    input: parsed,
+    mode: eventsUrl ? 'live' : 'sample',
+    connected: false,
+    now: Date.now(),
+    selected: selected || null,
+    onSelect: id => history.replaceState(null, '', '#sel=' + encodeURIComponent(id)),
+  });
+
+  let source = null;
+  let timer = null;
+  if (eventsUrl) {
+    source = connectLiveAtlas({
+      url: eventsUrl,
+      onConnection: connected => ui.setSession({ connected, mode: 'live', now: Date.now() }),
+      onSnapshot: data => {
+        const next = parseAtlasWorldInput(data);
+        ui.setSession({
+          input: next,
+          connected: ui.page.connected,
+          mode: 'live',
+          now: Date.now(),
+          latest: ui.page.latest,
+        });
+      },
+    });
+    timer = setInterval(() => ui.tick(Date.now()), 1000);
+  }
+
+  return publishApi(ui, () => {
+    if (timer !== null) clearInterval(timer);
+    source?.close();
+  });
+};
+
+const startLegacyAtlas = ({ input, eventsUrl, selected }) => {
   const mode = eventsUrl ? 'live' : 'sample';
-  const state = eventsUrl ? createAtlasState() : loadHistory(readInput());
+  const state = eventsUrl ? createAtlasState() : loadHistory(input);
   const ui = mountAtlasUI({
     root: document.body,
     state,
     mode,
     connected: false,
     now: Date.now(),
-    selected: hashSelection() || null,
-    onSelect: id => history.replaceState(null, '', `#sel=${encodeURIComponent(id)}`),
+    selected: selected || null,
+    onSelect: id => history.replaceState(null, '', '#sel=' + encodeURIComponent(id)),
   });
 
   let source = null;
@@ -47,24 +112,18 @@ export const startLiveAtlas = () => {
     timer = setInterval(() => ui.tick(Date.now()), 1000);
   }
 
-  const api = Object.freeze({
-    adapter: ui.adapter,
-    page: ui.page,
-    select: ui.select,
-    fit: ui.fit,
-    zoomBy: ui.zoomBy,
-    get state() { return ui.state; },
-    get projection() { return ui.projection; },
-    lodFor: ui.lodFor,
-    destroy() {
-      if (timer !== null) clearInterval(timer);
-      ui.destroy();
-      source?.close();
-      delete globalThis.liveAtlas;
-      delete document.documentElement.dataset.liveAtlasReady;
-    },
+  return publishApi(ui, () => {
+    if (timer !== null) clearInterval(timer);
+    source?.close();
   });
-  globalThis.liveAtlas = api;
-  document.documentElement.dataset.liveAtlasReady = 'true';
-  return api;
+};
+
+export const startLiveAtlas = () => {
+  const params = new URLSearchParams(location.search);
+  const eventsUrl = params.get('events');
+  const input = readInput();
+  const selected = hashSelection();
+  return input?.kind === ATLAS_WORLD_KIND
+    ? startWorldAtlas({ input, eventsUrl, selected })
+    : startLegacyAtlas({ input, eventsUrl, selected });
 };

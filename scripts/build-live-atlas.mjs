@@ -12,6 +12,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { embeddedNoticesScript, moduleId, packBrowserModules } from '../packages/semantic-map/scripts/browser-module-closure.mjs';
+import { ATLAS_WORLD_KIND, parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ATLAS_ENTRY = 'packages/control/atlas.mjs';
@@ -85,11 +86,14 @@ export const buildLiveAtlas = async ({ input, out, consumer = 'app' }) => {
   const outputRoot = path.resolve(repoRoot, out);
   const inputBytes = await fs.readFile(inputPath);
   const inputText = inputBytes.toString('utf8');
-  const history = consumer === 'app' ? await resolveHistory(inputPath) : null;
+  const parsedInput = JSON.parse(inputText);
+  const appInput = consumer === 'app'
+    ? (parsedInput.kind === ATLAS_WORLD_KIND ? parseAtlasWorldInput(parsedInput) : await resolveHistory(inputPath))
+    : null;
   const entry = consumer === 'app' ? ATLAS_ENTRY : ATLAS_EXAMPLE_ENTRY;
   const { modules, imports } = await packBrowserModules({ repoRoot, entry, roots: ATLAS_MODULE_ROOTS });
   const embeddedInput = consumer === 'app'
-    ? `<script type="application/json" id="live-atlas-input">${JSON.stringify(history).replaceAll('<', '\\u003c')}</script>`
+    ? `<script type="application/json" id="live-atlas-input">${JSON.stringify(appInput).replaceAll('<', '\\u003c')}</script>`
     : `<script type="application/x-ndjson" id="live-atlas-input">${inputText.replaceAll('<', '\\u003c')}</script>`;
   const bootstrap = consumer === 'app'
     ? `import { startLiveAtlas } from ${JSON.stringify(moduleId(entry))}; startLiveAtlas();`
@@ -112,7 +116,9 @@ export const buildLiveAtlas = async ({ input, out, consumer = 'app' }) => {
     output: { path: 'index.html', bytes: htmlBytes.byteLength, sha256: sha256(htmlBytes) },
     modules: modules.length,
     moduleRoots: ATLAS_MODULE_ROOTS,
-    snapshots: history ? history.snapshots.map(item => item.rev) : [],
+    inputKind: appInput?.kind ?? null,
+    snapshots: appInput?.snapshots?.map(item => item.rev) ?? [],
+    frames: appInput?.frames?.map(item => item.id) ?? [],
     authority: false,
   };
   await fs.writeFile(path.join(outputRoot, 'receipt.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });

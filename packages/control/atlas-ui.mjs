@@ -10,6 +10,8 @@ import {
 } from './src/live-atlas.mjs';
 import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
+import { entityKey, parseAtlasWorldInput, relationKey } from './src/atlas-world.mjs';
+import { projectAtlasWorld } from './src/atlas-world-projection.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}
@@ -413,5 +415,234 @@ export const mountAtlasUI = ({
     get state() { return page.state; },
     get projection() { return page.projection; },
     lodFor,
+  });
+};
+
+
+const WORLD_STYLE = `
+#atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
+#atlas-world-toolbar{flex:none;display:flex;gap:6px;padding:5px 8px;border-bottom:1px solid #dee2e6;background:#fff}
+#atlas-world-toolbar button{font:13px/1.3 system-ui,sans-serif;padding:2px 8px}
+#atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
+`;
+
+export const mountAtlasWorldUI = ({
+  root = document.body,
+  input,
+  mode: initialMode = 'sample',
+  connected = false,
+  now = 0,
+  selected = null,
+  onSelect = null,
+} = {}) => {
+  if (!root?.append) throw new Error('atlas-world-ui: mount root required');
+  let worldInput = parseAtlasWorldInput(input);
+  const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
+  const toolbar = el('div', { id: 'atlas-world-toolbar', 'aria-label': 'Atlas world controls' });
+  const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
+  const screen = el('div', { id: 'atlas-world-screen' }, toolbar, container);
+  root.append(style, screen);
+
+  const page = {
+    kind: 'world',
+    input: worldInput,
+    frameIndex: worldInput.frames.length - 1,
+    latest: true,
+    selected: selected || entityKey(worldInput.presentation.defaultSelection),
+    mode: initialMode,
+    connected,
+    now,
+    projection: null,
+    destroyed: false,
+  };
+
+  const adapter = createMaxGraphAdapter(container, { theme: DEFAULT_THEME });
+  adapter.setTool('select');
+  let suppressSelection = false;
+  let cameraFrame = 0;
+
+  const currentFrame = () => page.input.frames[page.frameIndex];
+  const counterpartFrame = () => {
+    if (page.input.frames.length < 2) return null;
+    if (page.frameIndex > 0) return page.input.frames[page.frameIndex - 1];
+    return page.input.frames[1];
+  };
+
+  const draw = () => {
+    const projection = projectAtlasWorld({
+      input: page.input,
+      frame: currentFrame(),
+      counterpart: counterpartFrame(),
+      selected: page.selected,
+      mode: page.mode,
+      connected: page.connected,
+      scale: adapter.camera().scale,
+    });
+    page.projection = projection;
+    adapter.render(projection.scene);
+    adapter.setFocusMarker(projection.selectedRegionId);
+    return projection;
+  };
+
+  const fit = () => {
+    const projection = page.projection ?? draw();
+    const camera = fitCamera(projection.world, { width: container.clientWidth, height: container.clientHeight });
+    adapter.setCamera(camera.scale, camera.translateX, camera.translateY);
+    draw();
+  };
+
+  const zoomBy = (factor, at = { x: container.clientWidth / 2, y: container.clientHeight / 2 }) => {
+    const { scale, translateX, translateY } = adapter.camera();
+    const next = Math.max(0.05, Math.min(20, scale * factor));
+    adapter.setCamera(next, translateX + at.x / next - at.x / scale, translateY + at.y / next - at.y / scale);
+    draw();
+  };
+
+  const syncGraphSelection = key => {
+    suppressSelection = true;
+    try {
+      if (String(key).startsWith('relation:')) adapter.setSelection({ relationIds: [key] });
+      else adapter.setSelection({});
+    } finally {
+      suppressSelection = false;
+    }
+  };
+
+  const select = (key, { sync = true } = {}) => {
+    if (typeof key !== 'string' || !key) return;
+    page.selected = key;
+    onSelect?.(key);
+    draw();
+    if (sync) syncGraphSelection(key);
+  };
+
+  const selectRef = ref => select(entityKey(ref));
+  const selectRelationRef = ref => select(relationKey(ref));
+
+  const cycle = ids => {
+    if (!ids?.length) return;
+    const index = Math.max(-1, ids.indexOf(page.selected));
+    select(ids[(index + 1) % ids.length]);
+  };
+
+  adapter.setActivationHandler(activation => {
+    if (activation?.type === 'atlas.world.select') select(activation.id);
+    else if (activation?.type === 'atlas.world.next-aggregate') cycle(page.projection?.aggregateRelationIds);
+    else if (activation?.type === 'atlas.world.next-omitted') cycle(page.projection?.omittedRelationIds);
+  });
+
+  adapter.onSelectionChange(selection => {
+    if (suppressSelection || !selection.relationIds.length) return;
+    page.selected = selection.relationIds[0];
+    onSelect?.(page.selected);
+    draw();
+  });
+
+  const setFrame = (index, { latest = false } = {}) => {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= page.input.frames.length) return;
+    page.frameIndex = index;
+    page.latest = latest || index === page.input.frames.length - 1;
+    draw();
+    syncGraphSelection(page.selected);
+  };
+
+  const setSession = ({
+    input: nextInput = page.input,
+    mode = page.mode,
+    connected: nextConnected = page.connected,
+    now: nextNow = page.now,
+    latest = page.latest,
+  } = {}) => {
+    if (page.destroyed) return;
+    const previousFrameId = currentFrame()?.id ?? null;
+    page.input = parseAtlasWorldInput(nextInput);
+    page.mode = mode;
+    page.connected = nextConnected;
+    page.now = nextNow;
+    page.latest = latest;
+    if (latest) page.frameIndex = page.input.frames.length - 1;
+    else {
+      const sameFrame = page.input.frames.findIndex(frame => frame.id === previousFrameId);
+      page.frameIndex = sameFrame >= 0 ? sameFrame : Math.min(page.frameIndex, page.input.frames.length - 1);
+    }
+    draw();
+    syncGraphSelection(page.selected);
+  };
+
+  const tick = nextNow => {
+    if (page.destroyed) return;
+    page.now = nextNow;
+    draw();
+  };
+
+  const focusSelected = () => {
+    const id = page.projection?.selectedRegionId;
+    const cell = id ? adapter.cellsByRegionId.get(id) : null;
+    const bounds = cell?.getGeometry?.();
+    if (!bounds) return;
+    const camera = fitCamera({ x: bounds.x - 24, y: bounds.y - 24, width: bounds.width + 48, height: bounds.height + 48 }, {
+      width: container.clientWidth,
+      height: container.clientHeight,
+    });
+    adapter.setCamera(camera.scale, camera.translateX, camera.translateY);
+    draw();
+  };
+
+  const before = el('button', { id: 'atlas-world-before', type: 'button', text: 'Before', onclick: () => setFrame(0) });
+  const after = el('button', { id: 'atlas-world-after', type: 'button', text: 'After', onclick: () => setFrame(page.input.frames.length - 1, { latest: true }) });
+  const fitButton = el('button', { id: 'atlas-world-fit', type: 'button', text: 'Fit', onclick: fit });
+  const focusButton = el('button', { id: 'atlas-world-focus', type: 'button', text: 'Focus selected', onclick: focusSelected });
+  const selectTool = el('button', { id: 'atlas-world-select-tool', type: 'button', text: 'Select', onclick: () => adapter.setTool('select') });
+  const handTool = el('button', { id: 'atlas-world-hand-tool', type: 'button', text: 'Hand', onclick: () => adapter.setTool('hand') });
+  toolbar.append(before, after, fitButton, focusButton, selectTool, handTool);
+
+  const onWheel = event => {
+    event.preventDefault();
+    const box = container.getBoundingClientRect();
+    zoomBy(event.deltaY < 0 ? 1.2 : 1 / 1.2, { x: event.clientX - box.left, y: event.clientY - box.top });
+  };
+  const onResize = () => fit();
+  const onCameraChange = () => {
+    if (page.destroyed || cameraFrame) return;
+    cameraFrame = requestAnimationFrame(() => {
+      cameraFrame = 0;
+      if (!page.destroyed) draw();
+    });
+  };
+  container.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('resize', onResize);
+  adapter.onCameraChange(onCameraChange);
+
+  const destroy = () => {
+    if (page.destroyed) return;
+    page.destroyed = true;
+    if (cameraFrame) cancelAnimationFrame(cameraFrame);
+    container.removeEventListener('wheel', onWheel);
+    window.removeEventListener('resize', onResize);
+    adapter.setActivationHandler(null);
+    adapter.graph.getView().removeListener?.(onCameraChange);
+    adapter.graph.destroy?.();
+    screen.remove();
+    style.remove();
+  };
+
+  draw();
+  fit();
+
+  return Object.freeze({
+    adapter,
+    page,
+    select,
+    selectRef,
+    selectRelationRef,
+    setFrame,
+    setSession,
+    tick,
+    fit,
+    focusSelected,
+    zoomBy,
+    destroy,
+    get input() { return page.input; },
+    get projection() { return page.projection; },
   });
 };
