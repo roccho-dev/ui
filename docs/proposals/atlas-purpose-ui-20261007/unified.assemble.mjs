@@ -6,6 +6,7 @@ const {ATLAS_MODULE_ROOTS,resolveHistory}=await import(path.resolve("./scripts/b
 const digest=x=>'sha256:'+createHash('sha256').update(x).digest('hex');
 const root='docs/proposals/atlas-purpose-ui-20261007',entry=root+'/unified.example.mjs',template=await fs.readFile(root+'/unified.example.html','utf8');
 const specification=JSON.parse(await fs.readFile(root+'/unified.input.example.json','utf8'));
+if(specification.authority!==false||specification.bridges.some(b=>b.authority!==false)||specification.comparisons.flat().some(f=>f.purposeEffectiveAt!==null))throw new Error('This discussion fixture only accepts non-authoritative bridges and unspecified Purpose time');
 const pair=[specification.purposeSnapshots.before,specification.purposeSnapshots.after];
 const replacement=specification.purposeSnapshots.replacement;
 const activity=await resolveHistory(specification.activity.path);
@@ -16,8 +17,8 @@ for(const b of bridges)b.sources=[bridgeSource];
 const basis=(frameId,activityRev,purposeSnapshot,rows)=>({frameId,activityRev,activityAsOf:activity.snapshots.find(s=>s.rev===activityRev).asOf,purposeSnapshot,purposeDigest:digest(JSON.stringify(rows)),purposeEffectiveAt:null,bridgeSource,alignment:'synthetic scenario/version対応'});
 const purposePairs=specification.purposeCases.map(c=>[specification.purposeSnapshots[c.before],specification.purposeSnapshots[c.after]]);
 const comparisons=specification.comparisons.map(c=>c.map(f=>({...basis(f.frameId,f.activityRev,f.purposeSnapshot,purposePairs[f.purposeCase][f.purposeSide]),purposeEffectiveAt:f.purposeEffectiveAt,alignment:f.alignment})));
-const basisSource={sourceRef:specification.basisSourceRef,sourceDigest:digest(JSON.stringify(comparisons)),authority:false,sameEffectiveTime:false};
-const input={authority:false,activity,activitySources,purposePairs,bridges,comparisons,basisSource};
+const basisSource={sourceRef:specification.basisSourceRef,sourceDigest:digest(JSON.stringify(comparisons)),authority:false,sameEffectiveTime:comparisons.flat().every(f=>f.purposeEffectiveAt!==null&&f.purposeEffectiveAt===f.activityAsOf)};
+const input={authority:specification.authority,activity,activitySources,purposePairs,bridges,comparisons,basisSource};
 const {imports,modules}=await packBrowserModules({repoRoot:process.cwd(),entry,roots:[...ATLAS_MODULE_ROOTS,root+'/']});
 const parts={'@IMPORTMAP':'<script type="importmap">'+JSON.stringify({imports}).replaceAll('</','<\\/')+'</script>','@INPUT':'<script type="application/json" id="world-input">'+JSON.stringify(input).replaceAll('<','\\u003c')+'</script>','@NOTICES':await embeddedNoticesScript(path.join(process.cwd(),'packages/semantic-map')),'@ENTRY':moduleId(entry)};
 const html=template.replace(/@IMPORTMAP|@INPUT|@NOTICES|@ENTRY/g,m=>parts[m]),output=process.argv[2];

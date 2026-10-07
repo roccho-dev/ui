@@ -1,10 +1,7 @@
 {
   "authority": false,
   "activity": {
-    "path": "tests/fixtures/live-atlas/history.json",
-    "uiRef": "3fd451996d05e304a38be2a6696acb18b3103a37",
-    "repo": "roccho-dev/ui",
-    "rawSha256": "sha256:2384739feea269334fb36cde1834ffbbf30b01014bcd9e0ff9ba301d3b582526"
+    "path": "tests/fixtures/live-atlas/history.json"
   },
   "bridgeSourceRef": "discussion:explicit-bridges@1",
   "basisSourceRef": "discussion:frame-binding@1",
@@ -84,17 +81,6 @@
       }
     ]
   ],
-  "bridgeInputVariants": [
-    {
-      "id": "bridged",
-      "supplied": "explicit-source"
-    },
-    {
-      "id": "unlinked",
-      "supplied": null
-    }
-  ],
-  "sameEffectiveTime": false,
   "purposeSnapshots": {
     "before": [
       {
@@ -601,13 +587,5 @@
       "before": "after",
       "after": "replacement"
     }
-  ],
-  "digestRule": {
-    "algorithm": "SHA-256",
-    "serialization": "UTF-8 JSON.stringify in published key order, without a trailing LF; fields added by assembly are excluded from their own digest",
-    "activitySources": "exact resolved channel text bytes; no reserialization",
-    "bridges": "bridges array as published before sources are added",
-    "basis": "comparison arrays after derived activityAsOf/purposeDigest/bridgeSource are added, before basisSource",
-    "purposeDigest": "selected canonical record array JSON.stringify"
-  }
+  ]
 }

@@ -96,7 +96,7 @@ UI must not learn CEO/Purpose/Gap business predicates.
 
 unified.input.example.json is the immutable discussion-input authority for the
 logical source references, full bridge assertions, comparison member revisions,
-null Purpose effective times and supplied/unlinked input variants. Assembly reads
+null Purpose effective times. Supplied/unlinked variants are runtime interaction policy, not unused manifest declarations. Assembly reads
 this file; bridge/source digests are computed from those actual declaration bytes.
 It is a fixture proposal, not an adopted production codec.
 
@@ -106,7 +106,7 @@ unified.assemble.mjs is the checked discussion-only mapping from this declaratio
 to world-input, module import map, standalone HTML and computed receipt. Run from
 the repository root with: node docs/proposals/atlas-purpose-ui-20261007/unified.assemble.mjs <absent-output-directory>.
 It uses the existing UI exports; no CI/server/build framework is added. The
-fixture states exact digest byte domains. The assembly's generated runtime object
+checked assembly and documentation define fixed digest byte domains; the algorithm is not a selectable fixture parameter. The assembly's generated runtime object
 is consumed unchanged by unified.example.mjs. UI production admission remains
 outside this recipe's scope.
 
@@ -151,3 +151,11 @@ No reported console errors in the candidate.
 Completion here means same-source P/R/W3 HTML agreement only.
 Product source/admission/UNKNOWN recovery/voice impact/real OCI/merge/close remain
 outside this discussion's completion and authorization.
+
+## Authority precision for this exact discussion source
+
+The fixture owns only consumed logical input. Repo roccho-dev/ui, adopted UI 3fd451996d05e304a38be2a6696acb18b3103a37 and raw Activity SHA sha256:2384739feea269334fb36cde1834ffbbf30b01014bcd9e0ff9ba301d3b582526 are source evidence for this fixed Git head, not declared runtime admission gates. The checked source and computed input/module/output receipt bind the actual reconstruction.
+Bridge-input variants are defined by the checked runtime checkbox policy; effective frame IDs and bridgeSource reflect the supplied variant. Same-time is not a separate manifest boolean: all supplied Purpose effectiveAt values are null and the runtime states their absence. This is not a portable production source-admission contract.
+
+The fixed discussion digest protocol is SHA-256 over UTF-8 JSON.stringify in published key order, no trailing LF. Bridge assertions are hashed before their generated sources are added. Purpose digests hash the chosen literal record array. Basis digests hash the derived comparison arrays after activityAsOf, purposeDigest and bridgeSource, excluding basisSource itself. Activity channel digests hash exact resolved text bytes without reserialization. These rules describe the checked implementation; they are not unused input options.
+The assembler consumes authority=false, bridge authority=false and null purposeEffectiveAt as current-example constraints and rejects unsupported authoritative/time-provided examples. sameEffectiveTime in the runtime basis is derived from supplied frame data, not an ignored fixture declaration.
