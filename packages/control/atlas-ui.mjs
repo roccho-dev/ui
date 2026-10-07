@@ -530,6 +530,7 @@ export const mountAtlasWorldUI = ({
     if (activation?.type === 'atlas.world.select') select(activation.id);
     else if (activation?.type === 'atlas.world.next-aggregate') cycle(page.projection?.aggregateRelationIds);
     else if (activation?.type === 'atlas.world.next-omitted') cycle(page.projection?.omittedRelationIds);
+    else if (activation?.type === 'atlas.world.next-omitted-entity') cycle(page.projection?.omittedEntityIds);
   });
 
   adapter.onSelectionChange(selection => {

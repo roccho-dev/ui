@@ -48,7 +48,7 @@ const recordKind = (index, selected) => index.entityByKey.has(selected) ? 'entit
 
 const changedFields = (current, other) => {
   if (!current || !other) return [];
-  const fields = ['label', 'area', 'order', 'activity', 'summary', 'kind', 'from', 'to', 'context', 'source', 'time', 'flags', 'path', 'visible'];
+  const fields = ['label', 'activity', 'summary', 'kind', 'from', 'to', 'context', 'source', 'time', 'flags'];
   return fields.filter(field => !same(current[field], other[field]));
 };
 
@@ -134,11 +134,15 @@ export const projectAtlasWorld = ({
 
   const representations = [];
   const visibleEntityKeys = new Set();
+  const omittedEntityIds = [];
   const areaBounds = new Map();
   let worldHeight = 0;
   areas.forEach((area, areaIndex) => {
     const rows = areaEntities.get(area.id) ?? [];
-    const shown = rows.slice(0, MAX_ENTITIES_PER_AREA);
+    const eligible = rows.filter(entity => entity.visible);
+    const shown = eligible.slice(0, MAX_ENTITIES_PER_AREA);
+    for (const entity of rows.filter(item => !item.visible)) omittedEntityIds.push(entityKey(entity.ref));
+    for (const entity of eligible.slice(MAX_ENTITIES_PER_AREA)) omittedEntityIds.push(entityKey(entity.ref));
     const height = AREA_PAD * 2 + 34 + shown.length * (ENTITY_HEIGHT + ENTITY_GAP);
     const x = AREA_PAD + areaIndex * (AREA_WIDTH + AREA_GAP);
     const bounds = { x, y: AREA_TOP, width: AREA_WIDTH, height: Math.max(160, height) };
@@ -217,7 +221,9 @@ export const projectAtlasWorld = ({
   const pathLabels = pathKeys.map(key => (currentRecord ? index : counterpartIndex).entityByKey.get(key)?.label ?? key);
   const aggregateIds = groupByRelationId.get(selected)?.relationIds ?? Object.freeze([]);
   const omittedIds = Object.freeze([...new Set(grouped.omitted)].sort());
+  const omittedEntities = Object.freeze([...new Set(omittedEntityIds)].sort());
   const computedCoverage = 'entities ' + frame.entities.length
+    + ' · omitted entities ' + omittedEntities.length
     + ' · relations ' + frame.relations.length
     + ' · omitted relations ' + omittedIds.length;
   const transport = mode === 'live' ? (connected ? 'SSE connected' : 'SSE disconnected') : 'SAMPLE';
@@ -251,11 +257,13 @@ export const projectAtlasWorld = ({
     atlas: Object.freeze({ kind: 'judgement', selected, text: detail }),
   }));
 
+  const controlY = detailY + DETAIL_HEIGHT + 12;
+  let leftControlRows = 0;
   if (aggregateIds.length > 1) {
     representations.push(Object.freeze({
       regionId: 'world:aggregate-cycle',
       label: 'Aggregate members ' + aggregateIds.length + ' · click to inspect next\n' + aggregateIds.map(id => short(id, 52)).join('\n'),
-      bounds: { x: AREA_PAD + 18, y: detailY + DETAIL_HEIGHT + 12, width: Math.min(500, totalWidth / 2 - 30), height: 84 },
+      bounds: { x: AREA_PAD + 18, y: controlY + leftControlRows++ * 96, width: Math.min(500, totalWidth / 2 - 30), height: 84 },
       kind: 'aggregate-members',
       depth: 3,
       shape: 'graph-node',
@@ -267,11 +275,27 @@ export const projectAtlasWorld = ({
     }));
   }
 
+  if (omittedEntities.length > 0) {
+    representations.push(Object.freeze({
+      regionId: 'world:omitted-entity-cycle',
+      label: 'Omitted entities ' + omittedEntities.length + ' · click to inspect next\n' + omittedEntities.slice(0, 3).map(id => short(id, 52)).join('\n'),
+      bounds: { x: AREA_PAD + 18, y: controlY + leftControlRows++ * 96, width: Math.min(500, totalWidth / 2 - 30), height: 84 },
+      kind: 'omitted-entities',
+      depth: 3,
+      shape: 'graph-node',
+      readOnly: true,
+      geometryEditable: false,
+      labelEditable: false,
+      activation: Object.freeze({ type: 'atlas.world.next-omitted-entity' }),
+      atlas: Object.freeze({ kind: 'omitted-entities', entityIds: omittedEntities }),
+    }));
+  }
+
   if (omittedIds.length > 0) {
     representations.push(Object.freeze({
       regionId: 'world:omitted-cycle',
       label: 'Omitted relations ' + omittedIds.length + ' · click to inspect next\n' + omittedIds.slice(0, 3).map(id => short(id, 52)).join('\n'),
-      bounds: { x: AREA_PAD + totalWidth / 2, y: detailY + DETAIL_HEIGHT + 12, width: Math.min(500, totalWidth / 2 - 40), height: 84 },
+      bounds: { x: AREA_PAD + totalWidth / 2, y: controlY, width: Math.min(500, totalWidth / 2 - 40), height: 84 },
       kind: 'omitted-relations',
       depth: 3,
       shape: 'graph-node',
@@ -283,10 +307,12 @@ export const projectAtlasWorld = ({
     }));
   }
 
-  const bottom = detailY + DETAIL_HEIGHT + (aggregateIds.length > 1 || omittedIds.length ? 112 : 16);
+  const controlRows = Math.max(leftControlRows, omittedIds.length > 0 ? 1 : 0);
+  const bottom = detailY + DETAIL_HEIGHT + (controlRows > 0 ? controlRows * 96 + 16 : 16);
   const world = Object.freeze({ x: 0, y: 0, width: totalWidth, height: bottom });
   let selectedRegionId = null;
   if (index.entityByKey.has(selected) && visibleEntityKeys.has(selected)) selectedRegionId = regionId(selected);
+  else if (index.entityByKey.has(selected) && omittedEntities.includes(selected)) selectedRegionId = 'world:omitted-entity-cycle';
   else if (!currentRecord) selectedRegionId = 'world:judgement';
   else if (index.relationByKey.has(selected) && grouped.omitted.includes(selected)) selectedRegionId = 'world:omitted-cycle';
   else if (index.relationByKey.has(selected)) selectedRegionId = 'world:judgement';
@@ -305,9 +331,11 @@ export const projectAtlasWorld = ({
     selectedRegionId,
     aggregateRelationIds: aggregateIds,
     omittedRelationIds: omittedIds,
+    omittedEntityIds: omittedEntities,
     areaBounds,
     coverage: Object.freeze({
       omittedRelations: omittedIds.length,
+      omittedEntities: omittedEntities.length,
       totalRelations: frame.relations.length,
       totalEntities: frame.entities.length,
     }),

@@ -79,7 +79,7 @@ const normalizeActivity = (value, at) => {
 };
 
 const normalizeEntity = (value, at, areaIds) => {
-  exactKeys(value, ['ref', 'label', 'area', 'order', 'activity', 'summary', 'source', 'time', 'flags'], at);
+  exactKeys(value, ['ref', 'label', 'area', 'order', 'visible', 'activity', 'summary', 'source', 'time', 'flags'], at);
   const area = text(value.area, at + '.area');
   check(areaIds.has(area), at + '.area references unknown presentation area ' + area);
   return Object.freeze({
@@ -87,6 +87,7 @@ const normalizeEntity = (value, at, areaIds) => {
     label: text(value.label, at + '.label'),
     area,
     order: integer(value.order ?? 0, at + '.order'),
+    visible: value.visible !== false,
     activity: normalizeActivity(value.activity, at + '.activity'),
     summary: value.summary === undefined || value.summary === null
       ? ''
