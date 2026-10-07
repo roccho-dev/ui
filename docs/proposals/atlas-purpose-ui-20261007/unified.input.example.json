@@ -2,11 +2,9 @@
   "authority": false,
   "activity": {
     "path": "tests/fixtures/live-atlas/history.json",
-    "uiRef": "3fd451996d05e304a38be2a6696acb18b3103a37"
-  },
-  "purpose": {
-    "path": "docs/proposals/atlas-purpose-ui-20261007/view.example.html",
-    "pairs": "original-before-after-and-named-replacement"
+    "uiRef": "3fd451996d05e304a38be2a6696acb18b3103a37",
+    "repo": "roccho-dev/ui",
+    "rawSha256": "sha256:2384739feea269334fb36cde1834ffbbf30b01014bcd9e0ff9ba301d3b582526"
   },
   "bridgeSourceRef": "discussion:explicit-bridges@1",
   "basisSourceRef": "discussion:frame-binding@1",
@@ -96,6 +94,520 @@
       "supplied": null
     }
   ],
-  "sameEffectiveTime": false
+  "sameEffectiveTime": false,
+  "purposeSnapshots": {
+    "before": [
+      {
+        "id": "current.before",
+        "kind": "current",
+        "label": "例：抽出前",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ],
+        "value": "起動処理がui内に残っている"
+      },
+      {
+        "gaps": [
+          "gap.extraction"
+        ],
+        "id": "fill.extraction",
+        "kind": "fill",
+        "label": "例：bootstrapを分離する仕事",
+        "scope": [
+          "入力選択と起動処理",
+          "共有UIの再利用"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ]
+      },
+      {
+        "current": "current.before",
+        "delta": "起動と入力選択をapps側へ分ける",
+        "id": "gap.extraction",
+        "ideal": "ideal.extraction",
+        "kind": "gap",
+        "label": "例：application責務の分離",
+        "owner": "apps",
+        "proof": "同じUIを参照し、既存操作と入力保持が退行しない",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ]
+      },
+      {
+        "id": "ideal.extraction",
+        "kind": "ideal",
+        "label": "UIとapplicationの境界",
+        "purposes": [
+          "purpose.operations",
+          "purpose.reuse"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ],
+        "value": "同じUIをappsとexampleから利用できる"
+      },
+      {
+        "id": "ideal.source",
+        "kind": "ideal",
+        "label": "外部入力の接続",
+        "purposes": [
+          "purpose.operations"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ],
+        "value": "出所を辿れる現況と目的が同じ契約で読める"
+      },
+      {
+        "id": "purpose.company",
+        "kind": "purpose",
+        "label": "例：所有者に依存せず運用・譲渡できる会社",
+        "parents": [],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "id": "purpose.operations",
+        "kind": "purpose",
+        "label": "例：現在地と残件を証拠から引き継げる",
+        "parents": [
+          "purpose.company"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "id": "purpose.reuse",
+        "kind": "purpose",
+        "label": "例：小さなUI部品で製品を増やす",
+        "parents": [
+          "purpose.company"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "evidence": [
+          "fixture:extraction-check@1"
+        ],
+        "fill": "fill.extraction",
+        "id": "receipt.partial",
+        "kind": "receipt",
+        "label": "例：一部だけ解消した結果",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ],
+        "status": "reduced"
+      },
+      {
+        "id": "residual.source",
+        "kind": "residual",
+        "label": "例：実入力の接続が残る",
+        "next": [],
+        "receipt": "receipt.partial",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "id": "current.after",
+        "kind": "current",
+        "label": "例：部分完了後",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:late-next@2"
+          }
+        ],
+        "value": "起動処理はappsで利用できるが、実入力は未接続"
+      },
+      {
+        "id": "current.before",
+        "kind": "current",
+        "label": "例：抽出前",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ],
+        "value": "起動処理がui内に残っている"
+      },
+      {
+        "gaps": [
+          "gap.extraction"
+        ],
+        "id": "fill.extraction",
+        "kind": "fill",
+        "label": "例：bootstrapを分離する仕事",
+        "scope": [
+          "入力選択と起動処理",
+          "共有UIの再利用"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ]
+      },
+      {
+        "gaps": [
+          "gap.source"
+        ],
+        "id": "fill.source",
+        "kind": "fill",
+        "label": "例：次の入力接続の仕事",
+        "scope": [
+          "外部projection入力の接続"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:late-next@2"
+          }
+        ]
+      },
+      {
+        "current": "current.before",
+        "delta": "起動と入力選択をapps側へ分ける",
+        "id": "gap.extraction",
+        "ideal": "ideal.extraction",
+        "kind": "gap",
+        "label": "例：application責務の分離",
+        "owner": "apps",
+        "proof": "同じUIを参照し、既存操作と入力保持が退行しない",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ]
+      },
+      {
+        "current": "current.after",
+        "delta": "外部sourceから契約への変換を実証する",
+        "id": "gap.source",
+        "ideal": "ideal.source",
+        "kind": "gap",
+        "label": "例：入力がまだfixtureだけ",
+        "owner": "apps/input-adapter",
+        "proof": "目的と現況の出所・版・関係が一致する",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:late-next@2"
+          }
+        ]
+      },
+      {
+        "id": "ideal.extraction",
+        "kind": "ideal",
+        "label": "UIとapplicationの境界",
+        "purposes": [
+          "purpose.operations",
+          "purpose.reuse"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ],
+        "value": "同じUIをappsとexampleから利用できる"
+      },
+      {
+        "id": "ideal.source",
+        "kind": "ideal",
+        "label": "外部入力の接続",
+        "purposes": [
+          "purpose.operations"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ],
+        "value": "出所を辿れる現況と目的が同じ契約で読める"
+      },
+      {
+        "id": "purpose.company",
+        "kind": "purpose",
+        "label": "例：所有者に依存せず運用・譲渡できる会社",
+        "parents": [],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "id": "purpose.operations",
+        "kind": "purpose",
+        "label": "例：現在地と残件を証拠から引き継げる",
+        "parents": [
+          "purpose.company"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "id": "purpose.reuse",
+        "kind": "purpose",
+        "label": "例：小さなUI部品で製品を増やす",
+        "parents": [
+          "purpose.company"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "evidence": [
+          "fixture:extraction-check@1"
+        ],
+        "fill": "fill.extraction",
+        "id": "receipt.partial",
+        "kind": "receipt",
+        "label": "例：一部だけ解消した結果",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          }
+        ],
+        "status": "reduced"
+      },
+      {
+        "id": "residual.source",
+        "kind": "residual",
+        "label": "例：実入力の接続が残る",
+        "next": [
+          "gap.source"
+        ],
+        "receipt": "receipt.partial",
+        "sources": [
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:current@1"
+          },
+          {
+            "sourceDigest": "sha256:a8f21e89ee791061fcc298c028d03f29a7034cb51c203aa28541025666b7071f",
+            "sourceRef": "fixture:late-next@2"
+          }
+        ]
+      }
+    ],
+    "replacement": [
+      {
+        "id": "current.before",
+        "kind": "current",
+        "label": "例：抽出前",
+        "sources": [
+          {
+            "sourceDigest": "sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb",
+            "sourceRef": "fixture:current-replacement@1"
+          }
+        ],
+        "value": "起動処理がui内に残っている"
+      },
+      {
+        "gaps": [
+          "gap.extraction"
+        ],
+        "id": "fill.extraction",
+        "kind": "fill",
+        "label": "例：bootstrapを分離する仕事",
+        "scope": [
+          "入力選択と起動処理",
+          "共有UIの再利用"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb",
+            "sourceRef": "fixture:current-replacement@1"
+          }
+        ]
+      },
+      {
+        "current": "current.before",
+        "delta": "起動と入力選択をapps側へ分ける",
+        "id": "gap.extraction",
+        "ideal": "ideal.extraction",
+        "kind": "gap",
+        "label": "例：application責務の分離",
+        "owner": "apps",
+        "proof": "同じUIを参照し、既存操作と入力保持が退行しない",
+        "sources": [
+          {
+            "sourceDigest": "sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb",
+            "sourceRef": "fixture:current-replacement@1"
+          }
+        ]
+      },
+      {
+        "id": "ideal.extraction",
+        "kind": "ideal",
+        "label": "UIとapplicationの境界",
+        "purposes": [
+          "purpose.operations",
+          "purpose.reuse"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ],
+        "value": "同じUIをappsとexampleから利用できる"
+      },
+      {
+        "id": "ideal.source",
+        "kind": "ideal",
+        "label": "外部入力の接続",
+        "purposes": [
+          "purpose.operations"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ],
+        "value": "出所を辿れる現況と目的が同じ契約で読める"
+      },
+      {
+        "id": "purpose.company",
+        "kind": "purpose",
+        "label": "例：所有者に依存せず運用・譲渡できる会社",
+        "parents": [],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "id": "purpose.operations",
+        "kind": "purpose",
+        "label": "例：現在地と残件を証拠から引き継げる",
+        "parents": [
+          "purpose.company"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "id": "purpose.reuse",
+        "kind": "purpose",
+        "label": "例：小さなUI部品で製品を増やす",
+        "parents": [
+          "purpose.company"
+        ],
+        "sources": [
+          {
+            "sourceDigest": "sha256:5fa8b664596caef29449c089752daa724be8fb9e2fca1a0f527d3e6c154202f8",
+            "sourceRef": "fixture:purpose@1"
+          }
+        ]
+      },
+      {
+        "evidence": [
+          "fixture:extraction-check@1"
+        ],
+        "fill": "fill.extraction",
+        "id": "receipt.partial",
+        "kind": "receipt",
+        "label": "例：一部だけ解消した結果",
+        "sources": [
+          {
+            "sourceDigest": "sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb",
+            "sourceRef": "fixture:current-replacement@1"
+          }
+        ],
+        "status": "reduced"
+      },
+      {
+        "id": "residual.source",
+        "kind": "residual",
+        "label": "例：実入力の接続が残る",
+        "next": [],
+        "receipt": "receipt.partial",
+        "sources": [
+          {
+            "sourceDigest": "sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb",
+            "sourceRef": "fixture:current-replacement@1"
+          }
+        ]
+      }
+    ]
+  },
+  "purposeCases": [
+    {
+      "before": "before",
+      "after": "after"
+    },
+    {
+      "before": "after",
+      "after": "replacement"
+    }
+  ],
+  "digestRule": {
+    "algorithm": "SHA-256",
+    "serialization": "UTF-8 JSON.stringify in published key order, without a trailing LF; fields added by assembly are excluded from their own digest",
+    "activitySources": "exact resolved channel text bytes; no reserialization",
+    "bridges": "bridges array as published before sources are added",
+    "basis": "comparison arrays after derived activityAsOf/purposeDigest/bridgeSource are added, before basisSource",
+    "purposeDigest": "selected canonical record array JSON.stringify"
+  }
 }
-

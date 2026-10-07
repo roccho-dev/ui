@@ -100,6 +100,16 @@ null Purpose effective times and supplied/unlinked input variants. Assembly read
 this file; bridge/source digests are computed from those actual declaration bytes.
 It is a fixture proposal, not an adopted production codec.
 
+Purpose snapshots are now literal canonical records in that fixture, referenced
+by machine-readable purposeCases. They are never extracted from a rendered HTML.
+unified.assemble.mjs is the checked discussion-only mapping from this declaration
+to world-input, module import map, standalone HTML and computed receipt. Run from
+the repository root with: node docs/proposals/atlas-purpose-ui-20261007/unified.assemble.mjs <absent-output-directory>.
+It uses the existing UI exports; no CI/server/build framework is added. The
+fixture states exact digest byte domains. The assembly's generated runtime object
+is consumed unchanged by unified.example.mjs. UI production admission remains
+outside this recipe's scope.
+
 unified.example.html — app shell/template.
 unified.example.mjs — discussion input projection/selection/compare host.
 unified.overview.jpg / bridge.jpg / gap.jpg / removal.jpg / narrow.jpg —
