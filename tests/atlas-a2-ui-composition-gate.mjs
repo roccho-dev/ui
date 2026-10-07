@@ -189,6 +189,31 @@ try {
     world.entities.filter(item => item.ref.id === 'shared').length === 2
       && new Set(world.entities.filter(item => item.ref.id === 'shared').map(item => item.ref.space)).size === 2);
 
+  const renderedBox = async regionId => page.evaluate(id => {
+    const adapter = window.liveAtlas.adapter;
+    const cell = adapter.cellsByRegionId.get(id);
+    const state = cell ? adapter.graph.getView().getState(cell) : null;
+    return state ? { x: state.x, y: state.y, width: state.width, height: state.height } : null;
+  }, regionId);
+
+  const strictlyInside = (child, parent) => Boolean(child && parent
+    && child.x > parent.x && child.y > parent.y
+    && child.x + child.width < parent.x + parent.width
+    && child.y + child.height < parent.y + parent.height);
+
+  const clickBoundaryHeader = async regionId => {
+    const point = await page.evaluate(id => {
+      const adapter = window.liveAtlas.adapter;
+      const cell = adapter.cellsByRegionId.get(id);
+      const state = cell ? adapter.graph.getView().getState(cell) : null;
+      if (!state) return null;
+      const box = document.getElementById('atlas-world').getBoundingClientRect();
+      return { x: box.left + state.x + 14, y: box.top + state.y + 14 };
+    }, regionId);
+    if (!point) throw new Error('missing boundary cell ' + regionId);
+    await page.mouse.click(point.x, point.y);
+  };
+
   const entityOf = (space, kind, id) => world.entities.find(item => item.ref.space === space && item.ref.kind === kind && item.ref.id === id);
   const company = entityOf('purpose', 'purpose', 'shared');
   const purposeA = entityOf('purpose', 'purpose', 'purpose.a');
@@ -269,31 +294,6 @@ try {
       return { x: box.left + state.x + state.width / 2, y: box.top + state.y + state.height / 2 };
     }, regionId);
     if (!point) throw new Error('missing region cell ' + regionId);
-    await page.mouse.click(point.x, point.y);
-  };
-
-  const renderedBox = async regionId => page.evaluate(id => {
-    const adapter = window.liveAtlas.adapter;
-    const cell = adapter.cellsByRegionId.get(id);
-    const state = cell ? adapter.graph.getView().getState(cell) : null;
-    return state ? { x: state.x, y: state.y, width: state.width, height: state.height } : null;
-  }, regionId);
-
-  const strictlyInside = (child, parent) => Boolean(child && parent
-    && child.x > parent.x && child.y > parent.y
-    && child.x + child.width < parent.x + parent.width
-    && child.y + child.height < parent.y + parent.height);
-
-  const clickBoundaryHeader = async regionId => {
-    const point = await page.evaluate(id => {
-      const adapter = window.liveAtlas.adapter;
-      const cell = adapter.cellsByRegionId.get(id);
-      const state = cell ? adapter.graph.getView().getState(cell) : null;
-      if (!state) return null;
-      const box = document.getElementById('atlas-world').getBoundingClientRect();
-      return { x: box.left + state.x + 14, y: box.top + state.y + 14 };
-    }, regionId);
-    if (!point) throw new Error('missing boundary cell ' + regionId);
     await page.mouse.click(point.x, point.y);
   };
 
@@ -385,7 +385,7 @@ try {
   await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent2.projecta.hidden');
   const omittedDetail = await renderedJudgement();
   check('omitted relation remains recoverable from SVG coverage control',
-    omittedDetail.visible && /agent2\.projecta\.hidden/u.test(omittedDetail.text) && /omitted relations 1/u.test(omittedDetail.text), omittedDetail);
+    omittedDetail.visible && /agent2\.projecta\.hidden/u.test(omittedDetail.text) && /omitted relations 2/u.test(omittedDetail.text), omittedDetail);
 
   await clickCell('world:omitted-entity-cycle');
   await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent.hidden');
