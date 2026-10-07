@@ -1,4 +1,75 @@
-# Atlas Purpose経路・更新差分 — 三者議論 v1
+# Atlas Purpose / one-world proposal — current discussion entry
+
+This directory is a **discussion proposal**, not product or business-contract authority.
+The current entry is intentionally small:
+
+- [unified.md](unified.md) — discussion canonical specification: comparison invariants, authority boundaries, one-world interaction, and normalization correspondence.
+- [unified.input.example.json](unified.input.example.json) — one logical input for this reproducible discussion example. “One input” does not mean one producer; it can bind multiple source domains/revisions.
+- [unified.assemble.mjs](unified.assemble.mjs) — deterministic input → standalone artifact + receipt reconstruction.
+- [unified.example.mjs](unified.example.mjs) / [unified.example.html](unified.example.html) — the checked interaction source/template.
+- `unified.{overview,bridge,gap,removal,narrow}.jpg` — actual browser evidence for the current example.
+
+Current normalization baseline: `b36f5b031d99e1e70fd1ea03e599bb23f08af563`.
+The existing assembler baseline is 2,580,901 HTML bytes, SHA-256
+`fc3ad305a53679b56cf26ce8a8a2cf1bb1e904532677ac581b364862a7324820`,
+with 193 packed modules.
+
+## Current comparison invariants
+
+The current proposal preserves these meanings; details and correspondence live in
+[unified.md](unified.md).
+
+```text
+N+/N-  = qualified entity presence only
+MΔ     = owner-defined declared meaning change
+RΔ     = owner-defined typed-reference change
+E+/E-  = owner-defined explicit relation presence/meaning change
+SΔ     = source/evidence change
+TΔ     = supplied temporal-metadata change
+```
+
+The axes are distinguishable but not mutually exclusive: one source change may
+produce changes on more than one axis. Their counts are never summed into a
+fictitious total progress or Purpose-achievement score.
+
+```text
+G(F)      = owner typedCompare(Ideal(F), Current(F))   # business Gap
+D(F0,F1) = declared Frame comparison                  # world/frame delta
+ObsGap    = acquisition/history completeness gap      # not business Gap
+```
+
+Unknown effective time stays unknown. Work/Receipt completion does not imply
+Purpose achievement. “Unlisted in this Frame” does not imply deleted/completed;
+the counterpart and reason-unknown state remain readable.
+
+Relation identity is owner-defined. The historical discussion implementation
+`[space, kind, from, to]` edge tuple and `parts()` field classification are
+examples for this fixture, not generic production comparator laws. Independent
+RelationRefs/context must not be collapsed merely because endpoints/kind match.
+
+## Authority and cleanup boundary
+
+`unified.md` is the **discussion canonical specification** for this proposal
+directory only. It does not replace apps business contracts, the current a2 world
+seam, owning production adapters, or other product authority.
+
+Historical files remain in the tree during this first normalization slice.
+They may leave the canonical surface only after the correspondence is closed:
+
+```text
+old invariant
+→ discussion canonical section
+→ logical input
+→ deterministic reconstruction/runtime
+→ interaction/oracle
+```
+
+File-count reduction, image moves, or renames are not completion criteria.
+A historical file with unique live semantics stays until that semantic content is
+absorbed and proved. The older entries below are retained as history and are not
+current implementation requirements.
+
+## Historical discussion log — retained, not current requirements
 ## P local readback — v1 illustration
 
 同じHTMLをIABで操作、viewport 1280×720、画像はfull-page capture。CI生成なし。
