@@ -448,10 +448,13 @@ function render(scene) {
 
     this.edgeByRelationId = new Map();
     for (const edge of edgesByProjectionKey.values()) {
-      if (edge.semantic?.relationIds?.length === 1) {
-        this.edgeByRelationId.set(edge.semantic.relationIds[0], edge);
+      for (const relationId of edge.semantic?.relationIds ?? []) {
+        if (!this.edgeByRelationId.has(relationId)) this.edgeByRelationId.set(relationId, edge);
       }
     }
+    this.selectionRelationIds = new Set(
+      [...this.selectionRelationIds].filter((relationId) => this.edgeByRelationId.has(relationId)),
+    );
     this.lastScene = scene;
     this.renderOverlays(scene);
     this.restoreSelection(scene);

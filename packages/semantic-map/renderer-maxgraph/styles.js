@@ -299,7 +299,7 @@ export function edgeStyle(relation, scale, theme) {
     labelBackgroundColor: theme.edge.labelBackground,
     labelBorderColor: theme.edge.labelBorder,
     movable: false,
-    selectable: directlyEditable,
+    selectable: true,
     editable: false,
     deletable: directlyEditable,
     bendable: false,
