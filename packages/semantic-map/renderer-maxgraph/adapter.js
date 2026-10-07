@@ -488,7 +488,9 @@ function isEditableTouchTarget(clientX, clientY, target = null) {
 function deleteSelection() {
   const selection = this.selectionSnapshot();
   const editableRelations = new Set(
-    this.lastScene?.relations.filter((item) => !item.readOnly).flatMap((item) => item.relationIds) ?? [],
+    this.lastScene?.relations
+      .filter((item) => !item.readOnly && item.relationIds.length === 1)
+      .flatMap((item) => item.relationIds) ?? [],
   );
   const relationIds = selection.relationIds.filter((id) => editableRelations.has(id));
   if (!selection.regionIds.length && !relationIds.length) return null;

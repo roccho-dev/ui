@@ -161,19 +161,19 @@ try {
   let at = await point('ro-single');
   await page.mouse.click(at.x, at.y);
   await page.waitForTimeout(20);
-  same(await page.evaluate(() => relationSelectionProof.snapshot()), { regionIds: [], relationIds: ['ro-single'] },
+  same(await page.evaluate(() => globalThis.relationSelectionProof.snapshot()), { regionIds: [], relationIds: ['ro-single'] },
     'read-only singleton click selection');
 
   // 2. Real click on one aggregate edge returns every represented relation id.
   at = await point('agg-a');
   await page.mouse.click(at.x, at.y);
   await page.waitForTimeout(20);
-  same(await page.evaluate(() => relationSelectionProof.snapshot()), { regionIds: [], relationIds: ['agg-a', 'agg-b'] },
+  same(await page.evaluate(() => globalThis.relationSelectionProof.snapshot()), { regionIds: [], relationIds: ['agg-a', 'agg-b'] },
     'aggregate click preserves all relation ids');
 
   // 3. A single relation id can programmatically reach the aggregate edge and survive rerender.
   const aggregate = await page.evaluate(() => {
-    const proof = relationSelectionProof;
+    const proof = globalThis.relationSelectionProof;
     proof.adapter.setSelection({ relationIds: ['agg-b'] });
     const before = proof.snapshot();
     const selectedBefore = proof.selectedEdgeIds();
@@ -192,7 +192,7 @@ try {
 
   // 4. Read-only selection cannot produce remove operations; editable relation behavior stays intact.
   const mutation = await page.evaluate(() => {
-    const proof = relationSelectionProof;
+    const proof = globalThis.relationSelectionProof;
     proof.adapter.setSelection({ relationIds: ['agg-b'] });
     const before = proof.operations.length;
     const readOnlyDelete = proof.adapter.deleteSelection();
@@ -218,7 +218,7 @@ try {
 
   // 5. Removed and unsupported relation ids are pruned without camera movement.
   const stale = await page.evaluate(() => {
-    const proof = relationSelectionProof;
+    const proof = globalThis.relationSelectionProof;
     proof.adapter.setSelection({ relationIds: ['ro-single'] });
     const beforeCamera = proof.camera();
     const next = { ...proof.scene, relations: proof.scene.relations.filter(item => !item.relationIds.includes('ro-single')) };
