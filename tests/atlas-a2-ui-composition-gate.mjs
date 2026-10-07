@@ -214,6 +214,19 @@ try {
     await page.mouse.click(point.x, point.y);
   };
 
+  const clickCell = async regionId => {
+    const point = await page.evaluate(id => {
+      const adapter = window.liveAtlas.adapter;
+      const cell = adapter.cellsByRegionId.get(id);
+      const state = cell ? adapter.graph.getView().getState(cell) : null;
+      if (!state) return null;
+      const box = document.getElementById('atlas-world').getBoundingClientRect();
+      return { x: box.left + state.x + state.width / 2, y: box.top + state.y + state.height / 2 };
+    }, regionId);
+    if (!point) throw new Error('missing region cell ' + regionId);
+    await page.mouse.click(point.x, point.y);
+  };
+
   const entityOf = (space, kind, id) => world.entities.find(item => item.ref.space === space && item.ref.kind === kind && item.ref.id === id);
   const company = entityOf('purpose', 'purpose', 'shared');
   const purposeA = entityOf('purpose', 'purpose', 'purpose.a');
@@ -284,18 +297,7 @@ try {
   check('same endpoint participation relations aggregate without identity loss',
     Boolean(aggregate) && aggregate.ids.length === 2, aggregate);
 
-  const clickCell = async regionId => {
-    const point = await page.evaluate(id => {
-      const adapter = window.liveAtlas.adapter;
-      const cell = adapter.cellsByRegionId.get(id);
-      const state = cell ? adapter.graph.getView().getState(cell) : null;
-      if (!state) return null;
-      const box = document.getElementById('atlas-world').getBoundingClientRect();
-      return { x: box.left + state.x + state.width / 2, y: box.top + state.y + state.height / 2 };
-    }, regionId);
-    if (!point) throw new Error('missing region cell ' + regionId);
-    await page.mouse.click(point.x, point.y);
-  };
+
 
   const clickRelation = async relationId => {
     const point = await page.evaluate(id => {
