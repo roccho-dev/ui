@@ -88,7 +88,9 @@ const normalizeEntity = (value, at, areaIds) => {
     area,
     order: integer(value.order ?? 0, at + '.order'),
     activity: normalizeActivity(value.activity, at + '.activity'),
-    summary: value.summary === undefined || value.summary === null ? '' : text(value.summary, at + '.summary'),
+    summary: value.summary === undefined || value.summary === null
+      ? ''
+      : (check(typeof value.summary === 'string', at + '.summary must be text'), value.summary),
     source: normalizeSource(value.source, at + '.source'),
     time: normalizeTime(value.time, at + '.time'),
     flags: normalizeFlags(value.flags, at + '.flags'),
