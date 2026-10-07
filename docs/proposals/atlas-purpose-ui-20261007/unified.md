@@ -107,11 +107,20 @@ before a historical file is removed.
 | One world, one qualified selection, explicit pair | Unified interaction and identity | one logical discussion input binding multiple source domains | one scene/adapter; before/after side | shared selection/detail/camera; counterpart survives absence | mapped |
 | Source/evidence authority != interaction policy | Authority boundary; Files and local assembly | immutable logical declarations vs runtime bridge-input variant | assembler binds source digests; runtime derives effective basis | input audit exposes declared/effective comparison separately | mapped |
 
-Deletion gate for `design.md`, `integration.*`, `view.*` and
-`current.replacement.example.jsonl` remains conditional. No history file should
-leave the canonical tree until an independent review confirms that every unique
-live invariant is represented above (or elsewhere in this specification) and is
-reproducible through the current input/runtime/operation evidence.
+The historical cleanup gate is now closed for the admitted candidate set. Independent
+review confirmed that no unique live invariant depended on those candidate files;
+owner-valid named replacement input, deterministic reconstruction, late-next,
+absence/counterpart, bridge, Gap/time, and one-world selection/camera evidence were
+bound before deletion.
+
+The exact pre-cleanup proposal tree remains Git-recoverable at:
+
+https://github.com/roccho-dev/ui/tree/3ac6b607a5af5c4564d445fad70af11958ba7c18/docs/proposals/atlas-purpose-ui-20261007
+
+The retained current files are the discussion canonical specification, logical
+input, deterministic assembler, interaction source/template, and final unified
+browser evidence. Removal from the current tree does not upgrade historical plans
+into current requirements and does not expand product/business authority.
 
 
 ## Recognition and API
