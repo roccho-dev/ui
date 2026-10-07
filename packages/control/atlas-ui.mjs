@@ -422,8 +422,6 @@ export const mountAtlasUI = ({
 const WORLD_STYLE = `
 body{margin:0;overflow:hidden}
 #atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
-#atlas-world-toolbar{flex:none;display:flex;gap:6px;padding:5px 8px;border-bottom:1px solid #dee2e6;background:#fff}
-#atlas-world-toolbar button{font:13px/1.3 system-ui,sans-serif;padding:2px 8px}
 #atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
 `;
 
@@ -439,9 +437,8 @@ export const mountAtlasWorldUI = ({
   if (!root?.append) throw new Error('atlas-world-ui: mount root required');
   let worldInput = parseAtlasWorldInput(input);
   const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
-  const toolbar = el('div', { id: 'atlas-world-toolbar', 'aria-label': 'Atlas world controls' });
   const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
-  const screen = el('div', { id: 'atlas-world-screen' }, toolbar, container);
+  const screen = el('div', { id: 'atlas-world-screen' }, container);
   root.append(style, screen);
 
   const page = {
@@ -531,6 +528,12 @@ export const mountAtlasWorldUI = ({
     else if (activation?.type === 'atlas.world.next-aggregate') cycle(page.projection?.aggregateRelationIds);
     else if (activation?.type === 'atlas.world.next-omitted') cycle(page.projection?.omittedRelationIds);
     else if (activation?.type === 'atlas.world.next-omitted-entity') cycle(page.projection?.omittedEntityIds);
+    else if (activation?.type === 'atlas.world.frame-before') setFrame(0);
+    else if (activation?.type === 'atlas.world.frame-after') setFrame(page.input.frames.length - 1, { latest: true });
+    else if (activation?.type === 'atlas.world.fit') fit();
+    else if (activation?.type === 'atlas.world.focus') focusSelected();
+    else if (activation?.type === 'atlas.world.tool-select') adapter.setTool('select');
+    else if (activation?.type === 'atlas.world.tool-hand') adapter.setTool('hand');
   });
 
   adapter.onSelectionChange(selection => {
@@ -590,13 +593,16 @@ export const mountAtlasWorldUI = ({
     draw();
   };
 
-  const before = el('button', { id: 'atlas-world-before', type: 'button', text: 'Before', onclick: () => setFrame(0) });
-  const after = el('button', { id: 'atlas-world-after', type: 'button', text: 'After', onclick: () => setFrame(page.input.frames.length - 1, { latest: true }) });
-  const fitButton = el('button', { id: 'atlas-world-fit', type: 'button', text: 'Fit', onclick: fit });
-  const focusButton = el('button', { id: 'atlas-world-focus', type: 'button', text: 'Focus selected', onclick: focusSelected });
-  const selectTool = el('button', { id: 'atlas-world-select-tool', type: 'button', text: 'Select', onclick: () => adapter.setTool('select') });
-  const handTool = el('button', { id: 'atlas-world-hand-tool', type: 'button', text: 'Hand', onclick: () => adapter.setTool('hand') });
-  toolbar.append(before, after, fitButton, focusButton, selectTool, handTool);
+  const onKeyDown = event => {
+    if (event.key === 's' || event.key === 'S') adapter.setTool('select');
+    else if (event.key === 'h' || event.key === 'H') adapter.setTool('hand');
+    else if (event.key === 'f' || event.key === 'F') focusSelected();
+    else if (event.key === '[') setFrame(0);
+    else if (event.key === ']') setFrame(page.input.frames.length - 1, { latest: true });
+    else return;
+    event.preventDefault();
+  };
+  container.addEventListener('keydown', onKeyDown);
 
   const onWheel = event => {
     event.preventDefault();
@@ -620,6 +626,7 @@ export const mountAtlasWorldUI = ({
     page.destroyed = true;
     if (cameraFrame) cancelAnimationFrame(cameraFrame);
     container.removeEventListener('wheel', onWheel);
+    container.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('resize', onResize);
     adapter.setActivationHandler(null);
     adapter.graph.getView().removeListener?.(onCameraChange);

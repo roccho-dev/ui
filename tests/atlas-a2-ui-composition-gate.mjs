@@ -140,17 +140,29 @@ try {
   };
 
   const renderedJudgement = async () => page.evaluate(() => {
-    const adapter = window.liveAtlas.adapter;
-    const cell = adapter.cellsByRegionId.get('world:judgement');
-    const state = cell ? adapter.graph.getView().getState(cell) : null;
-    const node = state?.text?.node ?? null;
+    const atlas = window.liveAtlas;
+    const adapter = atlas.adapter;
     const svg = document.querySelector('#atlas-world svg');
-    const box = node?.getBoundingClientRect?.() ?? null;
-    const style = node ? getComputedStyle(node) : null;
+    const rows = atlas.projection.scene.representations
+      .filter(item => item.atlas?.kind === 'judgement-line')
+      .sort((a, b) => a.atlas.lineIndex - b.atlas.lineIndex)
+      .map(item => {
+        const cell = adapter.cellsByRegionId.get(item.regionId);
+        const state = cell ? adapter.graph.getView().getState(cell) : null;
+        const node = state?.text?.node ?? null;
+        const box = node?.getBoundingClientRect?.() ?? null;
+        const style = node ? getComputedStyle(node) : null;
+        return {
+          id: item.regionId,
+          text: node?.textContent ?? '',
+          visible: Boolean(node && svg?.contains(node) && box && box.width > 0 && box.height > 0
+            && style?.display !== 'none' && style?.visibility !== 'hidden' && Number(style?.opacity ?? 1) !== 0),
+        };
+      });
     return {
-      text: node?.textContent ?? '',
-      visible: Boolean(node && svg?.contains(node) && box && box.width > 0 && box.height > 0
-        && style?.display !== 'none' && style?.visibility !== 'hidden' && Number(style?.opacity ?? 1) !== 0),
+      rows,
+      text: rows.map(row => row.text).join('\n'),
+      visible: rows.length >= 10 && rows.every(row => row.visible && row.text.length > 0),
     };
   });
 
@@ -206,9 +218,9 @@ try {
   check('presentation-only order change is not reported as meaning change',
     presentationOnlyDiff.visible && /Diff: no selected meaning change/u.test(presentationOnlyDiff.text), presentationOnlyDiff);
 
-  await page.click('#atlas-world-before');
+  await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'reviews', id: 'agent3.agent2.review' }));
-  await page.click('#atlas-world-after');
+  await clickCell('world:control:after');
   const missingRendered = await renderedJudgement();
   const missing = {
     selected: await page.evaluate(() => window.liveAtlas.page.selected),
@@ -218,10 +230,14 @@ try {
   check('removed relation selection survives and shows counterpart instead of completion',
     missing.frame === 'after' && missingRendered.visible && /missing in after · counterpart exists in before/u.test(missingRendered.text), missing);
 
-  check('routine judgement has no legacy visible Inspector/audit/catalog dependency',
-    await page.locator('#atlas-detail,#atlas-inspector,#atlas-audit,#atlas-search').count() === 0);
+  check('routine judgement has no second visible HTML information/control surface',
+    await page.locator('#atlas-detail,#atlas-inspector,#atlas-audit,#atlas-search,#atlas-world-toolbar').count() === 0);
+  const svgControls = await page.evaluate(() => window.liveAtlas.projection.scene.representations
+    .filter(item => item.atlas?.kind === 'control').map(item => item.atlas.control).sort());
+  check('Before/After/Fit/Focus/Select/Hand are projected into the SVG surface',
+    JSON.stringify(svgControls) === JSON.stringify(['after','before','fit','focus','hand','select']), svgControls);
 
-  await page.click('#atlas-world-before');
+  await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' }));
   await page.evaluate(() => window.liveAtlas.zoomBy(1.35));
   const held = await page.evaluate(() => ({
@@ -246,7 +262,7 @@ try {
   check('update preserves camera', JSON.stringify(preserved.camera) === JSON.stringify(held.camera), { held, preserved });
 
   const cameraBeforeFocus = await page.evaluate(() => window.liveAtlas.adapter.camera());
-  await page.click('#atlas-world-focus');
+  await clickCell('world:control:focus');
   const cameraAfterFocus = await page.evaluate(() => window.liveAtlas.adapter.camera());
   check('focus control is functional', JSON.stringify(cameraBeforeFocus) !== JSON.stringify(cameraAfterFocus));
 

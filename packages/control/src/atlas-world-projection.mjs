@@ -12,7 +12,11 @@ const ENTITY_WIDTH = 276;
 const ENTITY_HEIGHT = 52;
 const ENTITY_GAP = 12;
 const DETAIL_GAP = 34;
-const DETAIL_HEIGHT = 192;
+const DETAIL_LINE_HEIGHT = 44;
+const DETAIL_LINE_GAP = 6;
+const DETAIL_PANEL_PAD = 14;
+const CONTROL_HEIGHT = 32;
+const CONTROL_GAP = 10;
 const MAX_ENTITIES_PER_AREA = 40;
 const MAX_RELATION_GROUPS = 64;
 
@@ -229,35 +233,85 @@ export const projectAtlasWorld = ({
   const transport = mode === 'live' ? (connected ? 'SSE connected' : 'SSE disconnected') : 'SAMPLE';
   const selectedIdentity = record ? (record.ref.space + '/' + record.ref.kind + '/' + record.ref.id) : selected || 'none';
   const activity = record?.activity ?? 'unknown';
-  const detail = [
+  const detailLines = Object.freeze([
     'Frame ' + frame.id + ' · rev ' + frame.rev + ' · asOf ' + frame.asOf,
     'Selected ' + currentKind + ' · ' + selectedIdentity,
     currentRecord ? ((currentRecord.label || currentRecord.kind || currentRecord.ref.id) + (currentRecord.context ? ' · context ' + contextText(currentRecord.context) : '')) : 'Selected record missing in this frame',
     'Direction: ' + (pathLabels.length ? pathLabels.join(' → ') : 'UNCONNECTED / UNKNOWN'),
     'Activity: ' + String(activity).toUpperCase() + ' · transport=' + transport + ' · sourceState=' + frame.sourceState,
-    'Source: ' + sourceText(record?.source) + ' · ' + timeText(record?.time),
+    'Source: ' + sourceText(record?.source),
+    'Time: ' + timeText(record?.time),
     'Coverage: ' + frame.coverage.state + ' · ' + frame.coverage.label + ' · ' + computedCoverage,
     'Flags: ' + flagsText(record?.flags),
     'Diff: ' + selectedDiff({ frame, counterpart, index, counterpartIndex, selected }),
-  ].join('\n');
+  ]);
 
   const detailY = worldHeight + DETAIL_GAP;
   const totalWidth = AREA_PAD * 2 + areas.length * AREA_WIDTH + Math.max(0, areas.length - 1) * AREA_GAP;
+  const controlSpecs = Object.freeze([
+    Object.freeze({ id: 'before', label: '◀ Before', type: 'atlas.world.frame-before' }),
+    Object.freeze({ id: 'after', label: 'After ▶', type: 'atlas.world.frame-after' }),
+    Object.freeze({ id: 'fit', label: 'Fit', type: 'atlas.world.fit' }),
+    Object.freeze({ id: 'focus', label: 'Focus selected', type: 'atlas.world.focus' }),
+    Object.freeze({ id: 'select', label: 'Select · S', type: 'atlas.world.tool-select' }),
+    Object.freeze({ id: 'hand', label: 'Hand · H', type: 'atlas.world.tool-hand' }),
+  ]);
+  const controlWidth = (totalWidth - AREA_PAD * 2 - CONTROL_GAP * (controlSpecs.length - 1)) / controlSpecs.length;
+  controlSpecs.forEach((control, index) => {
+    representations.push(Object.freeze({
+      regionId: 'world:control:' + control.id,
+      label: control.label,
+      bounds: { x: AREA_PAD + index * (controlWidth + CONTROL_GAP), y: 10, width: controlWidth, height: CONTROL_HEIGHT },
+      kind: 'control',
+      depth: 5,
+      shape: 'graph-node',
+      isGuide: true,
+      readOnly: true,
+      geometryEditable: false,
+      labelEditable: false,
+      activation: Object.freeze({ type: control.type }),
+      visual: Object.freeze({ appearance: Object.freeze({ fillColor: '#f8f9fa', strokeColor: '#495057', strokeWidth: 1.2, dashed: false }) }),
+      atlas: Object.freeze({ kind: 'control', control: control.id }),
+    }));
+  });
+
+  const detailHeight = DETAIL_PANEL_PAD * 2 + 28 + detailLines.length * (DETAIL_LINE_HEIGHT + DETAIL_LINE_GAP);
   representations.push(Object.freeze({
     regionId: 'world:judgement',
-    label: detail,
-    bounds: { x: AREA_PAD, y: detailY, width: totalWidth - AREA_PAD * 2, height: DETAIL_HEIGHT },
-    kind: 'judgement',
+    label: 'Judgement',
+    bounds: { x: AREA_PAD, y: detailY, width: totalWidth - AREA_PAD * 2, height: detailHeight },
+    kind: 'judgement-panel',
     depth: 2,
-    shape: 'graph-node',
+    shape: 'boundary',
+    mode: 'boundary',
     readOnly: true,
     geometryEditable: false,
     labelEditable: false,
-    visual: Object.freeze({ appearance: Object.freeze({ fillColor: '#f8f9fa', strokeColor: '#343a40', strokeWidth: 1.6, dashed: false }) }),
-    atlas: Object.freeze({ kind: 'judgement', selected, text: detail }),
+    atlas: Object.freeze({ kind: 'judgement', selected, lines: detailLines }),
   }));
+  detailLines.forEach((line, lineIndex) => {
+    representations.push(Object.freeze({
+      regionId: 'world:judgement-line:' + lineIndex,
+      label: line,
+      bounds: {
+        x: AREA_PAD + DETAIL_PANEL_PAD,
+        y: detailY + DETAIL_PANEL_PAD + 26 + lineIndex * (DETAIL_LINE_HEIGHT + DETAIL_LINE_GAP),
+        width: totalWidth - AREA_PAD * 2 - DETAIL_PANEL_PAD * 2,
+        height: DETAIL_LINE_HEIGHT,
+      },
+      kind: 'judgement-line',
+      depth: 3,
+      shape: 'graph-node',
+      isGuide: true,
+      readOnly: true,
+      geometryEditable: false,
+      labelEditable: false,
+      visual: Object.freeze({ appearance: Object.freeze({ fillColor: '#ffffff', strokeColor: '#adb5bd', strokeWidth: 1, dashed: false }) }),
+      atlas: Object.freeze({ kind: 'judgement-line', lineIndex, text: line, selected }),
+    }));
+  });
 
-  const controlY = detailY + DETAIL_HEIGHT + 12;
+  const controlY = detailY + detailHeight + 12;
   let leftControlRows = 0;
   if (aggregateIds.length > 1) {
     representations.push(Object.freeze({
@@ -308,14 +362,14 @@ export const projectAtlasWorld = ({
   }
 
   const controlRows = Math.max(leftControlRows, omittedIds.length > 0 ? 1 : 0);
-  const bottom = detailY + DETAIL_HEIGHT + (controlRows > 0 ? controlRows * 96 + 16 : 16);
+  const bottom = detailY + detailHeight + (controlRows > 0 ? controlRows * 96 + 16 : 16);
   const world = Object.freeze({ x: 0, y: 0, width: totalWidth, height: bottom });
   let selectedRegionId = null;
   if (index.entityByKey.has(selected) && visibleEntityKeys.has(selected)) selectedRegionId = regionId(selected);
   else if (index.entityByKey.has(selected) && omittedEntities.includes(selected)) selectedRegionId = 'world:omitted-entity-cycle';
-  else if (!currentRecord) selectedRegionId = 'world:judgement';
+  else if (!currentRecord) selectedRegionId = 'world:judgement-line:1';
   else if (index.relationByKey.has(selected) && grouped.omitted.includes(selected)) selectedRegionId = 'world:omitted-cycle';
-  else if (index.relationByKey.has(selected)) selectedRegionId = 'world:judgement';
+  else if (index.relationByKey.has(selected)) selectedRegionId = 'world:judgement-line:1';
 
   return Object.freeze({
     scene: Object.freeze({
