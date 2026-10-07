@@ -399,17 +399,61 @@ try {
       && /Source: fixture:assignment@1 \[synthetic\]/u.test(aggregateRendered.text),
     aggregateDetail);
 
-  await clickCell('world:omitted-cycle');
-  await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent2.projecta.hidden');
-  const omittedDetail = await renderedJudgement();
-  check('omitted relation remains recoverable from SVG coverage control',
-    omittedDetail.visible && /agent2\.projecta\.hidden/u.test(omittedDetail.text) && /omitted relations 2/u.test(omittedDetail.text), omittedDetail);
+  const cycleOmittedMembers = async ({ controlRegionId, idsProperty }) => {
+    const expected = await page.evaluate(property => [...window.liveAtlas.projection[property]], idsProperty);
+    const reached = new Set();
+    const details = new Map();
+    for (let step = 0; step < expected.length; step += 1) {
+      const previous = await page.evaluate(() => window.liveAtlas.page.selected);
+      await clickCell(controlRegionId);
+      await page.waitForFunction(before => window.liveAtlas.page.selected !== before, previous);
+      const selectedKey = await page.evaluate(() => window.liveAtlas.page.selected);
+      reached.add(selectedKey);
+      details.set(selectedKey, await renderedJudgement());
+    }
+    return { expected, reached: [...reached], details };
+  };
 
-  await clickCell('world:omitted-entity-cycle');
-  await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent.hidden');
-  const omittedEntityDetail = await renderedJudgement();
-  check('omitted entity remains recoverable from SVG coverage control',
-    omittedEntityDetail.visible && /agent\.hidden/u.test(omittedEntityDetail.text) && /source-time-unknown/u.test(omittedEntityDetail.text), omittedEntityDetail);
+  const omittedRelationCycle = await cycleOmittedMembers({
+    controlRegionId: 'world:omitted-cycle',
+    idsProperty: 'omittedRelationIds',
+  });
+  check('omitted relation SVG cycle reaches every omitted relation identity',
+    omittedRelationCycle.expected.length > 0
+      && omittedRelationCycle.reached.length === omittedRelationCycle.expected.length
+      && omittedRelationCycle.expected.every(id => omittedRelationCycle.reached.includes(id)),
+    { expected: omittedRelationCycle.expected, reached: omittedRelationCycle.reached });
+
+  const oldOmittedRelationKey = omittedRelationCycle.expected.find(id => id.includes('agent2.projecta.hidden'));
+  const omittedDetail = oldOmittedRelationKey ? omittedRelationCycle.details.get(oldOmittedRelationKey) : null;
+  check('old omitted relation identity and provenance remain recoverable',
+    Boolean(oldOmittedRelationKey)
+      && omittedDetail?.visible
+      && /agent2\.projecta\.hidden/u.test(omittedDetail.text)
+      && /Context: mode=observer/u.test(omittedDetail.text)
+      && /Source: fixture:assignment@1 \[synthetic\]/u.test(omittedDetail.text)
+      && /omitted relations 2/u.test(omittedDetail.text),
+    { key: oldOmittedRelationKey, detail: omittedDetail });
+
+  const omittedEntityCycle = await cycleOmittedMembers({
+    controlRegionId: 'world:omitted-entity-cycle',
+    idsProperty: 'omittedEntityIds',
+  });
+  check('omitted entity SVG cycle reaches every omitted entity identity',
+    omittedEntityCycle.expected.length > 0
+      && omittedEntityCycle.reached.length === omittedEntityCycle.expected.length
+      && omittedEntityCycle.expected.every(id => omittedEntityCycle.reached.includes(id)),
+    { expected: omittedEntityCycle.expected, reached: omittedEntityCycle.reached });
+
+  const oldOmittedEntityKey = omittedEntityCycle.expected.find(id => id.includes('agent.hidden'));
+  const omittedEntityDetail = oldOmittedEntityKey ? omittedEntityCycle.details.get(oldOmittedEntityKey) : null;
+  check('old omitted entity identity and provenance remain recoverable',
+    Boolean(oldOmittedEntityKey)
+      && omittedEntityDetail?.visible
+      && /agent\.hidden/u.test(omittedEntityDetail.text)
+      && /Source: fixture:runtime@1 \[synthetic\]/u.test(omittedEntityDetail.text)
+      && /source-time-unknown/u.test(omittedEntityDetail.text),
+    { key: oldOmittedEntityKey, detail: omittedEntityDetail });
 
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'project-participation', id: 'work.x.project.a' }));
   const contextDiff = await renderedJudgement();
