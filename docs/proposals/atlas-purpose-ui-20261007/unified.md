@@ -1,7 +1,127 @@
-# One-world Atlas HTML candidate — v7
+# One-world Atlas — discussion canonical specification
 
-Status: same-source visual agreement requested. This replaces the two-pane
-placement as the current candidate, not the prior data/authority invariants.
+Status: current discussion specification for this proposal directory. It preserves
+the agreed comparison meanings and the reproducible one-world example. It is **not**
+an apps business contract, production input authority, owning adapter contract, or
+generic UI comparator implementation.
+
+The former v7/two-pane/11-path material below is retained only where it explains
+the current example or historical derivation. Historical implementation shapes do
+not become current product requirements.
+
+## Authority boundary
+
+Authority remains separated:
+
+- owning domains/adapters define business meaning, typed references, relation
+  identity/meaning, source evidence and temporal semantics;
+- this discussion input declares the exact synthetic source/version alignment and
+  explicit bridge assertions used by this example;
+- the UI displays supplied facts and comparison results; it does not infer
+  Purpose/Gap/owner/relation semantics from labels, endpoint shape or position;
+- current a2/product GREEN elsewhere is not proof of the world-wide comparison
+  axes documented here.
+
+“Discussion canonical” therefore means one place to read this proposal's live
+invariants, not one source of truth for the wider product.
+
+## Comparison invariants
+
+Let `Q(F)` be the set of qualified entity identities explicitly present in Frame
+`F`. Identity is source-space/kind/id qualified; equal raw strings across spaces
+never collapse.
+
+```text
+N+(F0,F1) = Q(F1) - Q(F0)
+N-(F0,F1) = Q(F0) - Q(F1)
+```
+
+For identities present on both sides, comparison semantics are supplied by the
+owner/domain comparator:
+
+```text
+MΔ = changed owner-normalized declared entity/business meaning
+RΔ = changed owner-normalized typed references
+SΔ = changed provenance/evidence
+TΔ = changed supplied temporal metadata
+```
+
+Relations are explicit facts with owner-defined identity/meaning. Let `ER(F)`
+be the owner-normalized explicit relation facts present in `F`:
+
+```text
+E+(F0,F1) = ER(F1) - ER(F0)
+E-(F0,F1) = ER(F0) - ER(F1)
+```
+
+The discussion runtime currently uses `[space, kind, from, to]` as its fixture
+edge-presence key. That is an example implementation, **not** a generic law:
+independent RelationRefs/context may coexist for the same endpoints/kind and must
+not be collapsed by a future production comparator.
+
+The complete Frame comparison is the orthogonal result:
+
+```text
+D(F0,F1) = (N+, N-, MΔ, RΔ, E+, E-, SΔ, TΔ)
+```
+
+Axes may change together; their counts are never summed into a total progress,
+quality, completion, or Purpose-achievement score. The old ambiguous `NΔ`
+wording means `MΔ` when it referred to same-identity meaning change.
+
+Business Gap, Frame delta and observation/history completeness remain distinct:
+
+```text
+G(F)      = owner typedCompare(Ideal(F), Current(F))
+D(F0,F1) = declared Frame comparison
+ObsGap    = missing/incomplete acquisition or history
+```
+
+If an owner supplies an effective-time binding for `F`, `G(F)` may be read as
+`G(t)`. An unavailable Purpose effective time remains unavailable; nearby
+Activity time does not fill it. Work/Receipt/Residual state does not imply Purpose
+achievement. A missing identity in one Frame means “unlisted here”; without an
+owner reason it is not deletion, completion, or withdrawal.
+
+The historical `parts()` classifier and its space/kind field allowlists are
+discussion implementation details. They must not be copied into generic a2/UI
+code. M/R/E classification, including relation context/containment meaning, is
+owner-defined and supplied explicitly.
+
+## Normalization correspondence and historical cleanup
+
+This is the current preservation map from live historical invariants into the
+retained discussion entry. It records where each meaning now lives and which
+runtime/operation demonstrates it. It does **not** turn fixture implementation
+details or unproven production capabilities into generic product guarantees.
+
+| Live invariant | Saved here | Logical input | Reconstruction/runtime | Operation/oracle |
+| --- | --- | --- | --- | --- |
+| Qualified identity; N+/N- are presence only | Comparison invariants; Unified interaction and identity | qualified Activity/Purpose refs in `unified.input.example.json` | `world()`, compact reversible projection IDs | Frame A/B switch; same qualified selection; raw-ID collision remains distinct |
+| M/R/S/T remain distinct; old NΔ→MΔ | Comparison invariants | literal source records + sources + comparison basis | fixture `parts()/differences()` illustrates current classification only | visible MΔ/RΔ/SΔ/TΔ counters + selected raw/source/time detail |
+| Explicit relation/bridge only; no label/title inference | Authority boundary; Explicit discussion inputs | literal `bridges` + sourceRef/sourceDigest | `world()` adds bridge only when supplied | bridge toggle off removes bridge; no inferred replacement |
+| Relation multiplicity/identity must not be collapsed generically | Comparison invariants | explicit relation records/bridge IDs; owning relation semantics remain external | current fixture edge tuple is marked example-only | edge selection exposes explicit relation/source; production relation-identity comparator is not claimed |
+| Unknown Purpose effective time; no same-time invention | Comparison invariants; Explicit discussion inputs | `purposeEffectiveAt: null` | assembler basis + derived `sameEffectiveTime` | basis/detail says Purpose time unavailable |
+| Independent named replacement; unlisted != deleted/completed | Comparison invariants; Explicit discussion inputs | literal `purposeSnapshots.replacement` + named case | assembler builds independent pair; adopted owner validator independently accepted the named replacement source | replacement switch preserves selected counterpart and reason-not-provided |
+| Business Gap != Frame delta != observation gap | Comparison invariants; Recognition and API | owner Purpose records + explicit frame basis + Activity history | Purpose path/detail + Frame comparison + Activity history | Gap detail, Frame diff, observation-gap notice are separately readable |
+| One world, one qualified selection, explicit pair | Unified interaction and identity | one logical discussion input binding multiple source domains | one scene/adapter; before/after side | shared selection/detail/camera; counterpart survives absence |
+| Source/evidence authority != interaction policy | Authority boundary; Files and local assembly | immutable logical declarations vs runtime bridge-input variant | assembler binds source digests; runtime derives effective basis | input audit exposes declared/effective comparison separately |
+
+The historical cleanup gate is now closed for the admitted candidate set. Independent
+review confirmed that no unique live invariant depended on those candidate files;
+owner-valid named replacement input, deterministic reconstruction, late-next,
+absence/counterpart, bridge, Gap/time, and one-world selection/camera evidence were
+bound before deletion.
+
+The exact pre-cleanup proposal tree remains Git-recoverable at:
+
+https://github.com/roccho-dev/ui/tree/3ac6b607a5af5c4564d445fad70af11958ba7c18/docs/proposals/atlas-purpose-ui-20261007
+
+The retained current files are the discussion canonical specification, logical
+input, deterministic assembler, interaction source/template, and final unified
+browser evidence. Removal from the current tree does not upgrade historical plans
+into current requirements and does not expand product/business authority.
+
 
 ## Recognition and API
 
