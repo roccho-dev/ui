@@ -332,7 +332,7 @@ try {
       && returnedControls.every(item => item.visible),
     { cameraBeforeFocus, cameraAfterFocus, cameraAfterReturn, returnedJudgement, returnedControls });
 
-  await page.click('#atlas-world-after');
+  await clickCell('world:control:after');
   await page.evaluate(() => window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' }));
   await page.evaluate(() => window.liveAtlas.setSession({
     input: window.liveAtlas.input,
@@ -364,7 +364,7 @@ try {
       && /Activity: NOW · declared=NOW · transport=SSE connected/u.test(reconnectedCurrent.text),
     reconnectedCurrent);
 
-  await page.click('#atlas-world-before');
+  await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.setSession({
     input: window.liveAtlas.input,
     mode: 'live',
