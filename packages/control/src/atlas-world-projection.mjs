@@ -248,7 +248,7 @@ export const projectAtlasWorld = ({
   const selectedIdentity = record ? (record.ref.space + '/' + record.ref.kind + '/' + record.ref.id) : selected || 'none';
   const declaredActivity = record?.activity ?? 'unknown';
   const activity = displayedActivity(declaredActivity);
-  const activityClaim = liveLatest && !connected
+  const activityClaim = liveLatest && !connected && declaredActivity !== 'none'
     ? 'Activity: UNKNOWN · lastDeclared=' + String(declaredActivity).toUpperCase() + ' · transport=' + transport
     : 'Activity: ' + String(activity).toUpperCase() + ' · declared=' + String(declaredActivity).toUpperCase() + ' · transport=' + transport;
   const directionLines = pathLabels.length === 0

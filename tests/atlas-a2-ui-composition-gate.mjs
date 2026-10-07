@@ -352,6 +352,21 @@ try {
       && disconnectedEntity?.declaredActivity === 'now',
     { disconnectedCurrent, disconnectedEntity });
 
+  await page.evaluate(() => window.liveAtlas.selectRef({ space: 'purpose', kind: 'purpose', id: 'shared' }));
+  const disconnectedNone = await renderedJudgement();
+  const disconnectedNoneEntity = await page.evaluate(() => {
+    const row = window.liveAtlas.projection.scene.representations.find(item => item.atlas?.ref?.space === 'purpose' && item.atlas?.ref?.id === 'shared');
+    return row?.atlas ?? null;
+  });
+  check('live latest disconnect keeps explicit non-activity NONE instead of inventing UNKNOWN',
+    disconnectedNone.visible
+      && /Activity: NONE · declared=NONE · transport=SSE disconnected/u.test(disconnectedNone.text)
+      && !/lastDeclared=NONE/u.test(disconnectedNone.text)
+      && disconnectedNoneEntity?.activity === 'none'
+      && disconnectedNoneEntity?.declaredActivity === 'none',
+    { disconnectedNone, disconnectedNoneEntity });
+
+  await page.evaluate(() => window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' }));
   await page.evaluate(() => window.liveAtlas.setSession({
     input: window.liveAtlas.input,
     mode: 'live',
