@@ -133,7 +133,9 @@ export const projectAtlasWorld = ({
   const index = indexWorldFrame(frame);
   const counterpartIndex = counterpart ? indexWorldFrame(counterpart) : null;
   const liveLatest = mode === 'live' && latest;
-  const displayedActivity = declared => (liveLatest && !connected ? 'unknown' : declared);
+  const displayedActivity = declared => (
+    liveLatest && !connected && declared !== 'none' ? 'unknown' : declared
+  );
   const areas = input.presentation.areas;
   const areaEntities = new Map(areas.map(area => [area.id, []]));
   for (const entity of frame.entities) areaEntities.get(entity.area)?.push(entity);
