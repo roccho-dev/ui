@@ -223,7 +223,10 @@ try {
   };
   check('aggregate member can be selected inside SVG', ['assign.a2.wx.w', 'assign.a2.wx.r'].includes(aggregateDetail.selected), aggregateDetail);
   check('aggregate member detail recovers p/r/w context and provenance',
-    aggregateRendered.visible && /context mode=[wr]/u.test(aggregateRendered.text) && /fixture:assignment@1/u.test(aggregateRendered.text), aggregateDetail);
+    aggregateRendered.visible
+      && /Context: mode=[wr] · workRef=work\.x/u.test(aggregateRendered.text)
+      && /Source: fixture:assignment@1 \[synthetic\]/u.test(aggregateRendered.text),
+    aggregateDetail);
 
   await clickCell('world:omitted-cycle');
   await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent2.projecta.hidden');
@@ -253,6 +256,11 @@ try {
   const visibilityOnlyDiff = await renderedJudgement();
   check('presentation-only relation visibility change is not reported as meaning change',
     visibilityOnlyDiff.visible && /Diff: no selected meaning change/u.test(visibilityOnlyDiff.text), visibilityOnlyDiff);
+
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'serves', id: 'agent1.purposea' }));
+  const timeOnlyDiff = await renderedJudgement();
+  check('time-only evidence change remains a selected meaning/evidence diff',
+    timeOnlyDiff.visible && /Diff: changed time/u.test(timeOnlyDiff.text), timeOnlyDiff);
 
   await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'reviews', id: 'agent3.agent2.review' }));
