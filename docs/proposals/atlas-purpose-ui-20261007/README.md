@@ -143,7 +143,9 @@ P actual v4 readback: N-3 / E-4 / MΔ0 / RΔ1 / SΔ5（新replacement provenance
 CI生成依存0、product/CI変更/実装GO0。
 # Current visual target
 
+The current v7 candidate is [one-world Atlas](unified.md), with one graph/selection/frame comparison.
+The two-pane integration below is preserved history, not a mandatory/optimality claim.
+
 See [integrated HTML candidate](integration.md) and [source template](integration.example.html).
 The former v5 placement agreement is preserved history; the current Human request is
 the 18185 baseline plus the v4 Purpose intent in one Atlas. Same-source agreement is pending.
-
