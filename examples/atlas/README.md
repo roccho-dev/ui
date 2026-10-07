@@ -77,3 +77,61 @@ Large-scale 300-scope/readability/budget/rollback and real EventSource transport
 - Related: roccho-dev/apps#66 — later application ownership handoff; no apps implementation is performed here
 
 Historical v2 Graph/Seq witness remains partial evidence only.
+
+
+## a2 three-area world input
+
+Refs roccho-dev/apps#73 and the agreed a2 UI implementation boundary.
+
+`input/a2-world.json` is a synthetic, authority=false example of the generic world read-model seam. It does not replace Purpose Closure, Activity, Project, assignment, or runtime owner contracts.
+
+Build it through the same public application entry used by the Atlas app:
+
+```sh
+node scripts/build-live-atlas.mjs \
+  --consumer=app \
+  --input=examples/atlas/input/a2-world.json \
+  --out=examples/atlas/dist-a2
+```
+
+The artifact still boots `packages/control/atlas.mjs` and the shared `packages/control/atlas-ui.mjs`; there is no a2-only renderer or screen.
+
+The fixture exists only to prove:
+
+- explicit Purpose / Projects+Work / Agents presentation areas;
+- qualified entity and relation identities;
+- Agent×Work p/r/w relation context;
+- one Work node with many-to-many explicit relations;
+- Now / Recent / UNKNOWN, source/time/coverage and before/after differences;
+- recoverable aggregate and omitted relation identities;
+- SVG-visible routine judgement without relying on the legacy Inspector/audit/catalog surface.
+
+For the executable product proof, run:
+
+```sh
+nix develop .#semantic-map-browser-proof --command \
+  node tests/atlas-a2-ui-composition-gate.mjs
+```
+
+A PASS is UI composition evidence for this synthetic input only. It is not evidence of real Codex acquisition, apps admission, production SSE, observer coverage, or Purpose achievement.
+
+
+## Explicit containment and nested presentation
+
+The a2 world seam can explicitly declare physical nesting on an existing relation with:
+
+`containment: "from-contains-to"` or `containment: "to-contains-from"`.
+
+Only that field activates nesting. Relation kind/name, arrow direction, entity kind, Project membership, p/r/w, review/collaboration, process trees, and Purpose ancestry do not imply containment.
+
+The current presentation is a single-node tree per area:
+
+- duplicate evidence for the same qualified parent/child is valid and every relation ID remains evidence;
+- one child with distinct qualified containment parents is rejected;
+- self/cyclic/cross-area containment is rejected;
+- arbitrary containment DAGs are not claimed;
+- a hidden or budget-omitted parent never promotes its descendant to a flat root.
+
+Nested bounds reuse the existing semantic-map graph layout with neutral temporary layout kinds. Source refs/kinds and relation source/time/context remain Atlas evidence.
+
+The synthetic fixture proves nested witnesses in Purpose, Projects + Work, and Agents while Work X remains one node across two ordinary Project memberships. This is UI capability evidence only; no production Purpose/Project/assignment adapter or real apps acquisition is claimed.
