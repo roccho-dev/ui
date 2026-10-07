@@ -52,13 +52,12 @@ const changedFields = (current, other) => {
   return fields.filter(field => !same(current[field], other[field]));
 };
 
-const directionPath = (frame, index, selected, purposeAreaId) => {
+const directionPath = (frame, index, selected, directionTargets) => {
   let start = index.entityByKey.has(selected) ? selected : null;
   const selectedRelation = index.relationByKey.get(selected);
   if (!start && selectedRelation) start = entityKey(selectedRelation.from);
   if (!start || !index.entityByKey.has(start)) return [];
-  const startEntity = index.entityByKey.get(start);
-  if (startEntity.area === purposeAreaId) return [start];
+  if (directionTargets.has(start)) return [start];
   const outgoing = new Map();
   for (const relation of frame.relations) {
     if (!relation.path) continue;
@@ -75,8 +74,7 @@ const directionPath = (frame, index, selected, purposeAreaId) => {
     for (const next of outgoing.get(last) ?? []) {
       if (visited.has(next)) continue;
       const candidate = [...trail, next];
-      const entity = index.entityByKey.get(next);
-      if (entity?.area === purposeAreaId) return candidate;
+      if (directionTargets.has(next)) return candidate;
       visited.add(next);
       queue.push(candidate);
     }
@@ -213,8 +211,9 @@ export const projectAtlasWorld = ({
   const currentKind = recordKind(index, selected);
   const record = currentRecord ?? counterpartRecord;
   const recordFrame = currentRecord ? frame : counterpart;
-  const pathKeys = currentRecord ? directionPath(frame, index, selected, input.presentation.purposeAreaId)
-    : counterpartRecord && counterpart ? directionPath(counterpart, counterpartIndex, selected, input.presentation.purposeAreaId) : [];
+  const directionTargets = new Set(input.presentation.directionTargets.map(entityKey));
+  const pathKeys = currentRecord ? directionPath(frame, index, selected, directionTargets)
+    : counterpartRecord && counterpart ? directionPath(counterpart, counterpartIndex, selected, directionTargets) : [];
   const pathLabels = pathKeys.map(key => (currentRecord ? index : counterpartIndex).entityByKey.get(key)?.label ?? key);
   const aggregateIds = groupByRelationId.get(selected)?.relationIds ?? Object.freeze([]);
   const omittedIds = Object.freeze([...new Set(grouped.omitted)].sort());

@@ -150,7 +150,7 @@ const normalizeFrame = (value, at, areaIds) => {
 };
 
 const normalizePresentation = value => {
-  exactKeys(value, ['areas', 'purposeAreaId', 'defaultSelection'], 'presentation');
+  exactKeys(value, ['areas', 'purposeAreaId', 'directionTargets', 'defaultSelection'], 'presentation');
   check(Array.isArray(value.areas) && value.areas.length > 0, 'presentation.areas must be non-empty');
   const areas = value.areas.map((area, index) => {
     exactKeys(area, ['id', 'label', 'order'], 'presentation.areas[' + index + ']');
@@ -165,9 +165,13 @@ const normalizePresentation = value => {
   const areaIds = new Set(areas.map(area => area.id));
   const purposeAreaId = text(value.purposeAreaId, 'presentation.purposeAreaId');
   check(areaIds.has(purposeAreaId), 'presentation.purposeAreaId must reference an area');
+  check(Array.isArray(value.directionTargets) && value.directionTargets.length > 0, 'presentation.directionTargets must be non-empty');
+  const directionTargets = value.directionTargets.map((item, index) => normalizeWorldRef(item, 'presentation.directionTargets[' + index + ']'));
+  check(new Set(directionTargets.map(entityKey)).size === directionTargets.length, 'presentation.directionTargets must be unique');
   return Object.freeze({
     areas: Object.freeze(areas.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))),
     purposeAreaId,
+    directionTargets: Object.freeze(directionTargets),
     defaultSelection: normalizeWorldRef(value.defaultSelection, 'presentation.defaultSelection'),
   });
 };
@@ -185,6 +189,10 @@ export const parseAtlasWorldInput = input => {
   check(new Set(frames.map(frame => frame.rev)).size === frames.length, 'frame rev values must be unique');
   const defaultKey = entityKey(presentation.defaultSelection);
   check(frames.some(frame => frame.entities.some(entity => entityKey(entity.ref) === defaultKey)), 'defaultSelection must exist in at least one frame');
+  for (const target of presentation.directionTargets) {
+    const key = entityKey(target);
+    check(frames.some(frame => frame.entities.some(entity => entityKey(entity.ref) === key)), 'directionTarget must exist in at least one frame: ' + key);
+  }
   return Object.freeze({
     kind: ATLAS_WORLD_KIND,
     authority: false,
