@@ -233,15 +233,28 @@ export const projectAtlasWorld = ({
   const transport = mode === 'live' ? (connected ? 'SSE connected' : 'SSE disconnected') : 'SAMPLE';
   const selectedIdentity = record ? (record.ref.space + '/' + record.ref.kind + '/' + record.ref.id) : selected || 'none';
   const activity = record?.activity ?? 'unknown';
+  const directionLines = pathLabels.length === 0
+    ? Object.freeze(['Direction: UNCONNECTED / UNKNOWN'])
+    : Object.freeze([
+      'Direction: ' + pathLabels.slice(0, 4).join(' → '),
+      ...(pathLabels.length > 4 ? ['Direction cont.: ' + pathLabels.slice(4).join(' → ')] : []),
+    ]);
+  const recordLabel = currentRecord
+    ? (currentRecord.label || currentRecord.kind || currentRecord.ref.id)
+    : 'Selected record missing in this frame';
+  const context = currentRecord?.context ? contextText(currentRecord.context) : 'none';
   const detailLines = Object.freeze([
     'Frame ' + frame.id + ' · rev ' + frame.rev + ' · asOf ' + frame.asOf,
     'Selected ' + currentKind + ' · ' + selectedIdentity,
-    currentRecord ? ((currentRecord.label || currentRecord.kind || currentRecord.ref.id) + (currentRecord.context ? ' · context ' + contextText(currentRecord.context) : '')) : 'Selected record missing in this frame',
-    'Direction: ' + (pathLabels.length ? pathLabels.join(' → ') : 'UNCONNECTED / UNKNOWN'),
-    'Activity: ' + String(activity).toUpperCase() + ' · transport=' + transport + ' · sourceState=' + frame.sourceState,
+    'Record: ' + recordLabel,
+    'Context: ' + context,
+    ...directionLines,
+    'Activity: ' + String(activity).toUpperCase() + ' · transport=' + transport,
+    'Source state: ' + frame.sourceState,
     'Source: ' + sourceText(record?.source),
     'Time: ' + timeText(record?.time),
-    'Coverage: ' + frame.coverage.state + ' · ' + frame.coverage.label + ' · ' + computedCoverage,
+    'Coverage: ' + frame.coverage.state + ' · ' + frame.coverage.label,
+    'Coverage counts: ' + computedCoverage,
     'Flags: ' + flagsText(record?.flags),
     'Diff: ' + selectedDiff({ frame, counterpart, index, counterpartIndex, selected }),
   ]);
@@ -249,10 +262,10 @@ export const projectAtlasWorld = ({
   const detailY = worldHeight + DETAIL_GAP;
   const totalWidth = AREA_PAD * 2 + areas.length * AREA_WIDTH + Math.max(0, areas.length - 1) * AREA_GAP;
   const controlSpecs = Object.freeze([
-    Object.freeze({ id: 'before', label: '◀ Before', type: 'atlas.world.frame-before' }),
-    Object.freeze({ id: 'after', label: 'After ▶', type: 'atlas.world.frame-after' }),
-    Object.freeze({ id: 'fit', label: 'Fit', type: 'atlas.world.fit' }),
-    Object.freeze({ id: 'focus', label: 'Focus selected', type: 'atlas.world.focus' }),
+    Object.freeze({ id: 'before', label: '◀ Before · [', type: 'atlas.world.frame-before' }),
+    Object.freeze({ id: 'after', label: 'After · ] ▶', type: 'atlas.world.frame-after' }),
+    Object.freeze({ id: 'fit', label: 'Fit · 0', type: 'atlas.world.fit' }),
+    Object.freeze({ id: 'focus', label: 'Focus · F', type: 'atlas.world.focus' }),
     Object.freeze({ id: 'select', label: 'Select · S', type: 'atlas.world.tool-select' }),
     Object.freeze({ id: 'hand', label: 'Hand · H', type: 'atlas.world.tool-hand' }),
   ]);

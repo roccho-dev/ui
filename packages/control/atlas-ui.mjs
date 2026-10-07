@@ -597,6 +597,7 @@ export const mountAtlasWorldUI = ({
     if (event.key === 's' || event.key === 'S') adapter.setTool('select');
     else if (event.key === 'h' || event.key === 'H') adapter.setTool('hand');
     else if (event.key === 'f' || event.key === 'F') focusSelected();
+    else if (event.key === '0' || event.key === 'Escape') fit();
     else if (event.key === '[') setFrame(0);
     else if (event.key === ']') setFrame(page.input.frames.length - 1, { latest: true });
     else return;

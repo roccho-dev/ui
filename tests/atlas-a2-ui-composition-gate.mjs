@@ -10,6 +10,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
 
 const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
 const browsersRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
@@ -64,6 +65,25 @@ const check = (name, condition, detail = null) => {
   checks += 1;
   if (!condition) failed.push({ name, detail });
 };
+
+const rawWorldInput = JSON.parse(fs.readFileSync('examples/atlas/input/a2-world.json', 'utf8'));
+let reversedRejected = false;
+try {
+  parseAtlasWorldInput({ ...rawWorldInput, frames: [...rawWorldInput.frames].reverse() });
+} catch {
+  reversedRejected = true;
+}
+check('reversed frame history is rejected', reversedRejected);
+
+let invalidAsOfRejected = false;
+try {
+  const frames = structuredClone(rawWorldInput.frames);
+  frames[0].asOf = 'not-an-instant';
+  parseAtlasWorldInput({ ...rawWorldInput, frames });
+} catch {
+  invalidAsOfRejected = true;
+}
+check('invalid frame asOf is rejected', invalidAsOfRejected);
 
 let browser;
 try {
@@ -152,11 +172,19 @@ try {
         const node = state?.text?.node ?? null;
         const box = node?.getBoundingClientRect?.() ?? null;
         const style = node ? getComputedStyle(node) : null;
+        const viewport = document.getElementById('atlas-world').getBoundingClientRect();
+        const insideViewport = Boolean(box
+          && box.left >= viewport.left - 1
+          && box.top >= viewport.top - 1
+          && box.right <= viewport.right + 1
+          && box.bottom <= viewport.bottom + 1);
         return {
           id: item.regionId,
           text: node?.textContent ?? '',
+          box: box ? { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height } : null,
           visible: Boolean(node && svg?.contains(node) && box && box.width > 0 && box.height > 0
-            && style?.display !== 'none' && style?.visibility !== 'hidden' && Number(style?.opacity ?? 1) !== 0),
+            && style?.display !== 'none' && style?.visibility !== 'hidden' && Number(style?.opacity ?? 1) !== 0
+            && insideViewport),
         };
       });
     return {
@@ -171,8 +199,9 @@ try {
   await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent.1');
   const agentJudgement = await renderedJudgement();
   check('SVG judgement is actually rendered and visible', agentJudgement.visible, agentJudgement);
-  check('SVG judgement shows explicit Purpose direction',
-    /Direction: Agent 1 → Work X → Fill X → Gap A → Ideal A → Purpose A/u.test(agentJudgement.text), agentJudgement);
+  check('SVG judgement shows explicit topmost Purpose direction',
+    /Direction: Agent 1 → Work X → Fill X → Gap A/u.test(agentJudgement.text)
+      && /Direction cont\.: Ideal A → Purpose A → Company purpose/u.test(agentJudgement.text), agentJudgement);
   check('SVG judgement separates activity/source/time/transport',
     /Activity: NOW/u.test(agentJudgement.text)
       && /transport=SAMPLE/u.test(agentJudgement.text)
@@ -219,6 +248,13 @@ try {
     presentationOnlyDiff.visible && /Diff: no selected meaning change/u.test(presentationOnlyDiff.text), presentationOnlyDiff);
 
   await clickCell('world:control:before');
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'project-participation', id: 'agent2.projecta.hidden' }));
+  await clickCell('world:control:after');
+  const visibilityOnlyDiff = await renderedJudgement();
+  check('presentation-only relation visibility change is not reported as meaning change',
+    visibilityOnlyDiff.visible && /Diff: no selected meaning change/u.test(visibilityOnlyDiff.text), visibilityOnlyDiff);
+
+  await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'reviews', id: 'agent3.agent2.review' }));
   await clickCell('world:control:after');
   const missingRendered = await renderedJudgement();
@@ -261,10 +297,32 @@ try {
   check('update preserves qualified selection', preserved.selected === held.selected, { held, preserved });
   check('update preserves camera', JSON.stringify(preserved.camera) === JSON.stringify(held.camera), { held, preserved });
 
+  await page.evaluate(() => window.liveAtlas.fit());
   const cameraBeforeFocus = await page.evaluate(() => window.liveAtlas.adapter.camera());
   await clickCell('world:control:focus');
   const cameraAfterFocus = await page.evaluate(() => window.liveAtlas.adapter.camera());
   check('focus control is functional', JSON.stringify(cameraBeforeFocus) !== JSON.stringify(cameraAfterFocus));
+
+  await page.locator('#atlas-world').press('0');
+  const cameraAfterReturn = await page.evaluate(() => window.liveAtlas.adapter.camera());
+  const returnedJudgement = await renderedJudgement();
+  const returnedControls = await page.evaluate(() => {
+    const adapter = window.liveAtlas.adapter;
+    const viewport = document.getElementById('atlas-world').getBoundingClientRect();
+    return ['before','after','fit','focus','select','hand'].map(id => {
+      const cell = adapter.cellsByRegionId.get('world:control:' + id);
+      const state = cell ? adapter.graph.getView().getState(cell) : null;
+      const node = state?.text?.node ?? null;
+      const box = node?.getBoundingClientRect?.() ?? null;
+      return { id, visible: Boolean(box && box.left >= viewport.left - 1 && box.right <= viewport.right + 1
+        && box.top >= viewport.top - 1 && box.bottom <= viewport.bottom + 1) };
+    });
+  });
+  check('keyboard Fit returns from Focus to the same SVG judgement surface',
+    JSON.stringify(cameraAfterReturn) !== JSON.stringify(cameraAfterFocus)
+      && returnedJudgement.visible
+      && returnedControls.every(item => item.visible),
+    { cameraBeforeFocus, cameraAfterFocus, cameraAfterReturn, returnedJudgement, returnedControls });
 
   check('no browser page/console errors', pageErrors.length === 0 && consoleErrors.length === 0, { pageErrors, consoleErrors });
 } finally {

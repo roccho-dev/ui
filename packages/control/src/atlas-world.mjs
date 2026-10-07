@@ -188,6 +188,17 @@ export const parseAtlasWorldInput = input => {
   const frames = value.frames.map((frame, index) => normalizeFrame(frame, 'frames[' + index + ']', areaIds));
   check(new Set(frames.map(frame => frame.id)).size === frames.length, 'frame ids must be unique');
   check(new Set(frames.map(frame => frame.rev)).size === frames.length, 'frame rev values must be unique');
+  let previousAsOf = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < frames.length; index += 1) {
+    const frame = frames[index];
+    const asOf = Date.parse(frame.asOf);
+    check(Number.isFinite(asOf), 'frames[' + index + '].asOf must be a parseable instant');
+    if (index > 0) {
+      check(frame.rev > frames[index - 1].rev, 'frames[] rev must be strictly increasing');
+      check(asOf >= previousAsOf, 'frames[] asOf must be non-decreasing');
+    }
+    previousAsOf = asOf;
+  }
   const defaultKey = entityKey(presentation.defaultSelection);
   check(frames.some(frame => frame.entities.some(entity => entityKey(entity.ref) === defaultKey)), 'defaultSelection must exist in at least one frame');
   for (const target of presentation.directionTargets) {
