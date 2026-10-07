@@ -420,6 +420,7 @@ export const mountAtlasUI = ({
 
 
 const WORLD_STYLE = `
+body{margin:0;overflow:hidden}
 #atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
 #atlas-world-toolbar{flex:none;display:flex;gap:6px;padding:5px 8px;border-bottom:1px solid #dee2e6;background:#fff}
 #atlas-world-toolbar button{font:13px/1.3 system-ui,sans-serif;padding:2px 8px}
