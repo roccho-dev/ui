@@ -117,14 +117,16 @@ try {
       resourceComposition: null,
       selectionProxies: {},
       representations: [
-        node('a', 70, 120),
-        node('b', 410, 120),
-        node('c', 750, 120),
+        node('a', 70, 80),
+        node('b', 430, 60),
+        node('c', 430, 360),
+        node('d', 760, 360),
       ],
       relations: [
         relation(['ro-single'], 'a', 'b', true, 'read-only singleton'),
         relation(['agg-a', 'agg-b'], 'b', 'c', true, 'read-only aggregate'),
         relation(['edit-one'], 'a', 'c', false, 'editable singleton'),
+        relation(['edit-agg-a', 'edit-agg-b'], 'c', 'd', false, 'non-read-only aggregate'),
       ],
     };
     adapter.render(scene);
@@ -197,12 +199,19 @@ try {
     const before = proof.operations.length;
     const readOnlyDelete = proof.adapter.deleteSelection();
     const afterReadOnly = proof.operations.length;
+    proof.adapter.setSelection({ relationIds: ['edit-agg-a'] });
+    const beforeEditableAggregate = proof.operations.length;
+    const editableAggregateDelete = proof.adapter.deleteSelection();
+    const afterEditableAggregate = proof.operations.length;
     proof.adapter.setSelection({ relationIds: ['edit-one'] });
     const editableDelete = proof.adapter.deleteSelection();
     return {
       before,
       afterReadOnly,
       readOnlyDelete,
+      beforeEditableAggregate,
+      afterEditableAggregate,
+      editableAggregateDelete,
       editableDelete,
       operations: structuredClone(proof.operations),
     };
@@ -210,11 +219,14 @@ try {
   if (mutation.readOnlyDelete !== null || mutation.afterReadOnly !== mutation.before) {
     throw new Error(`read-only relation emitted a mutation: ${JSON.stringify(mutation)}`);
   }
+  if (mutation.editableAggregateDelete !== null || mutation.afterEditableAggregate !== mutation.beforeEditableAggregate) {
+    throw new Error(`non-read-only aggregate relation emitted a mutation: ${JSON.stringify(mutation)}`);
+  }
   same(mutation.operations.at(-1), {
     type: 'RemoveSelection',
     regionIds: [],
     relationIds: ['edit-one'],
-  }, 'editable relation remove operation');
+  }, 'editable singleton relation remove operation');
 
   // 5. Removed and unsupported relation ids are pruned without camera movement.
   const stale = await page.evaluate(() => {
@@ -243,7 +255,7 @@ try {
   console.log(JSON.stringify({
     schema: 'semantic-map-read-only-relation-selection-browser-e2e/1',
     status: 'PASS',
-    checks: 12,
+    checks: 14,
   }));
 } finally {
   try {
