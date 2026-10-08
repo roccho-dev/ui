@@ -135,3 +135,19 @@ The current presentation is a single-node tree per area:
 Nested bounds reuse the existing semantic-map graph layout with neutral temporary layout kinds. Source refs/kinds and relation source/time/context remain Atlas evidence.
 
 The synthetic fixture proves nested witnesses in Purpose, Projects + Work, and Agents while Work X remains one node across two ordinary Project memberships. This is UI capability evidence only; no production Purpose/Project/assignment adapter or real apps acquisition is claimed.
+
+## Issue / Package extension — implementation review
+
+The vocabulary adopted in [#338](https://github.com/roccho-dev/ui/pull/338#issuecomment-6050146603) is being materialized on the current [#336](https://github.com/roccho-dev/ui/pull/336) world, starting from `768e829ee893a565676ea99387178b1624eb9783` (stacked on #335). The initial commit adds this plan only; `input/a2-world.json` does not yet contain the new Issue / Package example.
+
+The dedicated Draft PR is the discussion and implementation record. Fixed W will take fixed R / P counterexamples there before changing the fixture and its existing composition gate.
+
+Planned small extension:
+
+- Add explicitly synthetic Issue, Package and Repo records to the existing world input. Preserve existing Project / Work identities and the Purpose-left / Agents-right presentation.
+- Supply many-to-many Issue / Package relations, independent evidence on the same endpoints, and explicit proposed Repo / Package containment. A before/after placement change must keep the same qualified Package identity.
+- Keep required responsibility / I/O, implementation-unknown, placement, and proposal provenance distinguishable through existing labels, flags, source and relation context. Entity summaries alone are insufficient because the current SVG judgement does not display them.
+- Extend the existing composition gate with real SVG selection, readable Issue / Package identification after selection / Focus, relation-evidence recovery, the explicit path to Purpose, nested geometry, and history / placement-difference checks. Retain the existing containment, p/r/w, currentness and Focus / Fit checks.
+- Reuse the public app build and full-snapshot SSE consumer above. P owns generation, hosting, shared HTML or PNG evidence, and real localhost interaction with the existing Git-untracked finite SSE simulator. Reusing that simulator on the future exact head remains to be verified.
+
+This plan adds no production owner contract, required relation taxonomy, acquisition mechanism, dependency, CI workflow, or Judgement redesign. Source review, executable checks and P's real-screen evidence for the implementation head remain pending; prior #336 results do not establish this extension's completion.
