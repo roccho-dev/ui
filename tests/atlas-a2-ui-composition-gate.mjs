@@ -294,6 +294,19 @@ try {
     };
   });
 
+  const renderedControls = async () => page.evaluate(() => {
+    const adapter = window.liveAtlas.adapter;
+    const viewport = document.getElementById('atlas-world').getBoundingClientRect();
+    return ['before','after','fit','focus','select','hand'].map(id => {
+      const cell = adapter.cellsByRegionId.get('world:control:' + id);
+      const state = cell ? adapter.graph.getView().getState(cell) : null;
+      const node = state?.text?.node ?? null;
+      const box = node?.getBoundingClientRect?.() ?? null;
+      return { id, visible: Boolean(box && box.left >= viewport.left - 1 && box.right <= viewport.right + 1
+        && box.top >= viewport.top - 1 && box.bottom <= viewport.bottom + 1) };
+    });
+  });
+
   const agentOneRegion = world.entities.find(item => item.ref.space === 'agents' && item.ref.id === 'agent.1')?.regionId;
   await clickCell(agentOneRegion);
   await page.waitForFunction(() => window.liveAtlas.projection.selected.record?.ref?.id === 'agent.1');
@@ -503,6 +516,49 @@ try {
   check('following valid World payload normalizes optional text and preserves held frame/selection/camera', admission.recovered, admission);
   check('connection-only World update reuses the normalized input object', admission.reused, admission);
 
+  // Real viewport changes must trigger the World mount's fit without manual Fit.
+  for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 1000 }]) {
+    await page.evaluate(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const atlas = window.liveAtlas;
+      const probe = window.__atlasResizeProbe = {
+        input: atlas.input, selected: atlas.page.selected,
+        frameId: atlas.input.frames[atlas.page.frameIndex].id,
+        camera: atlas.adapter.camera(), events: 0,
+      };
+      window.addEventListener('resize', () => { probe.events += 1; }, { once: true });
+    });
+    await page.setViewportSize(viewport);
+    await page.waitForFunction(() => window.__atlasResizeProbe.events > 0);
+    const resized = await page.evaluate(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const atlas = window.liveAtlas;
+      const before = window.__atlasResizeProbe;
+      const camera = atlas.adapter.camera();
+      const container = document.getElementById('atlas-world');
+      const result = {
+        events: before.events, width: container.clientWidth, height: container.clientHeight,
+        beforeCamera: before.camera, camera,
+        inputReused: atlas.input === before.input,
+        selected: atlas.page.selected, beforeSelected: before.selected,
+        frameId: atlas.input.frames[atlas.page.frameIndex].id, beforeFrameId: before.frameId,
+      };
+      delete window.__atlasResizeProbe;
+      return result;
+    });
+    const judgement = await renderedJudgement();
+    const controls = await renderedControls();
+    const label = 'World resize ' + viewport.width + 'x' + viewport.height;
+    check(label + ' refits camera after a real resize event',
+      resized.events > 0 && resized.width === viewport.width && resized.height === viewport.height
+        && JSON.stringify(resized.camera) !== JSON.stringify(resized.beforeCamera), resized);
+    check(label + ' retains normalized input, qualified selection and viewed frame',
+      resized.inputReused && resized.selected === resized.beforeSelected
+        && resized.frameId === resized.beforeFrameId, resized);
+    check(label + ' keeps SVG judgement and controls visible without manual Fit',
+      judgement.visible && controls.every(item => item.visible), { judgement, controls });
+  }
+
   await page.evaluate(() => window.liveAtlas.fit());
   const cameraBeforeFocus = await page.evaluate(() => window.liveAtlas.adapter.camera());
   await clickCell('world:control:focus');
@@ -512,18 +568,7 @@ try {
   await page.locator('#atlas-world').press('0');
   const cameraAfterReturn = await page.evaluate(() => window.liveAtlas.adapter.camera());
   const returnedJudgement = await renderedJudgement();
-  const returnedControls = await page.evaluate(() => {
-    const adapter = window.liveAtlas.adapter;
-    const viewport = document.getElementById('atlas-world').getBoundingClientRect();
-    return ['before','after','fit','focus','select','hand'].map(id => {
-      const cell = adapter.cellsByRegionId.get('world:control:' + id);
-      const state = cell ? adapter.graph.getView().getState(cell) : null;
-      const node = state?.text?.node ?? null;
-      const box = node?.getBoundingClientRect?.() ?? null;
-      return { id, visible: Boolean(box && box.left >= viewport.left - 1 && box.right <= viewport.right + 1
-        && box.top >= viewport.top - 1 && box.bottom <= viewport.bottom + 1) };
-    });
-  });
+  const returnedControls = await renderedControls();
   check('keyboard Fit returns from Focus to the same SVG judgement surface',
     JSON.stringify(cameraAfterReturn) !== JSON.stringify(cameraAfterFocus)
       && returnedJudgement.visible
