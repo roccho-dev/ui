@@ -6,6 +6,10 @@ export const ATLAS_WORLD_KIND = 'ui.atlasWorldInput.v1';
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const check = (condition, message) => { if (!condition) throw new Error('atlas-world: ' + message); };
 const text = (value, at) => { check(typeof value === 'string' && value.length > 0, at + ' must be non-empty text'); return value; };
+const optionalText = (value, at) => {
+  check(value === undefined || value === null || typeof value === 'string', at + ' must be text');
+  return value ?? '';
+};
 const integer = (value, at) => { check(Number.isSafeInteger(value) && value >= 0, at + ' must be a non-negative integer'); return value; };
 const exactKeys = (value, allowed, at) => {
   check(plain(value), at + ' must be an object');
@@ -96,9 +100,7 @@ const normalizeEntity = (value, at, areaIds) => {
     order: integer(value.order ?? 0, at + '.order'),
     visible: value.visible !== false,
     activity: normalizeActivity(value.activity, at + '.activity'),
-    summary: value.summary === undefined || value.summary === null
-      ? ''
-      : (check(typeof value.summary === 'string', at + '.summary must be text'), value.summary),
+    summary: optionalText(value.summary, at + '.summary'),
     source: normalizeSource(value.source, at + '.source'),
     time: normalizeTime(value.time, at + '.time'),
     flags: normalizeFlags(value.flags, at + '.flags'),
@@ -112,7 +114,7 @@ const normalizeRelation = (value, at) => {
     from: normalizeWorldRef(value.from, at + '.from'),
     to: normalizeWorldRef(value.to, at + '.to'),
     kind: text(value.kind, at + '.kind'),
-    label: value.label === undefined || value.label === null ? '' : text(value.label, at + '.label'),
+    label: optionalText(value.label, at + '.label'),
     context: value.context === undefined ? Object.freeze({}) : jsonValue(value.context, at + '.context'),
     source: normalizeSource(value.source, at + '.source'),
     time: normalizeTime(value.time, at + '.time'),
@@ -267,7 +269,7 @@ export const parseAtlasWorldInput = input => {
     authority: false,
     presentation,
     frames: Object.freeze(frames),
-    note: value.note === undefined || value.note === null ? '' : text(value.note, 'input.note'),
+    note: optionalText(value.note, 'input.note'),
   });
 };
 
