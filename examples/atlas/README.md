@@ -135,3 +135,56 @@ The current presentation is a single-node tree per area:
 Nested bounds reuse the existing semantic-map graph layout with neutral temporary layout kinds. Source refs/kinds and relation source/time/context remain Atlas evidence.
 
 The synthetic fixture proves nested witnesses in Purpose, Projects + Work, and Agents while Work X remains one node across two ordinary Project memberships. This is UI capability evidence only; no production Purpose/Project/assignment adapter or real apps acquisition is claimed.
+
+## Synthetic Issue / Package example
+
+[User's materialization GO](https://github.com/roccho-dev/ui/pull/338#issuecomment-6050146603), [adopted vocabulary](https://github.com/roccho-dev/ui/pull/338), and [the implementation discussion](https://github.com/roccho-dev/ui/pull/339#issuecomment-6050579119) define this bounded example. It extends the current #336 world on #335 through the same public entry, builder and renderer.
+
+`input/a2-world.json` contains two frames with 25 entities each. It retains the original 19 records and their relations, and adds six explicitly synthetic proposals: Issue A/B, Package A/B and Repo A/B. The center area's id remains `projects`; its presentation label is now **Scopes**. Existing Project / Work identities, labels and relations are preserved.
+
+The new records have unknown observed/acquired/effective time. Coverage remains partial. Package flags say **implementation-unknown**, independently of activity UNKNOWN. None of these records is an observed implementation, an adopted business relation, or proof of completion.
+
+### Read the supplied meaning
+
+Start in **After**. Actual node selection shows its qualified identity and flags. Use **Focus** (F) to read a short label, then focus the SVG and use **Fit** (0) to return. Fit can compact leaf labels; a hidden label or an internal record count is not proof of readability.
+
+| Meaning | Select in the SVG | Read |
+| --- | --- | --- |
+| Separate Issue identities | Issue A, then Issue B | `example-issues-a/issue/7` and `example-issues-b/issue/7`. A has two supplied Work links; B has none in this partial fixture. This does not prove real Work absence. |
+| Package A requirement | A→A relation, then its aggregate member `pkg-a.issue-a.req` | role=plan, input=Request, output=Plan, basis=req-a, source fixture:req-a@1 |
+| Independent A→A evidence | Same aggregate's `pkg-a.issue-a.alt` member | basis=alt-a, source fixture:alt-a@1. Recover both refs; drawing one aggregate does not adopt or merge their evidence. |
+| Package B requirement | B→A relation `pkg-b.issue-a.req` | role=render, input=Plan, output=SVG, basis=req-b |
+| Implementation evidence | Package A or Package B itself | `implementation-unknown` in Flags. Package selection does not display a related record's context; requirements above are read on the specified relations. |
+| Proposed relation to Issue B | A→B relation `pkg-a.issue-b` | from=Package A, to=Issue B, basis=scope-b, synthetic/proposal |
+| Proposed placement | Placement relation `example-relations/placement/pkg-a.repo-proposal`, Before / After | repo=Repo A / Repo B, basis=move-a-v1 / move-a-v2, source fixture:place-a@1 / @2 |
+
+All required context values are shorter than the current 32-character value limit. Distinguishing evidence is in short basis/sourceRef values, not only in a hidden summary or sourceDigest. Relation label A→A/A→B/B→A abbreviates the named Package→Issue pair; all three are ordinary graph relations.
+
+### Relations and Purpose paths
+
+Relation selection's **Direction starts from the relation's source**. It does not promise to traverse the selected edge. In this example, selecting A→B can still show Package A → Issue A → Purpose A → Company purpose. That is not evidence of a path through Issue B.
+
+To follow B, click the exposed A→B line, read its selected ref and endpoints, then **click Issue B itself** and read Issue B → Purpose A → Company purpose. For A→A and B→A, click the relation and then Issue A to read A's own Purpose path. Package A selection also exposes one supplied path through Issue A, without adopting either A→A evidence record.
+
+The two new Work→Issue relations explicitly have `path=false`. They do not replace the existing seven-entity Agent 1 → Work X → Fill X → Gap A → Ideal A → Purpose A → Company purpose path. No ordinary relation implies containment.
+
+### One placement proposal, two versions
+
+Package A keeps `example-packages/package/pkg-a` in both frames. The synthetic supplier explicitly versions one placement proposal, keeping `example-relations/placement/pkg-a.repo-proposal` while changing its from/context/source:
+
+- Before: Repo A, move-a-v1, fixture:place-a@1.
+- After: Repo B, move-a-v2, fixture:place-a@2.
+
+The supplier also explicitly declares **display containment for this proposal**, so Package A is nested inside the supplied Repo in each frame. Package B stays inside Repo A. This is not a general rule deriving containment, implementation existence or identity from repository placement.
+
+Select Package A and use Before / After: the selected ref survives and Diff shows changed containment. Read the named Repo by clicking its boundary and using Focus, then return with Fit. Selecting the same placement relation across frames shows the concrete Repo/version context and changed from, context, source rather than a missing counterpart.
+
+### Reproduce and assess
+
+Use the a2 public build and existing Nix composition-gate commands above from the exact implementation head, with a fresh output directory. The builder writes `index.html` and `receipt.json`; retain the input SHA256 and HTML SHA256/bytes with the head. No generated output is source authority.
+
+The existing gate keeps its previous assertions and adds actual node/edge clicks, the three M:N routes, both independent A→A evidence members, readable context/flags and Focus labels, and Package identity/nesting across frames. It requires an exposed rendered edge click point; DOM text or a covered midpoint is insufficient. Its placement-relation diff probe uses programmatic selection and is distinct from its actual Package/Repo/frame clicks.
+
+P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before hold / After return, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
+
+The three real-data unknown groups remain: source/identity mapping; requirement/implementation evidence; and relation owner/meaning/evidence/adoption/coverage. This example introduces no required relation taxonomy, owner codec, acquisition mechanism, dependency, CI workflow, second screen or Judgement redesign. Published source and executable proof, P's real-screen/SSE readback and R's verdict are separate evidence; prior #336 results do not establish this example's completion.

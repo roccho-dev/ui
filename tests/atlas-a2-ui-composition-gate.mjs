@@ -625,6 +625,214 @@ try {
       && /Activity: NOW · declared=NOW · transport=HISTORY snapshot/u.test(disconnectedHistory.text),
     disconnectedHistory);
 
+
+  // Issue / Package witnesses use the public SVG, not a second renderer.
+  await page.evaluate(() => window.liveAtlas.setSession({
+    input: window.liveAtlas.input, mode: 'sample', connected: false, latest: true,
+  }));
+  await page.locator('#atlas-world').press('0');
+
+  const example = {
+    issueA: entityOf('example-issues-a', 'issue', '7'),
+    issueB: entityOf('example-issues-b', 'issue', '7'),
+    packageA: entityOf('example-packages', 'package', 'pkg-a'),
+    packageB: entityOf('example-packages', 'package', 'pkg-b'),
+    repoA: entityOf('example-repos', 'repo', 'a'),
+    repoB: entityOf('example-repos', 'repo', 'b'),
+  };
+  const exampleKey = (kind, id) => relationKey({ space: 'example-relations', kind, id });
+  const clickExample = async item => {
+    if (item.hasChildren) await clickBoundaryHeader(item.regionId);
+    else await clickCell(item.regionId);
+    await page.waitForFunction(key => window.liveAtlas.page.selected === key, entityKey(item.ref));
+  };
+
+  const focusedLabel = async item => {
+    await page.locator('#atlas-world').press('f');
+    const label = await page.evaluate(id => {
+      const adapter = window.liveAtlas.adapter;
+      const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(id));
+      const node = state?.text?.node;
+      const bounds = node?.getBoundingClientRect();
+      const viewport = document.getElementById('atlas-world').getBoundingClientRect();
+      const style = node ? getComputedStyle(node) : null;
+      return {
+        text: node?.textContent ?? '',
+        visible: Boolean(node && document.querySelector('#atlas-world svg')?.contains(node)
+          && bounds && bounds.width > 0 && bounds.height > 0
+          && bounds.left >= viewport.left - 1 && bounds.right <= viewport.right + 1
+          && bounds.top >= viewport.top - 1 && bounds.bottom <= viewport.bottom + 1
+          && style?.display !== 'none' && style?.visibility !== 'hidden'),
+      };
+    }, item.regionId);
+    await page.locator('#atlas-world').press('0');
+    return label;
+  };
+
+  // A label or midpoint can be covered by a node. Sample the rendered line and
+  // require a hit on this edge's actual SVG before sending a real mouse click.
+  const clickExposedRelation = async id => {
+    const point = await page.evaluate(key => {
+      const adapter = window.liveAtlas.adapter;
+      const edge = adapter.edgeByRelationId.get(key);
+      const state = edge ? adapter.graph.getView().getState(edge) : null;
+      const points = state?.absolutePoints ?? [];
+      const viewport = document.getElementById('atlas-world').getBoundingClientRect();
+      for (let segment = 1; segment < points.length; segment += 1) {
+        const a = points[segment - 1], b = points[segment];
+        if (!a || !b) continue;
+        const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 4));
+        for (let step = 1; step < steps; step += 1) {
+          const part = step / steps;
+          const x = viewport.left + a.x + (b.x - a.x) * part;
+          const y = viewport.top + a.y + (b.y - a.y) * part;
+          if (x <= viewport.left || x >= viewport.right || y <= viewport.top || y >= viewport.bottom) continue;
+          const hit = document.elementFromPoint(x, y);
+          if (hit && (state.shape?.node?.contains(hit) || state.text?.node?.contains(hit))) return { x, y };
+        }
+      }
+      return null;
+    }, id);
+    if (!point) throw new Error('no exposed SVG click point for ' + id);
+    await page.mouse.click(point.x, point.y);
+    await page.waitForFunction(key => {
+      const atlas = window.liveAtlas;
+      const group = atlas.projection.scene.relations.find(item => item.relationIds.includes(key));
+      return group?.relationIds.includes(atlas.page.selected);
+    }, id, { timeout: 3000 });
+    await page.locator('#atlas-world').press('0');
+    return point;
+  };
+
+  check('new records remain synthetic proposals with unknown observation time',
+    parsedWorldInput.authority === false && parsedWorldInput.frames.every(frame => {
+      const records = [...frame.entities, ...frame.relations].filter(item => item.ref.space.startsWith('example-'));
+      return records.length === 16 && records.every(item => item.source?.kind === 'synthetic'
+        && item.flags.includes('synthetic') && item.flags.includes('proposal')
+        && item.time.observedAt === null && item.time.acquiredAt === null && item.time.effectiveAt === null);
+    }));
+  check('two qualified Issues retain identity with two or zero supplied Work links',
+    example.issueA && example.issueB && entityKey(example.issueA.ref) !== entityKey(example.issueB.ref)
+      && parsedWorldInput.frames.every(frame => {
+        const tracks = frame.relations.filter(item => item.ref.space === 'example-relations' && item.kind === 'tracks');
+        return tracks.length === 2 && tracks.every(item => !item.path && item.containment === null
+          && entityKey(item.to) === entityKey(example.issueA.ref))
+          && frame.entities.filter(item => item.ref.kind === 'project').length === 2;
+      }));
+
+  for (const [name, item] of Object.entries(example)) {
+    await clickExample(item);
+    const detail = await renderedJudgement();
+    const identity = item.ref.space + '/' + item.ref.kind + '/' + item.ref.id;
+    check(name + ' is actual-click selectable with visible qualified identity and proposal status',
+      detail.visible && detail.text.includes('Selected entity · ' + identity)
+        && /Flags: .*synthetic.*proposal/u.test(detail.text), detail);
+    if (item.ref.kind === 'package') {
+      check(name + ' keeps implementation evidence unknown independently of Activity',
+        /Flags: .*implementation-unknown/u.test(detail.text), detail);
+    }
+    const label = await focusedLabel(item);
+    check(name + ' label is readable in Focus and Fit restores SVG judgement',
+      label.visible && label.text.includes({ issueA: 'Issue A', issueB: 'Issue B', packageA: 'Package A', packageB: 'Package B', repoA: 'Repo A', repoB: 'Repo B' }[name])
+        && (await renderedJudgement()).visible, label);
+  }
+
+  const routes = [
+    { id: 'pkg-a.issue-a.req', from: 'Package A', to: 'Issue A', target: example.issueA },
+    { id: 'pkg-a.issue-b', from: 'Package A', to: 'Issue B', target: example.issueB },
+    { id: 'pkg-b.issue-a.req', from: 'Package B', to: 'Issue A', target: example.issueA },
+  ];
+  for (const route of routes) {
+    const key = exampleKey('addresses', route.id);
+    const point = await clickExposedRelation(key);
+    const relationDetail = await renderedJudgement();
+    check(route.id + ' M:N edge is actual-click selectable with visible endpoints',
+      relationDetail.visible && relationDetail.text.includes('from=' + route.from)
+        && relationDetail.text.includes('to=' + route.to), { point, relationDetail });
+
+    if (route.id === 'pkg-a.issue-a.req') {
+      const reached = new Map();
+      for (let step = 0; step < 2; step += 1) {
+        const selected = await page.evaluate(() => window.liveAtlas.page.selected);
+        reached.set(selected, await renderedJudgement());
+        if (step === 0) {
+          await clickCell('world:aggregate-cycle');
+          await page.waitForFunction(previous => window.liveAtlas.page.selected !== previous, selected);
+        }
+      }
+      const required = reached.get(exampleKey('addresses', 'pkg-a.issue-a.req'));
+      const alternate = reached.get(exampleKey('addresses', 'pkg-a.issue-a.alt'));
+      check('A-to-A aggregate recovers both independent refs and distinct visible evidence 2/2',
+        reached.size === 2 && required?.visible && alternate?.visible
+          && /basis=req-a/u.test(required.text) && /fixture:req-a@1/u.test(required.text)
+          && /basis=alt-a/u.test(alternate.text) && /fixture:alt-a@1/u.test(alternate.text),
+        { reached: [...reached] });
+      check('Package A required responsibility and I/O are visible on the required relation',
+        required?.visible && /role=plan · input=Request · output=Plan/u.test(required.text), required);
+    }
+    if (route.id === 'pkg-b.issue-a.req') {
+      check('Package B required responsibility and I/O are visible on its required relation',
+        relationDetail.visible && /role=render · input=Plan · output=SVG/u.test(relationDetail.text), relationDetail);
+    }
+    if (route.id === 'pkg-a.issue-b') {
+      check('B relation selection does not claim that source-origin Direction traversed B',
+        /Selected relation · example-relations\/addresses\/pkg-a.issue-b/u.test(relationDetail.text)
+          && /basis=scope-b/u.test(relationDetail.text)
+          && /Direction: Package A → Issue A → Purpose A → Company purpose/u.test(relationDetail.text),
+        relationDetail);
+    }
+    await clickExample(route.target);
+    const targetDetail = await renderedJudgement();
+    check(route.id + ' target Issue is actual-click selected before reading its own Purpose path',
+      targetDetail.visible && targetDetail.text.includes('Direction: ' + route.to + ' → Purpose A → Company purpose'),
+      targetDetail);
+  }
+
+  await clickExample(example.packageA);
+  const packageDirection = await renderedJudgement();
+  check('Package A exposes one supplied path without adopting its relation evidence',
+    packageDirection.visible
+      && /Direction: Package A → Issue A → Purpose A → Company purpose/u.test(packageDirection.text)
+      && /Flags: .*proposal.*implementation-unknown/u.test(packageDirection.text), packageDirection);
+
+  for (const [frameId, parent] of [['before', example.repoA], ['after', example.repoB]]) {
+    await clickCell('world:control:' + frameId);
+    const selected = await page.evaluate(() => window.liveAtlas.page.selected);
+    const detail = await renderedJudgement();
+    const [childBox, parentBox, stableChildBox, stableParentBox] = await Promise.all([
+      renderedBox(example.packageA.regionId), renderedBox(parent.regionId),
+      renderedBox(example.packageB.regionId), renderedBox(example.repoA.regionId),
+    ]);
+    check(frameId + ' placement preserves Package A selection, declared nesting and unknown implementation',
+      selected === entityKey(example.packageA.ref) && detail.visible
+        && /Diff: changed containment/u.test(detail.text) && /implementation-unknown/u.test(detail.text)
+        && strictlyInside(childBox, parentBox) && strictlyInside(stableChildBox, stableParentBox),
+      { selected, detail, childBox, parentBox, stableChildBox, stableParentBox });
+    await clickExample(parent);
+    const parentLabel = await focusedLabel(parent);
+    check(frameId + ' proposed containment parent is readable after actual click and Focus',
+      parentLabel.visible && parentLabel.text.includes(frameId === 'before' ? 'Repo A' : 'Repo B'), parentLabel);
+    await clickExample(example.packageA);
+  }
+
+  // This is a selection/diff probe, not an assertion of a placement-edge click.
+  // The package/parent/frame operations above and the three M:N routes are real clicks.
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({
+    space: 'example-relations', kind: 'placement', id: 'pkg-a.repo-proposal',
+  }));
+  for (const [frameId, repo, version] of [['before', 'Repo A', '1'], ['after', 'Repo B', '2']]) {
+    await clickCell('world:control:' + frameId);
+    const selected = await page.evaluate(() => window.liveAtlas.page.selected);
+    const detail = await renderedJudgement();
+    check(frameId + ' placement proposal retains its ref and displays the supplied repo/version difference',
+      selected === exampleKey('placement', 'pkg-a.repo-proposal') && detail.visible
+        && detail.text.includes('repo=' + repo + ' · package=Package A · basis=move-a-v' + version)
+        && detail.text.includes('Source: fixture:place-a@' + version + ' [synthetic]')
+        && /Flags: .*proposal.*display-containment-only/u.test(detail.text)
+        && /Diff: changed from, context, source/u.test(detail.text) && !/missing in/u.test(detail.text),
+      { selected, detail });
+  }
+
   check('no browser page/console errors', pageErrors.length === 0 && consoleErrors.length === 0, { pageErrors, consoleErrors });
 } finally {
   try {
