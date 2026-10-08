@@ -10,6 +10,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { startAtlasProducer } from './fixtures/live-atlas/sse-producer.mjs';
 import { containmentIndex, entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 
 const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
@@ -67,83 +68,11 @@ const check = (name, condition, detail = null) => {
 };
 
 const rawWorldInput = JSON.parse(fs.readFileSync('examples/atlas/input/a2-world.json', 'utf8'));
-let reversedRejected = false;
-try {
-  parseAtlasWorldInput({ ...rawWorldInput, frames: [...rawWorldInput.frames].reverse() });
-} catch {
-  reversedRejected = true;
-}
-check('reversed frame history is rejected', reversedRejected);
-
-let invalidAsOfRejected = false;
-try {
-  const frames = structuredClone(rawWorldInput.frames);
-  frames[0].asOf = 'not-an-instant';
-  parseAtlasWorldInput({ ...rawWorldInput, frames });
-} catch {
-  invalidAsOfRejected = true;
-}
-check('invalid frame asOf is rejected', invalidAsOfRejected);
-
-
 const parsedWorldInput = parseAtlasWorldInput(rawWorldInput);
-const afterFrame = parsedWorldInput.frames.at(-1);
-const afterContainment = containmentIndex(afterFrame);
-
-const teamAgent1Evidence = afterContainment.evidenceByChild.get('entity:agents:agent:agent.1') ?? [];
-check('duplicate same-parent containment evidence is accepted and preserved',
-  teamAgent1Evidence.length === 2
-    && teamAgent1Evidence.some(id => id.includes('team.agent1.containment.1'))
-    && teamAgent1Evidence.some(id => id.includes('team.agent1.containment.2')),
-  teamAgent1Evidence);
-
-const expectReject = (name, mutate) => {
-  const value = structuredClone(rawWorldInput);
-  mutate(value);
-  let rejected = false;
-  try { parseAtlasWorldInput(value); } catch { rejected = true; }
-  check(name, rejected);
-};
-
-expectReject('distinct multi-parent containment is rejected', value => {
-  const frame = value.frames.at(-1);
-  frame.relations.push({
-    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
-    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.multi-parent' },
-    from: { space: 'agents', kind: 'agent', id: 'shared' },
-    to: { space: 'agents', kind: 'agent', id: 'agent.1' },
-    containment: 'from-contains-to',
-  });
-});
-expectReject('self containment is rejected', value => {
-  const relation = value.frames.at(-1).relations.find(item => item.ref.id === 'team.agent1.containment.1');
-  relation.from = structuredClone(relation.to);
-});
-expectReject('containment cycle is rejected', value => {
-  const frame = value.frames.at(-1);
-  frame.relations.push({
-    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
-    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.cycle' },
-    from: { space: 'agents', kind: 'agent', id: 'agent.1' },
-    to: { space: 'agents', kind: 'actor', id: 'team.atlas' },
-    containment: 'from-contains-to',
-  });
-});
-expectReject('cross-area containment is rejected', value => {
-  const frame = value.frames.at(-1);
-  frame.relations.push({
-    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
-    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.cross-area' },
-    from: { space: 'projects', kind: 'project', id: 'project.a' },
-    to: { space: 'agents', kind: 'agent', id: 'agent.1' },
-    containment: 'from-contains-to',
-  });
-});
-expectReject('unknown containment orientation is rejected', value => {
-  value.frames.at(-1).relations.find(item => item.ref.id === 'team.agent1.containment.1').containment = 'primary';
-});
+const afterContainment = containmentIndex(parsedWorldInput.frames.at(-1));
 
 let browser;
+let producer;
 try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -521,10 +450,9 @@ try {
     frameId: window.liveAtlas.page.input.frames[window.liveAtlas.page.frameIndex].id,
     selected: window.liveAtlas.page.selected,
     camera: window.liveAtlas.adapter.camera(),
-    input: window.liveAtlas.input,
   }));
   await page.evaluate(() => window.liveAtlas.setSession({
-    input: window.liveAtlas.input,
+    input: structuredClone(window.liveAtlas.input),
     mode: 'sample',
     connected: false,
     latest: false,
@@ -537,6 +465,43 @@ try {
   check('update preserves historical frame', preserved.frameId === held.frameId, { held, preserved });
   check('update preserves qualified selection', preserved.selected === held.selected, { held, preserved });
   check('update preserves camera', JSON.stringify(preserved.camera) === JSON.stringify(held.camera), { held, preserved });
+
+  const admission = await page.evaluate(() => {
+    const atlas = window.liveAtlas;
+    const before = { input: atlas.input, projection: atlas.projection, now: atlas.page.now,
+      mode: atlas.page.mode, connected: atlas.page.connected, latest: atlas.page.latest,
+      frame: atlas.page.frameIndex, selected: atlas.page.selected, camera: atlas.adapter.camera() };
+    const invalid = structuredClone(atlas.input);
+    invalid.kind = 'invalid-world';
+    let error = null;
+    try { atlas.setSession({ input: invalid, mode: 'live', connected: true, latest: true, now: before.now + 1 }); }
+    catch (caught) { error = String(caught.message); }
+    const rejected = error?.includes('input.kind must be ui.atlasWorldInput.v1')
+      && atlas.input === before.input && atlas.projection === before.projection
+      && atlas.page.now === before.now && atlas.page.mode === before.mode
+      && atlas.page.connected === before.connected && atlas.page.latest === before.latest
+      && atlas.page.frameIndex === before.frame && atlas.page.selected === before.selected
+      && JSON.stringify(atlas.adapter.camera()) === JSON.stringify(before.camera);
+    const next = structuredClone(atlas.input);
+    delete next.note;
+    delete next.frames[0].relations[0].label;
+    atlas.setSession({ input: next, now: before.now + 1 });
+    const expected = structuredClone(before.input);
+    expected.note = '';
+    expected.frames[0].relations[0].label = '';
+    const recovered = atlas.input !== before.input && JSON.stringify(atlas.input) === JSON.stringify(expected)
+      && atlas.page.now === before.now + 1 && atlas.page.frameIndex === before.frame
+      && atlas.page.selected === before.selected
+      && JSON.stringify(atlas.adapter.camera()) === JSON.stringify(before.camera);
+    const normalized = atlas.input;
+    atlas.setSession({ connected: !before.connected });
+    const reused = atlas.input === normalized;
+    atlas.setSession({ input: before.input, connected: before.connected, now: before.now });
+    return { error, rejected, recovered, reused };
+  });
+  check('invalid World payload leaves input, projection, session, selection and camera unchanged', admission.rejected, admission);
+  check('following valid World payload normalizes optional text and preserves held frame/selection/camera', admission.recovered, admission);
+  check('connection-only World update reuses the normalized input object', admission.reused, admission);
 
   await page.evaluate(() => window.liveAtlas.fit());
   const cameraBeforeFocus = await page.evaluate(() => window.liveAtlas.adapter.camera());
@@ -568,7 +533,6 @@ try {
   await clickCell('world:control:after');
   await page.evaluate(() => window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' }));
   await page.evaluate(() => window.liveAtlas.setSession({
-    input: window.liveAtlas.input,
     mode: 'live',
     connected: false,
     latest: true,
@@ -601,7 +565,6 @@ try {
 
   await page.evaluate(() => window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' }));
   await page.evaluate(() => window.liveAtlas.setSession({
-    input: window.liveAtlas.input,
     mode: 'live',
     connected: true,
     latest: true,
@@ -614,7 +577,6 @@ try {
 
   await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.setSession({
-    input: window.liveAtlas.input,
     mode: 'live',
     connected: false,
     latest: false,
@@ -628,7 +590,7 @@ try {
 
   // Issue / Package witnesses use the public SVG, not a second renderer.
   await page.evaluate(() => window.liveAtlas.setSession({
-    input: window.liveAtlas.input, mode: 'sample', connected: false, latest: true,
+    mode: 'sample', connected: false, latest: true,
   }));
   await page.locator('#atlas-world').press('0');
 
@@ -704,21 +666,8 @@ try {
     return point;
   };
 
-  check('new records remain synthetic proposals with unknown observation time',
-    parsedWorldInput.authority === false && parsedWorldInput.frames.every(frame => {
-      const records = [...frame.entities, ...frame.relations].filter(item => item.ref.space.startsWith('example-'));
-      return records.length === 16 && records.every(item => item.source?.kind === 'synthetic'
-        && item.flags.includes('synthetic') && item.flags.includes('proposal')
-        && item.time.observedAt === null && item.time.acquiredAt === null && item.time.effectiveAt === null);
-    }));
-  check('two qualified Issues retain identity with two or zero supplied Work links',
-    example.issueA && example.issueB && entityKey(example.issueA.ref) !== entityKey(example.issueB.ref)
-      && parsedWorldInput.frames.every(frame => {
-        const tracks = frame.relations.filter(item => item.ref.space === 'example-relations' && item.kind === 'tracks');
-        return tracks.length === 2 && tracks.every(item => !item.path && item.containment === null
-          && entityKey(item.to) === entityKey(example.issueA.ref))
-          && frame.entities.filter(item => item.ref.kind === 'project').length === 2;
-      }));
+  check('two qualified Issues retain distinct SVG identities',
+    example.issueA && example.issueB && entityKey(example.issueA.ref) !== entityKey(example.issueB.ref));
 
   for (const [name, item] of Object.entries(example)) {
     await clickExample(item);
@@ -833,11 +782,59 @@ try {
       { selected, detail });
   }
 
+  // The actual app entry receives a real finite SSE snapshot, then stays quiet.
+  producer = await startAtlasProducer({ connections: [[{ data: { ...rawWorldInput, note: 'world-live-update' } }]] });
+  const liveContext = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  const livePage = await liveContext.newPage();
+  livePage.on('pageerror', error => pageErrors.push(String(error)));
+  await livePage.addInitScript(() => {
+    const original = globalThis.setInterval;
+    globalThis.__atlasTestIntervals = [];
+    globalThis.setInterval = (callback, delay, ...args) => {
+      globalThis.__atlasTestIntervals.push(delay);
+      return original(callback, delay, ...args);
+    };
+  });
+  await livePage.goto(origin + '?events=' + encodeURIComponent(producer.url));
+  await livePage.waitForFunction(() => window.liveAtlas?.input.note === 'world-live-update' && window.liveAtlas.page.connected);
+  const quiet = await livePage.evaluate(async () => {
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const atlas = window.liveAtlas;
+    const before = { input: atlas.input, projection: atlas.projection, scene: atlas.adapter.lastScene, now: atlas.page.now };
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    return { intervals: globalThis.__atlasTestIntervals, sameInput: atlas.input === before.input,
+      sameProjection: atlas.projection === before.projection, sameScene: atlas.adapter.lastScene === before.scene,
+      sameNow: atlas.page.now === before.now, connected: atlas.page.connected };
+  });
+  check('live World registers no autonomous one-second timer', !quiet.intervals.includes(1000), quiet);
+  check('quiet live World does not redraw or invent a new observation time', quiet.sameInput && quiet.sameProjection && quiet.sameScene && quiet.sameNow && quiet.connected, quiet);
+  await liveContext.close();
+
+  // Exercise the existing mount return value; do not add tick to the app API.
+  const explicitTick = await page.evaluate(async input => {
+    window.liveAtlas.destroy();
+    const { mountAtlasWorldUI } = await import('ui:packages/control/atlas-ui.mjs');
+    const ui = mountAtlasWorldUI({ root: document.body, input, now: 1000 });
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const before = { projection: ui.projection, scene: ui.adapter.lastScene, input: ui.input };
+    ui.tick(2000);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const result = { now: ui.page.now, sameProjection: ui.projection === before.projection,
+      sameScene: ui.adapter.lastScene === before.scene, sameInput: ui.input === before.input };
+    ui.destroy();
+    ui.tick(3000);
+    result.destroyedTickIgnored = ui.page.now === 2000;
+    return result;
+  }, rawWorldInput);
+  check('explicit World mount tick records time without rendering or replacing input', explicitTick.now === 2000 && explicitTick.sameProjection && explicitTick.sameScene && explicitTick.sameInput, explicitTick);
+  check('destroyed World mount ignores a later tick', explicitTick.destroyedTickIgnored, explicitTick);
+
   check('no browser page/console errors', pageErrors.length === 0 && consoleErrors.length === 0, { pageErrors, consoleErrors });
 } finally {
   try {
     if (browser) await browser.close();
   } finally {
+    if (producer) await producer.close();
     await new Promise(resolve => server.close(resolve));
     await fsp.rm(tempRoot, { recursive: true, force: true });
   }

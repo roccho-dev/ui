@@ -71,7 +71,7 @@ export const mountAtlasUI = ({
   const style = el('style', { 'data-live-atlas-style': 'true', text: STYLE });
   root.append(style);
   const page = {
-    mode: initialMode, connected, state, revIndex: null,
+    mode: initialMode, connected, state, revIndex: null, expiredRev: null,
     selected, query: '', projection: null, fitScale: 1, readability: null, layouts: new Map(),
     now, drawing: false, destroyed: false,
   };
@@ -217,6 +217,7 @@ export const mountAtlasUI = ({
     // Notices that change what the picture means come first.
     const critical = [];
     const notes = [];
+    if (page.expiredRev !== null && snapshot) critical.push(`Viewed revision ${page.expiredRev} expired from retained history. Showing oldest retained revision ${snapshot.rev}.`);
     if (page.projection && !page.projection.supported) critical.push(`Unsupported: ${page.projection.diagnostic}. Every source row stays in the audit below.`);
     if (page.readability?.unreadable.length) critical.push(`Degraded: ${page.readability.unreadable.length} of ${page.readability.chips} scope chips are not readable at fit in this viewport; use the scope table below.`);
     if (state.attempt && state.attempt.outcome !== 'accepted') {
@@ -369,6 +370,7 @@ export const mountAtlasUI = ({
   revInput.addEventListener('input', () => {
     const index = Number(revInput.value);
     page.revIndex = index >= page.state.history.length - 1 ? null : index;
+    page.expiredRev = null;
     draw();
     panels();
   });
@@ -382,11 +384,23 @@ export const mountAtlasUI = ({
     latest = false,
   } = {}) => {
     if (page.destroyed) return;
+    // Preserve the viewed identity when the bounded history shifts its indices.
+    const previousRev = page.revIndex === null ? null : viewed()?.rev;
     page.state = state;
     page.mode = mode;
     page.connected = connected;
     page.now = now;
-    if (latest) page.revIndex = null;
+    if (latest) {
+      page.revIndex = null;
+      page.expiredRev = null;
+    } else if (previousRev !== null && previousRev !== undefined) {
+      const index = state.history.findIndex(snapshot => snapshot.rev === previousRev);
+      page.revIndex = Math.max(0, index);
+      if (index < 0) page.expiredRev = previousRev;
+    }
+    const retained = new Set(state.history.map(snapshot => snapshot.rev));
+    if (state.held) retained.add(state.held.rev);
+    for (const rev of page.layouts.keys()) if (!retained.has(rev)) page.layouts.delete(rev);
     update();
   };
   const tick = now => {
@@ -435,7 +449,7 @@ export const mountAtlasWorldUI = ({
   onSelect = null,
 } = {}) => {
   if (!root?.append) throw new Error('atlas-world-ui: mount root required');
-  let worldInput = parseAtlasWorldInput(input);
+  const worldInput = parseAtlasWorldInput(input);
   const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
   const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
   const screen = el('div', { id: 'atlas-world-screen' }, container);
@@ -561,7 +575,8 @@ export const mountAtlasWorldUI = ({
   } = {}) => {
     if (page.destroyed) return;
     const previousFrameId = currentFrame()?.id ?? null;
-    page.input = parseAtlasWorldInput(nextInput);
+    // New payloads are validated here; connection-only updates reuse the input.
+    if (nextInput !== page.input) page.input = parseAtlasWorldInput(nextInput);
     page.mode = mode;
     page.connected = nextConnected;
     page.now = nextNow;
@@ -578,7 +593,6 @@ export const mountAtlasWorldUI = ({
   const tick = nextNow => {
     if (page.destroyed) return;
     page.now = nextNow;
-    draw();
   };
 
   const focusSelected = () => {

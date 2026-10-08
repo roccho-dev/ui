@@ -7,7 +7,7 @@ AtlasApp     = AppSourceAdapter + SharedAtlasUI
 AtlasExample = FixtureAdapter   + SharedAtlasUI
 ```
 
-Both consumers pack and execute the same `packages/control/atlas-ui.mjs` screen, the same Live Atlas read-model/projection, and the same semantic-map/maxGraph primitives. The fixture adapter never copies the screen.
+The legacy app and the example both call `mountAtlasUI` in `packages/control/atlas-ui.mjs`, using the same Live Atlas read-model/projection. World input uses the separate `mountAtlasWorldUI` in that file with its own model/projection. Both mounts use the existing semantic-map/maxGraph renderer; the fixture adapter never copies either screen.
 
 ## Exact input
 
@@ -62,10 +62,12 @@ This bounded replay does not open EventSource and does not imply a real OCI prod
 | SVG + HTML selection | maxGraph activation and scope/audit controls converge on the same selected id/focus |
 | Inspector / Control | scope/actor/work/evidence plus one real Control/claim/pin join |
 | search / audit | raw source rows, unknown producer property search, exact-id selection |
-| history / timeline | revision slider, gap, create/activity change, ref retarget and topology/status change |
+| history / timeline | revision slider, retained revision across the 64-entry window, visible expiry fallback, gaps, create/activity change, ref retarget and topology/status change |
 | camera / LOD | Fit, wheel zoom, pan, far→middle→near, near work evidence |
 | currentness | current, rejected/disconnected UNKNOWN, accepted recovery |
 | closure | offline single-file module closure using the same SharedAtlasUI subset as the app artifact |
+
+History keeps a selected revision while it remains in the 64-entry window. When it expires, the screen shows the oldest retained revision and names the expired one in the existing notices. Choosing another revision clears that notice; choosing latest resumes following updates. Derived layouts are retained only for history/held revisions, while gap evidence remains in the read model.
 
 Large-scale 300-scope/readability/budget/rollback and real EventSource transport remain shared/application regression tests; the example does not duplicate those workloads.
 
@@ -94,7 +96,9 @@ node scripts/build-live-atlas.mjs \
   --out=examples/atlas/dist-a2
 ```
 
-The artifact still boots `packages/control/atlas.mjs` and the shared `packages/control/atlas-ui.mjs`; there is no a2-only renderer or screen.
+The artifact boots `packages/control/atlas.mjs`, which selects `mountAtlasWorldUI` in `packages/control/atlas-ui.mjs`. This is a separate World screen with the shared maxGraph renderer, not the legacy Inspector/audit screen.
+
+The World controller validates each new payload. Connection-only updates reuse its normalized input. World has no autonomous clock timer: explicit mount `tick(now)` records observation time without drawing. Payload, connection, frame, selection, camera and resize events still update the screen. Legacy live mode retains its timer and TTL-based currentness.
 
 The fixture exists only to prove:
 
@@ -105,6 +109,8 @@ The fixture exists only to prove:
 - Now / Recent / UNKNOWN, source/time/coverage and before/after differences;
 - recoverable aggregate and omitted relation identities;
 - SVG-visible routine judgement without relying on the legacy Inspector/audit/catalog surface.
+
+Pure World input/containment/fixture contracts run without browser dependencies through `node tests/check-atlas-world.mjs`, also included by `tests/run-all.mjs`. The browser gate below owns public-HTML rendering and interaction checks; it does not duplicate those pure assertions.
 
 For the executable product proof, run:
 
@@ -183,7 +189,7 @@ Select Package A and use Before / After: the selected ref survives and Diff show
 
 Use the a2 public build and existing Nix composition-gate commands above from the exact implementation head, with a fresh output directory. The builder writes `index.html` and `receipt.json`; retain the input SHA256 and HTML SHA256/bytes with the head. No generated output is source authority.
 
-The existing gate keeps its previous assertions and adds actual node/edge clicks, the three M:N routes, both independent A→A evidence members, readable context/flags and Focus labels, and Package identity/nesting across frames. It requires an exposed rendered edge click point; DOM text or a covered midpoint is insufficient. Its placement-relation diff probe uses programmatic selection and is distinct from its actual Package/Repo/frame clicks.
+The existing browser gate retains its rendering and interaction assertions, while pure input/fixture assertions live in the Node check. It covers actual node/edge clicks, the three M:N routes, both independent A→A evidence members, readable context/flags and Focus labels, and Package identity/nesting across frames. It requires an exposed rendered edge click point; DOM text or a covered midpoint is insufficient. Its placement-relation diff probe uses programmatic selection and is distinct from its actual Package/Repo/frame clicks.
 
 P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before hold / After return, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
 

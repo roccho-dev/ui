@@ -1,7 +1,7 @@
 // Pure World input contract checks. No browser, build, host or network is needed.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ATLAS_WORLD_KIND, parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
+import { ATLAS_WORLD_KIND, containmentIndex, entityKey, parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../examples/atlas/input/a2-world.json', import.meta.url), 'utf8'));
 
@@ -93,6 +93,74 @@ for (const value of [undefined, null, '', ...invalidTypes, 'ui.atlasWorldInput.v
   assert.throws(() => parseAtlasWorldInput(input),
     { message: 'atlas-world: input.kind must be ' + ATLAS_WORLD_KIND },
     'input.kind: rejects ' + JSON.stringify(value));
+}
+
+// Pure assertions formerly embedded in the browser gate have one Node owner.
+const rejectInput = (name, error, mutate) => {
+  const input = structuredClone(fixture);
+  mutate(input);
+  assert.throws(() => parseAtlasWorldInput(input), error, name);
+};
+rejectInput('reversed frame history', /frames\[\] rev must be strictly increasing/u, input => input.frames.reverse());
+rejectInput('invalid frame asOf', /asOf must be a parseable instant/u, input => { input.frames[0].asOf = 'not-an-instant'; });
+
+const afterContainment = containmentIndex(normalizedFixture.frames.at(-1));
+const teamAgent1Evidence = afterContainment.evidenceByChild.get('entity:agents:agent:agent.1') ?? [];
+assert.equal(teamAgent1Evidence.length, 2, 'duplicate same-parent evidence is preserved');
+assert.ok(teamAgent1Evidence.some(id => id.includes('team.agent1.containment.1')));
+assert.ok(teamAgent1Evidence.some(id => id.includes('team.agent1.containment.2')));
+
+rejectInput('distinct multi-parent containment', /distinct multi-parent containment unsupported/u, input => {
+  const frame = input.frames.at(-1);
+  frame.relations.push({
+    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
+    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.multi-parent' },
+    from: { space: 'agents', kind: 'agent', id: 'shared' },
+    to: { space: 'agents', kind: 'agent', id: 'agent.1' },
+    containment: 'from-contains-to',
+  });
+});
+rejectInput('self containment', /containment cannot self-parent/u, input => {
+  const relation = input.frames.at(-1).relations.find(item => item.ref.id === 'team.agent1.containment.1');
+  relation.from = structuredClone(relation.to);
+});
+rejectInput('containment cycle', /containment cycle/u, input => {
+  const frame = input.frames.at(-1);
+  frame.relations.push({
+    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
+    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.cycle' },
+    from: { space: 'agents', kind: 'agent', id: 'agent.1' },
+    to: { space: 'agents', kind: 'actor', id: 'team.atlas' },
+    containment: 'from-contains-to',
+  });
+});
+rejectInput('cross-area containment', /containment must remain inside one presentation area/u, input => {
+  const frame = input.frames.at(-1);
+  frame.relations.push({
+    ...structuredClone(frame.relations.find(item => item.ref.id === 'team.agent1.containment.1')),
+    ref: { space: 'world-relation', kind: 'contains', id: 'invalid.cross-area' },
+    from: { space: 'projects', kind: 'project', id: 'project.a' },
+    to: { space: 'agents', kind: 'agent', id: 'agent.1' },
+    containment: 'from-contains-to',
+  });
+});
+rejectInput('unknown containment orientation', /containment must be from-contains-to\|to-contains-from\|null/u, input => {
+  input.frames.at(-1).relations.find(item => item.ref.id === 'team.agent1.containment.1').containment = 'primary';
+});
+
+for (const frame of normalizedFixture.frames) {
+  const records = [...frame.entities, ...frame.relations].filter(item => item.ref.space.startsWith('example-'));
+  assert.equal(records.length, 16, 'synthetic Issue/Package fixture record count');
+  assert.ok(records.every(item => item.source?.kind === 'synthetic'
+    && item.flags.includes('synthetic') && item.flags.includes('proposal')
+    && item.time.observedAt === null && item.time.acquiredAt === null && item.time.effectiveAt === null),
+  'example records remain synthetic proposals with unknown observation time');
+  const tracks = frame.relations.filter(item => item.ref.space === 'example-relations' && item.kind === 'tracks');
+  assert.equal(tracks.length, 2, 'two supplied Work links');
+  assert.ok(tracks.every(item => !item.path && item.containment === null
+    && entityKey(item.to) === 'entity:example-issues-a:issue:7'),
+  'only Issue A has supplied Work links, without path or containment meaning');
+  assert.equal(frame.entities.filter(item => item.ref.kind === 'project').length, 2, 'existing Projects are retained');
 }
 
 console.log('atlas-world-checks-pass');
