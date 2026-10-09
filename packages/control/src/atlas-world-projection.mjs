@@ -49,7 +49,7 @@ const recordKind = (index, selected) => index.entityByKey.has(selected) ? 'entit
 
 const changedFields = (current, other) => {
   if (!current || !other) return [];
-  const fields = ['label', 'activity', 'summary', 'kind', 'from', 'to', 'context', 'source', 'time', 'flags', 'containment'];
+  const fields = [...new Set([...Object.keys(current), ...Object.keys(other)])].sort();
   return fields.filter(field => !same(current[field], other[field]));
 };
 
@@ -202,17 +202,39 @@ const selectedDiff = ({
 }) => {
   const current = recordFor(index, selected);
   const other = counterpartIndex ? recordFor(counterpartIndex, selected) : null;
-  if (!current && !other) return 'not present in either compared frame';
-  if (!current && other) return 'missing in ' + frame.id + ' · counterpart exists in ' + counterpart.id;
-  if (current && !other) return counterpart ? 'present in ' + frame.id + ' · counterpart missing in ' + counterpart.id : 'no comparison frame';
-  const changed = changedFields(current, other);
+  const side = (sourceFrame, record) => sourceFrame ? Object.freeze({
+    frameId: sourceFrame.id, rev: sourceFrame.rev, asOf: sourceFrame.asOf, record,
+  }) : null;
+  // Frame rev orders supplied snapshots, not the time or reason of a business change.
+  const currentIsBefore = counterpart && frame.rev < counterpart.rev;
+  const before = currentIsBefore ? side(frame, current) : side(counterpart, other);
+  const after = currentIsBefore ? side(counterpart, other) : side(frame, current);
+  const changes = changedFields(before?.record, after?.record).map(field => Object.freeze({
+    field, before: before.record[field], after: after.record[field], basis: 'supplied record field',
+  }));
   if (index.entityByKey.has(selected) && counterpartIndex?.entityByKey.has(selected)) {
     const currentParent = containment.parentByChild.get(selected) ?? null;
     const otherParent = counterpartContainment?.parentByChild.get(selected) ?? null;
-    if (currentParent !== otherParent) changed.push('containment');
+    if (currentParent !== otherParent) changes.push(Object.freeze({
+      field: 'containment',
+      before: currentIsBefore ? currentParent : otherParent,
+      after: currentIsBefore ? otherParent : currentParent,
+      basis: 'supplied containment endpoints',
+    }));
   }
-  return changed.length ? 'changed ' + [...new Set(changed)].join(', ') : 'no selected meaning change';
+  const summary = !counterpart ? 'no comparison frame'
+    : !current && !other ? 'not present in either compared frame'
+      : !current ? 'missing in ' + frame.id + ' · counterpart exists in ' + counterpart.id
+        : !other ? 'present in ' + frame.id + ' · counterpart missing in ' + counterpart.id
+          : changes.length ? 'changed ' + changes.map(change => change.field).join(', ')
+            : 'no supplied selected-record field change';
+  return Object.freeze({ before, after, changes: Object.freeze(changes), summary });
 };
+
+const comparisonSideText = side => side
+  ? side.frameId + ' · rev ' + side.rev + ' · asOf ' + side.asOf
+    + (side.record ? ' · record present' : ' · record missing · reason/time UNKNOWN')
+  : 'UNKNOWN · no comparison frame';
 
 export const projectAtlasWorld = ({
   input,
@@ -361,8 +383,11 @@ export const projectAtlasWorld = ({
     ]);
   const recordLabel = currentRecord
     ? (currentRecord.label || currentRecord.kind || currentRecord.ref.id)
-    : 'Selected record missing in this frame';
+    : 'Selected record missing in this frame' + (recordFrame ? ' · evidence from counterpart ' + recordFrame.id : '');
   const context = currentRecord?.context ? contextText(currentRecord.context) : 'none';
+  const comparison = selectedDiff({
+    frame, counterpart, index, counterpartIndex, containment, counterpartContainment, selected,
+  });
   const detailLines = Object.freeze([
     'Frame ' + frame.id + ' · rev ' + frame.rev + ' · asOf ' + frame.asOf,
     'Selected ' + currentKind + ' · ' + selectedIdentity,
@@ -376,9 +401,12 @@ export const projectAtlasWorld = ({
     'Coverage: ' + frame.coverage.state + ' · ' + frame.coverage.label,
     'Coverage counts: ' + computedCoverage,
     'Flags: ' + flagsText(record?.flags),
-    'Diff: ' + selectedDiff({
-      frame, counterpart, index, counterpartIndex, containment, counterpartContainment, selected,
-    }),
+    'Before: ' + comparisonSideText(comparison.before),
+    'After: ' + comparisonSideText(comparison.after),
+    'Diff: ' + comparison.summary,
+    'Diff basis: supplied record fields / explicit containment · owner comparison NOT SUPPLIED',
+    ...comparison.changes.map(change => 'Field ' + change.field + ' [' + change.basis + ']: Before='
+      + JSON.stringify(stable(change.before)) + ' → After=' + JSON.stringify(stable(change.after))),
   ]);
 
   const detailY = worldHeight + DETAIL_GAP;
@@ -516,7 +544,7 @@ export const projectAtlasWorld = ({
       selectionProxies: Object.freeze({}),
     }),
     world,
-    selected: Object.freeze({ key: selected, record: currentRecord ?? null, counterpart: counterpartRecord ?? null }),
+    selected: Object.freeze({ key: selected, record: currentRecord ?? null, counterpart: counterpartRecord ?? null, comparison }),
     selectedRegionId,
     aggregateRelationIds: aggregateIds,
     omittedRelationIds: omittedIds,

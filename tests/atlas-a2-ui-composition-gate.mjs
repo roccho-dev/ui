@@ -399,24 +399,28 @@ try {
 
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'project-participation', id: 'work.x.project.a' }));
   const contextDiff = await renderedJudgement();
-  check('before/after diff includes context-only source meaning change',
+  check('before/after diff includes context-only supplied fact change',
     contextDiff.visible && /Diff: changed .*context/u.test(contextDiff.text), contextDiff);
 
-  await page.evaluate(() => window.liveAtlas.selectRef({ space: 'projects', kind: 'project', id: 'project.b' }));
+  await clickBoundaryHeader(projectB.regionId);
   const presentationOnlyDiff = await renderedJudgement();
-  check('presentation-only order change is not reported as meaning change',
-    presentationOnlyDiff.visible && /Diff: no selected meaning change/u.test(presentationOnlyDiff.text), presentationOnlyDiff);
+  check('prepared-order-only: supplied order change is visible without claiming owner meaning',
+    presentationOnlyDiff.visible && /Diff: changed order/u.test(presentationOnlyDiff.text)
+      && /Field order .*Before=1 → After=4/u.test(presentationOnlyDiff.text)
+      && /owner comparison NOT SUPPLIED/u.test(presentationOnlyDiff.text), presentationOnlyDiff);
 
   await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'project-participation', id: 'agent2.projecta.hidden' }));
   await clickCell('world:control:after');
   const visibilityOnlyDiff = await renderedJudgement();
-  check('presentation-only relation visibility change is not reported as meaning change',
-    visibilityOnlyDiff.visible && /Diff: no selected meaning change/u.test(visibilityOnlyDiff.text), visibilityOnlyDiff);
+  check('prepared-visible-only: supplied visibility change is visible without claiming owner meaning',
+    visibilityOnlyDiff.visible && /Diff: changed visible/u.test(visibilityOnlyDiff.text)
+      && /Field visible .*Before=true → After=false/u.test(visibilityOnlyDiff.text)
+      && /owner comparison NOT SUPPLIED/u.test(visibilityOnlyDiff.text), visibilityOnlyDiff);
 
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'serves', id: 'agent1.purposea' }));
   const timeOnlyDiff = await renderedJudgement();
-  check('time-only evidence change remains a selected meaning/evidence diff',
+  check('time-only supplied evidence change remains distinguishable',
     timeOnlyDiff.visible && /Diff: changed time/u.test(timeOnlyDiff.text), timeOnlyDiff);
 
   await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'project-participation', id: 'work.y.project.b' }));
@@ -447,7 +451,59 @@ try {
     rendered: missingRendered,
   };
   check('removed relation selection survives and shows counterpart instead of completion',
-    missing.frame === 'after' && missingRendered.visible && /missing in after · counterpart exists in before/u.test(missingRendered.text), missing);
+    missing.frame === 'after' && missingRendered.visible && /missing in after · counterpart exists in before/u.test(missingRendered.text)
+      && /After: after .*record missing · reason\/time UNKNOWN/u.test(missingRendered.text), missing);
+
+  // prepared-three-frame-endpoints: both buttons retain the same compared pair.
+  await page.evaluate(() => {
+    const atlas = window.liveAtlas;
+    const input = structuredClone(atlas.input);
+    const before = structuredClone(input.frames[0]);
+    before.id = 'prepared-before';
+    const middle = structuredClone(before);
+    middle.id = 'prepared-middle';
+    middle.rev += 1;
+    middle.entities.find(item => item.ref.id === 'project.b').order = 20;
+    const after = structuredClone(before);
+    after.id = 'prepared-after';
+    after.rev += 2;
+    after.entities.find(item => item.ref.id === 'project.b').order = 7;
+    after.relations.find(item => item.ref.id === 'agent1.purposea').path = true;
+    input.frames = [before, middle, after];
+    atlas.setSession({ input, mode: 'sample', connected: false, latest: true });
+    atlas.fit();
+  });
+  await clickBoundaryHeader(projectB.regionId);
+  for (const side of ['before', 'after']) {
+    await clickCell('world:control:' + side);
+    const rendered = await renderedJudgement();
+    const pair = await page.evaluate(() => {
+      const atlas = window.liveAtlas, comparison = atlas.projection.selected.comparison;
+      return {
+        viewing: atlas.input.frames[atlas.page.frameIndex].id,
+        selected: atlas.page.selected,
+        before: comparison.before.frameId, after: comparison.after.frameId,
+      };
+    });
+    check('prepared-three-frame-endpoints: actual ' + side + ' click keeps the named pair and supplied values',
+      pair.viewing === 'prepared-' + side && pair.selected === entityKey(projectB.ref)
+        && pair.before === 'prepared-before' && pair.after === 'prepared-after'
+        && rendered.visible && /Field order .*Before=1 → After=7/u.test(rendered.text)
+        && /Before: prepared-before/u.test(rendered.text) && /After: prepared-after/u.test(rendered.text)
+        && /owner comparison NOT SUPPLIED/u.test(rendered.text),
+      { pair, rendered });
+  }
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'serves', id: 'agent1.purposea' }));
+  const pathOnlyDiff = await renderedJudgement();
+  check('prepared-path-only: supplied path flag change is visible without a business meaning claim',
+    pathOnlyDiff.visible && /Diff: changed path/u.test(pathOnlyDiff.text)
+      && /Field path .*Before=false → After=true/u.test(pathOnlyDiff.text)
+      && /owner comparison NOT SUPPLIED/u.test(pathOnlyDiff.text), pathOnlyDiff);
+  await page.evaluate(input => {
+    window.liveAtlas.setSession({ input, mode: 'sample', connected: false, latest: true });
+    window.liveAtlas.fit();
+  }, rawWorldInput);
+
 
   check('routine judgement has no second visible HTML information/control surface',
     await page.locator('#atlas-detail,#atlas-inspector,#atlas-audit,#atlas-search,#atlas-world-toolbar').count() === 0);
@@ -823,7 +879,7 @@ try {
         && detail.text.includes('repo=' + repo + ' · package=Package A · basis=move-a-v' + version)
         && detail.text.includes('Source: fixture:place-a@' + version + ' [synthetic]')
         && /Flags: .*proposal.*display-containment-only/u.test(detail.text)
-        && /Diff: changed from, context, source/u.test(detail.text) && !/missing in/u.test(detail.text),
+        && /Diff: changed context, from, source/u.test(detail.text) && !/missing in/u.test(detail.text),
       { selected, detail });
   }
 

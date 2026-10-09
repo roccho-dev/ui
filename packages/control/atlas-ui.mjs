@@ -476,8 +476,8 @@ export const mountAtlasWorldUI = ({
   const currentFrame = () => page.input.frames[page.frameIndex];
   const counterpartFrame = () => {
     if (page.input.frames.length < 2) return null;
-    if (page.frameIndex > 0) return page.input.frames[page.frameIndex - 1];
-    return page.input.frames[1];
+    // Before/After controls compare the same first/latest endpoints in both views.
+    return page.input.frames[page.frameIndex === 0 ? page.input.frames.length - 1 : 0];
   };
 
   const draw = () => {
