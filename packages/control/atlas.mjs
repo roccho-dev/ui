@@ -1,7 +1,7 @@
 // Live Agent Organization Atlas application adapter.
 // Acquisition/bootstrap stays here; reusable screens live in atlas-ui.mjs.
 import { applyEnvelope, connectLiveAtlas, createAtlasState, loadHistory } from './src/live-atlas.mjs';
-import { ATLAS_WORLD_KIND, parseAtlasWorldInput } from './src/atlas-world.mjs';
+import { ATLAS_WORLD_KIND } from './src/atlas-world.mjs';
 import { mountAtlasUI, mountAtlasWorldUI } from './atlas-ui.mjs';
 
 const readInput = () => JSON.parse(document.getElementById('live-atlas-input').textContent);
@@ -43,10 +43,9 @@ const publishApi = (ui, cleanup) => {
 };
 
 const startWorldAtlas = ({ input, eventsUrl, selected }) => {
-  const parsed = parseAtlasWorldInput(input);
   const ui = mountAtlasWorldUI({
     root: document.body,
-    input: parsed,
+    input,
     mode: eventsUrl ? 'live' : 'sample',
     connected: false,
     now: Date.now(),
@@ -55,27 +54,17 @@ const startWorldAtlas = ({ input, eventsUrl, selected }) => {
   });
 
   let source = null;
-  let timer = null;
   if (eventsUrl) {
     source = connectLiveAtlas({
       url: eventsUrl,
       onConnection: connected => ui.setSession({ connected, mode: 'live', now: Date.now() }),
       onSnapshot: data => {
-        const next = parseAtlasWorldInput(data);
-        ui.setSession({
-          input: next,
-          connected: ui.page.connected,
-          mode: 'live',
-          now: Date.now(),
-          latest: ui.page.latest,
-        });
+        ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: Date.now(), latest: ui.page.latest, reportInvalid: true });
       },
     });
-    timer = setInterval(() => ui.tick(Date.now()), 1000);
   }
 
   return publishApi(ui, () => {
-    if (timer !== null) clearInterval(timer);
     source?.close();
   });
 };

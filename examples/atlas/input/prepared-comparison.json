@@ -1,0 +1,691 @@
+{
+  "kind": "ui.atlasWorldInput.v1",
+  "authority": false,
+  "presentation": {
+    "areas": [
+      {
+        "id": "purpose",
+        "label": "🎯 Purpose",
+        "order": 0
+      },
+      {
+        "id": "projects",
+        "label": "📁 Scopes",
+        "order": 1
+      },
+      {
+        "id": "agents",
+        "label": "🤖 Agents",
+        "order": 2
+      }
+    ],
+    "purposeAreaId": "purpose",
+    "defaultSelection": {
+      "space": "agents",
+      "kind": "agent",
+      "id": "agent.1"
+    },
+    "directionTargets": [
+      {
+        "space": "purpose",
+        "kind": "purpose",
+        "id": "shared"
+      }
+    ]
+  },
+  "frames": [
+    {
+      "id": "before",
+      "rev": 1,
+      "asOf": "2026-10-07T06:00:00Z",
+      "sourceState": "synthetic fixture / source available",
+      "coverage": {
+        "state": "partial",
+        "label": "Four-entity synthetic owner-comparison example; no real observation coverage",
+        "observed": 0,
+        "unsupported": 0,
+        "unknown": 4
+      },
+      "entities": [
+        {
+          "ref": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "shared"
+          },
+          "label": "Company purpose",
+          "area": "purpose",
+          "order": 0,
+          "activity": "none",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:purpose@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        },
+        {
+          "ref": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "purpose.a"
+          },
+          "label": "Purpose A",
+          "area": "purpose",
+          "order": 1,
+          "activity": "none",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:purpose@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        },
+        {
+          "ref": {
+            "space": "projects",
+            "kind": "project",
+            "id": "project.b"
+          },
+          "label": "Project B",
+          "area": "projects",
+          "order": 1,
+          "activity": "recent",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:projects@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": "2026-10-07T05:59:00Z",
+            "acquiredAt": "2026-10-07T05:59:00Z",
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        },
+        {
+          "ref": {
+            "space": "agents",
+            "kind": "agent",
+            "id": "agent.1"
+          },
+          "label": "Agent 1",
+          "area": "agents",
+          "order": 1,
+          "activity": "now",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:runtime@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": "2026-10-07T06:00:00Z",
+            "acquiredAt": "2026-10-07T06:00:05Z",
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "ref": {
+            "space": "world-relation",
+            "kind": "purpose-parent",
+            "id": "purpose.a.parent"
+          },
+          "from": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "purpose.a"
+          },
+          "to": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "shared"
+          },
+          "kind": "purpose-parent",
+          "label": "upstream",
+          "context": {},
+          "source": {
+            "sourceRef": "fixture:purpose@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ],
+          "path": true,
+          "visible": true,
+          "activity": "none",
+          "containment": "to-contains-from"
+        },
+        {
+          "ref": {
+            "space": "world-relation",
+            "kind": "serves",
+            "id": "agent1.purposea"
+          },
+          "from": {
+            "space": "agents",
+            "kind": "agent",
+            "id": "agent.1"
+          },
+          "to": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "purpose.a"
+          },
+          "kind": "serves",
+          "label": "serves",
+          "context": {
+            "explicit": true
+          },
+          "source": {
+            "sourceRef": "fixture:bridge@1",
+            "sourceDigest": "prepared-evidence-1",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": "2026-10-07T06:00:00Z",
+            "acquiredAt": "2026-10-07T06:00:00Z",
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ],
+          "path": false,
+          "visible": true,
+          "activity": "none"
+        }
+      ]
+    },
+    {
+      "id": "after",
+      "rev": 2,
+      "asOf": "2026-10-07T06:10:00Z",
+      "sourceState": "synthetic fixture / source available",
+      "coverage": {
+        "state": "partial",
+        "label": "Four-entity synthetic owner-comparison example; no real observation coverage",
+        "observed": 0,
+        "unsupported": 0,
+        "unknown": 4
+      },
+      "entities": [
+        {
+          "ref": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "shared"
+          },
+          "label": "Company purpose",
+          "area": "purpose",
+          "order": 0,
+          "activity": "none",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:purpose@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        },
+        {
+          "ref": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "purpose.a"
+          },
+          "label": "Purpose A",
+          "area": "purpose",
+          "order": 1,
+          "activity": "none",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:purpose@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        },
+        {
+          "ref": {
+            "space": "projects",
+            "kind": "project",
+            "id": "project.b"
+          },
+          "label": "Project B",
+          "area": "projects",
+          "order": 4,
+          "activity": "recent",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:projects@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": "2026-10-07T05:59:00Z",
+            "acquiredAt": "2026-10-07T05:59:00Z",
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        },
+        {
+          "ref": {
+            "space": "agents",
+            "kind": "agent",
+            "id": "agent.1"
+          },
+          "label": "Agent 1",
+          "area": "agents",
+          "order": 1,
+          "activity": "now",
+          "summary": "",
+          "source": {
+            "sourceRef": "fixture:runtime@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": "2026-10-07T06:00:00Z",
+            "acquiredAt": "2026-10-07T06:10:00Z",
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "ref": {
+            "space": "world-relation",
+            "kind": "purpose-parent",
+            "id": "purpose.a.parent"
+          },
+          "from": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "purpose.a"
+          },
+          "to": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "shared"
+          },
+          "kind": "purpose-parent",
+          "label": "upstream",
+          "context": {},
+          "source": {
+            "sourceRef": "fixture:purpose@1",
+            "sourceDigest": null,
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ],
+          "path": true,
+          "visible": true,
+          "activity": "none",
+          "containment": "to-contains-from"
+        },
+        {
+          "ref": {
+            "space": "world-relation",
+            "kind": "serves",
+            "id": "agent1.purposea"
+          },
+          "from": {
+            "space": "agents",
+            "kind": "agent",
+            "id": "agent.1"
+          },
+          "to": {
+            "space": "purpose",
+            "kind": "purpose",
+            "id": "purpose.a"
+          },
+          "kind": "serves",
+          "label": "serves",
+          "context": {
+            "explicit": true
+          },
+          "source": {
+            "sourceRef": "fixture:bridge@1",
+            "sourceDigest": "prepared-evidence-2",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": "2026-10-07T06:10:00Z",
+            "acquiredAt": "2026-10-07T06:10:00Z",
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic"
+          ],
+          "path": false,
+          "visible": true,
+          "activity": "none"
+        }
+      ]
+    }
+  ],
+  "note": "Synthetic prepared owner receipts for #342 UI verification. No real observation or business authority.",
+  "comparisons": [
+    {
+      "id": "prepared-owner-six-axes",
+      "ownerRef": "fixture:comparison-owner",
+      "before": {
+        "frameId": "before",
+        "rev": 1,
+        "asOf": "2026-10-07T06:00:00Z"
+      },
+      "after": {
+        "frameId": "after",
+        "rev": 2,
+        "asOf": "2026-10-07T06:10:00Z"
+      },
+      "axes": {
+        "N": {
+          "status": "unknown",
+          "summary": "Owner fixture leaves presence interpretation unknown",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Owner fixture leaves presence interpretation unknown"
+          },
+          "refs": [],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        },
+        "M": {
+          "status": "unchanged",
+          "summary": "Owner fixture declares meaning unchanged independently of order and source fields",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Owner fixture declares meaning unchanged independently of order and source fields"
+          },
+          "refs": [],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        },
+        "R": {
+          "status": "unknown",
+          "summary": "Owner fixture leaves reference interpretation unknown",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Owner fixture leaves reference interpretation unknown"
+          },
+          "refs": [],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        },
+        "E": {
+          "status": "changed",
+          "summary": "Owner fixture explicitly reports a relation change",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Owner fixture explicitly reports a relation change"
+          },
+          "refs": [],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        },
+        "S": {
+          "status": "changed",
+          "summary": "Owner fixture explicitly reports changed relation evidence",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Owner fixture explicitly reports changed relation evidence"
+          },
+          "refs": [
+            {
+              "type": "relation",
+              "ref": {
+                "space": "world-relation",
+                "kind": "serves",
+                "id": "agent1.purposea"
+              }
+            }
+          ],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        },
+        "T": {
+          "status": "changed",
+          "summary": "Owner fixture explicitly reports changed relation time",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Owner fixture explicitly reports changed relation time"
+          },
+          "refs": [
+            {
+              "type": "relation",
+              "ref": {
+                "space": "world-relation",
+                "kind": "serves",
+                "id": "agent1.purposea"
+              }
+            }
+          ],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        }
+      },
+      "gaps": {
+        "business": {
+          "status": "unknown",
+          "summary": "Business Gap is unknown; Work completion does not establish Purpose achievement",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Business Gap is unknown; Work completion does not establish Purpose achievement"
+          },
+          "refs": [],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        },
+        "frame": {
+          "status": "changed",
+          "summary": "Owner supplies this Frame delta separately",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Owner supplies this Frame delta separately"
+          },
+          "refs": [],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        },
+        "observation": {
+          "status": "unknown",
+          "summary": "Observation gap remains unknown",
+          "basis": {
+            "fixture": "prepared-comparison-v1",
+            "assertion": "Observation gap remains unknown"
+          },
+          "refs": [],
+          "reason": null,
+          "source": {
+            "sourceRef": "fixture:comparison-owner@1",
+            "sourceDigest": "prepared-only",
+            "kind": "synthetic"
+          },
+          "time": {
+            "observedAt": null,
+            "acquiredAt": null,
+            "effectiveAt": null
+          },
+          "flags": [
+            "synthetic",
+            "proposal"
+          ]
+        }
+      },
+      "source": {
+        "sourceRef": "fixture:comparison-owner@1",
+        "sourceDigest": "prepared-only",
+        "kind": "synthetic"
+      },
+      "time": {
+        "observedAt": null,
+        "acquiredAt": null,
+        "effectiveAt": null
+      },
+      "flags": [
+        "synthetic",
+        "proposal"
+      ]
+    }
+  ]
+}
