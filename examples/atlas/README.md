@@ -164,13 +164,13 @@ Start in **After**. Actual node selection shows its qualified identity and flags
 | Proposed relation to Issue B | A→B relation `pkg-a.issue-b` | from=Package A, to=Issue B, basis=scope-b, synthetic/proposal |
 | Proposed placement | Placement relation `example-relations/placement/pkg-a.repo-proposal`, Before / After | repo=Repo A / Repo B, basis=move-a-v1 / move-a-v2, source fixture:place-a@1 / @2 |
 
-All required context values are shorter than the current 32-character value limit. Distinguishing evidence is in short basis/sourceRef values, not only in a hidden summary or sourceDigest. Relation label A→A/A→B/B→A abbreviates the named Package→Issue pair; all three are ordinary graph relations.
+Context values, sourceDigest and the full selected record are recoverable through the SVG Record pages without a 32-character truncation. Short basis/sourceRef values remain useful entry points to the complete evidence. Relation label A→A/A→B/B→A abbreviates the named Package→Issue pair; all three are ordinary graph relations.
 
 ### Relations and Purpose paths
 
-Relation selection's **Direction starts from the relation's source**. It does not promise to traverse the selected edge. In this example, selecting A→B can still show Package A → Issue A → Purpose A → Company purpose. That is not evidence of a path through Issue B.
+Relation selection's **Direction starts with the exact selected RelationRef**. Selecting A→B shows Package A → Issue B → Purpose A → Company purpose. Its proposal status and each edge's reference/evidence remain explicit; another Issue's route is not substituted.
 
-To follow B, click the exposed A→B line, read its selected ref and endpoints, then **click Issue B itself** and read Issue B → Purpose A → Company purpose. For A→A and B→A, click the relation and then Issue A to read A's own Purpose path. Package A selection also exposes one supplied path through Issue A, without adopting either A→A evidence record.
+To follow B, click the exposed A→B line and read its selected ref, endpoints and Direction. **Inspect to endpoint** or clicking Issue B explicitly changes the selection to B and shows B's own route. Package A's Direction pages expose the separate req/alt references through Issue A and the route through Issue B, without adopting their proposal evidence.
 
 The two new Work→Issue relations explicitly have `path=false`. They do not replace the existing seven-entity Agent 1 → Work X → Fill X → Gap A → Ideal A → Purpose A → Company purpose path. No ordinary relation implies containment.
 
@@ -191,14 +191,14 @@ Use the a2 public build and existing Nix composition-gate commands above from th
 
 The existing browser gate retains its rendering and interaction assertions, while pure input/fixture assertions live in the Node check. It covers actual node/edge clicks, the three M:N routes, both independent A→A evidence members, readable context/flags and Focus labels, and Package identity/nesting across frames. It requires an exposed rendered edge click point; DOM text or a covered midpoint is insufficient. Its placement-relation diff probe uses programmatic selection and is distinct from its actual Package/Repo/frame clicks.
 
-P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before hold / After return, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
+P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before/After pair hold / explicit Latest following, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
 
-The three real-data unknown groups remain: source/identity mapping; requirement/implementation evidence; and relation owner/meaning/evidence/adoption/coverage. This example introduces no required relation taxonomy, owner codec, acquisition mechanism, dependency, CI workflow, second screen or Judgement redesign. Published source and executable proof, P's real-screen/SSE readback and R's verdict are separate evidence; prior #336 results do not establish this example's completion.
+The three real-data unknown groups remain: source/identity mapping; requirement/implementation evidence; and relation owner/meaning/evidence/adoption/coverage. The synthetic Issue/Package vocabulary introduces no required relation taxonomy, owner codec, acquisition mechanism, dependency, CI workflow or second screen. The prepared-data completion below adds navigation to the same SVG judgement panel. Published source and executable proof, P's real-screen/SSE readback and R's verdict are separate evidence; prior #336 results do not establish this example's completion.
 
 ## Prepared comparison and held pairs (#342)
 
 `input/prepared-comparison.json` is an additional **synthetic, authority=false**
-input for the same World application. It supplies example owner receipts; it does
+four-entity/two-relation input for the same World application. It supplies example owner receipts; it does
 not adopt an owner business schema or acquire real Agent observations.
 
 ```sh
