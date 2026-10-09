@@ -437,6 +437,7 @@ const WORLD_STYLE = `
 body{margin:0;overflow:hidden}
 #atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
 #atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
+#atlas-world svg text{white-space:pre}
 `;
 
 export const mountAtlasWorldUI = ({
@@ -530,9 +531,9 @@ export const mountAtlasWorldUI = ({
     }
   };
 
-  const select = (key, { sync = true } = {}) => {
+  const select = (key, { sync = true, inspect = false } = {}) => {
     if (typeof key !== 'string' || !key) return;
-    if (page.selected !== key) { page.detailPages[page.detailTab] = page.detailPage; page.detailPage = 0; page.detailTab = 'record'; }
+    if (page.selected !== key || inspect) { page.detailPages[page.detailTab] = page.detailPage; page.detailPage = 0; page.detailTab = 'record'; }
     page.selected = key;
     onSelect?.(key);
     draw();
@@ -549,7 +550,7 @@ export const mountAtlasWorldUI = ({
   };
 
   adapter.setActivationHandler(activation => {
-    if (activation?.type === 'atlas.world.select') select(activation.id);
+    if (activation?.type === 'atlas.world.select') select(activation.id, { inspect: true });
     else if (activation?.type === 'atlas.world.next-aggregate') cycle(page.projection?.aggregateRelationIds);
     else if (activation?.type === 'atlas.world.next-omitted') cycle(page.projection?.omittedRelationIds);
     else if (activation?.type === 'atlas.world.next-omitted-entity') cycle(page.projection?.omittedEntityIds);
@@ -559,7 +560,7 @@ export const mountAtlasWorldUI = ({
     else if (activation?.type === 'atlas.world.tab') { page.detailPages[page.detailTab] = page.detailPage; page.detailTab = activation.value; page.detailPage = page.detailPages[activation.value] ?? 0; draw(); }
     else if (activation?.type === 'atlas.world.detail-next') turnPage(1);
     else if (activation?.type === 'atlas.world.detail-previous') turnPage(-1);
-    else if (activation?.type === 'atlas.world.endpoint' && activation.value) select(activation.value);
+    else if (activation?.type === 'atlas.world.endpoint' && activation.value) select(activation.value, { inspect: true });
     else if (activation?.type === 'atlas.world.fit') fit();
     else if (activation?.type === 'atlas.world.focus') focusSelected();
     else if (activation?.type === 'atlas.world.tool-select') adapter.setTool('select');

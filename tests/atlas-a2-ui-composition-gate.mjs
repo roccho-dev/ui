@@ -274,14 +274,16 @@ try {
   };
 
   // Walk the actual SVG page controls. Every physical row must retain the old
-  // positive bbox/viewport oracle; reconstruction additionally proves no value
-  // was silently dropped. No Fit, API page mutation or source-only text proof.
+  // positive bbox/viewport oracle. Decode only the JSON string actually drawn
+  // in each row; expected labels/input/offsets never fill a missing character.
+  // No Fit, API page mutation or source-only text proof.
   const renderedJudgement = async ({ tab = 'record', targetPage = page } = {}) => {
     const saved = await targetPage.evaluate(() => ({ tab: window.liveAtlas.projection.detail.tab, page: window.liveAtlas.projection.detail.page }));
     await clickCell('world:detail:' + tab, targetPage);
     let current = await targetPage.evaluate(() => window.liveAtlas.projection.detail.page);
     while (current-- > 0) await clickCell('world:detail:previous', targetPage);
     const total = await targetPage.evaluate(() => window.liveAtlas.projection.detail.pageCount);
+    const logicalCount = await targetPage.evaluate(() => window.liveAtlas.projection.detail.logicalLines.length);
     const rows = [];
     let complete = true;
     for (let number = 0; number < total; number += 1) {
@@ -306,13 +308,23 @@ try {
         return { rows, page: atlas.projection.detail.page, total: atlas.projection.detail.pageCount,
           logicalCount: atlas.projection.detail.logicalLines.length };
       });
-      complete &&= result.page === number && result.total === total;
+      complete &&= result.page === number && result.total === total && result.logicalCount === logicalCount;
       rows.push(...result.rows);
       if (number + 1 < total) await clickCell('world:detail:next', targetPage);
     }
     const lines = new Map();
-    for (const row of rows) lines.set(row.lineIndex, (lines.get(row.lineIndex) ?? '') + row.text);
+    for (const row of rows) {
+      try {
+        const decoded = JSON.parse(row.text);
+        if (typeof decoded !== 'string') throw new Error('displayed row must be a JSON string');
+        row.decoded = decoded;
+        const preceding = lines.get(row.lineIndex) ?? '';
+        complete &&= row.offset === Array.from(preceding).length;
+        lines.set(row.lineIndex, preceding + decoded);
+      } catch (error) { row.decodeError = error.message; complete = false; }
+    }
     const text = [...lines.values()].join('\n');
+    complete &&= lines.size === logicalCount && [...lines.keys()].every((key, index) => key === index);
     const expected = await targetPage.evaluate(() => window.liveAtlas.projection.detail.logicalLines.join('\n'));
     await clickCell('world:detail:' + saved.tab, targetPage);
     let restored = await targetPage.evaluate(() => window.liveAtlas.projection.detail.page);
@@ -670,6 +682,20 @@ try {
   await clickCell('world:control:select');
   await clickCell('world:control:fit');
 
+  const renderedNodeLabels = async () => page.evaluate(() => {
+    const atlas = window.liveAtlas, adapter = atlas.adapter, viewport = atlas.projection.viewport.graph;
+    return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
+      const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
+      const node = state?.text?.node, box = node?.getBoundingClientRect();
+      return { key: item.regionId, expected: item.label, text: node?.textContent ?? '',
+        box: box ? { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height } : null,
+        camera: adapter.camera(), graphViewport: viewport, bounds: item.bounds, fontSize: state?.style?.fontSize,
+        visible: Boolean(box && box.width > 0 && box.height >= 10 && box.left >= viewport.x - 1
+          && box.right <= viewport.x + viewport.width + 1 && box.top >= viewport.y - 1
+          && box.bottom <= viewport.y + viewport.height + 1) };
+    });
+  });
+
   // Real viewport changes must trigger the World mount's fit without manual Fit.
   for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 1000 }]) {
     await page.evaluate(async () => {
@@ -711,19 +737,15 @@ try {
         && resized.frameId === resized.beforeFrameId, resized);
     check(label + ' keeps SVG judgement and controls visible without manual Fit',
       judgement.visible && controls.every(item => item.visible), { judgement, controls });
-    const labels = await page.evaluate(() => {
-      const atlas = window.liveAtlas, adapter = atlas.adapter, viewport = atlas.projection.viewport.graph;
-      return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
-        const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
-        const node = state?.text?.node, box = node?.getBoundingClientRect();
-        return { key: item.regionId, expected: item.label, text: node?.textContent ?? '',
-          visible: Boolean(box && box.width > 0 && box.height >= 10 && box.left >= viewport.x - 1
-            && box.right <= viewport.x + viewport.width + 1 && box.top >= viewport.y - 1
-            && box.bottom <= viewport.y + viewport.height + 1) };
-      });
-    });
+    const labels = await renderedNodeLabels();
     check(label + ' representative node labels remain present and inside the graph viewport',
       labels.every(item => item.visible && item.text.replace(/\s/gu, '').includes(item.expected.replace(/\s/gu, ''))), labels);
+    await clickCell('world:control:after');
+    const afterLabels = await renderedNodeLabels();
+    check(label + ' After representative node labels remain present without replacing the held pair',
+      afterLabels.every(item => item.visible && item.text.replace(/\s/gu, '').includes(item.expected.replace(/\s/gu, ''))),
+      afterLabels);
+    await clickCell('world:control:before');
   }
 
   await page.evaluate(() => window.liveAtlas.fit());
@@ -1072,6 +1094,10 @@ try {
   check('explicit unknown endpoint selection remains absent on both sides',
     /not present in either compared frame/u.test((await renderedJudgement()).text));
   await clickCell('world:detail:records');
+  await page.evaluate(() => {
+    const atlas = window.liveAtlas;
+    window.__catalogBefore = { pair: atlas.page.pair, camera: atlas.adapter.camera() };
+  });
   let recoveredFromCatalog = false, catalogReturnPage = -1;
   const catalogPages = await page.evaluate(() => window.liveAtlas.projection.detail.pageCount);
   while ((await page.evaluate(() => window.liveAtlas.projection.detail.page)) > 0) await clickCell('world:detail:previous');
@@ -1081,19 +1107,58 @@ try {
     if (row) { catalogReturnPage = number; await clickCell(row); recoveredFromCatalog = true; break; }
     if (number + 1 < catalogPages) await clickCell('world:detail:next');
   }
+  const catalogReturn = await page.evaluate(() => {
+    const atlas = window.liveAtlas, previous = window.__catalogBefore;
+    return { selected: atlas.page.selected, tab: atlas.page.detailTab, page: atlas.page.detailPage,
+      samePair: atlas.page.pair === previous.pair,
+      sameCamera: JSON.stringify(atlas.adapter.camera()) === JSON.stringify(previous.camera),
+      camera: atlas.adapter.camera(), before: atlas.page.pair.before?.id, after: atlas.page.pair.after.id };
+  });
+  const catalogJudgement = await renderedJudgement();
   check('actual All records row click returns from an unknown endpoint to the original qualified context',
-    recoveredFromCatalog && await page.evaluate(() => window.liveAtlas.page.selected) === entityKey(example.packageA.ref)
-      && (await renderedJudgement()).visible);
+    recoveredFromCatalog && catalogReturn.selected === entityKey(example.packageA.ref)
+      && catalogReturn.tab === 'record' && catalogReturn.samePair && catalogReturn.sameCamera && catalogJudgement.visible,
+    { rowFound: recoveredFromCatalog, catalogReturnPage, state: catalogReturn, judgement: catalogJudgement });
   await clickCell('world:detail:records');
   check('returning to All records restores the page used for selection',
     await page.evaluate(() => window.liveAtlas.projection.detail.page) === catalogReturnPage);
+
+  // The row may be the current selection. This is still an explicit inspect
+  // action, not a no-op. Read the actual tab before the text helper visits it.
+  const sameKeyRow = await page.evaluate(key => {
+    const atlas = window.liveAtlas;
+    window.__catalogBefore = { pair: atlas.page.pair, camera: atlas.adapter.camera(), selected: atlas.page.selected };
+    return atlas.projection.scene.representations.find(item =>
+      item.atlas?.kind === 'judgement-line' && item.activation?.id === key)?.regionId ?? null;
+  }, entityKey(example.packageA.ref));
+  if (sameKeyRow) await clickCell(sameKeyRow);
+  const sameKeyInspect = await page.evaluate(() => {
+    const atlas = window.liveAtlas, previous = window.__catalogBefore;
+    return { selected: atlas.page.selected, sameSelection: atlas.page.selected === previous.selected,
+      tab: atlas.page.detailTab, page: atlas.page.detailPage, samePair: atlas.page.pair === previous.pair,
+      sameCamera: JSON.stringify(atlas.adapter.camera()) === JSON.stringify(previous.camera),
+      camera: atlas.adapter.camera(), before: atlas.page.pair.before?.id, after: atlas.page.pair.after.id };
+  });
+  const sameKeyJudgement = await renderedJudgement();
+  check('actual All records click on the already selected key opens Record and retains pair/selection/camera',
+    Boolean(sameKeyRow) && sameKeyInspect.sameSelection && sameKeyInspect.selected === entityKey(example.packageA.ref)
+      && sameKeyInspect.tab === 'record' && sameKeyInspect.page === 0 && sameKeyInspect.samePair && sameKeyInspect.sameCamera
+      && sameKeyJudgement.visible && /Selected entity · example-packages\/package\/pkg-a/u.test(sameKeyJudgement.text),
+    { row: sameKeyRow, state: sameKeyInspect, judgement: sameKeyJudgement });
+  await clickCell('world:detail:records');
+  const sameKeyReturnPage = await page.evaluate(() => window.liveAtlas.projection.detail.page);
+  check('All records returns to the same page after inspecting the already selected key',
+    sameKeyReturnPage === catalogReturnPage, { expected: catalogReturnPage, actual: sameKeyReturnPage });
+  await page.evaluate(() => { delete window.__catalogBefore; });
 
   // Long values are paged, never truncated; this verifies exact rendered text
   // including multi-byte characters through the public artifact at both sizes.
   await page.evaluate(input => {
     const next = structuredClone(input);
     const relation = next.frames[1].relations.find(item => item.ref.id === 'agent1.purposea');
-    relation.context = { value: '長い供給済みの根拠λ🙂'.repeat(30), literal: '<>&"' };
+    relation.context = { value: '長い供給済みの根拠λ🙂'.repeat(30), literal: '<>&" \\n is literal; \n is a newline',
+      edges: '  leading and trailing  ', consecutive: 'one    two', spacesOnly: ' '.repeat(180),
+      lines: '\n\nfirst\tsecond\r\nlast\n', separators: 'a\u0085b\u2028c\u2029d', escape: '\\ " \t' };
     relation.source.sourceDigest = 'long-source-'.repeat(50);
     window.liveAtlas.setSession({ input: next, mode: 'sample', latest: true });
     window.liveAtlas.selectRelationRef(relation.ref);
@@ -1104,6 +1169,13 @@ try {
     check('long multi-field evidence is fully visible through SVG page clicks at ' + viewport.width + 'x' + viewport.height,
       long.visible && long.complete && long.totalPages > 1
         && long.text.includes('長い供給済みの根拠λ🙂'.repeat(30)) && long.text.includes('long-source-'.repeat(50)), long);
+    check('actual SVG JSON fragments preserve spaces-only rows, line breaks, tabs and literal escapes at ' + viewport.width + 'x' + viewport.height,
+      long.visible && long.rows.some(row => /^ +$/u.test(row.decoded ?? ''))
+        && long.text.includes('edges=  leading and trailing  ')
+        && long.text.includes('consecutive=one    two') && long.text.includes('spacesOnly=' + ' '.repeat(180))
+        && long.text.includes('lines=\n\nfirst\tsecond\r\nlast\n')
+        && long.text.includes('literal=<>&" \\n is literal; \n is a newline')
+        && long.text.includes('separators=a\u0085b\u2028c\u2029d'), long);
   }
 
   for (const count of [40, 41]) {
@@ -1151,8 +1223,15 @@ try {
   }
   await page.evaluate(input => { window.liveAtlas.setSession({ input, mode: 'sample', latest: true }); window.liveAtlas.fit(); }, rawWorldInput);
   await clickExample(example.packageA);
+  const denseReturn = await page.evaluate(() => {
+    const atlas = window.liveAtlas;
+    return { selected: atlas.page.selected, tab: atlas.page.detailTab, page: atlas.page.detailPage,
+      before: atlas.page.pair.before?.id, after: atlas.page.pair.after.id, camera: atlas.adapter.camera() };
+  });
+  const denseReturnJudgement = await renderedJudgement();
   check('return from dense input restores original qualified context and full judgement',
-    (await renderedJudgement()).visible && await page.evaluate(() => window.liveAtlas.page.selected) === entityKey(example.packageA.ref));
+    denseReturnJudgement.visible && denseReturn.selected === entityKey(example.packageA.ref) && denseReturn.tab === 'record',
+    { state: denseReturn, judgement: denseReturnJudgement });
 
   // The actual app entry receives a real finite SSE snapshot, then stays quiet.
   producer = await startAtlasProducer({ connections: [[{ data: { ...rawWorldInput, note: 'world-live-update' } }]] });
@@ -1245,7 +1324,7 @@ try {
   const streamDisconnected = await renderedJudgement({ targetPage: streamPage });
   check('real disconnected SSE exposes UNKNOWN while retaining the last supplied observation',
     streamDisconnected.visible && /Activity: UNKNOWN · lastDeclared=NOW · transport=SSE disconnected/u.test(streamDisconnected.text)
-      && /observed=2026-10-07T06:10:00Z/u.test(streamDisconnected.text)
+      && /Time: observed=2026-10-07T06:00:00Z · acquired=2026-10-07T06:10:00Z · effective=unknown/u.test(streamDisconnected.text)
       && await streamPage.evaluate(() => window.liveAtlas.input === window.__disconnectInput), streamDisconnected);
   simAvailable = true;
   await streamPage.waitForFunction(() => window.liveAtlas.page.connected);
@@ -1255,7 +1334,7 @@ try {
   const streamRecovered = await renderedJudgement({ targetPage: streamPage });
   check('reconnected actual app retains declared observation and visible SSE state',
     streamRecovered.visible && /transport=SSE connected/u.test(streamRecovered.text)
-      && /observed=2026-10-07T06:10:00Z/u.test(streamRecovered.text), streamRecovered);
+      && /Time: observed=2026-10-07T06:00:00Z · acquired=2026-10-07T06:10:00Z · effective=unknown/u.test(streamRecovered.text), streamRecovered);
   await streamContext.close();
 
   // Exercise the existing mount return value; do not add tick to the app API.

@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ATLAS_COMPARISON_AXES, ATLAS_WORLD_KIND, comparisonsForPair, containmentIndex, entityKey, parseAtlasWorldInput, relationKey, worldPair } from '../packages/control/src/atlas-world.mjs';
-import { projectAtlasWorld } from '../packages/control/src/atlas-world-projection.mjs';
+import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
+import { fitCamera } from '../packages/semantic-map/camera-fit.js';
+import { displayedRegionLabel } from '../packages/semantic-map/renderer-maxgraph/labels.js';
+import { DEFAULT_THEME } from '../packages/semantic-map/renderer-maxgraph/theme.js';
 
 const fixture = JSON.parse(readFileSync(new URL('../examples/atlas/input/a2-world.json', import.meta.url), 'utf8'));
 
@@ -376,18 +379,32 @@ assert.deepEqual(new Set(targetPaths.map(route => route.entities.at(-1))),
 // P clipping counterexamples: full long multi-field values must remain exactly
 // reconstructible through physical pages at supported viewports and cameras.
 const longInput = structuredClone(prepared);
-longInput.frames[1].relations.at(-1).context = { japanese: '長い供給済みの根拠λ🙂'.repeat(30), quote: '<>&"' };
+longInput.frames[1].relations.at(-1).context = { japanese: '長い供給済みの根拠λ🙂'.repeat(30), quote: '<>&"',
+  edges: '  leading and trailing  ', consecutive: 'one    two', spacesOnly: ' '.repeat(180),
+  lines: '\n\nfirst\tsecond\r\nlast\n', literal: '\\n is literal; \n is a newline',
+  separators: 'a\u0085b\u2028c\u2029d', escape: '\\ " \t', empty: '' };
 longInput.frames[1].relations.at(-1).source.sourceDigest = 'digest-'.repeat(90);
 const longNormalized = parseAtlasWorldInput(longInput);
 for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 1000 }]) {
   for (const scale of [0.15, 0.7, 1.5, 5]) {
     let first = projectAtlasWorld({ input: longNormalized, frame: longNormalized.frames[1], counterpart: longNormalized.frames[0], selected: preparedRelationKey,
       viewport, scale, camera: { scale, translateX: -300, translateY: 700 } });
+    assert.ok(first.detail.physicalLines.some(row => /^ +$/u.test(JSON.parse(row.text))),
+      'spaces-only fragments remain explicit JSON strings');
     const recovered = new Map();
     for (let page = 0; page < first.detail.pageCount; page += 1) {
       const part = projectAtlasWorld({ input: longNormalized, frame: longNormalized.frames[1], counterpart: longNormalized.frames[0], selected: preparedRelationKey,
         viewport, scale, camera: { scale, translateX: -300, translateY: 700 }, detailPage: page });
-      for (const row of part.detail.rows) recovered.set(row.lineIndex, (recovered.get(row.lineIndex) ?? '') + row.text);
+      for (const row of part.detail.rows) {
+        // Reproduce the existing SVG line trimming that caused the public
+        // failure. Only the surviving rendered label is decoded here.
+        const drawn = row.text.split('\n').map(line => line.trim()).filter(Boolean).join('');
+        assert.equal(drawn, row.text, 'display delimiters survive SVG trimming');
+        assert.ok(Array.from(drawn).length * 18 <= part.viewport.panel.width - 32, 'encoded width, including escapes, is bounded');
+        const preceding = recovered.get(row.lineIndex) ?? '';
+        assert.equal(row.offset, Array.from(preceding).length, 'no missing segment is repaired with an offset');
+        recovered.set(row.lineIndex, preceding + JSON.parse(drawn));
+      }
       for (const rep of part.scene.representations.filter(item => item.zIndex >= 10000)) {
         const x = (rep.bounds.x - 300) * scale, y = (rep.bounds.y + 700) * scale;
         assert.ok(x >= -1e-8 && y >= -1e-8 && x + rep.bounds.width * scale <= viewport.width + 1e-8
@@ -395,6 +412,21 @@ for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 100
       }
     }
     assert.deepEqual([...recovered.values()], first.detail.logicalLines, 'all supplied characters recovered without abbreviation');
+  }
+}
+
+// The taller Before containment failed even though After passed. Exercise both
+// with the existing renderer's label decision at the declared 13px font, without
+// treating this pure decision as proof of actual browser glyph/bbox visibility.
+const worldTheme = { ...DEFAULT_THEME, vertex: { ...DEFAULT_THEME.vertex, fontSize: 13, deepFontSize: 13, fontStyle: 0 } };
+for (const frame of normalizedFixture.frames) {
+  for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 1000 }]) {
+    const projection = projectAtlasWorld({ input: normalizedFixture, frame, viewport });
+    const camera = fitCamera(projection.world, worldViewport(viewport).graph, 0.94);
+    for (const item of projection.scene.representations.filter(item => item.atlas?.kind === 'entity')) {
+      assert.equal(displayedRegionLabel(item, camera.scale, worldTheme, false), item.label,
+        frame.id + ' at ' + viewport.width + 'x' + viewport.height + ': complete node name ' + item.regionId);
+    }
   }
 }
 

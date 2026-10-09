@@ -138,22 +138,37 @@ const worldComparisonLines = (input, before, after) => {
   return Object.freeze(lines);
 };
 
-// Conservative physical lines: no ellipsis, no discarded characters, and no
-// browser-dependent text measurement. Every segment is reached by SVG paging.
+// SVG's plain-text renderer trims each line. Quoted JSON fragments keep line
+// edges inside visible delimiters, and encode supplied newlines/tabs instead
+// of sending them through that trimming path. The UI preserves interior spaces.
+// Size the encoded label, not the original fragment; decoding never needs input
+// metadata to restore a character. Unicode code points stay together.
 const wrapLines = (lines, width) => {
-  const capacity = Math.max(1, Math.floor(width / 18));
+  const capacity = Math.max(8, Math.floor(width / 18));
   return lines.flatMap((text, lineIndex) => {
-    const characters = Array.from(text);
     const parts = [];
-    for (let offset = 0; offset < characters.length; offset += capacity) {
-      parts.push(Object.freeze({ text: characters.slice(offset, offset + capacity).join(''), lineIndex, offset }));
+    let encoded = '', length = 0, offset = 0, characters = 0;
+    const emit = () => {
+      parts.push(Object.freeze({ text: '"' + encoded + '"', lineIndex, offset }));
+      offset += characters;
+      encoded = ''; length = 0; characters = 0;
+    };
+    for (const character of text) {
+      const literal = JSON.stringify(character).slice(1, -1)
+        .replace(/[\u0085\u2028\u2029]/gu, value => '\\u' + value.charCodeAt(0).toString(16).padStart(4, '0'));
+      const size = Array.from(literal).length;
+      if (characters && length + size + 2 > capacity) emit();
+      encoded += literal; length += size; characters += 1;
     }
+    if (characters || parts.length === 0) emit();
     return parts;
   });
 };
 
 export const worldViewport = ({ width = 1500, height = 1000 } = {}) => {
-  const panelHeight = Math.min(400, Math.max(280, Math.floor(height * 0.4)));
+  // Keep the representative nested Before world readable at 1200x900. The
+  // detail panel uses paging rather than shrinking node names to status glyphs.
+  const panelHeight = Math.min(400, Math.max(280, Math.floor(height * 0.3)));
   return Object.freeze({ graph: Object.freeze({ x: 16, y: 52, width: Math.max(1, width - 32), height: Math.max(1, height - panelHeight - 68) }),
     panel: Object.freeze({ x: 8, y: height - panelHeight, width: Math.max(1, width - 16), height: panelHeight - 8 }) });
 };
@@ -518,6 +533,7 @@ export const projectAtlasWorld = ({
     routeLines.push('Route evidence ' + key + ': ' + full(evidenceIndex.relationByKey.get(key)));
   }
   const acceptanceLines = [
+    'Text: JSON string fragments; outer quotes and escapes are display notation.',
     'View: Focus / All records recover shortened overview labels.',
     'Comparison: ' + (latest ? 'LATEST FOLLOW' : 'HELD pair; both contents retained') + ' · incoming frames=' + receivedInput.frames.length,
     'Admission: ' + (admission?.status === 'rejected' ? 'REJECTED · last accepted input retained · ' + admission.reason : 'accepted prepared input'),
@@ -556,7 +572,7 @@ export const projectAtlasWorld = ({
     activation: { type: 'atlas.world.' + action }, atlas: { control: id } }));
   hud({ id: 'world:judgement', label: '', bounds: panel, kind: 'judgement', zIndex: 10000,
     activation: { type: 'atlas.world.noop' }, atlas: { selected, lines: detailLines } });
-  hud({ id: 'world:judgement-title', label: 'Judgement · ' + tab + ' · ' + (latest ? 'LATEST' : 'HELD') + ' · viewing ' + (frame === beforeFrame ? 'Before' : 'After') + (tab === 'record' ? ' · evidence ' + evidenceSide : '') + ' · page ' + (pageIndex + 1) + '/' + pageCount,
+  hud({ id: 'world:judgement-title', label: 'Judgement · ' + tab + ' · ' + (latest ? 'LATEST' : 'HELD') + ' · viewing ' + (frame === beforeFrame ? 'Before' : 'After') + (tab === 'record' ? ' · evidence ' + evidenceSide : '') + ' · page ' + (pageIndex + 1) + '/' + pageCount + ' · JSON strings',
     bounds: { x: panel.x + 8, y: panel.y + 6, width: panel.width - 16, height: 26 }, kind: 'judgement-title' });
   const detailControls = [
     ['record', 'Record', 'tab', 'record'], ['world', 'World comparison', 'tab', 'world'], ['direction', 'Direction', 'tab', 'direction'],

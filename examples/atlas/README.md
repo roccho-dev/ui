@@ -238,10 +238,18 @@ A later payload reusing either frame ID does not rewrite that held evidence.
 - **Record / World comparison / Direction / All records** select pages in the
   same SVG judgement panel. **Previous / Next page**, PageUp/PageDown, or wheel
   over the panel recover every value. Long text and JSON are split into physical
-  lines without ellipsis or discarded characters. The page number is explicit.
+  lines without ellipsis or discarded characters. Each row is displayed as a
+  **JSON string fragment**: its outer quotes and escape sequences are display
+  notation, not additional source characters. Interior spaces stay visible as
+  spacing; supplied newlines, tabs, quotes and literal backslashes are encoded.
+  Decode each displayed string and concatenate its fragments to recover the
+  original logical line, including consecutive/leading/trailing spaces. The
+  encoded width is bounded and the page number is explicit.
 - **All records** includes every qualified entity and relation in the viewed
   frame, including hidden/over-budget members. Click a row to inspect its full
-  record. Returning to All records restores its page. The existing aggregate,
+  record, even when that row is already selected. The explicit click opens
+  Record page 1 while keeping the pair, qualified identity and camera. Returning
+  to All records restores its page. The existing aggregate,
   omitted-entity and omitted-relation controls also cycle their complete sets.
 - **Inspect from/to endpoint** is an explicit selection change. A selected
   relation's Direction must start with that exact RelationRef. A `path:false`
@@ -253,7 +261,10 @@ A later payload reusing either frame ID does not rewrite that held evidence.
   independently of the graph camera. Resize refits the graph without changing
   the pair or qualified selection.
 
-The representative viewport checks are **1500×1000 and 1200×900**. The checked-in
+The representative viewport checks are **1500×1000 and 1200×900**, for both the
+Before and After containment. The graph keeps its 13px base node font and about 70% of
+viewport height; the judgement panel uses about 30% (280–400px) and more pages
+instead of making the taller Before world fall back to status glyphs. The checked-in
 world has 25 entities and 39/40 relations; its nested boundaries, Work identity,
 parallel evidence and Issue/Package routes remain the representative visual
 case. The budget cases exercise **40/41 entities per area and 64/65 relation
@@ -276,11 +287,15 @@ rejection.
 
 The existing `tests/atlas-a2-ui-composition-gate.mjs` builds the public HTML and
 uses the existing HTTP/Node/Chromium environment. It keeps the positive SVG bbox,
-viewport and actual-click checks, traverses visible page controls to reconstruct
-all values, and drives a small gate-local SSE stream through append, invalid JSON,
+viewport and actual-click checks, traverses visible page controls and decodes
+only the actual SVG text to reconstruct all values. Expected input, labels and
+offsets cannot fill missing characters. It drives a small gate-local SSE stream through append, invalid JSON,
 invalid kind, last accepted, disconnect/reconnect and recovery. It also covers
 same-ID content replacement, missing held endpoints, owner M independent of field
 equality, relation S/T, alternative RelationRefs and the declared display budgets.
+For the prepared Agent1, observed time stays **06:00Z**, acquired time stays
+**06:10Z** (both on 2026-10-07), and effective time stays unknown through
+disconnection and reconnection. Transport time does not replace either value.
 Run the existing Node contract and Nix browser commands above; source/build success
 alone is not a browser or User-entry result. Final acceptance additionally needs
 the same published head's independent P screen/entry receipt and R review.
