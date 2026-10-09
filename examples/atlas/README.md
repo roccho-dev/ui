@@ -262,9 +262,11 @@ A later payload reusing either frame ID does not rewrite that held evidence.
   the pair or qualified selection.
 
 The representative viewport checks are **1500×1000 and 1200×900**, for both the
-Before and After containment. The graph keeps its 13px base node font and about 70% of
-viewport height; the judgement panel uses about 30% (280–400px) and more pages
-instead of making the taller Before world fall back to status glyphs. The checked-in
+Before and After containment. The graph keeps its 13px base node font. The
+judgement panel reserves 30% of viewport height, bounded to 280–400px; the graph
+uses the remaining height after the top controls and margins. Paging retains all
+detail values while giving the taller Before world enough room for full names at
+the representative sizes. The checked-in
 world has 25 entities and 39/40 relations; its nested boundaries, Work identity,
 parallel evidence and Issue/Package routes remain the representative visual
 case. The budget cases exercise **40/41 entities per area and 64/65 relation
