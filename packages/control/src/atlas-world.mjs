@@ -236,9 +236,72 @@ const normalizePresentation = value => {
   });
 };
 
+export const ATLAS_COMPARISON_AXES = Object.freeze(['N', 'M', 'R', 'E', 'S', 'T']);
+export const ATLAS_COMPARISON_GAPS = Object.freeze(['business', 'frame', 'observation']);
+
+// Display receipts supplied with the prepared input. Status, meaning and basis
+// belong to ownerRef; neither record fields nor layout populate these receipts.
+const normalizeComparisonEndpoint = (value, at) => {
+  if (value === null) return null;
+  exactKeys(value, ['frameId', 'rev', 'asOf'], at);
+  return Object.freeze({ frameId: text(value.frameId, at + '.frameId'),
+    rev: integer(value.rev, at + '.rev'), asOf: text(value.asOf, at + '.asOf') });
+};
+
+const normalizeComparisonClaim = (value, at) => {
+  if (value === undefined || value === null) return null;
+  exactKeys(value, ['status', 'summary', 'basis', 'refs', 'reason', 'source', 'time', 'flags'], at);
+  check(['changed', 'unchanged', 'unknown'].includes(value.status), at + '.status must be changed|unchanged|unknown');
+  check(value.refs === undefined || Array.isArray(value.refs), at + '.refs must be an array');
+  const refs = (value.refs ?? []).map((item, index) => {
+    const refAt = at + '.refs[' + index + ']';
+    exactKeys(item, ['type', 'ref'], refAt);
+    check(['entity', 'relation'].includes(item.type), refAt + '.type must be entity|relation');
+    return Object.freeze({ type: item.type, ref: normalizeWorldRef(item.ref, refAt + '.ref') });
+  });
+  return Object.freeze({ status: value.status, summary: optionalText(value.summary, at + '.summary'),
+    basis: jsonValue(value.basis ?? null, at + '.basis'), refs: Object.freeze(refs),
+    reason: timeValue(value.reason, at + '.reason'), source: normalizeSource(value.source, at + '.source'),
+    time: normalizeTime(value.time, at + '.time'), flags: normalizeFlags(value.flags, at + '.flags') });
+};
+
+const normalizeComparisons = value => {
+  if (value === undefined) return Object.freeze([]);
+  check(Array.isArray(value), 'comparisons must be an array');
+  const comparisons = value.map((item, index) => {
+    const at = 'comparisons[' + index + ']';
+    exactKeys(item, ['id', 'ownerRef', 'before', 'after', 'axes', 'gaps', 'source', 'time', 'flags'], at);
+    exactKeys(item.axes ?? {}, ATLAS_COMPARISON_AXES, at + '.axes');
+    exactKeys(item.gaps ?? {}, ATLAS_COMPARISON_GAPS, at + '.gaps');
+    return Object.freeze({ id: text(item.id, at + '.id'), ownerRef: text(item.ownerRef, at + '.ownerRef'),
+      before: normalizeComparisonEndpoint(item.before, at + '.before'),
+      after: normalizeComparisonEndpoint(item.after, at + '.after'),
+      axes: Object.freeze(Object.fromEntries(ATLAS_COMPARISON_AXES.map(key => [key,
+        normalizeComparisonClaim(item.axes?.[key], at + '.axes.' + key)]))),
+      gaps: Object.freeze(Object.fromEntries(ATLAS_COMPARISON_GAPS.map(key => [key,
+        normalizeComparisonClaim(item.gaps?.[key], at + '.gaps.' + key)]))),
+      source: normalizeSource(item.source, at + '.source'), time: normalizeTime(item.time, at + '.time'),
+      flags: normalizeFlags(item.flags, at + '.flags') });
+  });
+  check(new Set(comparisons.map(item => item.id)).size === comparisons.length, 'comparison ids must be unique');
+  return Object.freeze(comparisons);
+};
+
+export const worldPair = (input, afterIndex = input.frames.length - 1) => Object.freeze({
+  // Retain the immutable input too: presentation and owner receipts are evidence
+  // for these exact contents, even if a later payload reuses both frame IDs.
+  input, before: afterIndex > 0 ? frameAt(input, 0) : null, after: frameAt(input, afterIndex),
+});
+
+export const comparisonsForPair = (input, before, after) => {
+  const matches = (endpoint, frame) => endpoint === null ? !frame : Boolean(frame
+    && endpoint.frameId === frame.id && endpoint.rev === frame.rev && endpoint.asOf === frame.asOf);
+  return Object.freeze((input.comparisons ?? []).filter(item => matches(item.before, before) && matches(item.after, after)));
+};
+
 export const parseAtlasWorldInput = input => {
   const value = typeof input === 'string' ? JSON.parse(input) : input;
-  exactKeys(value, ['kind', 'authority', 'presentation', 'frames', 'note'], 'input');
+  exactKeys(value, ['kind', 'authority', 'presentation', 'frames', 'comparisons', 'note'], 'input');
   check(value.kind === ATLAS_WORLD_KIND, 'input.kind must be ' + ATLAS_WORLD_KIND);
   check(value.authority === false, 'input.authority must be false');
   const presentation = normalizePresentation(value.presentation);
@@ -269,6 +332,7 @@ export const parseAtlasWorldInput = input => {
     authority: false,
     presentation,
     frames: Object.freeze(frames),
+    comparisons: normalizeComparisons(value.comparisons),
     note: optionalText(value.note, 'input.note'),
   });
 };

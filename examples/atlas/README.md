@@ -164,13 +164,13 @@ Start in **After**. Actual node selection shows its qualified identity and flags
 | Proposed relation to Issue B | A→B relation `pkg-a.issue-b` | from=Package A, to=Issue B, basis=scope-b, synthetic/proposal |
 | Proposed placement | Placement relation `example-relations/placement/pkg-a.repo-proposal`, Before / After | repo=Repo A / Repo B, basis=move-a-v1 / move-a-v2, source fixture:place-a@1 / @2 |
 
-All required context values are shorter than the current 32-character value limit. Distinguishing evidence is in short basis/sourceRef values, not only in a hidden summary or sourceDigest. Relation label A→A/A→B/B→A abbreviates the named Package→Issue pair; all three are ordinary graph relations.
+Context values, sourceDigest and the full selected record are recoverable through the SVG Record pages without a 32-character truncation. Short basis/sourceRef values remain useful entry points to the complete evidence. Relation label A→A/A→B/B→A abbreviates the named Package→Issue pair; all three are ordinary graph relations.
 
 ### Relations and Purpose paths
 
-Relation selection's **Direction starts from the relation's source**. It does not promise to traverse the selected edge. In this example, selecting A→B can still show Package A → Issue A → Purpose A → Company purpose. That is not evidence of a path through Issue B.
+Relation selection's **Direction starts with the exact selected RelationRef**. Selecting A→B shows Package A → Issue B → Purpose A → Company purpose. Its proposal status and each edge's reference/evidence remain explicit; another Issue's route is not substituted.
 
-To follow B, click the exposed A→B line, read its selected ref and endpoints, then **click Issue B itself** and read Issue B → Purpose A → Company purpose. For A→A and B→A, click the relation and then Issue A to read A's own Purpose path. Package A selection also exposes one supplied path through Issue A, without adopting either A→A evidence record.
+To follow B, click the exposed A→B line and read its selected ref, endpoints and Direction. **Inspect to endpoint** or clicking Issue B explicitly changes the selection to B and shows B's own route. Package A's Direction pages expose the separate req/alt references through Issue A and the route through Issue B, without adopting their proposal evidence.
 
 The two new Work→Issue relations explicitly have `path=false`. They do not replace the existing seven-entity Agent 1 → Work X → Fill X → Gap A → Ideal A → Purpose A → Company purpose path. No ordinary relation implies containment.
 
@@ -191,6 +191,127 @@ Use the a2 public build and existing Nix composition-gate commands above from th
 
 The existing browser gate retains its rendering and interaction assertions, while pure input/fixture assertions live in the Node check. It covers actual node/edge clicks, the three M:N routes, both independent A→A evidence members, readable context/flags and Focus labels, and Package identity/nesting across frames. It requires an exposed rendered edge click point; DOM text or a covered midpoint is insufficient. Its placement-relation diff probe uses programmatic selection and is distinct from its actual Package/Repo/frame clicks.
 
-P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before hold / After return, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
+P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before/After pair hold / explicit Latest following, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
 
-The three real-data unknown groups remain: source/identity mapping; requirement/implementation evidence; and relation owner/meaning/evidence/adoption/coverage. This example introduces no required relation taxonomy, owner codec, acquisition mechanism, dependency, CI workflow, second screen or Judgement redesign. Published source and executable proof, P's real-screen/SSE readback and R's verdict are separate evidence; prior #336 results do not establish this example's completion.
+The three real-data unknown groups remain: source/identity mapping; requirement/implementation evidence; and relation owner/meaning/evidence/adoption/coverage. The synthetic Issue/Package vocabulary introduces no required relation taxonomy, owner codec, acquisition mechanism, dependency, CI workflow or second screen. The prepared-data completion below adds navigation to the same SVG judgement panel. Published source and executable proof, P's real-screen/SSE readback and R's verdict are separate evidence; prior #336 results do not establish this example's completion.
+
+## Prepared comparison and held pairs (#342)
+
+`input/prepared-comparison.json` is an additional **synthetic, authority=false**
+four-entity/two-relation input for the same World application. It supplies example owner receipts; it does
+not adopt an owner business schema or acquire real Agent observations.
+
+```sh
+node scripts/build-live-atlas.mjs \
+  --consumer=app \
+  --input=examples/atlas/input/prepared-comparison.json \
+  --out=examples/atlas/dist-prepared
+```
+
+The optional root `comparisons` array contains receipts with `id`, `ownerRef`,
+explicit `before`/`after` endpoints (`frameId`, `rev`, `asOf`, or null for an unknown
+endpoint), `axes`, `gaps`, `source`, `time` and `flags`. An axis claim is supplied
+as `status: changed|unchanged|unknown`, `summary`, JSON `basis`, qualified `refs`
+(`type: entity|relation` plus `ref`), `reason`, `source`, `time` and `flags`.
+Omitted/null claims stay **NOT SUPPLIED / UNKNOWN**. The display never fills them
+from field equality, order, geometry, a Work/Receipt status or transport liveness.
+
+| Display | Meaning and evidence |
+| --- | --- |
+| N / M / R / E / S / T | Owner-supplied presence / meaning / reference / relation / evidence / time claims, each with its own basis and provenance |
+| business / frame / observation gaps | Three separate owner claims; one does not establish the others |
+| Factual world delta | Qualified records added/removed or carrying supplied field differences; it is explicitly separate from owner M and Business Gap |
+| Record Diff | Exact Before/After supplied values for the selected qualified record; a missing record retains unknown reason/time |
+| Evidence side | Current or counterpart frame with id/rev/asOf. Missing current relations recover their old context, endpoints and provenance as Before evidence |
+
+Receipts apply only when **both endpoint identities** match the displayed pair.
+Other-pair receipts are named as not applied. Both frame contents, the input
+presentation and the owner receipts are retained together while a pair is held.
+A later payload reusing either frame ID does not rewrite that held evidence.
+
+### One SVG, explicit navigation
+
+- **Before `[` / After `]`** switch between the two held endpoints. Both actions
+  hold the pair. **Latest `L`** explicitly adopts the newest accepted input and
+  resumes following updates. The pair defaults to the first and last supplied
+  frames; a single-frame input has an unknown Before.
+- **Record / World comparison / Direction / All records** select pages in the
+  same SVG judgement panel. **Previous / Next page**, PageUp/PageDown, or wheel
+  over the panel recover every value. Long text and JSON are split into physical
+  lines without ellipsis or discarded characters. Each row is displayed as a
+  **JSON string fragment**: its outer quotes and escape sequences are display
+  notation, not additional source characters. Interior spaces stay visible as
+  spacing; supplied newlines, tabs, quotes and literal backslashes are encoded.
+  Decode each displayed string and concatenate its fragments to recover the
+  original logical line, including consecutive/leading/trailing spaces. The
+  encoded width is bounded and the page number is explicit.
+- **All records** includes every qualified entity and relation in the viewed
+  frame, including hidden/over-budget members. Click a row to inspect its full
+  record, even when that row is already selected. The explicit click opens
+  Record page 1 while keeping the pair, qualified identity and camera. Returning
+  to All records restores its page. The existing aggregate,
+  omitted-entity and omitted-relation controls also cycle their complete sets.
+- **Inspect from/to endpoint** is an explicit selection change. A selected
+  relation's Direction must start with that exact RelationRef. A `path:false`
+  relation has no route through itself. Same-endpoint req/alt refs remain
+  distinct; every displayed route names its entity and relation sequence and
+  complete edge evidence. Proposal edges remain **PROPOSAL / not accepted**.
+- **Fit `0` / Focus `F` / Select `S` / Hand `H`**, wheel zoom and pan operate on
+  the world. Judgement and controls remain anchored in the same SVG viewport,
+  independently of the graph camera. Resize refits the graph without changing
+  the pair or qualified selection.
+
+The representative viewport checks are **1500×1000 and 1200×900**, for both the
+Before and After containment. The graph keeps its 13px base node font. The
+judgement panel reserves 30% of viewport height, bounded to 280–400px; the graph
+uses the remaining height after the top controls and margins. Paging retains all
+detail values while giving the taller Before world room for full names. The
+derived nested layout widens its horizontal coordinates and node widths by 1.5
+before arranging the three areas; containment and supplied record values stay
+the same. Representative label checks require the entire name inside both the
+graph viewport and its actual SVG ancestor clips. A full DOM textContent alone
+does not establish visibility. The checked-in
+world has 25 entities and 39/40 relations; its nested boundaries, Work identity,
+parallel evidence and Issue/Package routes remain the representative visual
+case. The budget cases exercise **40/41 entities per area and 64/65 relation
+groups**. At a dense overview some graph labels shorten; Focus and the visible
+All records/omission controls recover exact identities and evidence. These limits
+are declared UI display limits, not an unlimited-scale claim. Direction enumerates
+up to 64 simple paths within 4096 traversals and explicitly marks a limit; all
+input relations remain in All records even when not enumerated as a route.
+
+### Rejected updates and reproducible checks
+
+The public app accepts the same input as real `snapshot` SSE events at `?events=`.
+Malformed JSON or a World-contract violation produces a visible **REJECTED / last
+accepted input retained** receipt. It does not change the held pair, received
+input, selection, camera or observation timestamps. Connection changes retain
+rejection until a valid snapshot arrives. Disconnection exposes UNKNOWN for live
+activity; reconnecting does not manufacture a new observation. Quiet World input
+has no autonomous clock timer. Rendering failures are not classified as input
+rejection.
+
+The existing `tests/atlas-a2-ui-composition-gate.mjs` builds the public HTML and
+uses the existing HTTP/Node/Chromium environment. It keeps the positive SVG bbox,
+viewport and actual-click checks, traverses visible page controls and decodes
+only the actual SVG text to reconstruct all values. Expected input, labels and
+offsets cannot fill missing characters. It drives a small gate-local SSE stream through append, invalid JSON,
+invalid kind, last accepted, disconnect/reconnect and recovery. It also covers
+same-ID content replacement, missing held endpoints, owner M independent of field
+equality, relation S/T, alternative RelationRefs and the declared display budgets.
+For the prepared Agent1, observed time stays **06:00Z**, acquired time stays
+**06:10Z** (both on 2026-10-07), and effective time stays unknown through
+disconnection and reconnection. Transport time does not replace either value.
+The gate models a network interruption by closing the active stream and dropping
+unavailable connections before HTTP headers. A [non-200 EventSource response](https://html.spec.whatwg.org/multipage/server-sent-events.html#the-eventsource-interface)
+is a terminal connection failure, so an HTTP 503 response is not a substitute for this
+reconnect case. Live navigation waits for DOM content, then the public app's ready,
+connected and accepted-input conditions, rather than full-page load as readiness.
+The existing navigation deadline remains 30 seconds. An interruption during browser
+checks returns a FAIL receipt with `completed: false`, the last check and phase, actual
+document/EventSource request responses or failures, and the readable public UI
+state. A one-second bound applies only to that diagnostic read. Completed checks
+are partial evidence until the full run finishes; missing checks are not PASS.
+Run the existing Node contract and Nix browser commands above; source/build success
+alone is not a browser or User-entry result. Final acceptance additionally needs
+the same published head's independent P screen/entry receipt and R review.
