@@ -33,12 +33,26 @@ const receipt = await buildLiveAtlas({
   consumer: 'app',
 });
 
+const simClients = new Set();
+let simAvailable = true;
+const emitPrepared = data => {
+  const raw = typeof data === 'string' ? data : JSON.stringify(data);
+  for (const client of simClients) client.write('event: snapshot\n' + raw.split(/\r?\n/u).map(line => 'data: ' + line).join('\n') + '\n\n');
+};
 const types = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.json', 'application/json; charset=utf-8'],
 ]);
 const server = http.createServer((request, response) => {
   const { pathname } = new URL(request.url, 'http://localhost');
+  if (pathname === '/prepared-events') {
+    if (!simAvailable) { response.writeHead(503).end('prepared disconnect'); return; }
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
+    response.write('retry: 250\n\n');
+    simClients.add(response);
+    response.on('close', () => simClients.delete(response));
+    return;
+  }
   const file = pathname === '/' ? 'index.html' : pathname.slice(1);
   const resolved = path.resolve(output, file);
   if (!resolved.startsWith(output + path.sep) && resolved !== path.join(output, 'index.html')) {
@@ -143,8 +157,8 @@ try {
     await page.mouse.click(point.x, point.y);
   };
 
-  const clickCell = async regionId => {
-    const point = await page.evaluate(id => {
+  const clickCell = async (regionId, targetPage = page) => {
+    const point = await targetPage.evaluate(id => {
       const adapter = window.liveAtlas.adapter;
       const cell = adapter.cellsByRegionId.get(id);
       const state = cell ? adapter.graph.getView().getState(cell) : null;
@@ -153,7 +167,7 @@ try {
       return { x: box.left + state.x + state.width / 2, y: box.top + state.y + state.height / 2 };
     }, regionId);
     if (!point) throw new Error('missing region cell ' + regionId);
-    await page.mouse.click(point.x, point.y);
+    await targetPage.mouse.click(point.x, point.y);
   };
 
   const renderedEntityByKey = new Map(world.entities.map(item => [entityKey(item.ref), item]));
@@ -259,45 +273,59 @@ try {
     await page.mouse.click(point.x, point.y);
   };
 
-  const renderedJudgement = async () => page.evaluate(() => {
-    const atlas = window.liveAtlas;
-    const adapter = atlas.adapter;
-    const svg = document.querySelector('#atlas-world svg');
-    const rows = atlas.projection.scene.representations
-      .filter(item => item.atlas?.kind === 'judgement-line')
-      .sort((a, b) => a.atlas.lineIndex - b.atlas.lineIndex)
-      .map(item => {
-        const cell = adapter.cellsByRegionId.get(item.regionId);
-        const state = cell ? adapter.graph.getView().getState(cell) : null;
-        const node = state?.text?.node ?? null;
-        const box = node?.getBoundingClientRect?.() ?? null;
-        const style = node ? getComputedStyle(node) : null;
+  // Walk the actual SVG page controls. Every physical row must retain the old
+  // positive bbox/viewport oracle; reconstruction additionally proves no value
+  // was silently dropped. No Fit, API page mutation or source-only text proof.
+  const renderedJudgement = async ({ tab = 'record', targetPage = page } = {}) => {
+    const saved = await targetPage.evaluate(() => ({ tab: window.liveAtlas.projection.detail.tab, page: window.liveAtlas.projection.detail.page }));
+    await clickCell('world:detail:' + tab, targetPage);
+    let current = await targetPage.evaluate(() => window.liveAtlas.projection.detail.page);
+    while (current-- > 0) await clickCell('world:detail:previous', targetPage);
+    const total = await targetPage.evaluate(() => window.liveAtlas.projection.detail.pageCount);
+    const rows = [];
+    let complete = true;
+    for (let number = 0; number < total; number += 1) {
+      const result = await targetPage.evaluate(() => {
+        const atlas = window.liveAtlas, adapter = atlas.adapter;
+        const svg = document.querySelector('#atlas-world svg');
         const viewport = document.getElementById('atlas-world').getBoundingClientRect();
-        const insideViewport = Boolean(box
-          && box.left >= viewport.left - 1
-          && box.top >= viewport.top - 1
-          && box.right <= viewport.right + 1
-          && box.bottom <= viewport.bottom + 1);
-        return {
-          id: item.regionId,
-          text: node?.textContent ?? '',
-          box: box ? { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height } : null,
-          visible: Boolean(node && svg?.contains(node) && box && box.width > 0 && box.height > 0
-            && style?.display !== 'none' && style?.visibility !== 'hidden' && Number(style?.opacity ?? 1) !== 0
-            && insideViewport),
-        };
+        const rows = atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'judgement-line').map(item => {
+          const cell = adapter.cellsByRegionId.get(item.regionId);
+          const state = cell ? adapter.graph.getView().getState(cell) : null;
+          const node = state?.text?.node ?? null;
+          const box = node?.getBoundingClientRect?.() ?? null;
+          const style = node ? getComputedStyle(node) : null;
+          const insideViewport = Boolean(box && box.left >= viewport.left - 1 && box.top >= viewport.top - 1
+            && box.right <= viewport.right + 1 && box.bottom <= viewport.bottom + 1);
+          return { id: item.regionId, lineIndex: item.atlas.lineIndex, offset: item.atlas.offset,
+            expected: item.label, text: node?.textContent ?? '',
+            box: box ? { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height } : null,
+            visible: Boolean(node && svg?.contains(node) && box && box.width > 0 && box.height >= 10
+              && style?.display !== 'none' && style?.visibility !== 'hidden' && Number(style?.opacity ?? 1) !== 0 && insideViewport) };
+        });
+        return { rows, page: atlas.projection.detail.page, total: atlas.projection.detail.pageCount,
+          logicalCount: atlas.projection.detail.logicalLines.length };
       });
-    return {
-      rows,
-      text: rows.map(row => row.text).join('\n'),
-      visible: rows.length >= 10 && rows.every(row => row.visible && row.text.length > 0),
-    };
-  });
+      complete &&= result.page === number && result.total === total;
+      rows.push(...result.rows);
+      if (number + 1 < total) await clickCell('world:detail:next', targetPage);
+    }
+    const lines = new Map();
+    for (const row of rows) lines.set(row.lineIndex, (lines.get(row.lineIndex) ?? '') + row.text);
+    const text = [...lines.values()].join('\n');
+    const expected = await targetPage.evaluate(() => window.liveAtlas.projection.detail.logicalLines.join('\n'));
+    await clickCell('world:detail:' + saved.tab, targetPage);
+    let restored = await targetPage.evaluate(() => window.liveAtlas.projection.detail.page);
+    while (restored > saved.page) { await clickCell('world:detail:previous', targetPage); restored -= 1; }
+    while (restored < saved.page) { await clickCell('world:detail:next', targetPage); restored += 1; }
+    return { rows, text, totalPages: total, complete: complete && text === expected,
+      visible: complete && rows.length >= 10 && rows.every(row => row.visible && row.text.length > 0 && row.text === row.expected) && text === expected };
+  };
 
   const renderedControls = async () => page.evaluate(() => {
     const adapter = window.liveAtlas.adapter;
     const viewport = document.getElementById('atlas-world').getBoundingClientRect();
-    return ['before','after','fit','focus','select','hand'].map(id => {
+    return ['before','after','latest','fit','focus','select','hand'].map(id => {
       const cell = adapter.cellsByRegionId.get('world:control:' + id);
       const state = cell ? adapter.graph.getView().getState(cell) : null;
       const node = state?.text?.node ?? null;
@@ -452,7 +480,16 @@ try {
   };
   check('removed relation selection survives and shows counterpart instead of completion',
     missing.frame === 'after' && missingRendered.visible && /missing in after · counterpart exists in before/u.test(missingRendered.text)
-      && /After: after .*record missing · reason\/time UNKNOWN/u.test(missingRendered.text), missing);
+      && /After: after .*record missing · reason\/time UNKNOWN/u.test(missingRendered.text)
+      && /Context: workRef=work.x/u.test(missingRendered.text)
+      && /Evidence side: Before .*counterpart only; current record missing/u.test(missingRendered.text)
+      && /Endpoints: from=entity:agents:agent:shared · to=entity:agents:agent:agent.2/u.test(missingRendered.text), missing);
+
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'absent', kind: 'reviews', id: 'agent3.agent2.review' }));
+  const absentBoth = await renderedJudgement();
+  check('both missing qualified relation never borrows the removed relation context',
+    absentBoth.visible && /not present in either compared frame/u.test(absentBoth.text)
+      && /Context: none/u.test(absentBoth.text) && /Full record: null/u.test(absentBoth.text), absentBoth);
 
   // prepared-three-frame-endpoints: both buttons retain the same compared pair.
   await page.evaluate(() => {
@@ -499,6 +536,55 @@ try {
     pathOnlyDiff.visible && /Diff: changed path/u.test(pathOnlyDiff.text)
       && /Field path .*Before=false → After=true/u.test(pathOnlyDiff.text)
       && /owner comparison NOT SUPPLIED/u.test(pathOnlyDiff.text), pathOnlyDiff);
+  // Freeze both contents by an actual Before click, then mutate incoming data
+  // in three independent ways. Displayed receipts must remain the old pair.
+  await clickBoundaryHeader(projectB.regionId);
+  await clickCell('world:control:before');
+  await page.evaluate(() => {
+    const atlas = window.liveAtlas;
+    atlas.zoomBy(1.2);
+    window.__worldHeld = { pair: atlas.page.pair, contents: JSON.stringify(atlas.page.pair),
+      selected: atlas.page.selected, camera: atlas.adapter.camera() };
+  });
+  for (const mutation of ['append', 'same-id-content', 'held-endpoint-absent']) {
+    const result = await page.evaluate(kind => {
+      const atlas = window.liveAtlas, previous = window.__worldHeld;
+      const input = structuredClone(atlas.input);
+      if (kind === 'append') {
+        const next = structuredClone(input.frames.at(-1)); next.id = 'prepared-rev4'; next.rev += 1;
+        next.entities.find(item => item.ref.id === 'project.b').order = 99;
+        input.frames.push(next);
+      } else if (kind === 'same-id-content') {
+        for (const frame of input.frames) frame.entities.find(item => item.ref.id === 'project.b').order = 123;
+      } else input.frames = [input.frames.at(-1)];
+      atlas.setSession({ input, latest: false });
+      return { samePair: atlas.page.pair === previous.pair && JSON.stringify(atlas.page.pair) === previous.contents,
+        selected: atlas.page.selected === previous.selected,
+        camera: JSON.stringify(atlas.adapter.camera()) === JSON.stringify(previous.camera),
+        before: atlas.page.pair.before.id, after: atlas.page.pair.after.id,
+        received: atlas.input.frames.map(frame => frame.id), held: !atlas.page.latest };
+    }, mutation);
+    const rendered = await renderedJudgement();
+    check('held pair survives ' + mutation + ' without silently changing either endpoint content',
+      result.samePair && result.selected && result.camera && result.held
+        && result.before === 'prepared-before' && result.after === 'prepared-after'
+        && rendered.visible && /Field order .*Before=1 → After=7/u.test(rendered.text), { result, rendered });
+  }
+  await clickCell('world:control:after');
+  const heldAfter = await renderedJudgement();
+  check('After is the held After even when no held endpoint is in the latest payload',
+    heldAfter.visible && /Frame prepared-after/u.test(heldAfter.text) && /Field order .*Before=1 → After=7/u.test(heldAfter.text), heldAfter);
+  await clickCell('world:control:latest');
+  const followed = await page.evaluate(() => ({ following: window.liveAtlas.page.latest,
+    after: window.liveAtlas.page.pair.after.id, before: window.liveAtlas.page.pair.before,
+    order: window.liveAtlas.projection.selected.record.order, selected: window.liveAtlas.page.selected,
+    camera: window.liveAtlas.adapter.camera(), previous: window.__worldHeld }));
+  check('explicit Latest adopts received contents and retains selection/camera',
+    followed.following && followed.after === 'prepared-rev4' && followed.before === null && followed.order === 123
+      && followed.selected === followed.previous.selected
+      && JSON.stringify(followed.camera) === JSON.stringify(followed.previous.camera),
+    { following: followed.following, after: followed.after, order: followed.order });
+  await page.evaluate(() => { delete window.__worldHeld; });
   await page.evaluate(input => {
     window.liveAtlas.setSession({ input, mode: 'sample', connected: false, latest: true });
     window.liveAtlas.fit();
@@ -510,7 +596,7 @@ try {
   const svgControls = await page.evaluate(() => window.liveAtlas.projection.scene.representations
     .filter(item => item.atlas?.kind === 'control').map(item => item.atlas.control).sort());
   check('Before/After/Fit/Focus/Select/Hand are projected into the SVG surface',
-    JSON.stringify(svgControls) === JSON.stringify(['after','before','fit','focus','hand','select']), svgControls);
+    JSON.stringify(svgControls) === JSON.stringify(['after','before','fit','focus','hand','latest','select']), svgControls);
 
   await clickCell('world:control:before');
   await page.evaluate(() => window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' }));
@@ -572,6 +658,18 @@ try {
   check('following valid World payload normalizes optional text and preserves held frame/selection/camera', admission.recovered, admission);
   check('connection-only World update reuses the normalized input object', admission.reused, admission);
 
+  // Actual pan/zoom/Focus retain the same pinned, paged judgement and controls.
+  await clickCell('world:control:fit');
+  await clickCell('world:control:hand');
+  const panBefore = await page.evaluate(() => window.liveAtlas.adapter.camera());
+  await page.mouse.move(24, 110); await page.mouse.down(); await page.mouse.move(95, 145, { steps: 8 }); await page.mouse.up();
+  const panAfter = await page.evaluate(() => window.liveAtlas.adapter.camera());
+  const panJudgement = await renderedJudgement();
+  check('actual Hand pan changes camera while all judgement values remain reachable',
+    JSON.stringify(panBefore) !== JSON.stringify(panAfter) && panJudgement.visible, { panBefore, panAfter, panJudgement });
+  await clickCell('world:control:select');
+  await clickCell('world:control:fit');
+
   // Real viewport changes must trigger the World mount's fit without manual Fit.
   for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 1000 }]) {
     await page.evaluate(async () => {
@@ -613,6 +711,19 @@ try {
         && resized.frameId === resized.beforeFrameId, resized);
     check(label + ' keeps SVG judgement and controls visible without manual Fit',
       judgement.visible && controls.every(item => item.visible), { judgement, controls });
+    const labels = await page.evaluate(() => {
+      const atlas = window.liveAtlas, adapter = atlas.adapter, viewport = atlas.projection.viewport.graph;
+      return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
+        const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
+        const node = state?.text?.node, box = node?.getBoundingClientRect();
+        return { key: item.regionId, expected: item.label, text: node?.textContent ?? '',
+          visible: Boolean(box && box.width > 0 && box.height >= 10 && box.left >= viewport.x - 1
+            && box.right <= viewport.x + viewport.width + 1 && box.top >= viewport.y - 1
+            && box.bottom <= viewport.y + viewport.height + 1) };
+      });
+    });
+    check(label + ' representative node labels remain present and inside the graph viewport',
+      labels.every(item => item.visible && item.text.replace(/\s/gu, '').includes(item.expected.replace(/\s/gu, ''))), labels);
   }
 
   await page.evaluate(() => window.liveAtlas.fit());
@@ -825,10 +936,11 @@ try {
         relationDetail.visible && /role=render · input=Plan · output=SVG/u.test(relationDetail.text), relationDetail);
     }
     if (route.id === 'pkg-a.issue-b') {
-      check('B relation selection does not claim that source-origin Direction traversed B',
+      check('B relation Direction traverses the selected B reference and remains a proposal',
         /Selected relation · example-relations\/addresses\/pkg-a.issue-b/u.test(relationDetail.text)
           && /basis=scope-b/u.test(relationDetail.text)
-          && /Direction: Package A → Issue A → Purpose A → Company purpose/u.test(relationDetail.text),
+          && /Direction: Package A → Issue B → Purpose A → Company purpose/u.test(relationDetail.text)
+          && /Direction status: PROPOSAL \/ not accepted/u.test(relationDetail.text),
         relationDetail);
     }
     await clickExample(route.target);
@@ -883,6 +995,165 @@ try {
       { selected, detail });
   }
 
+  const ownerRaw = JSON.parse(fs.readFileSync('examples/atlas/input/prepared-comparison.json', 'utf8'));
+  await page.evaluate(input => window.liveAtlas.setSession({ input, mode: 'sample', latest: true }), ownerRaw);
+  const ownerRendered = await renderedJudgement({ tab: 'world' });
+  check('World comparison exposes all six owner axes, three gaps, refs and provenance through actual SVG pages',
+    ownerRendered.visible && ['N', 'M', 'R', 'E', 'S', 'T'].every(axis => ownerRendered.text.includes('Owner axis ' + axis + ':'))
+      && ['business', 'frame', 'observation'].every(gap => ownerRendered.text.includes('Owner gap ' + gap + ':'))
+      && /Owner axis M: UNCHANGED/u.test(ownerRendered.text) && /fixture:comparison-owner@1/u.test(ownerRendered.text)
+      && /Work\/Receipt completion does not establish Purpose achievement/u.test(ownerRendered.text), ownerRendered);
+  for (const kind of ['same-fields-owner-M', 'order-only-owner-M-unchanged', 'relation-ST', 'partial-owner', 'no-owner']) {
+    await page.evaluate(({ raw, kind }) => {
+      const input = structuredClone(raw);
+      const before = structuredClone(input.frames[0]);
+      input.frames[1] = { ...structuredClone(before), id: 'after', rev: input.frames[1].rev, asOf: input.frames[1].asOf };
+      const owner = input.comparisons[0];
+      owner.axes.M.status = kind === 'same-fields-owner-M' ? 'changed' : 'unchanged';
+      owner.axes.M.summary = 'Independent prepared owner meaning receipt';
+      if (kind === 'order-only-owner-M-unchanged') input.frames[1].entities.find(item => item.ref.id === 'project.b').order = 33;
+      if (kind === 'relation-ST') {
+        const relation = input.frames[1].relations.find(item => item.ref.id === 'agent1.purposea');
+        relation.source.sourceDigest = 'fixture:new-relation-evidence'; relation.time.effectiveAt = '2026-10-09T02:00:00Z';
+      }
+      if (kind === 'partial-owner') owner.axes = { M: owner.axes.M };
+      if (kind === 'no-owner') input.comparisons = [];
+      window.liveAtlas.setSession({ input, mode: 'sample', latest: true });
+    }, { raw: ownerRaw, kind });
+    const rendered = await renderedJudgement({ tab: 'world' });
+    const expected = kind === 'same-fields-owner-M' ? /Owner axis M: CHANGED/u.test(rendered.text) && /Factual records with supplied field\/presence difference: 0/u.test(rendered.text)
+      : kind === 'order-only-owner-M-unchanged' ? /Owner axis M: UNCHANGED/u.test(rendered.text) && /fields=order/u.test(rendered.text)
+        : kind === 'relation-ST' ? /fields=source, time/u.test(rendered.text) && /Owner axis S: CHANGED/u.test(rendered.text) && /Owner axis T: CHANGED/u.test(rendered.text)
+          : kind === 'partial-owner' ? /Owner axis N: NOT SUPPLIED \/ UNKNOWN/u.test(rendered.text) && /Owner axis M: UNCHANGED/u.test(rendered.text)
+            : /Owner comparison: NOT SUPPLIED for this pair/u.test(rendered.text) && /Owner axis M: NOT SUPPLIED \/ UNKNOWN/u.test(rendered.text);
+    check(kind + ' remains a visible independent owner/world claim', rendered.visible && expected, rendered);
+  }
+  await page.evaluate(input => { window.liveAtlas.setSession({ input, mode: 'sample', latest: true }); window.liveAtlas.fit(); }, rawWorldInput);
+  await clickExample(example.packageA);
+  const alternatives = await renderedJudgement({ tab: 'direction' });
+  check('Direction pages recover req/alt/B RelationRefs without promoting proposal evidence',
+    alternatives.visible && ['pkg-a.issue-a.req', 'pkg-a.issue-a.alt', 'pkg-a.issue-b'].every(id => alternatives.text.includes(id))
+      && /PROPOSAL \/ not accepted/u.test(alternatives.text) && /fixture:req-a@1/u.test(alternatives.text)
+      && /fixture:alt-a@1/u.test(alternatives.text), alternatives);
+  await page.evaluate(() => window.liveAtlas.selectRelationRef({ space: 'world-relation', kind: 'serves', id: 'agent1.purposea' }));
+  const falsePath = await renderedJudgement({ tab: 'direction' });
+  check('selected path=false relation cannot borrow its from endpoint route',
+    falsePath.visible && /Route alternatives: 0/u.test(falsePath.text) && /selected relation path=false/u.test(falsePath.text), falsePath);
+  await clickCell('world:endpoint-from');
+  check('explicit from endpoint navigation changes qualified selection',
+    await page.evaluate(() => window.liveAtlas.page.selected) === 'entity:agents:agent:agent.1');
+
+  await page.evaluate(raw => {
+    const input = structuredClone(raw), frame = input.frames.at(-1);
+    const target = frame.entities.find(item => item.ref.id === 'purpose.b').ref;
+    input.presentation.directionTargets.push(target);
+    const template = frame.relations.find(item => item.ref.id === 'pkg-a.issue-b');
+    frame.relations.push({ ...structuredClone(template), ref: { space: 'prepared-direction', kind: 'supports', id: 'pkg-a.purpose-b' },
+      to: target, label: 'Second Purpose proposal', path: true });
+    window.liveAtlas.setSession({ input, latest: true, mode: 'sample' });
+  }, rawWorldInput);
+  await clickExample(example.packageA);
+  const multiplePurposes = await renderedJudgement({ tab: 'direction' });
+  check('multiple supplied Purpose targets remain visible alternatives with individual edge references',
+    multiplePurposes.visible && /entity:purpose:purpose:purpose.b/u.test(multiplePurposes.text)
+      && /entity:purpose:purpose:shared/u.test(multiplePurposes.text)
+      && /relation:prepared-direction:supports:pkg-a.purpose-b/u.test(multiplePurposes.text), multiplePurposes);
+  await page.evaluate(() => {
+    const atlas = window.liveAtlas, input = structuredClone(atlas.input);
+    const relation = input.frames.at(-1).relations.find(item => item.ref.space === 'prepared-direction');
+    relation.to = { space: 'not-supplied', kind: 'purpose', id: 'purpose.b' };
+    atlas.setSession({ input, latest: true }); atlas.selectRelationRef(relation.ref);
+  });
+  const missingEndpointDirection = await renderedJudgement({ tab: 'direction' });
+  check('missing qualified endpoint cannot borrow the same raw id Purpose',
+    missingEndpointDirection.visible && /endpoint missing \/ unknown/u.test(missingEndpointDirection.text)
+      && /entity:not-supplied:purpose:purpose.b · MISSING \/ UNKNOWN/u.test(missingEndpointDirection.text), missingEndpointDirection);
+  await clickCell('world:endpoint-to');
+  check('explicit unknown endpoint selection remains absent on both sides',
+    /not present in either compared frame/u.test((await renderedJudgement()).text));
+  await clickCell('world:detail:records');
+  let recoveredFromCatalog = false, catalogReturnPage = -1;
+  const catalogPages = await page.evaluate(() => window.liveAtlas.projection.detail.pageCount);
+  while ((await page.evaluate(() => window.liveAtlas.projection.detail.page)) > 0) await clickCell('world:detail:previous');
+  for (let number = 0; number < catalogPages; number += 1) {
+    const row = await page.evaluate(key => window.liveAtlas.projection.scene.representations.find(item =>
+      item.atlas?.kind === 'judgement-line' && item.activation?.id === key)?.regionId, entityKey(example.packageA.ref));
+    if (row) { catalogReturnPage = number; await clickCell(row); recoveredFromCatalog = true; break; }
+    if (number + 1 < catalogPages) await clickCell('world:detail:next');
+  }
+  check('actual All records row click returns from an unknown endpoint to the original qualified context',
+    recoveredFromCatalog && await page.evaluate(() => window.liveAtlas.page.selected) === entityKey(example.packageA.ref)
+      && (await renderedJudgement()).visible);
+  await clickCell('world:detail:records');
+  check('returning to All records restores the page used for selection',
+    await page.evaluate(() => window.liveAtlas.projection.detail.page) === catalogReturnPage);
+
+  // Long values are paged, never truncated; this verifies exact rendered text
+  // including multi-byte characters through the public artifact at both sizes.
+  await page.evaluate(input => {
+    const next = structuredClone(input);
+    const relation = next.frames[1].relations.find(item => item.ref.id === 'agent1.purposea');
+    relation.context = { value: '長い供給済みの根拠λ🙂'.repeat(30), literal: '<>&"' };
+    relation.source.sourceDigest = 'long-source-'.repeat(50);
+    window.liveAtlas.setSession({ input: next, mode: 'sample', latest: true });
+    window.liveAtlas.selectRelationRef(relation.ref);
+  }, rawWorldInput);
+  for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 1000 }]) {
+    await page.setViewportSize(viewport);
+    const long = await renderedJudgement();
+    check('long multi-field evidence is fully visible through SVG page clicks at ' + viewport.width + 'x' + viewport.height,
+      long.visible && long.complete && long.totalPages > 1
+        && long.text.includes('長い供給済みの根拠λ🙂'.repeat(30)) && long.text.includes('long-source-'.repeat(50)), long);
+  }
+
+  for (const count of [40, 41]) {
+    await page.evaluate(({ raw, count }) => {
+      const input = structuredClone(raw), frame = input.frames[0];
+      const root = frame.entities.find(item => item.ref.space === 'purpose' && item.ref.id === 'shared');
+      const template = frame.entities.find(item => item.ref.id === 'agent.1');
+      frame.entities = [root, ...Array.from({ length: count }, (_, index) => ({ ...structuredClone(template),
+        ref: { space: 'budget', kind: 'agent', id: String(index) }, label: 'Budget Agent ' + index, order: index }))];
+      frame.relations = []; input.frames = [frame]; input.presentation.defaultSelection = root.ref;
+      window.liveAtlas.setSession({ input, mode: 'sample', latest: true }); window.liveAtlas.selectRef(root.ref); window.liveAtlas.fit();
+    }, { raw: rawWorldInput, count });
+    const coverage = await page.evaluate(() => ({ ...window.liveAtlas.projection.coverage,
+      shown: window.liveAtlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity' && item.atlas.area === 'agents').length }));
+    const catalog = await renderedJudgement({ tab: 'records' });
+    check('entity budget ' + count + ' displays 40 and recovers every qualified input identity through actual SVG catalog pages',
+      coverage.shown === 40 && coverage.omittedEntities === count - 40 && catalog.visible
+        && Array.from({ length: count }, (_, index) => 'entity:budget:agent:' + index + ' · Budget Agent ' + index).every(text => catalog.text.includes(text)), { coverage, catalog });
+    if (count === 41) {
+      await clickCell('world:omitted-entity-cycle');
+      const detail = await renderedJudgement();
+      check('41st entity recovers full provenance from the visible omission control',
+        detail.visible && /Selected entity · budget\/agent\/40/u.test(detail.text) && /fixture:runtime@1/u.test(detail.text), detail);
+    }
+  }
+  for (const count of [64, 65]) {
+    await page.evaluate(({ raw, count }) => {
+      const input = structuredClone(raw), frame = input.frames[0];
+      const template = frame.relations.find(item => item.ref.id === 'agent1.purposea');
+      frame.relations = Array.from({ length: count }, (_, index) => ({ ...structuredClone(template),
+        ref: { space: 'budget', kind: 'relation', id: String(index) }, kind: 'budget-' + index, context: { evidence: index } }));
+      input.frames = [frame]; window.liveAtlas.setSession({ input, mode: 'sample', latest: true }); window.liveAtlas.fit();
+    }, { raw: rawWorldInput, count });
+    const coverage = await page.evaluate(() => ({ ...window.liveAtlas.projection.coverage, groups: window.liveAtlas.projection.scene.relations.length }));
+    const catalog = await renderedJudgement({ tab: 'records' });
+    check('relation budget ' + count + ' shows 64 groups and recovers every qualified identity through the SVG catalog',
+      coverage.groups === 64 && coverage.omittedRelations === count - 64 && catalog.visible
+        && Array.from({ length: count }, (_, index) => 'relation:budget:relation:' + index + ' · ').every(text => catalog.text.includes(text)), { coverage, catalog });
+    if (count === 65) {
+      await clickCell('world:omitted-cycle');
+      const detail = await renderedJudgement();
+      check('65th relation group recovers its own context and provenance',
+        detail.visible && /Selected relation · budget\/relation/u.test(detail.text) && /Context: evidence=/u.test(detail.text), detail);
+    }
+  }
+  await page.evaluate(input => { window.liveAtlas.setSession({ input, mode: 'sample', latest: true }); window.liveAtlas.fit(); }, rawWorldInput);
+  await clickExample(example.packageA);
+  check('return from dense input restores original qualified context and full judgement',
+    (await renderedJudgement()).visible && await page.evaluate(() => window.liveAtlas.page.selected) === entityKey(example.packageA.ref));
+
   // The actual app entry receives a real finite SSE snapshot, then stays quiet.
   producer = await startAtlasProducer({ connections: [[{ data: { ...rawWorldInput, note: 'world-live-update' } }]] });
   const liveContext = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
@@ -911,6 +1182,82 @@ try {
   check('quiet live World does not redraw or invent a new observation time', quiet.sameInput && quiet.sameProjection && quiet.sameScene && quiet.sameNow && quiet.connected, quiet);
   await liveContext.close();
 
+  // A gate-local finite simulator on the existing HTTP server advances only
+  // after each actual UI observation. It creates no source authority or daemon.
+  const streamContext = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  const streamPage = await streamContext.newPage();
+  streamPage.on('pageerror', error => pageErrors.push(String(error)));
+  await streamPage.goto(origin + '?events=' + encodeURIComponent(origin + 'prepared-events'));
+  await streamPage.waitForFunction(() => window.liveAtlas?.page.connected);
+  emitPrepared({ ...ownerRaw, note: 'stream-accepted-1' });
+  await streamPage.waitForFunction(() => window.liveAtlas.input.note === 'stream-accepted-1');
+  await clickCell('world:control:before', streamPage);
+  await streamPage.evaluate(() => {
+    const atlas = window.liveAtlas;
+    atlas.selectRef({ space: 'projects', kind: 'project', id: 'project.b' }); atlas.zoomBy(1.1);
+    window.__streamHeld = { pair: atlas.page.pair, input: atlas.input, selected: atlas.page.selected, camera: atlas.adapter.camera() };
+  });
+  const streamNext = structuredClone(ownerRaw);
+  const extra = structuredClone(streamNext.frames.at(-1)); extra.id = 'stream-new-after'; extra.rev += 1;
+  extra.entities.find(item => item.ref.id === 'project.b').order = 77;
+  streamNext.frames.push(extra); streamNext.note = 'stream-accepted-2';
+  emitPrepared(streamNext);
+  await streamPage.waitForFunction(() => window.liveAtlas.input.note === 'stream-accepted-2');
+  const streamHeld = await renderedJudgement({ targetPage: streamPage });
+  check('real SSE append preserves both held contents and owner receipts',
+    streamHeld.visible && /Field order .*Before=1 → After=4/u.test(streamHeld.text)
+      && await streamPage.evaluate(() => window.liveAtlas.page.pair === window.__streamHeld.pair), streamHeld);
+  const streamOwner = await renderedJudgement({ targetPage: streamPage, tab: 'world' });
+  check('held SSE comparison keeps the owner receipt associated with the original pair',
+    streamOwner.visible && /prepared-owner-six-axes/u.test(streamOwner.text), streamOwner);
+  for (const invalid of ['{invalid JSON', { kind: 'invalid-world' }]) {
+    await streamPage.evaluate(() => { window.__streamAccepted = window.liveAtlas.input; });
+    emitPrepared(invalid);
+    await streamPage.waitForFunction(() => window.liveAtlas.page.admission?.status === 'rejected');
+    const rejected = await renderedJudgement({ targetPage: streamPage });
+    const kept = await streamPage.evaluate(() => {
+      const atlas = window.liveAtlas, previous = window.__streamHeld;
+      return atlas.input === window.__streamAccepted && atlas.page.pair === previous.pair
+        && atlas.page.selected === previous.selected && JSON.stringify(atlas.adapter.camera()) === JSON.stringify(previous.camera);
+    });
+    check('real SSE ' + (typeof invalid === 'string' ? 'malformed JSON' : 'invalid kind') + ' is visibly rejected while retaining last accepted/pair/selection/camera',
+      kept && rejected.visible && /Admission: REJECTED · last accepted input retained/u.test(rejected.text), rejected);
+    emitPrepared({ ...streamNext, note: 'stream-recovered-' + (typeof invalid === 'string' ? 'json' : 'kind') });
+    await streamPage.waitForFunction(() => !window.liveAtlas.page.admission);
+    const recovered = await renderedJudgement({ targetPage: streamPage });
+    check('next valid SSE clears rejection without releasing comparison hold',
+      recovered.visible && /Admission: accepted prepared input/u.test(recovered.text)
+        && await streamPage.evaluate(() => !window.liveAtlas.page.latest && window.liveAtlas.page.pair === window.__streamHeld.pair), recovered);
+  }
+  await clickCell('world:control:latest', streamPage);
+  await streamPage.waitForFunction(() => window.liveAtlas.page.latest && window.liveAtlas.page.pair.after.id === 'stream-new-after');
+  const latestStream = await renderedJudgement({ targetPage: streamPage });
+  check('actual Latest resumes received SSE data without inventing a matching owner receipt',
+    latestStream.visible && /Field order .*Before=1 → After=77/u.test(latestStream.text)
+      && /owner comparison NOT SUPPLIED/u.test(latestStream.text), latestStream);
+  await streamPage.evaluate(() => {
+    window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' });
+    window.__disconnectInput = window.liveAtlas.input;
+  });
+  simAvailable = false;
+  for (const client of [...simClients]) client.end();
+  await streamPage.waitForFunction(() => !window.liveAtlas.page.connected);
+  const streamDisconnected = await renderedJudgement({ targetPage: streamPage });
+  check('real disconnected SSE exposes UNKNOWN while retaining the last supplied observation',
+    streamDisconnected.visible && /Activity: UNKNOWN · lastDeclared=NOW · transport=SSE disconnected/u.test(streamDisconnected.text)
+      && /observed=2026-10-07T06:10:00Z/u.test(streamDisconnected.text)
+      && await streamPage.evaluate(() => window.liveAtlas.input === window.__disconnectInput), streamDisconnected);
+  simAvailable = true;
+  await streamPage.waitForFunction(() => window.liveAtlas.page.connected);
+  check('real transport reconnect preserves accepted source and pair without restamping observations',
+    await streamPage.evaluate(() => window.liveAtlas.input === window.__disconnectInput
+      && window.liveAtlas.page.pair.after.id === 'stream-new-after'));
+  const streamRecovered = await renderedJudgement({ targetPage: streamPage });
+  check('reconnected actual app retains declared observation and visible SSE state',
+    streamRecovered.visible && /transport=SSE connected/u.test(streamRecovered.text)
+      && /observed=2026-10-07T06:10:00Z/u.test(streamRecovered.text), streamRecovered);
+  await streamContext.close();
+
   // Exercise the existing mount return value; do not add tick to the app API.
   const explicitTick = await page.evaluate(async input => {
     window.liveAtlas.destroy();
@@ -936,6 +1283,7 @@ try {
     if (browser) await browser.close();
   } finally {
     if (producer) await producer.close();
+    for (const client of simClients) client.end();
     await new Promise(resolve => server.close(resolve));
     await fsp.rm(tempRoot, { recursive: true, force: true });
   }

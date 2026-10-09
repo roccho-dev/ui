@@ -194,3 +194,93 @@ The existing browser gate retains its rendering and interaction assertions, whil
 P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before hold / After return, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
 
 The three real-data unknown groups remain: source/identity mapping; requirement/implementation evidence; and relation owner/meaning/evidence/adoption/coverage. This example introduces no required relation taxonomy, owner codec, acquisition mechanism, dependency, CI workflow, second screen or Judgement redesign. Published source and executable proof, P's real-screen/SSE readback and R's verdict are separate evidence; prior #336 results do not establish this example's completion.
+
+## Prepared comparison and held pairs (#342)
+
+`input/prepared-comparison.json` is an additional **synthetic, authority=false**
+input for the same World application. It supplies example owner receipts; it does
+not adopt an owner business schema or acquire real Agent observations.
+
+```sh
+node scripts/build-live-atlas.mjs \
+  --consumer=app \
+  --input=examples/atlas/input/prepared-comparison.json \
+  --out=examples/atlas/dist-prepared
+```
+
+The optional root `comparisons` array contains receipts with `id`, `ownerRef`,
+explicit `before`/`after` endpoints (`frameId`, `rev`, `asOf`, or null for an unknown
+endpoint), `axes`, `gaps`, `source`, `time` and `flags`. An axis claim is supplied
+as `status: changed|unchanged|unknown`, `summary`, JSON `basis`, qualified `refs`
+(`type: entity|relation` plus `ref`), `reason`, `source`, `time` and `flags`.
+Omitted/null claims stay **NOT SUPPLIED / UNKNOWN**. The display never fills them
+from field equality, order, geometry, a Work/Receipt status or transport liveness.
+
+| Display | Meaning and evidence |
+| --- | --- |
+| N / M / R / E / S / T | Owner-supplied presence / meaning / reference / relation / evidence / time claims, each with its own basis and provenance |
+| business / frame / observation gaps | Three separate owner claims; one does not establish the others |
+| Factual world delta | Qualified records added/removed or carrying supplied field differences; it is explicitly separate from owner M and Business Gap |
+| Record Diff | Exact Before/After supplied values for the selected qualified record; a missing record retains unknown reason/time |
+| Evidence side | Current or counterpart frame with id/rev/asOf. Missing current relations recover their old context, endpoints and provenance as Before evidence |
+
+Receipts apply only when **both endpoint identities** match the displayed pair.
+Other-pair receipts are named as not applied. Both frame contents, the input
+presentation and the owner receipts are retained together while a pair is held.
+A later payload reusing either frame ID does not rewrite that held evidence.
+
+### One SVG, explicit navigation
+
+- **Before `[` / After `]`** switch between the two held endpoints. Both actions
+  hold the pair. **Latest `L`** explicitly adopts the newest accepted input and
+  resumes following updates. The pair defaults to the first and last supplied
+  frames; a single-frame input has an unknown Before.
+- **Record / World comparison / Direction / All records** select pages in the
+  same SVG judgement panel. **Previous / Next page**, PageUp/PageDown, or wheel
+  over the panel recover every value. Long text and JSON are split into physical
+  lines without ellipsis or discarded characters. The page number is explicit.
+- **All records** includes every qualified entity and relation in the viewed
+  frame, including hidden/over-budget members. Click a row to inspect its full
+  record. Returning to All records restores its page. The existing aggregate,
+  omitted-entity and omitted-relation controls also cycle their complete sets.
+- **Inspect from/to endpoint** is an explicit selection change. A selected
+  relation's Direction must start with that exact RelationRef. A `path:false`
+  relation has no route through itself. Same-endpoint req/alt refs remain
+  distinct; every displayed route names its entity and relation sequence and
+  complete edge evidence. Proposal edges remain **PROPOSAL / not accepted**.
+- **Fit `0` / Focus `F` / Select `S` / Hand `H`**, wheel zoom and pan operate on
+  the world. Judgement and controls remain anchored in the same SVG viewport,
+  independently of the graph camera. Resize refits the graph without changing
+  the pair or qualified selection.
+
+The representative viewport checks are **1500×1000 and 1200×900**. The checked-in
+world has 25 entities and 39/40 relations; its nested boundaries, Work identity,
+parallel evidence and Issue/Package routes remain the representative visual
+case. The budget cases exercise **40/41 entities per area and 64/65 relation
+groups**. At a dense overview some graph labels shorten; Focus and the visible
+All records/omission controls recover exact identities and evidence. These limits
+are declared UI display limits, not an unlimited-scale claim. Direction enumerates
+up to 64 simple paths within 4096 traversals and explicitly marks a limit; all
+input relations remain in All records even when not enumerated as a route.
+
+### Rejected updates and reproducible checks
+
+The public app accepts the same input as real `snapshot` SSE events at `?events=`.
+Malformed JSON or a World-contract violation produces a visible **REJECTED / last
+accepted input retained** receipt. It does not change the held pair, received
+input, selection, camera or observation timestamps. Connection changes retain
+rejection until a valid snapshot arrives. Disconnection exposes UNKNOWN for live
+activity; reconnecting does not manufacture a new observation. Quiet World input
+has no autonomous clock timer. Rendering failures are not classified as input
+rejection.
+
+The existing `tests/atlas-a2-ui-composition-gate.mjs` builds the public HTML and
+uses the existing HTTP/Node/Chromium environment. It keeps the positive SVG bbox,
+viewport and actual-click checks, traverses visible page controls to reconstruct
+all values, and drives a small gate-local SSE stream through append, invalid JSON,
+invalid kind, last accepted, disconnect/reconnect and recovery. It also covers
+same-ID content replacement, missing held endpoints, owner M independent of field
+equality, relation S/T, alternative RelationRefs and the declared display budgets.
+Run the existing Node contract and Nix browser commands above; source/build success
+alone is not a browser or User-entry result. Final acceptance additionally needs
+the same published head's independent P screen/entry receipt and R review.

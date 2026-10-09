@@ -1,7 +1,7 @@
 // Pure World input contract checks. No browser, build, host or network is needed.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ATLAS_WORLD_KIND, containmentIndex, entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
+import { ATLAS_COMPARISON_AXES, ATLAS_WORLD_KIND, comparisonsForPair, containmentIndex, entityKey, parseAtlasWorldInput, relationKey, worldPair } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld } from '../packages/control/src/atlas-world-projection.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../examples/atlas/input/a2-world.json', import.meta.url), 'utf8'));
@@ -195,8 +195,7 @@ const projectComparison = (input, selected, reverse = false) => projectAtlasWorl
   input, selected, frame: input.frames[reverse ? 0 : input.frames.length - 1],
   counterpart: input.frames.length > 1 ? input.frames[reverse ? input.frames.length - 1 : 0] : null,
 });
-const judgementText = projection => projection.scene.representations
-  .filter(item => item.atlas?.kind === 'judgement-line').map(item => item.label).join('\n');
+const judgementText = projection => projection.detail.logicalLines.join('\n');
 const suppliedCases = [
   ['entity-area-only', 'entities', 'area', 'purpose'],
   ['entity-order-only', 'entities', 'order', 7],
@@ -264,6 +263,8 @@ const noRecord = projectComparison(parseAtlasWorldInput(prepared), 'entity:absen
 assert.equal(noRecord.selected.comparison.before.record, null);
 assert.equal(noRecord.selected.comparison.after.record, null);
 assert.match(judgementText(noRecord), /not present in either compared frame/u);
+assert.doesNotMatch(judgementText(noRecord), /evidence from counterpart/u, 'no counterpart evidence is invented when both records are missing');
+assert.match(judgementText(noRecord), /Evidence side: UNKNOWN/u);
 
 const parentChange = projectComparison(normalizedFixture, entityKey({ space: 'projects', kind: 'work', id: 'work.y' }));
 assert.deepEqual(parentChange.selected.comparison.changes, [{
@@ -276,4 +277,148 @@ const declarationChange = projectComparison(normalizedFixture, relationKey({
 assert.deepEqual(declarationChange.selected.comparison.changes.map(change => change.field), ['containment', 'time'],
   'supplied containment declaration and time remain distinguishable');
 
+// R343-01: the missing After must not hide the supplied Before context.
+const removedKey = relationKey({ space: 'world-relation', kind: 'reviews', id: 'agent3.agent2.review' });
+const removed = projectComparison(normalizedFixture, removedKey);
+assert.match(judgementText(removed), /Context: workRef=work.x/u);
+assert.match(judgementText(removed), /Evidence side: Before .*counterpart only; current record missing/u);
+assert.match(judgementText(removed), /Endpoints: from=entity:agents:agent:shared · to=entity:agents:agent:agent.2/u);
+assert.match(judgementText(removed), /After: after .*record missing · reason\/time UNKNOWN/u);
+assert.equal(removed.selected.record, null);
+assert.equal(removed.selected.counterpart.context.workRef, 'work.x');
+
+const ownerFixture = JSON.parse(readFileSync(new URL('../examples/atlas/input/prepared-comparison.json', import.meta.url), 'utf8'));
+const ownerInput = assertStable(ownerFixture, 'prepared-owner-six-axes');
+const ownerWorld = projectComparison(ownerInput, preparedRelationKey).worldComparison;
+assert.equal(ownerWorld.owners.length, 1);
+assert.deepEqual(Object.keys(ownerWorld.owners[0].axes), ATLAS_COMPARISON_AXES);
+assert.match(ownerWorld.lines.join('\n'), /Owner axis M: UNCHANGED/u);
+assert.match(ownerWorld.lines.join('\n'), /Owner gap business: UNKNOWN/u);
+assert.match(ownerWorld.lines.join('\n'), /Work\/Receipt completion does not establish Purpose achievement/u);
+
+const withOwner = (input, axes) => {
+  const raw = structuredClone(input);
+  const owner = structuredClone(ownerFixture.comparisons[0]);
+  owner.before = { frameId: raw.frames[0].id, rev: raw.frames[0].rev, asOf: raw.frames[0].asOf };
+  owner.after = { frameId: raw.frames.at(-1).id, rev: raw.frames.at(-1).rev, asOf: raw.frames.at(-1).asOf };
+  owner.axes = axes;
+  raw.comparisons = [owner];
+  return parseAtlasWorldInput(raw);
+};
+const ownerM = structuredClone(ownerFixture.comparisons[0].axes.M);
+ownerM.status = 'changed'; ownerM.summary = 'Meaning changed according to the prepared owner receipt';
+const sameFieldsOwnerM = projectComparison(withOwner(prepared, { M: ownerM }), preparedEntityKey);
+assert.equal(sameFieldsOwnerM.selected.comparison.changes.length, 0, 'field equality does not erase owner M');
+assert.equal(sameFieldsOwnerM.worldComparison.owners[0].axes.M.status, 'changed');
+assert.match(sameFieldsOwnerM.worldComparison.lines.join('\n'), /Owner axis N: NOT SUPPLIED \/ UNKNOWN/u);
+assert.match(sameFieldsOwnerM.worldComparison.lines.join('\n'), /Reason M: UNKNOWN/u);
+
+const orderOnly = structuredClone(prepared);
+orderOnly.frames[1].entities.at(-1).order = 8;
+const independentMeaning = projectComparison(withOwner(orderOnly, { M: ownerFixture.comparisons[0].axes.M }), preparedEntityKey);
+assert.deepEqual(independentMeaning.selected.comparison.changes.map(item => item.field), ['order']);
+assert.equal(independentMeaning.worldComparison.owners[0].axes.M.status, 'unchanged', 'order is not interpreted as owner M');
+const relationST = structuredClone(prepared);
+relationST.frames[1].relations.at(-1).source.sourceDigest = 'owner-supplied-new-evidence';
+relationST.frames[1].relations.at(-1).time.effectiveAt = '2026-10-09T02:00:00Z';
+const stProjection = projectComparison(withOwner(relationST, { S: ownerFixture.comparisons[0].axes.S, T: ownerFixture.comparisons[0].axes.T }), preparedRelationKey);
+assert.deepEqual(stProjection.selected.comparison.changes.map(item => item.field), ['source', 'time']);
+assert.match(stProjection.worldComparison.lines.join('\n'), /Record delta relation:prepared:relation:same: fields=source, time/u);
+assert.match(stProjection.worldComparison.lines.join('\n'), /Owner axis M: NOT SUPPLIED \/ UNKNOWN/u);
+const wrongPair = structuredClone(ownerFixture);
+wrongPair.comparisons[0].after.rev += 1;
+assert.equal(projectComparison(parseAtlasWorldInput(wrongPair), preparedEntityKey).worldComparison.owners.length, 0, 'same frame ID with different rev cannot bind an owner receipt');
+for (const [label, change, pattern] of [
+  ['unknown axis', raw => { raw.comparisons[0].axes.X = {}; }, /unknown field X/u],
+  ['invented status', raw => { raw.comparisons[0].axes.M.status = 'completed'; }, /status must be/u],
+  ['unqualified reference', raw => { raw.comparisons[0].axes.M.refs = [{ type: 'entity', ref: { id: '7' } }]; }, /space must be/u],
+  ['duplicate receipt', raw => raw.comparisons.push(structuredClone(raw.comparisons[0])), /comparison ids must be unique/u],
+]) {
+  const raw = structuredClone(ownerFixture); change(raw);
+  assert.throws(() => parseAtlasWorldInput(raw), pattern, label);
+}
+const heldPair = worldPair(ownerInput);
+const replacedInput = structuredClone(ownerFixture);
+replacedInput.frames[1].entities[0].label = 'New content under the same ID';
+const replacement = parseAtlasWorldInput(replacedInput);
+assert.equal(heldPair.after, ownerInput.frames[1]);
+assert.notEqual(heldPair.after, replacement.frames[1]);
+assert.equal(comparisonsForPair(heldPair.input, heldPair.before, heldPair.after)[0], ownerInput.comparisons[0]);
+assert.ok(Object.isFrozen(heldPair.after.entities[0]) && Object.isFrozen(heldPair.input.comparisons[0].axes.M));
+
+// R343-04: exact selected relation and all supplied alternative references.
+const exampleRelation = id => relationKey({ space: 'example-relations', kind: 'addresses', id });
+const bDirection = projectComparison(normalizedFixture, exampleRelation('pkg-a.issue-b')).direction;
+assert.ok(bDirection.routes.length > 0);
+assert.ok(bDirection.routes.every(route => route.relations[0] === exampleRelation('pkg-a.issue-b')
+  && route.entities[1] === 'entity:example-issues-b:issue:7'
+  && !route.entities.includes('entity:example-issues-a:issue:7') && route.status === 'PROPOSAL / not accepted'));
+const packagePaths = projectComparison(normalizedFixture, 'entity:example-packages:package:pkg-a').direction.routes;
+assert.ok(['pkg-a.issue-a.req', 'pkg-a.issue-a.alt', 'pkg-a.issue-b'].every(id => packagePaths.some(route => route.relations[0] === exampleRelation(id))));
+const noPath = projectComparison(normalizedFixture, 'relation:world-relation:serves:agent1.purposea').direction;
+assert.equal(noPath.routes.length, 0);
+assert.match(noPath.reason, /path=false/u);
+const missingEndpoint = structuredClone(prepared);
+missingEndpoint.frames[1].relations.at(-1).path = true;
+missingEndpoint.frames[1].relations.at(-1).to = { space: 'missing', kind: 'purpose', id: 'same' };
+assert.match(projectComparison(parseAtlasWorldInput(missingEndpoint), preparedRelationKey).direction.reason, /endpoint missing/u);
+const targets = structuredClone(prepared);
+const secondPurpose = { space: 'prepared-purposes', kind: 'purpose', id: 'second' };
+targets.presentation.directionTargets.push(secondPurpose);
+targets.frames[1].entities.push({ ...structuredClone(preparedBefore.entities.at(-1)), ref: secondPurpose, label: 'Second Purpose', area: 'purpose' });
+targets.frames[1].relations.at(-1).path = true;
+targets.frames[1].relations.push({ ...structuredClone(targets.frames[1].relations.at(-1)),
+  ref: { space: 'prepared', kind: 'relation', id: 'second-purpose' }, to: secondPurpose });
+const targetPaths = projectComparison(parseAtlasWorldInput(targets), preparedEntityKey).direction.routes;
+assert.deepEqual(new Set(targetPaths.map(route => route.entities.at(-1))),
+  new Set([entityKey(fixture.presentation.directionTargets[0]), entityKey(secondPurpose)]), 'both supplied Purpose paths remain alternatives');
+
+// P clipping counterexamples: full long multi-field values must remain exactly
+// reconstructible through physical pages at supported viewports and cameras.
+const longInput = structuredClone(prepared);
+longInput.frames[1].relations.at(-1).context = { japanese: '長い供給済みの根拠λ🙂'.repeat(30), quote: '<>&"' };
+longInput.frames[1].relations.at(-1).source.sourceDigest = 'digest-'.repeat(90);
+const longNormalized = parseAtlasWorldInput(longInput);
+for (const viewport of [{ width: 1200, height: 900 }, { width: 1500, height: 1000 }]) {
+  for (const scale of [0.15, 0.7, 1.5, 5]) {
+    let first = projectAtlasWorld({ input: longNormalized, frame: longNormalized.frames[1], counterpart: longNormalized.frames[0], selected: preparedRelationKey,
+      viewport, scale, camera: { scale, translateX: -300, translateY: 700 } });
+    const recovered = new Map();
+    for (let page = 0; page < first.detail.pageCount; page += 1) {
+      const part = projectAtlasWorld({ input: longNormalized, frame: longNormalized.frames[1], counterpart: longNormalized.frames[0], selected: preparedRelationKey,
+        viewport, scale, camera: { scale, translateX: -300, translateY: 700 }, detailPage: page });
+      for (const row of part.detail.rows) recovered.set(row.lineIndex, (recovered.get(row.lineIndex) ?? '') + row.text);
+      for (const rep of part.scene.representations.filter(item => item.zIndex >= 10000)) {
+        const x = (rep.bounds.x - 300) * scale, y = (rep.bounds.y + 700) * scale;
+        assert.ok(x >= -1e-8 && y >= -1e-8 && x + rep.bounds.width * scale <= viewport.width + 1e-8
+          && y + rep.bounds.height * scale <= viewport.height + 1e-8, 'all pinned controls and physical value rows fit');
+      }
+    }
+    assert.deepEqual([...recovered.values()], first.detail.logicalLines, 'all supplied characters recovered without abbreviation');
+  }
+}
+
+// Declared input budgets: limit visibility, never the underlying record set.
+for (const count of [40, 41]) {
+  const raw = structuredClone(prepared);
+  const root = raw.frames[0].entities.find(item => entityKey(item.ref) === entityKey(raw.presentation.directionTargets[0]));
+  const rows = Array.from({ length: count }, (_, index) => ({ ...structuredClone(preparedBefore.entities.at(-1)),
+    ref: { space: 'budget', kind: 'agent', id: String(index) }, label: 'Agent ' + index, order: index }));
+  raw.presentation.defaultSelection = root.ref;
+  raw.frames = [{ ...raw.frames[0], entities: [root, ...rows], relations: [] }];
+  const view = projectComparison(parseAtlasWorldInput(raw), entityKey(root.ref));
+  assert.equal(view.scene.representations.filter(item => item.atlas?.kind === 'entity' && item.atlas.area === 'agents').length, 40);
+  assert.equal(view.omittedEntityIds.length, count - 40);
+}
+for (const count of [64, 65]) {
+  const raw = structuredClone(prepared);
+  const frame = raw.frames[0];
+  frame.relations = Array.from({ length: count }, (_, index) => ({ ...structuredClone(preparedBefore.relations.at(-1)),
+    ref: { space: 'budget', kind: 'relation', id: String(index) }, kind: 'relation-' + index }));
+  raw.frames = [frame];
+  const view = projectComparison(parseAtlasWorldInput(raw), preparedEntityKey);
+  assert.equal(view.scene.relations.length, 64);
+  assert.equal(view.omittedRelationIds.length, count - 64);
+  assert.equal(new Set([...view.scene.relations.flatMap(item => item.relationIds), ...view.omittedRelationIds]).size, count);
+}
 console.log('atlas-world-checks-pass');

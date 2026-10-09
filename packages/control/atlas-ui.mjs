@@ -10,8 +10,8 @@ import {
 } from './src/live-atlas.mjs';
 import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
-import { entityKey, parseAtlasWorldInput, relationKey } from './src/atlas-world.mjs';
-import { projectAtlasWorld } from './src/atlas-world-projection.mjs';
+import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
+import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}
@@ -460,6 +460,12 @@ export const mountAtlasWorldUI = ({
     input: worldInput,
     frameIndex: worldInput.frames.length - 1,
     latest: true,
+    pair: worldPair(worldInput),
+    side: 'after',
+    detailTab: 'record',
+    detailPage: 0,
+    detailPages: {},
+    admission: null,
     selected: selected || entityKey(worldInput.presentation.defaultSelection),
     mode: initialMode,
     connected,
@@ -468,21 +474,20 @@ export const mountAtlasWorldUI = ({
     destroyed: false,
   };
 
-  const adapter = createMaxGraphAdapter(container, { theme: DEFAULT_THEME });
+  const adapter = createMaxGraphAdapter(container, { theme: { ...DEFAULT_THEME,
+    vertex: { ...DEFAULT_THEME.vertex, fontSize: 13, deepFontSize: 13, fontStyle: 0 } } });
   adapter.setTool('select');
   let suppressSelection = false;
   let cameraFrame = 0;
 
-  const currentFrame = () => page.input.frames[page.frameIndex];
-  const counterpartFrame = () => {
-    if (page.input.frames.length < 2) return null;
-    // Before/After controls compare the same first/latest endpoints in both views.
-    return page.input.frames[page.frameIndex === 0 ? page.input.frames.length - 1 : 0];
-  };
+  const currentFrame = () => page.side === 'before' && page.pair.before ? page.pair.before : page.pair.after;
+  const counterpartFrame = () => page.side === 'before' && page.pair.before ? page.pair.after : page.pair.before;
+  const viewport = () => ({ width: container.clientWidth, height: container.clientHeight });
 
   const draw = () => {
     const projection = projectAtlasWorld({
-      input: page.input,
+      input: page.pair.input,
+      receivedInput: page.input,
       frame: currentFrame(),
       counterpart: counterpartFrame(),
       selected: page.selected,
@@ -490,8 +495,11 @@ export const mountAtlasWorldUI = ({
       connected: page.connected,
       latest: page.latest,
       scale: adapter.camera().scale,
+      camera: adapter.camera(), viewport: viewport(),
+      detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
     });
     page.projection = projection;
+    page.detailPage = projection.detail.page;
     adapter.render(projection.scene);
     adapter.setFocusMarker(projection.selectedRegionId);
     return projection;
@@ -499,8 +507,9 @@ export const mountAtlasWorldUI = ({
 
   const fit = () => {
     const projection = page.projection ?? draw();
-    const camera = fitCamera(projection.world, { width: container.clientWidth, height: container.clientHeight });
-    adapter.setCamera(camera.scale, camera.translateX, camera.translateY);
+    const view = worldViewport(viewport()).graph;
+    const camera = fitCamera(projection.world, view, 0.94);
+    adapter.setCamera(camera.scale, camera.translateX + view.x / camera.scale, camera.translateY + view.y / camera.scale);
     draw();
   };
 
@@ -523,6 +532,7 @@ export const mountAtlasWorldUI = ({
 
   const select = (key, { sync = true } = {}) => {
     if (typeof key !== 'string' || !key) return;
+    if (page.selected !== key) { page.detailPages[page.detailTab] = page.detailPage; page.detailPage = 0; page.detailTab = 'record'; }
     page.selected = key;
     onSelect?.(key);
     draw();
@@ -543,8 +553,13 @@ export const mountAtlasWorldUI = ({
     else if (activation?.type === 'atlas.world.next-aggregate') cycle(page.projection?.aggregateRelationIds);
     else if (activation?.type === 'atlas.world.next-omitted') cycle(page.projection?.omittedRelationIds);
     else if (activation?.type === 'atlas.world.next-omitted-entity') cycle(page.projection?.omittedEntityIds);
-    else if (activation?.type === 'atlas.world.frame-before') setFrame(0);
-    else if (activation?.type === 'atlas.world.frame-after') setFrame(page.input.frames.length - 1, { latest: true });
+    else if (activation?.type === 'atlas.world.frame-before') showSide('before');
+    else if (activation?.type === 'atlas.world.frame-after') showSide('after');
+    else if (activation?.type === 'atlas.world.latest') followLatest();
+    else if (activation?.type === 'atlas.world.tab') { page.detailPages[page.detailTab] = page.detailPage; page.detailTab = activation.value; page.detailPage = page.detailPages[activation.value] ?? 0; draw(); }
+    else if (activation?.type === 'atlas.world.detail-next') turnPage(1);
+    else if (activation?.type === 'atlas.world.detail-previous') turnPage(-1);
+    else if (activation?.type === 'atlas.world.endpoint' && activation.value) select(activation.value);
     else if (activation?.type === 'atlas.world.fit') fit();
     else if (activation?.type === 'atlas.world.focus') focusSelected();
     else if (activation?.type === 'atlas.world.tool-select') adapter.setTool('select');
@@ -553,39 +568,75 @@ export const mountAtlasWorldUI = ({
 
   adapter.onSelectionChange(selection => {
     if (suppressSelection || !selection.relationIds.length) return;
-    page.selected = selection.relationIds[0];
-    onSelect?.(page.selected);
-    draw();
+    select(selection.relationIds[0], { sync: false });
   });
 
-  const setFrame = (index, { latest = false } = {}) => {
-    if (!Number.isSafeInteger(index) || index < 0 || index >= page.input.frames.length) return;
-    page.frameIndex = index;
-    page.latest = latest || index === page.input.frames.length - 1;
+  const updateFrameIndex = () => { page.frameIndex = page.input.frames.findIndex(frame => frame.id === currentFrame().id); };
+  const showSide = side => {
+    page.side = side === 'before' && page.pair.before ? 'before' : 'after';
+    page.latest = false;
+    page.detailPage = 0;
+    updateFrameIndex();
     draw();
     syncGraphSelection(page.selected);
   };
-
+  const followLatest = () => {
+    page.pair = worldPair(page.input);
+    page.side = 'after';
+    page.latest = true;
+    page.detailPage = 0;
+    updateFrameIndex();
+    draw();
+    syncGraphSelection(page.selected);
+  };
+  const setFrame = (index, { latest = false } = {}) => {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= page.input.frames.length) return;
+    if (latest) { followLatest(); return; }
+    if (index === 0) showSide('before');
+    else if (index === page.input.frames.length - 1) showSide('after');
+    else { page.pair = worldPair(page.input, index); showSide('after'); }
+  };
+  const turnPage = delta => {
+    page.detailPage = Math.max(0, Math.min(page.projection.detail.pageCount - 1, page.detailPage + delta));
+    draw();
+  };
+  const rejectInput = reason => {
+    if (page.destroyed) return;
+    // No state supplied by the rejected payload is admitted. This receipt is UI
+    // status; it never becomes observation time or owner comparison evidence.
+    page.admission = Object.freeze({ status: 'rejected', reason: String(reason) });
+    draw();
+  };
   const setSession = ({
     input: nextInput = page.input,
     mode = page.mode,
     connected: nextConnected = page.connected,
     now: nextNow = page.now,
     latest = page.latest,
+    reportInvalid = false,
   } = {}) => {
     if (page.destroyed) return;
-    const previousFrameId = currentFrame()?.id ?? null;
-    // New payloads are validated here; connection-only updates reuse the input.
-    if (nextInput !== page.input) page.input = parseAtlasWorldInput(nextInput);
+    const supplied = nextInput !== page.input;
+    // Validate before any mutation. The app requests a visible admission
+    // receipt; direct callers still detect invalid input by throw. Rendering
+    // failures are not mislabeled as input rejection.
+    let accepted;
+    try { accepted = supplied ? parseAtlasWorldInput(nextInput) : page.input; }
+    catch (error) {
+      if (!reportInvalid) throw error;
+      rejectInput(error.message);
+      return;
+    }
+    page.input = accepted;
+    if (supplied) page.admission = null;
     page.mode = mode;
     page.connected = nextConnected;
     page.now = nextNow;
     page.latest = latest;
-    if (latest) page.frameIndex = page.input.frames.length - 1;
-    else {
-      const sameFrame = page.input.frames.findIndex(frame => frame.id === previousFrameId);
-      page.frameIndex = sameFrame >= 0 ? sameFrame : Math.min(page.frameIndex, page.input.frames.length - 1);
-    }
+    if (latest) { page.pair = worldPair(accepted); page.side = 'after'; }
+    // Held input, both frame contents, presentation and owner receipts stay
+    // referenced as one immutable pair, even when absent in the next payload.
+    updateFrameIndex();
     draw();
     syncGraphSelection(page.selected);
   };
@@ -600,11 +651,10 @@ export const mountAtlasWorldUI = ({
     const cell = id ? adapter.cellsByRegionId.get(id) : null;
     const bounds = cell?.getGeometry?.();
     if (!bounds) return;
-    const camera = fitCamera({ x: bounds.x - 24, y: bounds.y - 24, width: bounds.width + 48, height: bounds.height + 48 }, {
-      width: container.clientWidth,
-      height: container.clientHeight,
-    });
-    adapter.setCamera(camera.scale, camera.translateX, camera.translateY);
+    if (cell.semantic?.zIndex >= 10000) return;
+    const view = worldViewport(viewport()).graph;
+    const camera = fitCamera({ x: bounds.x - 24, y: bounds.y - 24, width: bounds.width + 48, height: bounds.height + 48 }, view, 0.94);
+    adapter.setCamera(camera.scale, camera.translateX + view.x / camera.scale, camera.translateY + view.y / camera.scale);
     draw();
   };
 
@@ -613,8 +663,11 @@ export const mountAtlasWorldUI = ({
     else if (event.key === 'h' || event.key === 'H') adapter.setTool('hand');
     else if (event.key === 'f' || event.key === 'F') focusSelected();
     else if (event.key === '0' || event.key === 'Escape') fit();
-    else if (event.key === '[') setFrame(0);
-    else if (event.key === ']') setFrame(page.input.frames.length - 1, { latest: true });
+    else if (event.key === '[') showSide('before');
+    else if (event.key === ']') showSide('after');
+    else if (event.key === 'l' || event.key === 'L') followLatest();
+    else if (event.key === 'PageDown') turnPage(1);
+    else if (event.key === 'PageUp') turnPage(-1);
     else return;
     event.preventDefault();
   };
@@ -623,7 +676,8 @@ export const mountAtlasWorldUI = ({
   const onWheel = event => {
     event.preventDefault();
     const box = container.getBoundingClientRect();
-    zoomBy(event.deltaY < 0 ? 1.2 : 1 / 1.2, { x: event.clientX - box.left, y: event.clientY - box.top });
+    if (event.clientY - box.top >= page.projection.viewport.panel.y) turnPage(event.deltaY < 0 ? -1 : 1);
+    else zoomBy(event.deltaY < 0 ? 1.2 : 1 / 1.2, { x: event.clientX - box.left, y: event.clientY - box.top });
   };
   const onResize = () => fit();
   const onCameraChange = () => {

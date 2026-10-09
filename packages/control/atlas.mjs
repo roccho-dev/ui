@@ -59,13 +59,7 @@ const startWorldAtlas = ({ input, eventsUrl, selected }) => {
       url: eventsUrl,
       onConnection: connected => ui.setSession({ connected, mode: 'live', now: Date.now() }),
       onSnapshot: data => {
-        ui.setSession({
-          input: data,
-          connected: ui.page.connected,
-          mode: 'live',
-          now: Date.now(),
-          latest: ui.page.latest,
-        });
+        ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: Date.now(), latest: ui.page.latest, reportInvalid: true });
       },
     });
   }
