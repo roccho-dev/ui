@@ -684,13 +684,60 @@ try {
 
   const renderedNodeLabels = async () => page.evaluate(() => {
     const atlas = window.liveAtlas, adapter = atlas.adapter, viewport = atlas.projection.viewport.graph;
+    const svg = document.querySelector('#atlas-world svg');
+    // defs rectangles have no useful screen bbox. Map the actual clip rect
+    // through the clipped owner's CTM, then test the real text box in that
+    // coordinate space. Do not count textContent hidden by an ancestor clip.
+    const clipsFor = node => {
+      const textNodes = node?.matches?.('text') ? [node] : [...(node?.querySelectorAll?.('text') ?? [])];
+      return textNodes.flatMap(text => {
+        const textBox = text.getBoundingClientRect(), result = [];
+        for (let owner = text; owner && owner !== svg?.parentElement; owner = owner.parentElement) {
+          const reference = owner.getAttribute?.('clip-path');
+          if (!reference || reference === 'none') continue;
+          const id = reference.match(/#([^)'"]+)/u)?.[1];
+          const clip = id ? document.getElementById(id) : null;
+          const units = clip?.getAttribute('clipPathUnits') ?? 'userSpaceOnUse';
+          const rect = clip?.children.length === 1 && clip.children[0].localName === 'rect' ? clip.children[0] : null;
+          const entry = { reference, units, text: text.textContent, supported: false, inside: false };
+          try {
+            if (!rect || units !== 'userSpaceOnUse') throw new Error('unsupported or missing clip geometry');
+            let matrix = owner.getScreenCTM();
+            for (const element of [clip, rect]) {
+              const transforms = element.transform?.baseVal;
+              for (let index = 0; index < (transforms?.numberOfItems ?? 0); index += 1) {
+                matrix = matrix.multiply(transforms.getItem(index).matrix);
+              }
+            }
+            const inverse = matrix.inverse();
+            const corners = [[textBox.left, textBox.top], [textBox.right, textBox.top],
+              [textBox.right, textBox.bottom], [textBox.left, textBox.bottom]]
+              .map(([x, y]) => new DOMPoint(x, y).matrixTransform(inverse));
+            const x = rect.x.baseVal.value, y = rect.y.baseVal.value;
+            const width = rect.width.baseVal.value, height = rect.height.baseVal.value;
+            const tolerance = 1 / Math.min(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d));
+            entry.rect = { x, y, width, height };
+            entry.localTextCorners = corners.map(point => ({ x: point.x, y: point.y }));
+            entry.supported = [x, y, width, height, tolerance, ...corners.flatMap(point => [point.x, point.y])].every(Number.isFinite)
+              && width > 0 && height > 0;
+            entry.inside = entry.supported && corners.every(point => point.x >= x - tolerance && point.y >= y - tolerance
+              && point.x <= x + width + tolerance && point.y <= y + height + tolerance);
+          } catch (error) { entry.error = error.message; }
+          result.push(entry);
+        }
+        return result;
+      });
+    };
     return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
       const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
       const node = state?.text?.node, box = node?.getBoundingClientRect();
+      const clips = clipsFor(node);
+      const hasSvgText = Boolean(node && (node.matches('text') || node.querySelector('text')));
       return { key: item.regionId, expected: item.label, text: node?.textContent ?? '',
         box: box ? { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height } : null,
         camera: adapter.camera(), graphViewport: viewport, bounds: item.bounds, fontSize: state?.style?.fontSize,
-        visible: Boolean(box && box.width > 0 && box.height >= 10 && box.left >= viewport.x - 1
+        clips, unclipped: clips.every(clip => clip.supported && clip.inside),
+        visible: Boolean(hasSvgText && svg?.contains(node) && box && box.width > 0 && box.height >= 10 && box.left >= viewport.x - 1
           && box.right <= viewport.x + viewport.width + 1 && box.top >= viewport.y - 1
           && box.bottom <= viewport.y + viewport.height + 1) };
     });
@@ -739,11 +786,11 @@ try {
       judgement.visible && controls.every(item => item.visible), { judgement, controls });
     const labels = await renderedNodeLabels();
     check(label + ' representative node labels remain present and inside the graph viewport',
-      labels.every(item => item.visible && item.text.replace(/\s/gu, '').includes(item.expected.replace(/\s/gu, ''))), labels);
+      labels.every(item => item.visible && item.unclipped && item.text.replace(/\s/gu, '').includes(item.expected.replace(/\s/gu, ''))), labels);
     await clickCell('world:control:after');
     const afterLabels = await renderedNodeLabels();
     check(label + ' After representative node labels remain present without replacing the held pair',
-      afterLabels.every(item => item.visible && item.text.replace(/\s/gu, '').includes(item.expected.replace(/\s/gu, ''))),
+      afterLabels.every(item => item.visible && item.unclipped && item.text.replace(/\s/gu, '').includes(item.expected.replace(/\s/gu, ''))),
       afterLabels);
     await clickCell('world:control:before');
   }

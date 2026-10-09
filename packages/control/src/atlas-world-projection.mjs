@@ -8,6 +8,9 @@ import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, conta
 const AREA_GAP = 40;
 const AREA_TOP = 56;
 const AREA_PAD = 22;
+// Keep nested layout topology, but give the fixed-pixel node text enough width
+// inside its own SVG clip at the representative fitted viewport.
+const WORLD_WIDTH_SCALE = 1.5;
 const MAX_ENTITIES_PER_AREA = 40;
 const MAX_RELATION_GROUPS = 64;
 
@@ -260,9 +263,9 @@ const containmentDepth = (key, parentByChild) => {
 };
 
 const translateBounds = (bounds, dx, dy) => Object.freeze({
-  x: bounds.x + dx,
+  x: bounds.x * WORLD_WIDTH_SCALE + dx,
   y: bounds.y + dy,
-  width: bounds.width,
+  width: bounds.width * WORLD_WIDTH_SCALE,
   height: bounds.height,
 });
 
@@ -366,7 +369,7 @@ export const projectAtlasWorld = ({
     const rows = areaEntities.get(area.id) ?? [];
     const nested = nestedAreaLayout({ area, rows, containment });
     const rootBounds = nested.layout.rootBounds;
-    const dx = contentRight - rootBounds.x;
+    const dx = contentRight - rootBounds.x * WORLD_WIDTH_SCALE;
     const dy = AREA_TOP - rootBounds.y;
     const bounds = translateBounds(rootBounds, dx, dy);
     areaBounds.set(area.id, bounds);

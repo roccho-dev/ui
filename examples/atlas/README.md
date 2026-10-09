@@ -265,8 +265,12 @@ The representative viewport checks are **1500×1000 and 1200×900**, for both th
 Before and After containment. The graph keeps its 13px base node font. The
 judgement panel reserves 30% of viewport height, bounded to 280–400px; the graph
 uses the remaining height after the top controls and margins. Paging retains all
-detail values while giving the taller Before world enough room for full names at
-the representative sizes. The checked-in
+detail values while giving the taller Before world room for full names. The
+derived nested layout widens its horizontal coordinates and node widths by 1.5
+before arranging the three areas; containment and supplied record values stay
+the same. Representative label checks require the entire name inside both the
+graph viewport and its actual SVG ancestor clips. A full DOM textContent alone
+does not establish visibility. The checked-in
 world has 25 entities and 39/40 relations; its nested boundaries, Work identity,
 parallel evidence and Issue/Package routes remain the representative visual
 case. The budget cases exercise **40/41 entities per area and 64/65 relation
