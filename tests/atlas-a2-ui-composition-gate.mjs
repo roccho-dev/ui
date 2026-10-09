@@ -35,6 +35,9 @@ const receipt = await buildLiveAtlas({
 
 const simClients = new Set();
 let simAvailable = true;
+const transport = [];
+let phase = 'World composition and interaction';
+const recordTransport = (event, detail) => transport.push({ at: new Date().toISOString(), phase, event, ...detail });
 const emitPrepared = data => {
   const raw = typeof data === 'string' ? data : JSON.stringify(data);
   for (const client of simClients) client.write('event: snapshot\n' + raw.split(/\r?\n/u).map(line => 'data: ' + line).join('\n') + '\n\n');
@@ -46,7 +49,10 @@ const types = new Map([
 const server = http.createServer((request, response) => {
   const { pathname } = new URL(request.url, 'http://localhost');
   if (pathname === '/prepared-events') {
-    if (!simAvailable) { response.writeHead(503).end('prepared disconnect'); return; }
+    recordTransport('prepared request', { available: simAvailable });
+    // A non-200 response terminates EventSource reconnection. Model a network
+    // interruption by dropping the connection before sending HTTP headers.
+    if (!simAvailable) { response.destroy(); return; }
     response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
     response.write('retry: 250\n\n');
     simClients.add(response);
@@ -76,9 +82,27 @@ const origin = 'http://127.0.0.1:' + server.address().port + '/';
 
 const failed = [];
 let checks = 0;
+let lastCheck = null;
 const check = (name, condition, detail = null) => {
   checks += 1;
+  lastCheck = name;
   if (!condition) failed.push({ name, detail });
+};
+
+let observedPage = null;
+const observeTransport = (page, label) => {
+  observedPage = page;
+  const record = (event, request, detail = {}) => {
+    const type = request.resourceType();
+    if (type === 'document' || type === 'eventsource') {
+      recordTransport(event, { page: label, type, url: request.url(), ...detail });
+    }
+  };
+  page.on('request', request => record('request', request));
+  page.on('response', response => record('response', response.request(), {
+    status: response.status(), contentType: response.headers()['content-type'] ?? null,
+  }));
+  page.on('requestfailed', request => record('request failed', request, { failure: request.failure() }));
 };
 
 const rawWorldInput = JSON.parse(fs.readFileSync('examples/atlas/input/a2-world.json', 'utf8'));
@@ -87,11 +111,15 @@ const afterContainment = containmentIndex(parsedWorldInput.frames.at(-1));
 
 let browser;
 let producer;
+let completed = false;
+let interruption = null;
+const cleanupErrors = [];
+const pageErrors = [];
+const consoleErrors = [];
 try {
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
-  const pageErrors = [];
-  const consoleErrors = [];
+  observeTransport(page, 'World');
   page.on('pageerror', error => pageErrors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   const response = await page.goto(origin, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -1281,9 +1309,11 @@ try {
     { state: denseReturn, judgement: denseReturnJudgement });
 
   // The actual app entry receives a real finite SSE snapshot, then stays quiet.
+  phase = 'live World navigation';
   producer = await startAtlasProducer({ connections: [[{ data: { ...rawWorldInput, note: 'world-live-update' } }]] });
   const liveContext = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const livePage = await liveContext.newPage();
+  observeTransport(livePage, 'live World');
   livePage.on('pageerror', error => pageErrors.push(String(error)));
   await livePage.addInitScript(() => {
     const original = globalThis.setInterval;
@@ -1293,8 +1323,11 @@ try {
       return original(callback, delay, ...args);
     };
   });
-  await livePage.goto(origin + '?events=' + encodeURIComponent(producer.url));
-  await livePage.waitForFunction(() => window.liveAtlas?.input.note === 'world-live-update' && window.liveAtlas.page.connected);
+  const liveResponse = await livePage.goto(origin + '?events=' + encodeURIComponent(producer.url), { waitUntil: 'domcontentloaded', timeout: 30000 });
+  if (liveResponse?.status() !== 200) throw new Error('live World document HTTP ' + liveResponse?.status());
+  phase = 'live World accepted snapshot';
+  await livePage.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true'
+    && window.liveAtlas?.input.note === 'world-live-update' && window.liveAtlas.page.connected);
   const quiet = await livePage.evaluate(async () => {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const atlas = window.liveAtlas;
@@ -1310,11 +1343,16 @@ try {
 
   // A gate-local finite simulator on the existing HTTP server advances only
   // after each actual UI observation. It creates no source authority or daemon.
+  phase = 'prepared SSE navigation';
   const streamContext = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const streamPage = await streamContext.newPage();
+  observeTransport(streamPage, 'prepared SSE');
   streamPage.on('pageerror', error => pageErrors.push(String(error)));
-  await streamPage.goto(origin + '?events=' + encodeURIComponent(origin + 'prepared-events'));
-  await streamPage.waitForFunction(() => window.liveAtlas?.page.connected);
+  const streamResponse = await streamPage.goto(origin + '?events=' + encodeURIComponent(origin + 'prepared-events'), { waitUntil: 'domcontentloaded', timeout: 30000 });
+  if (streamResponse?.status() !== 200) throw new Error('prepared SSE document HTTP ' + streamResponse?.status());
+  phase = 'prepared SSE initial connection';
+  await streamPage.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true' && window.liveAtlas?.page.connected);
+  phase = 'prepared SSE accepted input and hold';
   emitPrepared({ ...ownerRaw, note: 'stream-accepted-1' });
   await streamPage.waitForFunction(() => window.liveAtlas.input.note === 'stream-accepted-1');
   await clickCell('world:control:before', streamPage);
@@ -1337,6 +1375,7 @@ try {
   check('held SSE comparison keeps the owner receipt associated with the original pair',
     streamOwner.visible && /prepared-owner-six-axes/u.test(streamOwner.text), streamOwner);
   for (const invalid of ['{invalid JSON', { kind: 'invalid-world' }]) {
+    phase = 'prepared SSE ' + (typeof invalid === 'string' ? 'malformed JSON' : 'invalid kind');
     await streamPage.evaluate(() => { window.__streamAccepted = window.liveAtlas.input; });
     emitPrepared(invalid);
     await streamPage.waitForFunction(() => window.liveAtlas.page.admission?.status === 'rejected');
@@ -1348,6 +1387,7 @@ try {
     });
     check('real SSE ' + (typeof invalid === 'string' ? 'malformed JSON' : 'invalid kind') + ' is visibly rejected while retaining last accepted/pair/selection/camera',
       kept && rejected.visible && /Admission: REJECTED · last accepted input retained/u.test(rejected.text), rejected);
+    phase = 'prepared SSE valid recovery';
     emitPrepared({ ...streamNext, note: 'stream-recovered-' + (typeof invalid === 'string' ? 'json' : 'kind') });
     await streamPage.waitForFunction(() => !window.liveAtlas.page.admission);
     const recovered = await renderedJudgement({ targetPage: streamPage });
@@ -1355,6 +1395,7 @@ try {
       recovered.visible && /Admission: accepted prepared input/u.test(recovered.text)
         && await streamPage.evaluate(() => !window.liveAtlas.page.latest && window.liveAtlas.page.pair === window.__streamHeld.pair), recovered);
   }
+  phase = 'prepared SSE explicit Latest';
   await clickCell('world:control:latest', streamPage);
   await streamPage.waitForFunction(() => window.liveAtlas.page.latest && window.liveAtlas.page.pair.after.id === 'stream-new-after');
   const latestStream = await renderedJudgement({ targetPage: streamPage });
@@ -1365,15 +1406,20 @@ try {
     window.liveAtlas.selectRef({ space: 'agents', kind: 'agent', id: 'agent.1' });
     window.__disconnectInput = window.liveAtlas.input;
   });
+  phase = 'prepared SSE network interruption';
   simAvailable = false;
-  for (const client of [...simClients]) client.end();
+  recordTransport('prepared unavailable', { clients: simClients.size });
+  for (const client of [...simClients]) client.destroy();
   await streamPage.waitForFunction(() => !window.liveAtlas.page.connected);
+  phase = 'prepared SSE disconnected inspection';
   const streamDisconnected = await renderedJudgement({ targetPage: streamPage });
   check('real disconnected SSE exposes UNKNOWN while retaining the last supplied observation',
     streamDisconnected.visible && /Activity: UNKNOWN · lastDeclared=NOW · transport=SSE disconnected/u.test(streamDisconnected.text)
       && /Time: observed=2026-10-07T06:00:00Z · acquired=2026-10-07T06:10:00Z · effective=unknown/u.test(streamDisconnected.text)
       && await streamPage.evaluate(() => window.liveAtlas.input === window.__disconnectInput), streamDisconnected);
+  phase = 'prepared SSE reconnection';
   simAvailable = true;
+  recordTransport('prepared available', { clients: simClients.size });
   await streamPage.waitForFunction(() => window.liveAtlas.page.connected);
   check('real transport reconnect preserves accepted source and pair without restamping observations',
     await streamPage.evaluate(() => window.liveAtlas.input === window.__disconnectInput
@@ -1385,6 +1431,8 @@ try {
   await streamContext.close();
 
   // Exercise the existing mount return value; do not add tick to the app API.
+  phase = 'explicit World tick';
+  observedPage = page;
   const explicitTick = await page.evaluate(async input => {
     window.liveAtlas.destroy();
     const { mountAtlasWorldUI } = await import('ui:packages/control/atlas-ui.mjs');
@@ -1404,24 +1452,57 @@ try {
   check('destroyed World mount ignores a later tick', explicitTick.destroyedTickIgnored, explicitTick);
 
   check('no browser page/console errors', pageErrors.length === 0 && consoleErrors.length === 0, { pageErrors, consoleErrors });
-} finally {
+  completed = true;
+} catch (error) {
+  interruption = { phase, afterCheck: lastCheck, name: error.name, message: error.message, stack: error.stack,
+    url: observedPage?.url() ?? null, page: null };
+  // A diagnostic read cannot turn an interrupted run into a completed run.
+  // Bound only this read so a stalled page cannot hide the original failure.
+  let diagnosticTimer;
   try {
-    if (browser) await browser.close();
+    interruption.page = await Promise.race([
+      observedPage?.evaluate(() => {
+        const atlas = window.liveAtlas;
+        return { documentState: document.readyState, ready: document.documentElement.dataset.liveAtlasReady ?? null,
+          kind: atlas?.page?.kind ?? null, connected: atlas?.page?.connected ?? null,
+          selected: atlas?.page?.selected ?? null, latest: atlas?.page?.latest ?? null,
+          note: atlas?.input?.note ?? null, admission: atlas?.page?.admission ?? null,
+          before: atlas?.page?.pair?.before?.id ?? null, after: atlas?.page?.pair?.after?.id ?? null };
+      }) ?? Promise.resolve(null),
+      new Promise(resolve => { diagnosticTimer = setTimeout(() => resolve({ unavailable: 'diagnostic read timeout' }), 1000); }),
+    ]);
+  } catch (error) {
+    interruption.page = { unavailable: String(error) };
   } finally {
-    if (producer) await producer.close();
-    for (const client of simClients) client.end();
-    await new Promise(resolve => server.close(resolve));
-    await fsp.rm(tempRoot, { recursive: true, force: true });
+    clearTimeout(diagnosticTimer);
+  }
+  console.error(error.stack ?? String(error));
+} finally {
+  for (const [name, close] of [
+    ['browser', () => browser?.close()],
+    ['producer', () => producer?.close()],
+    ['server', () => new Promise(resolve => {
+      for (const client of simClients) client.destroy();
+      server.close(resolve);
+      server.closeAllConnections?.();
+    })],
+    ['temporary files', () => fsp.rm(tempRoot, { recursive: true, force: true })],
+  ]) {
+    try { await close(); } catch (error) { cleanupErrors.push({ name, error: String(error) }); }
   }
 }
 
 const result = {
   schema: 'atlas-a2-ui-composition-gate/1',
-  status: failed.length ? 'FAIL' : 'PASS',
+  status: completed && !failed.length && !cleanupErrors.length ? 'PASS' : 'FAIL',
+  completed,
   input: receipt.input,
   entry: 'packages/control/atlas.mjs',
   checks,
   failed,
+  interruption,
+  cleanupErrors,
+  diagnostics: { pageErrors, consoleErrors, transport },
 };
 console.log(JSON.stringify(result));
-if (failed.length) process.exitCode = 1;
+if (result.status !== 'PASS') process.exitCode = 1;

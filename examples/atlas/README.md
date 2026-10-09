@@ -302,6 +302,16 @@ equality, relation S/T, alternative RelationRefs and the declared display budget
 For the prepared Agent1, observed time stays **06:00Z**, acquired time stays
 **06:10Z** (both on 2026-10-07), and effective time stays unknown through
 disconnection and reconnection. Transport time does not replace either value.
+The gate models a network interruption by closing the active stream and dropping
+unavailable connections before HTTP headers. A [non-200 EventSource response](https://html.spec.whatwg.org/multipage/server-sent-events.html#the-eventsource-interface)
+is a terminal connection failure, so an HTTP 503 response is not a substitute for this
+reconnect case. Live navigation waits for DOM content, then the public app's ready,
+connected and accepted-input conditions, rather than full-page load as readiness.
+The existing navigation deadline remains 30 seconds. An interruption during browser
+checks returns a FAIL receipt with `completed: false`, the last check and phase, actual
+document/EventSource request responses or failures, and the readable public UI
+state. A one-second bound applies only to that diagnostic read. Completed checks
+are partial evidence until the full run finishes; missing checks are not PASS.
 Run the existing Node contract and Nix browser commands above; source/build success
 alone is not a browser or User-entry result. Final acceptance additionally needs
 the same published head's independent P screen/entry receipt and R review.
