@@ -12,6 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
+import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}
@@ -438,6 +439,10 @@ body{margin:0;overflow:hidden}
 #atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
 #atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
 #atlas-world svg text{white-space:pre}
+#atlas-world-search-bar{flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:4px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
+#atlas-world-search{width:20%;min-width:80px;font:inherit}
+#atlas-world-search-results{width:42%;min-width:80px;font:inherit}
+#atlas-world-search-count{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 `;
 
 export const mountAtlasWorldUI = ({
@@ -453,11 +458,17 @@ export const mountAtlasWorldUI = ({
   const worldInput = parseAtlasWorldInput(input);
   const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
   const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
-  const screen = el('div', { id: 'atlas-world-screen' }, container);
+  const search = el('input', { type: 'search', id: 'atlas-world-search', placeholder: 'Search supplied records', 'aria-label': 'Search displayed World records' });
+  const choices = el('select', { id: 'atlas-world-search-results', 'aria-label': 'World search results' });
+  const searchCount = el('span', { id: 'atlas-world-search-count', role: 'status' });
+  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount);
+  const screen = el('div', { id: 'atlas-world-screen' }, searchBar, container);
   root.append(style, screen);
 
   const page = {
     kind: 'world',
+    query: '',
+    searchResults: [],
     input: worldInput,
     frameIndex: worldInput.frames.length - 1,
     latest: true,
@@ -484,6 +495,19 @@ export const mountAtlasWorldUI = ({
   const currentFrame = () => page.side === 'before' && page.pair.before ? page.pair.before : page.pair.after;
   const counterpartFrame = () => page.side === 'before' && page.pair.before ? page.pair.after : page.pair.before;
   const viewport = () => ({ width: container.clientWidth, height: container.clientHeight });
+  const renderSearch = () => {
+    const frame = currentFrame();
+    page.searchResults = searchAtlasWorld(frame, page.query);
+    choices.replaceChildren(el('option', { value: '', text: 'Select a supplied record' }),
+      ...page.searchResults.map(({ key, record }) => el('option', {
+        value: key, text: (record.label || record.kind || key) + ' · ' + key,
+      })));
+    choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
+    searchCount.textContent = page.searchResults.length + ' results in supplied ' +
+      (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
+      ' · ' + (page.latest ? 'LATEST' : 'HELD');
+    searchCount.title = searchCount.textContent;
+  };
 
   const draw = () => {
     const projection = projectAtlasWorld({
@@ -503,6 +527,7 @@ export const mountAtlasWorldUI = ({
     page.detailPage = projection.detail.page;
     adapter.render(projection.scene);
     adapter.setFocusMarker(projection.selectedRegionId);
+    renderSearch();
     return projection;
   };
 
@@ -539,6 +564,20 @@ export const mountAtlasWorldUI = ({
     draw();
     if (sync) syncGraphSelection(key);
   };
+
+  const onSearchInput = () => {
+    if (page.destroyed) return;
+    page.query = search.value;
+    // A fixed-height native bar leaves camera, pair and qualified selection intact.
+    draw();
+  };
+  const onSearchSelection = () => {
+    if (page.destroyed) return;
+    const key = choices.value;
+    if (page.searchResults.some(row => row.key === key)) select(key, { inspect: true });
+  };
+  search.addEventListener('input', onSearchInput);
+  choices.addEventListener('change', onSearchSelection);
 
   const selectRef = ref => select(entityKey(ref));
   const selectRelationRef = ref => select(relationKey(ref));
@@ -698,6 +737,8 @@ export const mountAtlasWorldUI = ({
     if (cameraFrame) cancelAnimationFrame(cameraFrame);
     container.removeEventListener('wheel', onWheel);
     container.removeEventListener('keydown', onKeyDown);
+    search.removeEventListener('input', onSearchInput);
+    choices.removeEventListener('change', onSearchSelection);
     window.removeEventListener('resize', onResize);
     adapter.setActivationHandler(null);
     adapter.graph.getView().removeListener?.(onCameraChange);

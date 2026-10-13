@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ATLAS_COMPARISON_AXES, ATLAS_WORLD_KIND, comparisonsForPair, containmentIndex, entityKey, parseAtlasWorldInput, relationKey, worldPair } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
+import { searchAtlasWorld } from '../packages/control/src/atlas-world-search.mjs';
 import { fitCamera } from '../packages/semantic-map/camera-fit.js';
 import { displayedRegionLabel } from '../packages/semantic-map/renderer-maxgraph/labels.js';
 import { DEFAULT_THEME } from '../packages/semantic-map/renderer-maxgraph/theme.js';
@@ -453,4 +454,49 @@ for (const count of [64, 65]) {
   assert.equal(view.omittedRelationIds.length, count - 64);
   assert.equal(new Set([...view.scene.relations.flatMap(item => item.relationIds), ...view.omittedRelationIds]).size, count);
 }
+
+// Literal search navigates the displayed frame, without adopting its meaning.
+const searchRaw = structuredClone(prepared);
+for (const [index, frame] of searchRaw.frames.entries()) {
+  frame.relations.at(-1).context = {
+    owner: 'writer.owner', criteria: ['criterion.delivery'],
+    proof: { ref: 'proof.post.v2', evaluator: 'independent-reviewer' },
+    residual: ['residual.recovery'], history: ['old-obligation.v1'],
+    side: index === 0 ? 'before-only-marker' : 'after-only-marker',
+    literal: '<script>window.owned=true</script>',
+  };
+}
+const searchInput = parseAtlasWorldInput(searchRaw);
+const searchBefore = searchInput.frames[0], searchAfter = searchInput.frames[1];
+const searchPreserved = JSON.stringify(searchInput);
+for (const word of ['writer.owner', 'criterion.delivery', 'proof.post.v2', 'residual.recovery', 'old-obligation.v1']) {
+  const rows = searchAtlasWorld(searchAfter, word.toUpperCase());
+  assert.equal(rows.length, 1, 'deep supplied context: ' + word);
+  assert.equal(rows[0].key, preparedRelationKey);
+  assert.equal(rows[0].record, searchAfter.relations.at(-1), 'exact record provenance retained');
+}
+assert.equal(searchAtlasWorld(searchBefore, 'before-only-marker').length, 1);
+assert.equal(searchAtlasWorld(searchAfter, 'before-only-marker').length, 0, 'no counterpart union');
+assert.equal(searchAtlasWorld(searchAfter, 'after-only-marker').length, 1);
+for (const query of ['', '   ']) {
+  assert.equal(searchAtlasWorld(searchAfter, query).length, searchAfter.entities.length + searchAfter.relations.length,
+    'clearing query restores every supplied record, including hidden/omitted records');
+}
+assert.deepEqual(searchAtlasWorld(searchAfter, '__not-supplied-world-key__'), []);
+assert.equal(searchAtlasWorld(searchAfter, '<script>window.owned=true</script>')[0].record.context.literal,
+  '<script>window.owned=true</script>', 'HTML remains literal source text');
+for (const space of ['example-issues-a', 'example-issues-b']) {
+  const key = entityKey({ space, kind: 'issue', id: '7' });
+  assert.deepEqual(searchAtlasWorld(normalizedFixture.frames[1], key).map(row => row.key), [key],
+    'same raw ID across spaces stays qualified');
+}
+assert.equal(searchAtlasWorld(heldPair.after, 'New content under the same ID').length, 0,
+  'held search never uses later received content');
+assert.equal(searchAtlasWorld(replacement.frames[1], 'New content under the same ID').length, 1);
+const searchHit = searchAtlasWorld(searchAfter, 'criterion.delivery')[0];
+assert.deepEqual(projectComparison(searchInput, searchHit.key).direction.routes, [],
+  'searching a path=false relation does not mint a Purpose route');
+assert.equal(JSON.stringify(searchInput), searchPreserved, 'search does not mutate source/time/authority/history');
+assert.throws(() => searchAtlasWorld(searchAfter, true), /query must be text/u);
+
 console.log('atlas-world-checks-pass');
