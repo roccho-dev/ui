@@ -439,7 +439,7 @@ body{margin:0;overflow:hidden}
 #atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
 #atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
 #atlas-world svg text{white-space:pre}
-#atlas-world-search-bar{flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:4px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
+#atlas-world-search-bar{box-sizing:border-box;flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:4px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
 #atlas-world-search{width:20%;min-width:80px;font:inherit}
 #atlas-world-search-results{width:42%;min-width:80px;font:inherit}
 #atlas-world-search-count{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

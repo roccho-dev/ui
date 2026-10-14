@@ -633,6 +633,23 @@ try {
 
   check('routine judgement has no second visible HTML information/control surface',
     await page.locator('#atlas-detail,#atlas-inspector,#atlas-audit,#atlas-search,#atlas-world-toolbar').count() === 0);
+  // PR344-local exception: only the declared native search bar may sit
+  // outside the SVG. Judgement, record detail and controls stay in the SVG.
+  const htmlSurface = await page.evaluate(() => {
+    const screen = document.getElementById('atlas-world-screen');
+    const bar = document.getElementById('atlas-world-search-bar');
+    return {
+      bodyChildren: [...document.body.children].filter(node => !['SCRIPT', 'STYLE'].includes(node.tagName)).map(node => node.id),
+      screenChildren: screen ? [...screen.children].map(node => node.id) : null,
+      barChildren: bar ? [...bar.children].map(node => node.tagName.toLowerCase() + '#' + node.id) : null,
+      barHeight: bar?.offsetHeight ?? null,
+    };
+  });
+  check('only the exact native search bar is a visible HTML control surface',
+    JSON.stringify(htmlSurface.bodyChildren) === JSON.stringify(['atlas-world-screen'])
+      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-search-bar', 'atlas-world'])
+      && JSON.stringify(htmlSurface.barChildren) === JSON.stringify(['input#atlas-world-search', 'select#atlas-world-search-results', 'span#atlas-world-search-count'])
+      && htmlSurface.barHeight === 36, htmlSurface);
   const svgControls = await page.evaluate(() => window.liveAtlas.projection.scene.representations
     .filter(item => item.atlas?.kind === 'control').map(item => item.atlas.control).sort());
   check('Before/After/Fit/Focus/Select/Hand are projected into the SVG surface',
@@ -793,6 +810,8 @@ try {
       const container = document.getElementById('atlas-world');
       const result = {
         events: before.events, width: container.clientWidth, height: container.clientHeight,
+        screenHeight: document.getElementById('atlas-world-screen').clientHeight,
+        barHeight: document.getElementById('atlas-world-search-bar')?.offsetHeight ?? null,
         beforeCamera: before.camera, camera,
         inputReused: atlas.input === before.input,
         selected: atlas.page.selected, beforeSelected: before.selected,
@@ -805,7 +824,8 @@ try {
     const controls = await renderedControls();
     const label = 'World resize ' + viewport.width + 'x' + viewport.height;
     check(label + ' refits camera after a real resize event',
-      resized.events > 0 && resized.width === viewport.width && resized.height === viewport.height
+      resized.events > 0 && resized.width === viewport.width && resized.screenHeight === viewport.height
+        && resized.barHeight === 36 && resized.height === viewport.height - resized.barHeight
         && JSON.stringify(resized.camera) !== JSON.stringify(resized.beforeCamera), resized);
     check(label + ' retains normalized input, qualified selection and viewed frame',
       resized.inputReused && resized.selected === resized.beforeSelected
