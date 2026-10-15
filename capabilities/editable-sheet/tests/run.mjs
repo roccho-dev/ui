@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync, mkdtempSync, writeFileSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {spawnSync} from 'node:child_process';
 import {parseSheetJsonl, sheetSnapshot} from '../src/index.mjs';
 import {createPortableHtml} from '../src/portable.mjs';
 
@@ -34,6 +38,12 @@ reject(replaceView({...records[0], columns: [{key:'__proto__',label:'x',kind:'te
 reject(replaceView({...records[0], columns: [{key:'name',label:'x',kind:'checkdate'}]}), answersJsonl, /Invalid sheet column/u);
 reject(replaceView({...records[0], labels: {}}), answersJsonl, /Missing label/u);
 
+// Definition fields and answer fields must never cross the ownership boundary.
+const invalidRow = records.map((record, index) => index === 1 ? {...record, comment:'misplaced'} : record);
+reject(invalidRow.map(JSON.stringify).join('\n') + '\n', answersJsonl, /Answer field in sheet row/u);
+reject(sheetJsonl, '{"id":"T01","name":"misplaced"}\n', /Non-answer field in answer record/u);
+reject(sheetJsonl, '{"id":"T01","unknown":"misplaced"}\n', /Non-answer field in answer record/u);
+
 const attack = '</script><img src=x onerror=alert(1)>';
 const dangerousSheet = replaceView({...records[0], title: attack});
 const dangerousAnswer = JSON.stringify({id:'T01',comment:attack}) + '\n';
@@ -43,4 +53,26 @@ assert.equal(safeHtml.includes('\\u003c/script>'), true);
 assert.equal((safeHtml.match(/<script\b/gu)||[]).length, 3);
 assert.equal((safeHtml.match(/<\/script>/gu)||[]).length, 3);
 assert.throws(() => createPortableHtml({sheetJsonl, answersJsonl:'{"id":"wrong"}\n'}), /orphan/u);
+// CI sets CHROMIUM_EXECUTABLE. Prove a real file:// navigation, not page.set_content.
+// Environments without a declared browser run only the portable contract tests.
+if (process.env.CHROMIUM_EXECUTABLE) {
+  const folder = mkdtempSync(join(tmpdir(), 'editable-sheet-file-'));
+  try {
+    const location = join(folder, 'sheet.html');
+    writeFileSync(location, inline, 'utf8');
+    const browser = spawnSync(process.env.CHROMIUM_EXECUTABLE, [
+      '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+      '--disable-extensions', '--disable-background-networking',
+      '--user-data-dir=' + join(folder, 'profile'),
+      '--virtual-time-budget=1500', '--dump-dom', pathToFileURL(location).href,
+    ], {encoding:'utf8', timeout:25000, maxBuffer:5 * 1024 * 1024});
+    assert.equal(browser.status, 0, 'Chrome file:// execution: ' + (browser.stderr || browser.error || '').slice(-1000));
+    assert.match(browser.stdout, /<header>[\\s\\S]*?<h1>架空の点検表<\\/h1>/u,
+      'file:// inline module must mount the real sheet');
+    assert.match(browser.stdout, /aria-pressed="false"/u, 'file:// checkbox buttons must render');
+    console.log('editable-sheet-file-navigation: PASS');
+  } finally {
+    rmSync(folder, {recursive:true, force:true});
+  }
+}
 console.log('editable-sheet-contract: PASS');
