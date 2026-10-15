@@ -1,0 +1,20 @@
+:root { font: 14px/1.5 system-ui, sans-serif; color: #27302b; background: #fff; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+#app { max-width: 1180px; margin: auto; padding: 32px 20px; }
+header, .actions { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; align-items: start; }
+h1 { margin: 0; font-size: 22px; }
+p { margin: 6px 0 16px; color: #67736c; }
+button { font: inherit; border: 1px solid #d5ded8; border-radius: 5px; padding: 8px 10px; background: #fff; cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #478762; outline-offset: 2px; }
+.overflow { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; text-align: left; }
+th, td { padding: 9px; vertical-align: top; border-bottom: 1px solid #e1e8e2; }
+th { color: #67736c; font-size: 12px; }
+input, textarea { width: 100%; min-width: 150px; padding: 5px; font: inherit; border: 1px solid transparent; background: transparent; }
+input:hover, textarea:hover { border-color: #d5ded8; }
+textarea { min-width: 230px; min-height: 54px; resize: vertical; }
+small { display: block; color: #697970; }
+.checkdate { white-space: nowrap; }
+.checkdate[aria-pressed=true] { border-color: #abcbb4; color: #25623d; }
+#app > button { margin-top: 16px; }
