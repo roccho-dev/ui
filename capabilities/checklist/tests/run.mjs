@@ -45,7 +45,7 @@ if (process.env.CHROMIUM_EXECUTABLE) {
   try {
     const sheetSource = readFileSync(new URL('../../editable-sheet/src/index.mjs', import.meta.url), 'utf8');
     const adapterSource = readFileSync(new URL('../src/index.mjs', import.meta.url), 'utf8');
-    const clientSource = adapterSource.replace(/^import \{parseSheetJsonl, mountEditableSheet\} from '[^']+';\n/u, '');
+    const clientSource = adapterSource.replace(/^import \{parseSheetJsonl, mountEditableSheet\} from '[^']+';\n/mu, '');
     assert.notEqual(clientSource, adapterSource, 'Only the import line is removed in this browser proof');
     const html = [
       '<!doctype html><html><meta charset="utf-8"><body><main id="app"></main><script type="module">',
