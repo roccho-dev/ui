@@ -38,10 +38,14 @@ export function parseSheetJsonl(sheetJsonl, answersJsonl = '') {
     }
     seenKeys.add(column.key);
   }
+  const answerKeys = new Set(view.columns.filter(column => column.scope === 'answer').map(column => column.key));
   const ids = new Set();
   for (const row of rows) {
     if (!object(row) || row.kind !== 'row' || typeof row.id !== 'string' || !row.id || ids.has(row.id)) {
       throw new Error('Invalid or duplicate sheet row ID');
+    }
+    if ([...answerKeys].some(key => Object.hasOwn(row, key))) {
+      throw new Error('Answer field in sheet row');
     }
     ids.add(row.id);
   }
@@ -49,6 +53,9 @@ export function parseSheetJsonl(sheetJsonl, answersJsonl = '') {
   for (const answer of readLines(answersJsonl)) {
     if (!object(answer) || typeof answer.id !== 'string' || !ids.has(answer.id) || answers.has(answer.id)) {
       throw new Error('Invalid, duplicate or orphan answer ID');
+    }
+    if (Object.keys(answer).some(key => key !== 'id' && !answerKeys.has(key))) {
+      throw new Error('Non-answer field in answer record');
     }
     answers.set(answer.id, answer);
   }
