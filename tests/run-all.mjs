@@ -36,4 +36,5 @@ import "./check-ci-workflows.mjs";
 import "./check-live-atlas.mjs";
 import "./check-serve-static.mjs";
 import "../capabilities/editable-sheet/tests/run.mjs";
+import "../capabilities/checklist/tests/run.mjs";
 console.log("ui-all-checks-pass");
