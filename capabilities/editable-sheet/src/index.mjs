@@ -70,9 +70,10 @@ export function sheetSnapshot(state) {
   };
 }
 
-export function mountEditableSheet(root, {sheetJsonl, answersJsonl = '', onSave, onExport} = {}) {
+export function mountEditableSheet(root, {sheetJsonl, answersJsonl = '', onSave, onExport, onChange} = {}) {
   const state = parseSheetJsonl(sheetJsonl, answersJsonl);
   const {view, rows, answers} = state;
+  const notify = () => onChange?.(sheetSnapshot(state));
   // Assign the next ID before deletion, so removed IDs are not reused.
   if (!Number.isInteger(view.nextId)) {
     view.nextId = Math.max(0, ...rows.filter(row => row.id.startsWith(view.idPrefix))
@@ -150,6 +151,7 @@ export function mountEditableSheet(root, {sheetJsonl, answersJsonl = '', onSave,
             writeAnswer(row.id, column.key,
               answers.get(row.id)?.[column.key] ? '' : localDate());
             update();
+            notify();
           });
           update();
           cell.append(button);
@@ -161,6 +163,7 @@ export function mountEditableSheet(root, {sheetJsonl, answersJsonl = '', onSave,
           edit.addEventListener('input', () => {
             if (column.scope === 'answer') writeAnswer(row.id, column.key, edit.value);
             else row[column.key] = edit.value;
+            notify();
           });
           cell.append(edit);
         }
@@ -177,6 +180,7 @@ export function mountEditableSheet(root, {sheetJsonl, answersJsonl = '', onSave,
         rows.splice(rows.indexOf(row), 1);
         answers.delete(row.id);
         render();
+        notify();
       });
       command.append(remove);
       tr.append(command);
@@ -194,6 +198,7 @@ export function mountEditableSheet(root, {sheetJsonl, answersJsonl = '', onSave,
     rows.push(newRow);
     render();
     body.lastElementChild.querySelector('input,textarea')?.focus();
+    notify();
   });
   render();
   return {snapshot: () => sheetSnapshot(state)};
