@@ -1,0 +1,3 @@
+{"kind":"view","lang":"ja","title":"架空の点検表","description":"動作確認のための架空データです","filename":"inspection.html","idPrefix":"T","idDigits":2,"labels":{"save":"HTML保存","exportRows":"項目JSONL","exportAnswers":"記録JSONL","add":"＋ 項目追加","delete":"削除","unchecked":"未確認","confirmDelete":"{name} を削除しますか？"},"columns":[{"key":"name","label":"項目","kind":"text","meta":["id"]},{"key":"expected","label":"確認内容","kind":"textarea"},{"key":"comment","label":"備考","kind":"textarea","scope":"answer"},{"key":"checked_at","label":"確認日","kind":"checkdate","scope":"answer"}]}
+{"kind":"row","id":"T01","name":"架空の照明","expected":"点灯する"}
+{"kind":"row","id":"T02","name":"架空の扉","expected":"開閉できる"}
