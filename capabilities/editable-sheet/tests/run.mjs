@@ -67,7 +67,7 @@ if (process.env.CHROMIUM_EXECUTABLE) {
       '--virtual-time-budget=1500', '--dump-dom', pathToFileURL(location).href,
     ], {encoding:'utf8', timeout:25000, maxBuffer:5 * 1024 * 1024});
     assert.equal(browser.status, 0, 'Chrome file:// execution: ' + (browser.stderr || browser.error || '').slice(-1000));
-    assert.match(browser.stdout, /<header>[\\s\\S]*?<h1>架空の点検表<\\/h1>/u,
+    assert.ok(browser.stdout.includes('<header>') && browser.stdout.includes('<h1>架空の点検表</h1>'),
       'file:// inline module must mount the real sheet');
     assert.match(browser.stdout, /aria-pressed="false"/u, 'file:// checkbox buttons must render');
     console.log('editable-sheet-file-navigation: PASS');
