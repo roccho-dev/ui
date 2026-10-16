@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { stepIndex, timelinePosition } from './src/atlas-timeline.mjs';
+import { stepIndex, timelinePosition, transportOf, transportStatus } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -487,6 +487,9 @@ export const mountAtlasWorldUI = ({
     mode: initialMode,
     connected,
     now,
+    receivedAt: null,
+    snapshotBytes: null,
+    heartbeatBytes: null,
     projection: null,
     planOpen: false,
     destroyed: false,
@@ -512,7 +515,10 @@ export const mountAtlasWorldUI = ({
     choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
     searchCount.textContent = page.searchResults.length + ' results in supplied ' +
       (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
-      ' · ' + (page.latest ? 'LATEST' : 'HELD');
+      // LATEST is the newest supplied frame; while the live stream cannot
+      // vouch for that supply, it is qualified.
+      ' · ' + (page.latest ? (['sample', 'live'].includes(transportOf(page)) ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD') +
+      transportStatus(page);
     searchCount.title = searchCount.textContent;
   };
 
@@ -548,6 +554,10 @@ export const mountAtlasWorldUI = ({
       detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
       chrome,
       planOpen: page.planOpen,
+      receivedAt: page.receivedAt,
+      snapshotBytes: page.snapshotBytes,
+      heartbeatBytes: page.heartbeatBytes,
+      now: page.now,
     });
     let projection = project();
     // Screen-placed layers follow the camera, so project again if it moved.
@@ -719,9 +729,12 @@ export const mountAtlasWorldUI = ({
     connected: nextConnected = page.connected,
     now: nextNow = page.now,
     latest = page.latest,
+    receivedAt = page.receivedAt,
+    snapshotBytes = page.snapshotBytes,
+    heartbeatBytes = page.heartbeatBytes,
     reportInvalid = false,
   } = {}) => {
-    if (page.destroyed) return;
+    if (page.destroyed) return false;
     const supplied = nextInput !== page.input;
     // Validate before any mutation. The app requests a visible admission
     // receipt; direct callers still detect invalid input by throw. Rendering
@@ -731,13 +744,16 @@ export const mountAtlasWorldUI = ({
     catch (error) {
       if (!reportInvalid) throw error;
       rejectInput(error.message);
-      return;
+      return false;
     }
     page.input = accepted;
     if (supplied) page.admission = null;
     page.mode = mode;
     page.connected = nextConnected;
     page.now = nextNow;
+    page.receivedAt = receivedAt;
+    page.snapshotBytes = snapshotBytes;
+    page.heartbeatBytes = heartbeatBytes;
     page.latest = latest;
     if (latest) { page.pair = worldPair(accepted); page.side = 'after'; }
     // Held input, both frame contents, presentation and owner receipts stay
@@ -745,11 +761,16 @@ export const mountAtlasWorldUI = ({
     updateFrameIndex();
     draw();
     syncGraphSelection(page.selected);
+    return true;
   };
 
+  // Time passing can change what the screen may claim (receiving -> no
+  // response), so redraw when the stated connection changes.
   const tick = nextNow => {
     if (page.destroyed) return;
+    const before = transportOf(page);
     page.now = nextNow;
+    if (transportOf(page) !== before) draw();
   };
 
   const focusSelected = () => {

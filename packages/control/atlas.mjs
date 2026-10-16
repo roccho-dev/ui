@@ -1,9 +1,9 @@
 // Live Agent Organization Atlas application adapter.
 // Acquisition/bootstrap stays here; reusable screens live in atlas-ui.mjs.
-import { applyEnvelope, connectLiveAtlas, createAtlasState, loadHistory } from './src/live-atlas.mjs';
+import { applyEnvelope, connectLiveAtlas, createAtlasState, loadHistory, snapshotSize } from './src/live-atlas.mjs';
 import { ATLAS_WORLD_KIND } from './src/atlas-world.mjs';
 import { mountAtlasUI, mountAtlasWorldUI } from './atlas-ui.mjs';
-import { formatViewHash, parseViewHash } from './src/atlas-timeline.mjs';
+import { RECEIVE_WINDOW_MS, formatViewHash, parseViewHash } from './src/atlas-timeline.mjs';
 
 const readInput = () => JSON.parse(document.getElementById('live-atlas-input').textContent);
 
@@ -61,18 +61,44 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
     onView: next => history.replaceState(null, '', location.pathname + location.search + formatViewHash(next)),
   });
 
-  let source = null;
+  // Receiving is what arrived on the current connection: a new connection
+  // starts with nothing received; each snapshot or heartbeat stamps the time.
+  // No periodic tick: one timeout, rescheduled on each arrival, wakes the
+  // screen just after the receive window ends so it stops claiming receipt.
+  // Only an accepted snapshot or a well-formed heartbeat counts as received
+  // and restarts the window; a rejected snapshot or malformed heartbeat
+  // changes nothing. A snapshot records its size; a heartbeat its claimed
+  // size, which must match it for the screen to call the World the latest.
+  let source = null, expiry = null;
+  const restartWindow = () => {
+    if (expiry !== null) clearTimeout(expiry);
+    expiry = setTimeout(() => { expiry = null; ui.tick(Date.now()); }, RECEIVE_WINDOW_MS + 1);
+  };
+  // A background tab may not run the timer; judge again on coming back.
+  const onVisible = () => { if (document.visibilityState === 'visible') ui.tick(Date.now()); };
   if (eventsUrl) {
     source = connectLiveAtlas({
       url: eventsUrl,
-      onConnection: connected => ui.setSession({ connected, mode: 'live', now: Date.now() }),
+      onConnection: connected => ui.setSession({ connected, mode: 'live', now: Date.now(),
+        ...(connected ? { receivedAt: null, snapshotBytes: null, heartbeatBytes: null } : {}) }),
       onSnapshot: data => {
-        ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: Date.now(), latest: ui.page.latest, reportInvalid: true });
+        const at = Date.now();
+        const accepted = ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: at, receivedAt: at,
+          snapshotBytes: snapshotSize(data), heartbeatBytes: null, latest: ui.page.latest, reportInvalid: true });
+        if (accepted) restartWindow();
+      },
+      onHeartbeat: beat => {
+        const at = Date.now();
+        ui.setSession({ now: at, receivedAt: at, heartbeatBytes: beat.bytes });
+        restartWindow();
       },
     });
+    document.addEventListener('visibilitychange', onVisible);
   }
 
   return publishApi(ui, () => {
+    if (expiry !== null) clearTimeout(expiry);
+    document.removeEventListener('visibilitychange', onVisible);
     source?.close();
   });
 };

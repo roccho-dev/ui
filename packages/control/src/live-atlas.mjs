@@ -452,11 +452,35 @@ export const timelineFor = (history, id) => {
 
 // Subscribes to full-envelope `snapshot` events from an external producer.
 // The UI never produces state; it only consumes the stream.
-export const connectLiveAtlas = ({ url, EventSourceImpl = globalThis.EventSource, onSnapshot, onConnection }) => {
+// A producer may also send `heartbeat` events to show it is alive while its
+// state is unchanged: `{"at":"<ISO time>","bytes":<n>}`, where n is the length
+// of the producer's held state as the same one-line string a snapshot's data
+// carries. Anything else is not a heartbeat (null).
+export const parseHeartbeat = data => {
+  let value;
+  try { value = JSON.parse(data); } catch { return null; }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const keys = Object.keys(value);
+  if (keys.length !== 2 || !keys.includes('at') || !keys.includes('bytes')) return null;
+  if (typeof value.at !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/u.test(value.at)
+    || !Number.isFinite(Date.parse(value.at))) return null;
+  if (!Number.isSafeInteger(value.bytes) || value.bytes < 0) return null;
+  return Object.freeze({ at: value.at, bytes: value.bytes });
+};
+
+// The length a heartbeat's `bytes` is compared with: the snapshot data string
+// as received (UTF-16 code units, the producer's JavaScript string length).
+export const snapshotSize = data => String(data).length;
+
+export const connectLiveAtlas = ({ url, EventSourceImpl = globalThis.EventSource, onSnapshot, onConnection, onHeartbeat = null }) => {
   check(typeof EventSourceImpl === 'function', 'EventSource is unavailable');
   const source = new EventSourceImpl(url);
   source.addEventListener('open', () => onConnection(true));
   source.addEventListener('error', () => onConnection(false));
   source.addEventListener('snapshot', event => onSnapshot(event.data));
+  if (onHeartbeat) source.addEventListener('heartbeat', event => {
+    const beat = parseHeartbeat(event.data);
+    if (beat) onHeartbeat(beat);
+  });
   return Object.freeze({ close() { source.close(); onConnection(false); } });
 };
