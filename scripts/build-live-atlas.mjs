@@ -4,6 +4,7 @@
 //
 //   node scripts/build-live-atlas.mjs --out=<new directory> [--input=tests/fixtures/live-atlas/history.json]
 //   node scripts/build-live-atlas.mjs --consumer=example --out=<new directory> [--input=examples/atlas/input/example.jsonl]
+//   node scripts/build-live-atlas.mjs --chrome=none --out=<new directory> --input=<World JSON>  (three areas only)
 //
 // Open <out>/index.html directly (sample) or serve it and add
 // ?events=<SSE URL> to consume an external producer (live).
@@ -80,8 +81,13 @@ const PAGE = `<!doctype html>
 </html>
 `;
 
-export const buildLiveAtlas = async ({ input, out, consumer = 'app' }) => {
+// `chrome` is a build argument rather than a URL query: the screen composition
+// becomes part of the built HTML and its receipt, so a reviewed page cannot be
+// re-composed by its link. The default build keeps its bootstrap and receipt shape.
+export const buildLiveAtlas = async ({ input, out, consumer = 'app', chrome = 'full' }) => {
   if (!['app', 'example'].includes(consumer)) throw new Error(`live-atlas build: unsupported consumer ${consumer}`);
+  if (!['full', 'none'].includes(chrome)) throw new Error(`live-atlas build: unsupported chrome ${chrome}`);
+  if (chrome !== 'full' && consumer !== 'app') throw new Error('live-atlas build: chrome applies to the app consumer only');
   const inputPath = path.resolve(repoRoot, input);
   const outputRoot = path.resolve(repoRoot, out);
   const inputBytes = await fs.readFile(inputPath);
@@ -96,7 +102,7 @@ export const buildLiveAtlas = async ({ input, out, consumer = 'app' }) => {
     ? `<script type="application/json" id="live-atlas-input">${JSON.stringify(appInput).replaceAll('<', '\\u003c')}</script>`
     : `<script type="application/x-ndjson" id="live-atlas-input">${inputText.replaceAll('<', '\\u003c')}</script>`;
   const bootstrap = consumer === 'app'
-    ? `import { startLiveAtlas } from ${JSON.stringify(moduleId(entry))}; startLiveAtlas();`
+    ? `import { startLiveAtlas } from ${JSON.stringify(moduleId(entry))}; startLiveAtlas(${chrome === 'full' ? '' : JSON.stringify({ chrome })});`
     : `import ${JSON.stringify(moduleId(entry))};`;
   const parts = {
     '@IMPORTMAP': `<script type="importmap">${JSON.stringify({ imports }).replaceAll('</', '<\\/')}</script>`,
@@ -119,6 +125,7 @@ export const buildLiveAtlas = async ({ input, out, consumer = 'app' }) => {
     inputKind: appInput?.kind ?? null,
     snapshots: appInput?.snapshots?.map(item => item.rev) ?? [],
     frames: appInput?.frames?.map(item => item.id) ?? [],
+    ...(chrome === 'full' ? {} : { chrome }),
     authority: false,
   };
   await fs.writeFile(path.join(outputRoot, 'receipt.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
@@ -134,5 +141,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!args.out) throw new Error('live-atlas build: --out=<new directory> is required');
   const consumer = args.consumer ?? 'app';
   const defaultInput = consumer === 'example' ? 'examples/atlas/input/example.jsonl' : 'tests/fixtures/live-atlas/history.json';
-  console.log(JSON.stringify(await buildLiveAtlas({ input: args.input ?? defaultInput, out: args.out, consumer })));
+  console.log(JSON.stringify(await buildLiveAtlas({ input: args.input ?? defaultInput, out: args.out, consumer, chrome: args.chrome ?? 'full' })));
 }

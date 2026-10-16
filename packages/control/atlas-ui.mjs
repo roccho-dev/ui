@@ -11,7 +11,7 @@ import {
 import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
-import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
+import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -453,8 +453,10 @@ export const mountAtlasWorldUI = ({
   now = 0,
   selected = null,
   onSelect = null,
+  chrome = 'full',
 } = {}) => {
   if (!root?.append) throw new Error('atlas-world-ui: mount root required');
+  if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world-ui: unsupported chrome ' + chrome);
   const worldInput = parseAtlasWorldInput(input);
   const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
   const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
@@ -495,6 +497,7 @@ export const mountAtlasWorldUI = ({
   const currentFrame = () => page.side === 'before' && page.pair.before ? page.pair.before : page.pair.after;
   const counterpartFrame = () => page.side === 'before' && page.pair.before ? page.pair.after : page.pair.before;
   const viewport = () => ({ width: container.clientWidth, height: container.clientHeight });
+  const graphView = () => worldViewport(viewport(), { panel: chrome === 'full' }).graph;
   const renderSearch = () => {
     const frame = currentFrame();
     page.searchResults = searchAtlasWorld(frame, page.query);
@@ -522,6 +525,7 @@ export const mountAtlasWorldUI = ({
       scale: adapter.camera().scale,
       camera: adapter.camera(), viewport: viewport(),
       detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
+      chrome,
     });
     page.projection = projection;
     page.detailPage = projection.detail.page;
@@ -533,7 +537,7 @@ export const mountAtlasWorldUI = ({
 
   const fit = () => {
     const projection = page.projection ?? draw();
-    const view = worldViewport(viewport()).graph;
+    const view = graphView();
     const camera = fitCamera(projection.world, view, 0.94);
     adapter.setCamera(camera.scale, camera.translateX + view.x / camera.scale, camera.translateY + view.y / camera.scale);
     draw();
@@ -692,7 +696,7 @@ export const mountAtlasWorldUI = ({
     const bounds = cell?.getGeometry?.();
     if (!bounds) return;
     if (cell.semantic?.zIndex >= 10000) return;
-    const view = worldViewport(viewport()).graph;
+    const view = graphView();
     const camera = fitCamera({ x: bounds.x - 24, y: bounds.y - 24, width: bounds.width + 48, height: bounds.height + 48 }, view, 0.94);
     adapter.setCamera(camera.scale, camera.translateX + view.x / camera.scale, camera.translateY + view.y / camera.scale);
     draw();
@@ -716,7 +720,8 @@ export const mountAtlasWorldUI = ({
   const onWheel = event => {
     event.preventDefault();
     const box = container.getBoundingClientRect();
-    if (event.clientY - box.top >= page.projection.viewport.panel.y) turnPage(event.deltaY < 0 ? -1 : 1);
+    const panel = page.projection.viewport.panel;
+    if (panel && event.clientY - box.top >= panel.y) turnPage(event.deltaY < 0 ? -1 : 1);
     else zoomBy(event.deltaY < 0 ? 1.2 : 1 / 1.2, { x: event.clientX - box.left, y: event.clientY - box.top });
   };
   const onResize = () => fit();

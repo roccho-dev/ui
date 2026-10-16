@@ -35,6 +35,7 @@ import "./check-pr-governance.mjs";
 import "./check-ci-workflows.mjs";
 import "./check-live-atlas.mjs";
 import "./check-atlas-world.mjs";
+import "./check-atlas-world-chrome.mjs";
 import "./check-serve-static.mjs";
 import "../capabilities/editable-sheet/tests/run.mjs";
 console.log("ui-all-checks-pass");

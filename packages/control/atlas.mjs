@@ -42,10 +42,11 @@ const publishApi = (ui, cleanup) => {
   return api;
 };
 
-const startWorldAtlas = ({ input, eventsUrl, selected }) => {
+const startWorldAtlas = ({ input, eventsUrl, selected, chrome }) => {
   const ui = mountAtlasWorldUI({
     root: document.body,
     input,
+    chrome,
     mode: eventsUrl ? 'live' : 'sample',
     connected: false,
     now: Date.now(),
@@ -107,12 +108,13 @@ const startLegacyAtlas = ({ input, eventsUrl, selected }) => {
   });
 };
 
-export const startLiveAtlas = () => {
+// `chrome` is fixed by the build (see scripts/build-live-atlas.mjs), not by the URL.
+export const startLiveAtlas = ({ chrome = 'full' } = {}) => {
   const params = new URLSearchParams(location.search);
   const eventsUrl = params.get('events');
   const input = readInput();
   const selected = hashSelection();
   return input?.kind === ATLAS_WORLD_KIND
-    ? startWorldAtlas({ input, eventsUrl, selected })
+    ? startWorldAtlas({ input, eventsUrl, selected, chrome })
     : startLegacyAtlas({ input, eventsUrl, selected });
 };
