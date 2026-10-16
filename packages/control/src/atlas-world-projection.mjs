@@ -3,6 +3,7 @@
 // this file never derives business meaning from labels or position.
 
 import { createGraphLayout } from '../../semantic-map/layout/graph.js';
+import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 import { projectTimeline, timelinePosition } from './atlas-timeline.mjs';
 
@@ -23,6 +24,27 @@ const appearance = Object.freeze({
 });
 
 const token = Object.freeze({ now: '▶', recent: '•', unknown: '?', none: '' });
+
+// Supplied status flags, read as one display status. Checked in this order,
+// so a conflict or an unassigned unit is never shown as a plain unmet one.
+// Colors come from the renderer theme's palettes; the symbol always goes
+// with the color, so no status is told by color alone.
+const palette = (index, { dashed = false, strokeWidth = 1.6 } = {}) => Object.freeze({
+  fillColor: DEFAULT_THEME.palettes[index][0], strokeColor: DEFAULT_THEME.palettes[index][1], strokeWidth, dashed,
+});
+export const ATLAS_STATUS = Object.freeze({
+  conflict: Object.freeze({ symbol: '⚠', appearance: palette(4, { strokeWidth: 2.2 }),
+    flags: Object.freeze(['scope_status=conflict', 'evaluation-disagreement', 'conflict', 'source=conflict', 'source=whole-purpose-conflict', 'purpose_standing=conflict']) }),
+  unassigned: Object.freeze({ symbol: '∅', appearance: palette(1, { dashed: true }), flags: Object.freeze(['unassigned']) }),
+  unknown: Object.freeze({ symbol: '?', appearance: palette(5, { dashed: true }),
+    flags: Object.freeze(['scope_status=unknown', 'standing=unresolved', 'unknown', 'source=unknown', 'unexplained', 'purpose_standing=unknown']) }),
+  unmet: Object.freeze({ symbol: '!', appearance: palette(3), flags: Object.freeze(['scope_status=unmet', 'purpose_standing=unmet']) }),
+  satisfied: Object.freeze({ symbol: '✓', appearance: palette(2),
+    flags: Object.freeze(['scope_status=declared_satisfied', 'standing=completed-history', 'purpose_standing=declared_satisfied']) }),
+  history: Object.freeze({ symbol: '⟲', appearance: palette(5, { strokeWidth: 1.2 }), flags: Object.freeze(['history-preserved']) }),
+});
+const STATUS = ATLAS_STATUS;
+const statusOf = flags => Object.keys(STATUS).find(status => STATUS[status].flags.some(flag => flags?.includes(flag))) ?? null;
 const stable = value => {
   if (Array.isArray(value)) return value.map(stable);
   if (value !== null && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])]));
@@ -193,11 +215,54 @@ export const worldViewport = ({ width = 1500, height = 1000 } = {}, { panel: wit
 const regionId = key => 'world:' + key;
 const areaRegionId = id => 'area:' + encodeURIComponent(id);
 
-const orderedKeys = (keys, entityByKey) => [...keys].sort((left, right) => {
+const orderedKeys = (keys, entityByKey, rank = new Map()) => [...keys].sort((left, right) => {
   const a = entityByKey.get(left), b = entityByKey.get(right);
-  return (a?.order ?? Number.MAX_SAFE_INTEGER) - (b?.order ?? Number.MAX_SAFE_INTEGER)
+  return (rank.get(left) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right) ?? Number.MAX_SAFE_INTEGER)
+    || (a?.order ?? Number.MAX_SAFE_INTEGER) - (b?.order ?? Number.MAX_SAFE_INTEGER)
     || left.localeCompare(right);
 });
+
+// The vertical order inside each area. It starts from the supplied `order`
+// and then moves each entity toward the mean position of the entities it is
+// related to in the other areas (a fixed number of barycenter sweeps over the
+// visible supplied relations), which removes avoidable relation crossings.
+// Only declared order and relations are read; ties keep the previous order,
+// so the result is deterministic. Names and labels are never compared.
+// An area with supplied containment keeps its supplied order: moving nested
+// containers can hide relations behind them.
+const BARYCENTER_SWEEPS = 4;
+const areaRanks = (frame, areas, containment) => {
+  const areaOf = new Map(frame.entities.map(entity => [entityKey(entity.ref), entity.area]));
+  const nested = new Set([...containment.parentByChild.keys()].map(key => areaOf.get(key)));
+  const movable = areas.filter(area => !nested.has(area.id));
+  const lists = new Map(areas.map(area => [area.id, orderedKeys(frame.entities.filter(entity => entity.area === area.id)
+    .map(entity => entityKey(entity.ref)), new Map(frame.entities.map(entity => [entityKey(entity.ref), entity])))]));
+  const neighbors = new Map([...areaOf.keys()].map(key => [key, []]));
+  for (const relation of frame.relations) {
+    const from = entityKey(relation.from), to = entityKey(relation.to);
+    if (!relation.visible || !areaOf.has(from) || !areaOf.has(to) || areaOf.get(from) === areaOf.get(to)) continue;
+    neighbors.get(from).push(to);
+    neighbors.get(to).push(from);
+  }
+  const position = new Map();
+  const place = () => {
+    for (const list of lists.values()) list.forEach((key, index) => position.set(key, list.length > 1 ? index / (list.length - 1) : 0.5));
+  };
+  place();
+  for (let sweep = 0; sweep < BARYCENTER_SWEEPS; sweep += 1) {
+    for (const area of movable) {
+      const list = lists.get(area.id);
+      const barycenter = new Map(list.map(key => {
+        const near = neighbors.get(key);
+        return [key, near.length ? near.reduce((sum, other) => sum + position.get(other), 0) / near.length : position.get(key)];
+      }));
+      const previous = new Map(list.map((key, index) => [key, index]));
+      list.sort((left, right) => barycenter.get(left) - barycenter.get(right) || previous.get(left) - previous.get(right));
+      place();
+    }
+  }
+  return new Map(movable.flatMap(area => lists.get(area.id).map((key, index) => [key, index])));
+};
 
 const markSubtreeOmitted = (key, childrenByParent, omitted) => {
   if (omitted.has(key)) return;
@@ -205,7 +270,7 @@ const markSubtreeOmitted = (key, childrenByParent, omitted) => {
   for (const child of childrenByParent.get(key) ?? []) markSubtreeOmitted(child, childrenByParent, omitted);
 };
 
-const nestedAreaLayout = ({ area, rows, containment }) => {
+const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
   const entityByKey = new Map(rows.map(entity => [entityKey(entity.ref), entity]));
   const childrenByParent = new Map([...entityByKey.keys()].map(key => [key, []]));
   const roots = [];
@@ -214,6 +279,8 @@ const nestedAreaLayout = ({ area, rows, containment }) => {
     if (parent && entityByKey.has(parent)) childrenByParent.get(parent).push(key);
     else roots.push(key);
   }
+  // Contained entities keep their supplied order inside their container; the
+  // relation ordering moves only the top-level entities of an area.
   for (const [parent, children] of childrenByParent) childrenByParent.set(parent, orderedKeys(children, entityByKey));
 
   const shown = [];
@@ -227,7 +294,7 @@ const nestedAreaLayout = ({ area, rows, containment }) => {
     shown.push(key);
     for (const child of childrenByParent.get(key) ?? []) visit(child);
   };
-  for (const root of orderedKeys(roots, entityByKey)) visit(root);
+  for (const root of orderedKeys(roots, entityByKey, rank)) visit(root);
 
   const shownSet = new Set(shown);
   const rootId = 'atlas-area-root:' + area.id;
@@ -243,9 +310,9 @@ const nestedAreaLayout = ({ area, rows, containment }) => {
     regions.set(key, Object.freeze({
       id: key,
       parent,
-      label: entity.label,
+      label: labelOf(entity),
       kind: 'node',
-      order: entity.order,
+      order: parent === rootId ? rank.get(key) ?? entity.order : entity.order,
     }));
     children.get(parent).push(key);
   }
@@ -362,7 +429,9 @@ export const projectWorldScene = ({
   connected = false,
   latest = true,
   admission = null,
+  ordering = 'relations',
 } = {}) => {
+  if (!['relations', 'supplied'].includes(ordering)) throw new Error('atlas-world: unsupported ordering ' + ordering);
   const index = indexWorldFrame(frame);
   const displayedActivity = activityDisplay({ mode, connected, latest, admission }).displayed;
   const containment = containmentIndex(frame);
@@ -376,10 +445,22 @@ export const projectWorldScene = ({
   const areaBounds = new Map();
   let worldHeight = 0;
   let contentRight = AREA_PAD;
+  // `ordering: 'supplied'` keeps the supplied order alone; it exists so the
+  // crossings removed by the relation ordering can be measured against it.
+  const rank = ordering === 'supplied' ? new Map() : areaRanks(frame, areas, containment);
+  // Live activity keeps its own glyph and color; otherwise the supplied status
+  // flags choose them. Either way a symbol precedes the label.
+  const look = entity => {
+    const activity = displayedActivity(entity.activity);
+    const status = activity === 'none' ? statusOf(entity.flags) : null;
+    const symbol = status ? STATUS[status].symbol : token[activity];
+    return { activity, status, label: (symbol ? symbol + ' · ' : '') + entity.label,
+      appearance: status ? STATUS[status].appearance : appearance[activity] };
+  };
 
   for (const area of areas) {
     const rows = areaEntities.get(area.id) ?? [];
-    const nested = nestedAreaLayout({ area, rows, containment });
+    const nested = nestedAreaLayout({ area, rows, containment, rank, labelOf: entity => look(entity).label });
     const rootBounds = nested.layout.rootBounds;
     const dx = contentRight - rootBounds.x * WORLD_WIDTH_SCALE;
     const dy = AREA_TOP - rootBounds.y;
@@ -409,13 +490,12 @@ export const projectWorldScene = ({
       const entityBounds = translateBounds(localBounds, dx, dy);
       const shownChildren = (nested.childrenByParent.get(key) ?? []).filter(child => nested.shownSet.has(child));
       const hasChildren = shownChildren.length > 0;
-      const activity = displayedActivity(entity.activity);
-      const glyph = token[activity];
+      const { activity, status, label, appearance: entityAppearance } = look(entity);
       visibleEntityKeys.add(key);
       representations.push(Object.freeze({
         regionId: regionId(key),
         sourceRegionId: regionId(key),
-        label: (glyph ? glyph + ' · ' : '') + entity.label,
+        label,
         bounds: entityBounds,
         kind: entity.ref.kind,
         depth: containmentDepth(key, containment.parentByChild),
@@ -425,12 +505,13 @@ export const projectWorldScene = ({
         geometryEditable: false,
         labelEditable: false,
         activation: Object.freeze({ type: 'atlas.world.select', id: key }),
-        visual: Object.freeze({ appearance: appearance[activity] }),
+        visual: Object.freeze({ appearance: entityAppearance }),
         atlas: Object.freeze({
           kind: 'entity',
           ref: entity.ref,
           area: entity.area,
           activity,
+          status,
           declaredActivity: entity.activity,
           parent: containment.parentByChild.get(key) ?? null,
           containmentEvidence: Object.freeze([...(containment.evidenceByChild.get(key) ?? [])]),
