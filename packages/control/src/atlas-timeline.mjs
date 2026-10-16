@@ -9,10 +9,28 @@ export const TIMELINE_ID_PREFIX = 'timeline:';
 export const PLAN_UNDECLARED = '予定：計画未宣言（UNKNOWN）';
 export const PLAN_NONE = '予定：有効な計画 0 件';
 // The live connection as the strip states it: 'sample' (no `?events=`),
-// 'live' (connected) or 'disconnected' (asked for events, none arriving).
+// 'disconnected' (no connection), 'silent' (connected, but no snapshot or
+// heartbeat on this connection within RECEIVE_WINDOW_MS) or 'live' (one did).
+// An open connection alone is never reported as receiving.
 export const TRANSPORT_LIVE = '受信中';
 export const TRANSPORT_DISCONNECTED = 'SSE 未接続';
-export const transportOf = ({ mode, connected }) => mode !== 'live' ? 'sample' : connected ? 'live' : 'disconnected';
+export const TRANSPORT_SILENT = 'SSE 応答なし';
+// Three times the HQ producer's 30 s heartbeat.
+export const RECEIVE_WINDOW_MS = 90_000;
+export const transportOf = ({ mode, connected, receivedAt = null, now = null }) => {
+  if (mode !== 'live') return 'sample';
+  if (!connected) return 'disconnected';
+  return receivedAt !== null && now !== null && now - receivedAt <= RECEIVE_WINDOW_MS ? 'live' : 'silent';
+};
+const clockText = at => new Date(at).toISOString().slice(11, 19) + 'Z';
+// The status line's account of the live stream: when it last received, and
+// any reason not to trust that the World shown is the latest.
+export const transportStatus = ({ mode, connected, receivedAt = null, now = null }) => {
+  const transport = transportOf({ mode, connected, receivedAt, now });
+  if (transport === 'sample') return '';
+  const last = receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(receivedAt);
+  return ' · ' + last + (transport === 'disconnected' ? ' · ' + TRANSPORT_DISCONNECTED : transport === 'silent' ? ' · ' + TRANSPORT_SILENT : '');
+};
 const CONTENT_UNKNOWN = '内容 UNKNOWN';
 
 // The plan cell's line for the displayed frame's plans (frame.plans):
@@ -82,6 +100,7 @@ export const projectTimeline = ({
   latest = true,
   planOpen = false,
   transport = 'sample',
+  receivedAt = null,
   strip,
   camera = { scale: 1, translateX: 0, translateY: 0 },
 } = {}) => {
@@ -99,14 +118,17 @@ export const projectTimeline = ({
   const step = index < 0 ? '保持中' : (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count;
   // The connection is part of every variant while it is lost, so no width
   // can show a disconnected page as following the latest.
-  const [wordLong, wordShort] = transport === 'disconnected' ? [TRANSPORT_DISCONNECTED + '・最新か不明', TRANSPORT_DISCONNECTED]
-    : transport === 'live' ? [present && latest ? '最新に追従・' + TRANSPORT_LIVE : TRANSPORT_LIVE, TRANSPORT_LIVE]
-      : ['', ''];
+  const last = receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(receivedAt);
+  const [wordLong, wordShort] = transport === 'disconnected' ? [TRANSPORT_DISCONNECTED + '・最新か不明 · ' + last, TRANSPORT_DISCONNECTED]
+    : transport === 'silent' ? [TRANSPORT_SILENT + '・最新か不明 · ' + last, TRANSPORT_SILENT]
+      : transport === 'live' ? [(present && latest ? '最新に追従・' : '') + TRANSPORT_LIVE + ' · ' + last, TRANSPORT_LIVE]
+        : ['', ''];
   const with_ = (text, word) => word ? text + ' · ' + word : text;
   const where = index < 0
     ? [with_('表示中：保持中の frame ' + frame.id + '（最新入力に無い）', wordLong), with_('表示中：保持中（最新入力に無い）', wordShort), with_('保持中', wordShort)]
-    : [with_('表示中：' + step + ' · ' + frame.id, wordLong), with_('表示中：' + step, wordLong), with_(step, wordShort),
-      transport === 'disconnected' ? TRANSPORT_DISCONNECTED : step];
+    : [with_('表示中：' + step + ' · ' + frame.id, wordLong), with_('表示中：' + step + ' · ' + frame.id, wordShort),
+      with_('表示中：' + step, wordLong), with_(step, wordShort),
+      transport === 'disconnected' || transport === 'silent' ? wordShort : step];
   const toggle = planOpen ? '閉じる' : '詳細';
   cell('back', ['◀ 前へ · [', '◀ 前へ', '◀'], 1, back !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: -1 } } : { look: 'idle' });
   cell('position', where, 3, { look: 'idle', atlas: { index, count, present, frameId: frame.id } });

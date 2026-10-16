@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { TRANSPORT_DISCONNECTED, stepIndex, timelinePosition, transportOf } from './src/atlas-timeline.mjs';
+import { stepIndex, timelinePosition, transportOf, transportStatus } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -487,6 +487,7 @@ export const mountAtlasWorldUI = ({
     mode: initialMode,
     connected,
     now,
+    receivedAt: null,
     projection: null,
     planOpen: false,
     destroyed: false,
@@ -513,7 +514,7 @@ export const mountAtlasWorldUI = ({
     searchCount.textContent = page.searchResults.length + ' results in supplied ' +
       (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
       ' · ' + (page.latest ? 'LATEST' : 'HELD') +
-      (transportOf(page) === 'disconnected' ? ' · ' + TRANSPORT_DISCONNECTED : '');
+      transportStatus(page);
     searchCount.title = searchCount.textContent;
   };
 
@@ -549,6 +550,8 @@ export const mountAtlasWorldUI = ({
       detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
       chrome,
       planOpen: page.planOpen,
+      receivedAt: page.receivedAt,
+      now: page.now,
     });
     let projection = project();
     // Screen-placed layers follow the camera, so project again if it moved.
@@ -720,6 +723,7 @@ export const mountAtlasWorldUI = ({
     connected: nextConnected = page.connected,
     now: nextNow = page.now,
     latest = page.latest,
+    receivedAt = page.receivedAt,
     reportInvalid = false,
   } = {}) => {
     if (page.destroyed) return;
@@ -739,6 +743,7 @@ export const mountAtlasWorldUI = ({
     page.mode = mode;
     page.connected = nextConnected;
     page.now = nextNow;
+    page.receivedAt = receivedAt;
     page.latest = latest;
     if (latest) { page.pair = worldPair(accepted); page.side = 'after'; }
     // Held input, both frame contents, presentation and owner receipts stay
@@ -748,9 +753,13 @@ export const mountAtlasWorldUI = ({
     syncGraphSelection(page.selected);
   };
 
+  // Time passing can change what the screen may claim (receiving -> no
+  // response), so redraw when the stated connection changes.
   const tick = nextNow => {
     if (page.destroyed) return;
+    const before = transportOf(page);
     page.now = nextNow;
+    if (transportOf(page) !== before) draw();
   };
 
   const focusSelected = () => {

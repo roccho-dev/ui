@@ -452,11 +452,14 @@ export const timelineFor = (history, id) => {
 
 // Subscribes to full-envelope `snapshot` events from an external producer.
 // The UI never produces state; it only consumes the stream.
-export const connectLiveAtlas = ({ url, EventSourceImpl = globalThis.EventSource, onSnapshot, onConnection }) => {
+// A producer may also send `heartbeat` events to show it is alive while its
+// state is unchanged; their content is not state and is not read.
+export const connectLiveAtlas = ({ url, EventSourceImpl = globalThis.EventSource, onSnapshot, onConnection, onHeartbeat = null }) => {
   check(typeof EventSourceImpl === 'function', 'EventSource is unavailable');
   const source = new EventSourceImpl(url);
   source.addEventListener('open', () => onConnection(true));
   source.addEventListener('error', () => onConnection(false));
   source.addEventListener('snapshot', event => onSnapshot(event.data));
+  if (onHeartbeat) source.addEventListener('heartbeat', () => onHeartbeat());
   return Object.freeze({ close() { source.close(); onConnection(false); } });
 };

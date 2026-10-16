@@ -861,6 +861,8 @@ export const projectAtlasWorld = ({
   admission = null,
   chrome = 'full',
   planOpen = false,
+  receivedAt = null,
+  now = null,
 } = {}) => {
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world: unsupported chrome ' + chrome);
   const fullLayout = worldViewport(viewport);
@@ -883,7 +885,7 @@ export const projectAtlasWorld = ({
   // The timeline is its own layer: present in every chrome. Its planned part
   // reads the displayed frame's supplied plans and nothing else.
   const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen,
-    transport: transportOf({ mode, connected }), strip: layout.timeline, camera });
+    transport: transportOf({ mode, connected, receivedAt, now }), receivedAt, strip: layout.timeline, camera });
 
   return Object.freeze({
     scene: Object.freeze({

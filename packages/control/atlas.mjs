@@ -3,7 +3,7 @@
 import { applyEnvelope, connectLiveAtlas, createAtlasState, loadHistory } from './src/live-atlas.mjs';
 import { ATLAS_WORLD_KIND } from './src/atlas-world.mjs';
 import { mountAtlasUI, mountAtlasWorldUI } from './atlas-ui.mjs';
-import { formatViewHash, parseViewHash } from './src/atlas-timeline.mjs';
+import { RECEIVE_WINDOW_MS, formatViewHash, parseViewHash } from './src/atlas-timeline.mjs';
 
 const readInput = () => JSON.parse(document.getElementById('live-atlas-input').textContent);
 
@@ -61,18 +61,32 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
     onView: next => history.replaceState(null, '', location.pathname + location.search + formatViewHash(next)),
   });
 
-  let source = null;
+  // Receiving is what arrived on the current connection: a new connection
+  // starts with nothing received; each snapshot or heartbeat stamps the time.
+  // No periodic tick: one timeout, rescheduled on each arrival, wakes the
+  // screen just after the receive window ends so it stops claiming receipt.
+  let source = null, expiry = null;
+  const received = () => {
+    const at = Date.now();
+    if (expiry !== null) clearTimeout(expiry);
+    expiry = setTimeout(() => { expiry = null; ui.tick(Date.now()); }, RECEIVE_WINDOW_MS + 1);
+    return at;
+  };
   if (eventsUrl) {
     source = connectLiveAtlas({
       url: eventsUrl,
-      onConnection: connected => ui.setSession({ connected, mode: 'live', now: Date.now() }),
+      onConnection: connected => ui.setSession({ connected, mode: 'live', now: Date.now(), ...(connected ? { receivedAt: null } : {}) }),
       onSnapshot: data => {
-        ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: Date.now(), latest: ui.page.latest, reportInvalid: true });
+        const at = received();
+        ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: at, receivedAt: at,
+          latest: ui.page.latest, reportInvalid: true });
       },
+      onHeartbeat: () => { const at = received(); ui.setSession({ now: at, receivedAt: at }); },
     });
   }
 
   return publishApi(ui, () => {
+    if (expiry !== null) clearTimeout(expiry);
     source?.close();
   });
 };

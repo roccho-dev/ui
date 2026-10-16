@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { parseAtlasWorldInput, worldPair } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
-import { PLAN_UNDECLARED, TIMELINE_ID_PREFIX, formatViewHash, parseViewHash, stepIndex, timelinePosition } from '../packages/control/src/atlas-timeline.mjs';
+import { PLAN_UNDECLARED, RECEIVE_WINDOW_MS, TIMELINE_ID_PREFIX, formatViewHash, parseViewHash, stepIndex, timelinePosition, transportOf } from '../packages/control/src/atlas-timeline.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
 
 const timelineOf = projection => new Map(projection.scene.representations
@@ -76,4 +76,12 @@ for (const view of [{ selected: '', frameId: '' }, { selected: 'entity:a%3Ab:c:d
 }
 assert.equal(formatViewHash({ selected: 'k', frameId: '' }), '#sel=k', 'the present writes no t');
 assert.deepEqual(parseViewHash('#sel=' + encodeURIComponent('entity:a%3Ab:c:d')), { selected: 'entity:a%3Ab:c:d', frameId: '' }, 'existing #sel links still read');
+// The stated connection: an open connection alone is never receiving; it is
+// receiving only within the window after a snapshot or heartbeat.
+assert.equal(transportOf({ mode: 'sample', connected: true, receivedAt: 1, now: 1 }), 'sample');
+assert.equal(transportOf({ mode: 'live', connected: false, receivedAt: 1, now: 1 }), 'disconnected');
+assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: null, now: 5 }), 'silent', 'open but nothing received');
+assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: RECEIVE_WINDOW_MS }), 'live');
+assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: RECEIVE_WINDOW_MS + 1 }), 'silent', 'quiet past the window');
+assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: null }), 'silent', 'no clock: not receiving');
 console.log(JSON.stringify({ status: 'atlas-world-timeline-checks-pass', cases }));

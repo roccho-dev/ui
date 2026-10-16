@@ -67,8 +67,26 @@ const producer = http.createServer((request, response) => {
 });
 await new Promise(resolve => producer.listen(0, '127.0.0.1', resolve));
 const publish = world => { current = JSON.stringify(world); for (const client of clients) client.write(event(current)); };
+// The HQ producer's keep-alive: `heartbeat` with the time and held World size.
+const heartbeat = () => {
+  for (const client of clients) client.write('event: heartbeat\ndata: ' + JSON.stringify({ at: new Date().toISOString(), bytes: current.length }) + '\n\n');
+};
 const url = 'http://127.0.0.1:' + page.address().port + '/index.html?events='
   + encodeURIComponent('http://127.0.0.1:' + producer.address().port + '/events');
+// A producer that accepts the connection and never sends anything.
+const silentClients = new Set();
+const silent = http.createServer((request, response) => {
+  response.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+  response.write('retry: 500\n\n');
+  silentClients.add(response);
+  request.on('close', () => silentClients.delete(response));
+});
+await new Promise(resolve => silent.listen(0, '127.0.0.1', resolve));
+const silentUrl = url.replace(/events=.*/u, 'events=' + encodeURIComponent('http://127.0.0.1:' + silent.address().port + '/events'));
+// The window after the last snapshot or heartbeat in which the screen may say
+// it is receiving: the HQ heartbeat interval (30 s) times three.
+const QUIET_MS = 90_000;
+const SILENT = 'SSE 応答なし';
 
 const checks = [];
 const check = (name, pass, detail = null) => checks.push({ name, pass: Boolean(pass), ...(pass ? {} : { detail }) });
@@ -126,6 +144,42 @@ try {
   const fresh = await shown(late);
   check('a page opened after the change shows the newest frame', showsFrame(fresh, lastOf(newer), '現在 ' + n + '/' + n), fresh);
   check('a connected page says it is receiving', fresh.position.includes(RECEIVING) && !fresh.position.includes(DISCONNECTED), fresh);
+  check('a connected page names when it last received', /最終受信 \d\d:\d\d:\d\dZ/u.test(fresh.status), fresh);
+
+  // Receiving means a snapshot or heartbeat arrived on this connection within
+  // the window, not merely an open connection. Time is moved only inside this
+  // test, with the browser's clock.
+  const quiet = await (await browser.newContext({ viewport: null })).newPage();
+  await quiet.goto(silentUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await quiet.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true' && window.liveAtlas.page.connected, null, { timeout: 60000 });
+  await settle(quiet);
+  const mute = await shown(quiet);
+  check('an open connection that never sends is not receiving', mute.inside && !mute.position.includes(RECEIVING)
+    && mute.position.includes(SILENT) && mute.status.includes(SILENT) && !/最新に追従/u.test(mute.position), mute);
+  await quiet.close();
+
+  const timed = await (await browser.newContext({ viewport: null })).newPage();
+  await timed.clock.install({ time: new Date('2026-10-17T00:00:00Z') });
+  await timed.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await timed.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true' && window.liveAtlas.page.connected, null, { timeout: 60000 });
+  await settle(timed);
+  const forward = async ms => { await timed.clock.fastForward(ms); await timed.waitForTimeout(300); return shown(timed); };
+  check('after the connect snapshot, receiving', (await shown(timed)).position.includes(RECEIVING), await shown(timed));
+  let view = await forward(QUIET_MS / 3 * 2);
+  heartbeat();
+  await timed.waitForTimeout(500);
+  view = await forward(QUIET_MS / 3 * 2);
+  check('heartbeats alone keep it receiving past the window since the snapshot', view.position.includes(RECEIVING) && !view.position.includes(SILENT), view);
+  heartbeat();
+  await timed.waitForTimeout(500);
+  view = await forward(QUIET_MS + 1000);
+  check('when heartbeats stop, after the window it reads no response', !view.position.includes(RECEIVING)
+    && view.position.includes(SILENT) && view.status.includes(SILENT), view);
+  heartbeat();
+  await timed.waitForTimeout(500);
+  view = await forward(1000);
+  check('a later heartbeat makes it receiving again', view.position.includes(RECEIVING), view);
+  await timed.close();
   check('no page or console errors while connected', pageErrors.length === 0, [...pageErrors]);
   // From here the network fails on purpose: only script errors count.
   pageErrors.length = 0;
@@ -153,8 +207,11 @@ try {
 } finally {
   await browser?.close();
   for (const client of clients) client.end();
+  for (const client of silentClients) client.end();
   await new Promise(resolve => producer.close(resolve));
   producer.closeAllConnections?.();
+  await new Promise(resolve => silent.close(resolve));
+  silent.closeAllConnections?.();
   await new Promise(resolve => page.close(resolve));
 }
 const failed = checks.filter(item => !item.pass);
