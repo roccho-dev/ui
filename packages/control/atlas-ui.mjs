@@ -12,6 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
+import { stepIndex, timelinePosition } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -454,6 +455,8 @@ export const mountAtlasWorldUI = ({
   selected = null,
   onSelect = null,
   chrome = 'full',
+  frameId: initialFrameId = '',
+  onView = null,
 } = {}) => {
   if (!root?.append) throw new Error('atlas-world-ui: mount root required');
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world-ui: unsupported chrome ' + chrome);
@@ -532,7 +535,19 @@ export const mountAtlasWorldUI = ({
     adapter.render(projection.scene);
     adapter.setFocusMarker(projection.selectedRegionId);
     renderSearch();
+    reportView();
     return projection;
+  };
+
+  // The viewed frame is reported only while a past frame is held; following
+  // the present reports none, so a reload returns to whatever is latest then.
+  let reportedView = null;
+  const reportView = () => {
+    const view = { selected: page.selected, frameId: page.latest ? '' : currentFrame().id };
+    const key = JSON.stringify(view);
+    if (key === reportedView) return;
+    reportedView = key;
+    onView?.(view);
   };
 
   const fit = () => {
@@ -600,6 +615,7 @@ export const mountAtlasWorldUI = ({
     else if (activation?.type === 'atlas.world.frame-before') showSide('before');
     else if (activation?.type === 'atlas.world.frame-after') showSide('after');
     else if (activation?.type === 'atlas.world.latest') followLatest();
+    else if (activation?.type === 'atlas.world.timeline-step') stepFrame(activation.value);
     else if (activation?.type === 'atlas.world.tab') { page.detailPages[page.detailTab] = page.detailPage; page.detailTab = activation.value; page.detailPage = page.detailPages[activation.value] ?? 0; draw(); }
     else if (activation?.type === 'atlas.world.detail-next') turnPage(1);
     else if (activation?.type === 'atlas.world.detail-previous') turnPage(-1);
@@ -639,6 +655,20 @@ export const mountAtlasWorldUI = ({
     if (index === 0) showSide('before');
     else if (index === page.input.frames.length - 1) showSide('after');
     else { page.pair = worldPair(page.input, index); showSide('after'); }
+  };
+  // Show one received frame, held. The first frame keeps the Before side of
+  // the pair against the latest; any later one is the After of its own pair.
+  const showFrame = index => {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= page.input.frames.length) return;
+    if (index === 0 && page.input.frames.length > 1) { page.pair = worldPair(page.input); showSide('before'); }
+    else { page.pair = worldPair(page.input, index); showSide('after'); }
+  };
+  // One step through the past. A forward step at the present changes nothing.
+  const stepFrame = delta => {
+    const position = timelinePosition(page.input.frames, currentFrame().id);
+    const next = stepIndex(position, delta);
+    if (next === position.index) return;
+    showFrame(next);
   };
   const turnPage = delta => {
     page.detailPage = Math.max(0, Math.min(page.projection.detail.pageCount - 1, page.detailPage + delta));
@@ -707,8 +737,8 @@ export const mountAtlasWorldUI = ({
     else if (event.key === 'h' || event.key === 'H') adapter.setTool('hand');
     else if (event.key === 'f' || event.key === 'F') focusSelected();
     else if (event.key === '0' || event.key === 'Escape') fit();
-    else if (event.key === '[') showSide('before');
-    else if (event.key === ']') showSide('after');
+    else if (event.key === '[') stepFrame(-1);
+    else if (event.key === ']') stepFrame(1);
     else if (event.key === 'l' || event.key === 'L') followLatest();
     else if (event.key === 'PageDown') turnPage(1);
     else if (event.key === 'PageUp') turnPage(-1);
@@ -752,7 +782,11 @@ export const mountAtlasWorldUI = ({
     style.remove();
   };
 
-  draw();
+  // A held past frame named by the caller (a reload) is restored when it is
+  // still supplied; otherwise the present is shown.
+  const initialIndex = initialFrameId ? page.input.frames.findIndex(frame => frame.id === initialFrameId) : -1;
+  if (initialIndex >= 0) showFrame(initialIndex);
+  else draw();
   fit();
 
   return Object.freeze({
@@ -762,6 +796,7 @@ export const mountAtlasWorldUI = ({
     selectRef,
     selectRelationRef,
     setFrame,
+    stepFrame,
     setSession,
     tick,
     fit,

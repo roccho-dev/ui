@@ -4,6 +4,7 @@
 
 import { createGraphLayout } from '../../semantic-map/layout/graph.js';
 import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
+import { projectTimeline, timelinePosition } from './atlas-timeline.mjs';
 
 const AREA_GAP = 40;
 const AREA_TOP = 56;
@@ -169,18 +170,24 @@ const wrapLines = (lines, width) => {
 };
 
 export const ATLAS_CHROMES = Object.freeze(['full', 'none']);
+const TIMELINE_STRIP = 44;
 
-// `panel: false` is the chrome-free layout: the graph takes the whole viewport
-// and no control row or detail panel is reserved.
+// Every layout keeps one timeline strip directly below the graph, whatever
+// the chrome. `panel: false` is the chrome-free layout: no control row or
+// detail panel is reserved, so the graph takes the rest of the viewport.
 export const worldViewport = ({ width = 1500, height = 1000 } = {}, { panel: withPanel = true } = {}) => {
+  const strip = top => Object.freeze({ x: 8, y: top, width: Math.max(1, width - 16), height: TIMELINE_STRIP - 8 });
   if (!withPanel) {
-    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32) }), panel: null });
+    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32 - TIMELINE_STRIP) }),
+      panel: null, timeline: strip(height - TIMELINE_STRIP) });
   }
-  // Keep the representative nested Before world readable at 1200x900. The
-  // detail panel uses paging rather than shrinking node names to status glyphs.
+  // Keep the representative nested Before world readable at 1200x900: the
+  // graph keeps its size, and the strip takes its height from the detail
+  // panel, which pages rather than shrinking node names to status glyphs.
   const panelHeight = Math.min(400, Math.max(280, Math.floor(height * 0.3)));
   return Object.freeze({ graph: Object.freeze({ x: 16, y: 52, width: Math.max(1, width - 32), height: Math.max(1, height - panelHeight - 68) }),
-    panel: Object.freeze({ x: 8, y: height - panelHeight, width: Math.max(1, width - 16), height: panelHeight - 8 }) });
+    panel: Object.freeze({ x: 8, y: height - panelHeight + TIMELINE_STRIP, width: Math.max(1, width - 16), height: panelHeight - 8 - TIMELINE_STRIP }),
+    timeline: strip(height - panelHeight) });
 };
 
 const regionId = key => 'world:' + key;
@@ -696,9 +703,9 @@ const focusRegion = ({ chrome, scene, detail, selected }) => {
   return scene.areaBounds.has(entity.area) ? areaRegionId(entity.area) : null;
 };
 
-// One World projection composed from separate layers. `chrome: 'full'` is the
-// established HUD screen; `'none'` draws the three areas alone. Later layers
-// (a timeline) compose here beside the chrome without touching the scene.
+// One World projection composed from separate layers: the scene, the chrome
+// (`'full'` is the established HUD screen; `'none'` draws no HUD) and the
+// timeline strip, which every chrome keeps.
 export const projectAtlasWorld = ({
   input,
   receivedInput = input,
@@ -726,13 +733,17 @@ export const projectAtlasWorld = ({
   const hud = chrome === 'full'
     ? projectChrome({ frame, selected, latest, scene, detail, camera, viewport, panel: fullLayout.panel })
     : Object.freeze([]);
+  const layout = chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false });
+  // The timeline is its own layer: present in every chrome. No plan input is
+  // supplied yet, so its planned part reads undeclared (UNKNOWN).
+  const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, plan: null, strip: layout.timeline, camera });
 
   return Object.freeze({
     scene: Object.freeze({
       pattern: 'graph/1',
       scale,
       resourceComposition: null,
-      representations: Object.freeze([...scene.representations, ...hud]),
+      representations: Object.freeze([...scene.representations, ...hud, ...timeline]),
       relations: scene.relations,
       selectionProxies: Object.freeze({}),
     }),
@@ -745,7 +756,8 @@ export const projectAtlasWorld = ({
     areaBounds: scene.areaBounds,
     direction: detail.direction,
     detail: detail.view,
-    viewport: chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false }),
+    viewport: layout,
+    timeline: timelinePosition(receivedInput.frames, frame.id),
     worldComparison: Object.freeze({ before: detail.beforeFrame, after: detail.afterFrame, owners: detail.owners, lines: detail.worldLines }),
     coverage: Object.freeze({
       omittedRelations: scene.omittedRelationIds.length,
