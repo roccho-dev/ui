@@ -552,11 +552,20 @@ export const mountAtlasWorldUI = ({
     onView?.(view);
   };
 
+  // Fit the World as projected for the current viewport (never a projection
+  // kept from an earlier size). When the projection sets a minimum scale (its
+  // boxes hold their text only at that scale) and the whole World would need
+  // less, show it at that scale from its top, centred if it is narrower than
+  // the view; the rest is reached by panning.
   const fit = () => {
-    const projection = page.projection ?? draw();
+    const projection = draw();
     const view = graphView();
-    const camera = fitCamera(projection.world, view, 0.94);
-    adapter.setCamera(camera.scale, camera.translateX + view.x / camera.scale, camera.translateY + view.y / camera.scale);
+    const fitted = fitCamera(projection.world, view, 0.94);
+    const scale = Math.max(fitted.scale, projection.minScale ?? 0);
+    const { world } = projection;
+    const translateX = scale === fitted.scale ? fitted.translateX : Math.max((view.width / scale - world.width) / 2, 0) - world.x;
+    const translateY = scale === fitted.scale ? fitted.translateY : -world.y;
+    adapter.setCamera(scale, translateX + view.x / scale, translateY + view.y / scale);
     draw();
   };
 
@@ -755,7 +764,15 @@ export const mountAtlasWorldUI = ({
     const box = container.getBoundingClientRect();
     const panel = page.projection.viewport.panel;
     if (panel && event.clientY - box.top >= panel.y) turnPage(event.deltaY < 0 ? -1 : 1);
+    // Without the HUD the World may be larger than the view at its minimum
+    // scale: a plain wheel scrolls it, and Ctrl/⌘ + wheel zooms.
+    else if (chrome === 'none' && !event.ctrlKey && !event.metaKey) panBy(event.deltaX, event.deltaY);
     else zoomBy(event.deltaY < 0 ? 1.2 : 1 / 1.2, { x: event.clientX - box.left, y: event.clientY - box.top });
+  };
+  const panBy = (dx, dy) => {
+    const { scale, translateX, translateY } = adapter.camera();
+    adapter.setCamera(scale, translateX - dx / scale, translateY - dy / scale);
+    draw();
   };
   const onResize = () => fit();
   const onCameraChange = () => {

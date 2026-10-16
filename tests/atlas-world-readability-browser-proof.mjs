@@ -17,6 +17,7 @@ import { ATLAS_STATUS } from '../packages/control/src/atlas-world-projection.mjs
 import { statusWorld } from './fixtures/atlas-readability-worlds.mjs';
 import { bundledWorld } from './fixtures/atlas-timeline-frames.mjs';
 import { planWorld } from './fixtures/atlas-plan-worlds.mjs';
+import { LABEL_LINE_PX, linePx } from '../packages/control/src/atlas-text.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -139,6 +140,11 @@ try {
           || item.fill?.toLowerCase() !== ATLAS_STATUS[item.status].appearance.fillColor.toLowerCase()
           || item.stroke?.toLowerCase() !== ATLAS_STATUS[item.status].appearance.strokeColor.toLowerCase());
         check(where + ': every label drawn whole (no UI cut or drop)', cut.length === 0, cut.slice(0, 5));
+        // Font-independent: the box must be wide and tall enough for the label
+        // by the fixed-size estimate, whatever the installed font measures.
+        const tooSmall = drawn.filter(item => !item.nested && item.shape && (item.label.split('\n').some(line => linePx(line) > item.shape.right - item.shape.left - 8)
+          || item.label.split('\n').length * LABEL_LINE_PX > item.shape.bottom - item.shape.top + 1));
+        check(where + ': every box holds its label by the label-size estimate', tooSmall.length === 0, tooSmall.slice(0, 5).map(item => ({ id: item.id, label: item.label })));
         check(where + ': no empty label', empty.length === 0, empty.slice(0, 5));
         check(where + ': labels stay inside their node', outside.length === 0, outside.slice(0, 5));
         check(where + ': no overlapping entity text', overlaps.length === 0, overlaps.slice(0, 5));
