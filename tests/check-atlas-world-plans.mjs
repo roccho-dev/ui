@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { parseAtlasWorldInput, worldPair } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
-import { PLAN_NONE, PLAN_UNDECLARED, TIMELINE_ID_PREFIX, planDetailLines, planSummary } from '../packages/control/src/atlas-timeline.mjs';
+import { PLAN_NONE, PLAN_UNDECLARED, TIMELINE_ID_PREFIX, fitCellLabel, planDetailLines, planSummary } from '../packages/control/src/atlas-timeline.mjs';
+import { linePx } from '../packages/control/src/atlas-text.mjs';
 import { PLAN_SHA, knownPlan, planWorld, unknownPlan } from './fixtures/atlas-plan-worlds.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
 
@@ -25,7 +26,23 @@ reject(plans => { plans[0].version = -1; }, /version must be a non-negative inte
 assert.equal(planSummary(null), PLAN_UNDECLARED);
 assert.equal(planSummary(undefined), PLAN_UNDECLARED);
 assert.equal(planSummary([]), PLAN_NONE);
-assert.equal(planSummary(input.frames[2].plans), '予定：計画 2 件 · resources#25 v3 / adrs#646 v1（内容 UNKNOWN）');
+assert.equal(planSummary(input.frames[2].plans), '予定 2 件・内容 UNKNOWN 1', 'count and unknown-content count; sources go to the detail');
+assert.equal(planSummary([structuredClone(knownPlan)]), '予定 1 件');
+
+// Every timeline cell's drawn label fits its cell at the label estimate, at
+// every checked width and in a narrow one where the short variants are used.
+for (const width of [1280, 1500, 1920, 760]) {
+  for (const chrome of ['none', 'full']) for (const index of [0, 1, 2]) {
+    const frame = index === 0 ? worldPair(input).before : worldPair(input, index).after;
+    const projection = projectAtlasWorld({ input, frame, latest: index === 2, chrome, selected: 'none', viewport: { width, height: 900 } });
+    // Default camera (scale 1): bounds are screen pixels.
+    for (const item of projection.scene.representations.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX))) {
+      assert.ok(linePx(item.label) + 24 <= item.bounds.width + 1e-9,
+        width + ' ' + chrome + ' frame ' + index + ': ' + item.regionId + ' fits: ' + item.label);
+    }
+  }
+}
+assert.equal(fitCellLabel(['long label here', 'short'], 10), 'short', 'nothing fits: the shortest variant');
 
 // Each displayed frame shows its own plans; the detail opens per plan.
 const frameAt = index => index === 0 ? worldPair(input).before : worldPair(input, index).after;

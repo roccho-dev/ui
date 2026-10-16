@@ -61,8 +61,17 @@ try {
     };
     const rows = atlas.projection.scene.representations.filter(item => item.regionId.startsWith(prefix + 'plan-line:'))
       .sort((a, b) => a.atlas.line - b.atlas.line);
+    // Every timeline text rectangle against its own cell and the screen, so a
+    // label drawn outside its cell fails even when its text is right.
+    const screen = document.getElementById('atlas-world').getBoundingClientRect();
+    const outside = atlas.projection.scene.representations.filter(item => item.regionId.startsWith(prefix)).filter(item => {
+      const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
+      const box = state?.text?.node?.getBoundingClientRect?.(), shape = state?.shape?.node?.getBoundingClientRect?.();
+      return !box || !shape || box.left < shape.left - 2 || box.right > shape.right + 2 || box.top < shape.top - 2
+        || box.bottom > shape.bottom + 2 || box.left < screen.left - 1 || box.right > screen.right + 1;
+    }).map(item => item.regionId);
     return { index: atlas.projection.timeline.index, plan: drawn(prefix + 'plan'),
-      rows: rows.map(item => drawn(item.regionId)), coverage: atlas.projection.coverage };
+      rows: rows.map(item => drawn(item.regionId)), coverage: atlas.projection.coverage, outside };
   }, TIMELINE_ID_PREFIX);
   const press = async key => { await page.focus('#atlas-world'); await page.keyboard.press(key); };
   const clickCell = async regionId => {
@@ -77,7 +86,8 @@ try {
     await page.mouse.click(point.x, point.y);
   };
   const flat = value => String(value ?? '').replace(/\s/gu, '');
-  const shows = (state, index) => flat(state.plan).startsWith(flat(summaries[index]));
+  const seen = [];
+  const shows = (state, index) => { seen.push(state.outside); return state.outside.length === 0 && flat(state.plan).startsWith(flat(summaries[index])); };
 
   let state = await view();
   const presentCoverage = JSON.stringify(state.coverage);
@@ -110,6 +120,7 @@ try {
   state = await view();
   check('`L` returns to the present plans', state.index === 2 && shows(state, 2), state);
   check('plans change no coverage', JSON.stringify(state.coverage) === presentCoverage, { presentCoverage, coverage: state.coverage });
+  check('every timeline text stayed inside its cell and the screen', seen.length >= 5 && seen.every(list => list.length === 0), seen);
   check('no browser page/console errors', pageErrors.length === 0 && consoleErrors.length === 0, { pageErrors, consoleErrors });
 } catch (error) {
   interruption = String(error?.stack ?? error);

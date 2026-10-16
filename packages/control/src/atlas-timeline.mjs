@@ -3,23 +3,30 @@
 // never a frame and never a fact; with no supplied plan it is shown as
 // undeclared (UNKNOWN), not as an empty future. Pure; no DOM.
 
-import { LABEL_LINE_PX, wrapLabel } from './atlas-text.mjs';
+import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 
 export const TIMELINE_ID_PREFIX = 'timeline:';
 export const PLAN_UNDECLARED = '予定：計画未宣言（UNKNOWN）';
 export const PLAN_NONE = '予定：有効な計画 0 件';
 const CONTENT_UNKNOWN = '内容 UNKNOWN';
 
-// The plan cell's one line for the displayed frame's plans (frame.plans):
+// The plan cell's line for the displayed frame's plans (frame.plans):
 // absent/null is undeclared, [] is declared with none in force, otherwise the
-// count and each plan's source and version, naming plans whose content is
-// unknown. A plan is never a fact and never changes any status.
+// count and how many have unknown content. Each plan's source and version are
+// in the detail. A plan is never a fact and never changes any status.
 export const planSummary = plans => {
   if (plans === null || plans === undefined) return PLAN_UNDECLARED;
   if (plans.length === 0) return PLAN_NONE;
-  return '予定：計画 ' + plans.length + ' 件 · ' + plans.map(plan => plan.ref + ' v' + plan.version
-    + (plan.nodes === null ? '（' + CONTENT_UNKNOWN + '）' : '')).join(' / ');
+  const unknown = plans.filter(plan => plan.nodes === null).length;
+  return '予定 ' + plans.length + ' 件' + (unknown ? '・' + CONTENT_UNKNOWN + ' ' + unknown : '');
 };
+const planShort = plans => plans === null || plans === undefined ? '予定 UNKNOWN' : '予定 ' + plans.length + ' 件';
+
+// A cell shows the longest of its label variants that fits its width at the
+// fixed label size (the conservative 13 px estimate), else its shortest.
+const CELL_PAD_PX = 12;
+export const fitCellLabel = (variants, width) =>
+  variants.find(label => linePx(label) + 2 * CELL_PAD_PX <= width) ?? variants.at(-1);
 
 // The opened plan detail: per plan, its label, what it serves, its content
 // or why that is unknown, and where it was read from. Supplied text only.
@@ -80,16 +87,20 @@ export const projectTimeline = ({
     width: width / camera.scale, height: height / camera.scale,
   });
   const cells = [];
-  const cell = (id, label, share, { activation = null, look = 'control', atlas = {} } = {}) => cells.push({ id, label, share, activation, look, atlas });
+  // `labels`: the variants, longest first; the drawn one is chosen by width.
+  const cell = (id, labels, share, { activation = null, look = 'control', atlas = {} } = {}) => cells.push({ id, labels, share, activation, look, atlas });
   const back = stepIndex(position, -1), forward = stepIndex(position, 1);
+  const step = index < 0 ? '保持中' : (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count;
   const where = index < 0
-    ? '表示中：保持中の frame ' + frame.id + '（最新入力に無い）'
-    : '表示中：' + (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count + ' · ' + frame.id + (present && latest ? ' · 最新に追従' : '');
-  cell('back', '◀ 前へ · [', 1, back !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: -1 } } : { look: 'idle' });
+    ? ['表示中：保持中の frame ' + frame.id + '（最新入力に無い）', '表示中：保持中（最新入力に無い）', '保持中']
+    : ['表示中：' + step + ' · ' + frame.id + (present && latest ? ' · 最新に追従' : ''), '表示中：' + step + ' · ' + frame.id,
+      '表示中：' + step, step];
+  const toggle = planOpen ? '閉じる' : '詳細';
+  cell('back', ['◀ 前へ · [', '◀ 前へ', '◀'], 1, back !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: -1 } } : { look: 'idle' });
   cell('position', where, 3, { look: 'idle', atlas: { index, count, present, frameId: frame.id } });
-  cell('forward', '次へ ▶ · ]', 1, forward !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: 1 } } : { look: 'idle' });
-  cell('present', '現在へ戻る · L', 1, present && latest ? { look: 'idle' } : { activation: { type: 'atlas.world.latest' } });
-  cell('plan', planSummary(plans) + (planOpen ? ' · 閉じる' : ' · 詳細'), 3, { look: 'plan',
+  cell('forward', ['次へ ▶ · ]', '次へ ▶', '▶'], 1, forward !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: 1 } } : { look: 'idle' });
+  cell('present', ['現在へ戻る · L', '現在へ戻る', '現在'], 1, present && latest ? { look: 'idle' } : { activation: { type: 'atlas.world.latest' } });
+  cell('plan', [planSummary(plans) + ' · ' + toggle, planSummary(plans), planShort(plans) + ' · ' + toggle, planShort(plans)], 3, { look: 'plan',
     activation: { type: 'atlas.world.plan-toggle' },
     atlas: { plan: plans === null ? 'undeclared' : plans.length ? 'supplied' : 'none', count: plans?.length ?? null, open: planOpen } });
 
@@ -103,9 +114,10 @@ export const projectTimeline = ({
   });
   const unit = (strip.width - 6 * (cells.length - 1)) / cells.reduce((sum, item) => sum + item.share, 0);
   let x = strip.x;
-  const regions = cells.map(({ id, label, share, activation, look, atlas }) => {
+  const regions = cells.map(({ id, labels, share, activation, look, atlas }) => {
     const width = unit * share;
-    const drawn = region(id, label, { x, y: strip.y, width, height: strip.height }, look, activation, atlas);
+    const drawn = region(id, fitCellLabel(labels, width), { x, y: strip.y, width, height: strip.height }, look, activation,
+      { ...atlas, fullLabel: labels[0] });
     x += width + 6;
     return drawn;
   });
