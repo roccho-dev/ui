@@ -73,6 +73,16 @@ try {
         if (step > 0) { await page.focus('#atlas-world'); await page.keyboard.press('['); }
         await page.evaluate(() => window.liveAtlas.fit());
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const areas = await page.evaluate(() => {
+          const atlas = window.liveAtlas, adapter = atlas.adapter;
+          return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'area').map(item => {
+            const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
+            const shape = state?.shape?.node?.getBoundingClientRect?.() ?? null;
+            const text = state?.text?.node?.getBoundingClientRect?.() ?? null;
+            return { areaId: item.atlas.areaId, shape: shape && { left: shape.left, top: shape.top, right: shape.right, bottom: shape.bottom },
+              text: text && { left: text.left, top: text.top, right: text.right, bottom: text.bottom } };
+          });
+        });
         const drawn = await page.evaluate(() => {
           const atlas = window.liveAtlas, adapter = atlas.adapter;
           return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
@@ -82,7 +92,7 @@ try {
             const box = node?.getBoundingClientRect();
             const shape = state?.shape?.node?.getBoundingClientRect?.() ?? null;
             const style = state?.style ?? {};
-            return { id: item.regionId, label: item.label, status: item.atlas.status, text: node?.textContent ?? '',
+            return { id: item.regionId, area: item.atlas.area, nested: Boolean(item.atlas.parent), label: item.label, status: item.atlas.status, text: node?.textContent ?? '',
               box: box && { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
               shape: shape && { left: shape.left, top: shape.top, right: shape.right, bottom: shape.bottom },
               fill: style.fillColor ?? null, stroke: style.strokeColor ?? null };
@@ -102,6 +112,27 @@ try {
           const a = drawn[i].box, b = drawn[j].box;
           if (a && b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) overlaps.push([drawn[i].id, drawn[j].id]);
         }
+        // Boxes: inside their area, apart from each other (containers hold
+        // their children by design, so nested entities are not compared), and
+        // clear of the area's own title.
+        const overlap = (a, b) => a && b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+        const areaOf = new Map(areas.map(item => [item.areaId, item]));
+        const outsideArea = drawn.filter(item => {
+          const area = areaOf.get(item.area)?.shape;
+          return item.shape && area && (item.shape.left < area.left - 1 || item.shape.right > area.right + 1
+            || item.shape.top < area.top - 1 || item.shape.bottom > area.bottom + 1);
+        });
+        const topLevel = drawn.filter(item => !item.nested);
+        const boxOverlaps = [];
+        for (let i = 0; i < topLevel.length; i += 1) for (let j = i + 1; j < topLevel.length; j += 1) {
+          if (topLevel[i].area === topLevel[j].area && overlap(topLevel[i].shape, topLevel[j].shape)) boxOverlaps.push([topLevel[i].id, topLevel[j].id]);
+        }
+        const titleHits = drawn.filter(item => overlap(areaOf.get(item.area)?.text, item.shape));
+        const areaTitleOutside = areas.filter(item => item.text && item.shape && (item.text.right > item.shape.right + 2 || item.text.left < item.shape.left - 2));
+        check(where + ': nodes stay inside their area', outsideArea.length === 0, outsideArea.slice(0, 5));
+        check(where + ': top-level nodes do not overlap', boxOverlaps.length === 0, boxOverlaps.slice(0, 5));
+        check(where + ': area titles are clear of nodes and inside their area', titleHits.length === 0 && areaTitleOutside.length === 0,
+          { titleHits: titleHits.slice(0, 3), areaTitleOutside });
         const statusDrawn = drawn.filter(item => item.status);
         const wrongLook = statusDrawn.filter(item => !item.text.startsWith(ATLAS_STATUS[item.status].symbol)
           || item.fill?.toLowerCase() !== ATLAS_STATUS[item.status].appearance.fillColor.toLowerCase()
