@@ -5,6 +5,7 @@
 import { createGraphLayout } from '../../semantic-map/layout/graph.js';
 import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { fitCamera } from '../../semantic-map/camera-fit.js';
+import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 import { projectTimeline, timelinePosition } from './atlas-timeline.mjs';
 
@@ -339,34 +340,13 @@ const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
 // at a fixed screen size, so each box is sized in screen pixels for the
 // expected camera scale (`textScale`, world units per pixel inverted): wide
 // enough for its longest line, tall enough for its lines, never wider than
-// LABEL_MAX_PX — longer lines are broken into more lines instead. The same
-// estimate as the renderer's label decision is used (13 px text).
-const LABEL_FONT_PX = 13;
-const LABEL_LINE_PX = 18;
+// LABEL_MAX_PX — longer lines are broken into more lines instead
+// (atlas-text.mjs).
 const LABEL_PAD_X_PX = 16;
 const LABEL_PAD_Y_PX = 9;
-const LABEL_MAX_PX = 340;
 const AREA_HEADER_PX = 40;
 const FLAT_GAP = 24;
-const charPx = character => (/\s/u.test(character) ? 0.34 : character.codePointAt(0) > 0xff ? 1 : 0.59) * LABEL_FONT_PX;
-const linePx = line => [...line].reduce((sum, character) => sum + charPx(character), 0);
-// Break a label into lines no wider than `max`, at spaces when a line has
-// one, else between characters. Every supplied character is kept in order.
-export const wrapLabel = (label, max = LABEL_MAX_PX) => String(label).split(/\r?\n/u).flatMap(line => {
-  if (linePx(line) <= max) return [line];
-  const lines = [];
-  let current = '';
-  for (const word of line.split(/(?<=\s)/u)) {
-    if (current && linePx(current + word) > max) { lines.push(current.trimEnd()); current = ''; }
-    if (linePx(word) <= max) { current += word; continue; }
-    for (const character of word) {
-      if (current && linePx(current + character) > max) { lines.push(current); current = ''; }
-      current += character;
-    }
-  }
-  if (current) lines.push(current.trimEnd());
-  return lines;
-}).join('\n');
+export { wrapLabel };
 
 const flatAreaLayout = ({ area, rows, rank, labelOf, textScale }) => {
   const entityByKey = new Map(rows.map(entity => [entityKey(entity.ref), entity]));
@@ -878,6 +858,7 @@ export const projectAtlasWorld = ({
   detailPage = 0,
   admission = null,
   chrome = 'full',
+  planOpen = false,
 } = {}) => {
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world: unsupported chrome ' + chrome);
   const fullLayout = worldViewport(viewport);
@@ -899,9 +880,9 @@ export const projectAtlasWorld = ({
   const hud = chrome === 'full'
     ? projectChrome({ frame, selected, latest, scene, detail, camera, viewport, panel: fullLayout.panel })
     : Object.freeze([]);
-  // The timeline is its own layer: present in every chrome. No plan input is
-  // supplied yet, so its planned part reads undeclared (UNKNOWN).
-  const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, plan: null, strip: layout.timeline, camera });
+  // The timeline is its own layer: present in every chrome. Its planned part
+  // reads the displayed frame's supplied plans and nothing else.
+  const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen, strip: layout.timeline, camera });
 
   return Object.freeze({
     scene: Object.freeze({

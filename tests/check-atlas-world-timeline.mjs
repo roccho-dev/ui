@@ -54,8 +54,8 @@ for (const count of [1, 2, 3, 5]) {
       assert.equal(Boolean(cells.get('back').activation), index > 0, 'back steps only while a past frame remains');
       assert.equal(Boolean(cells.get('forward').activation), index < count - 1, 'forward never steps past the present');
       assert.equal(cells.get('present').activation?.type ?? null, present ? null : 'atlas.world.latest', 'return to the present from the past');
-      assert.equal(cells.get('plan').label, PLAN_UNDECLARED, 'no plan is shown as undeclared, not empty');
-      assert.equal(cells.get('plan').activation, undefined, 'the plan cell does nothing');
+      assert.equal(cells.get('plan').label, PLAN_UNDECLARED + ' · 詳細', 'no plan is shown as undeclared, not empty');
+      assert.equal(cells.get('plan').activation.type, 'atlas.world.plan-toggle', 'the plan cell only opens its detail');
       const { graph, timeline } = projection.viewport;
       assert.ok(timeline.y >= graph.y + graph.height && timeline.y + timeline.height <= viewport.height, 'strip sits below the graph inside the viewport');
       for (const item of cells.values()) {

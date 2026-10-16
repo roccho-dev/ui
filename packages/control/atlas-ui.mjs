@@ -488,6 +488,7 @@ export const mountAtlasWorldUI = ({
     connected,
     now,
     projection: null,
+    planOpen: false,
     destroyed: false,
   };
 
@@ -529,6 +530,7 @@ export const mountAtlasWorldUI = ({
       camera: adapter.camera(), viewport: viewport(),
       detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
       chrome,
+      planOpen: page.planOpen,
     });
     page.projection = projection;
     page.detailPage = projection.detail.page;
@@ -616,6 +618,7 @@ export const mountAtlasWorldUI = ({
     else if (activation?.type === 'atlas.world.frame-after') showSide('after');
     else if (activation?.type === 'atlas.world.latest') followLatest();
     else if (activation?.type === 'atlas.world.timeline-step') stepFrame(activation.value);
+    else if (activation?.type === 'atlas.world.plan-toggle') { page.planOpen = !page.planOpen; draw(); }
     else if (activation?.type === 'atlas.world.tab') { page.detailPages[page.detailTab] = page.detailPage; page.detailTab = activation.value; page.detailPage = page.detailPages[activation.value] ?? 0; draw(); }
     else if (activation?.type === 'atlas.world.detail-next') turnPage(1);
     else if (activation?.type === 'atlas.world.detail-previous') turnPage(-1);
