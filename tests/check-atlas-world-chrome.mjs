@@ -1,10 +1,12 @@
 // Chrome composition checks for the World projection. Pure; no browser.
 // 'full' is the established HUD screen. 'none' draws the three areas alone:
-// no HUD region, a focus marker only on a drawn region, the same scene.
+// no HUD region, a focus marker only on a drawn region, the same scene. Both
+// keep the timeline layer, which is checked in check-atlas-world-timeline.mjs.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { containmentIndex, entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, projectWorldScene, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
+import { TIMELINE_ID_PREFIX } from '../packages/control/src/atlas-timeline.mjs';
 
 const raw = JSON.parse(readFileSync(new URL('../examples/atlas/input/a2-world.json', import.meta.url), 'utf8'));
 
@@ -32,12 +34,16 @@ for (const input of [parseAtlasWorldInput(raw), parseAtlasWorldInput(withOmitted
         const none = projectAtlasWorld({ ...args, chrome: 'none' });
 
         assert.deepEqual(projectAtlasWorld({ ...args, chrome: 'full' }), full, 'full is the default');
-        assert.deepEqual(none.scene.representations, scene.representations, 'none draws exactly the World scene');
-        assert.deepEqual(full.scene.representations.slice(0, scene.representations.length), scene.representations,
+        // The timeline layer is present in both chromes and is not HUD.
+        const timelineOf = projection => projection.scene.representations.filter(item => item.regionId.startsWith(TIMELINE_ID_PREFIX));
+        const withoutTimeline = projection => projection.scene.representations.filter(item => !item.regionId.startsWith(TIMELINE_ID_PREFIX));
+        assert.ok(timelineOf(none).length > 0 && timelineOf(full).length === timelineOf(none).length, 'both chromes keep the timeline layer');
+        assert.deepEqual(withoutTimeline(none), scene.representations, 'none draws exactly the World scene besides the timeline');
+        assert.deepEqual(withoutTimeline(full).slice(0, scene.representations.length), scene.representations,
           'full draws the same scene first');
-        const hud = full.scene.representations.slice(scene.representations.length);
+        const hud = withoutTimeline(full).slice(scene.representations.length);
         assert.ok(hud.length > 0 && hud.every(item => item.isGuide && item.zIndex >= 10000), 'full adds only HUD regions');
-        assert.equal(none.scene.representations.filter(item => item.isGuide || item.zIndex >= 10000).length, 0, 'none has no HUD region');
+        assert.equal(withoutTimeline(none).filter(item => item.isGuide || item.zIndex >= 10000).length, 0, 'none has no HUD region');
         assert.deepEqual(none.scene.relations, full.scene.relations, 'same relations');
         assert.deepEqual(none.world, full.world, 'same World bounds');
         assert.deepEqual(none.detail, full.detail, 'detail text and pages do not depend on the chrome');

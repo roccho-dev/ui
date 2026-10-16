@@ -3,6 +3,7 @@
 import { applyEnvelope, connectLiveAtlas, createAtlasState, loadHistory } from './src/live-atlas.mjs';
 import { ATLAS_WORLD_KIND } from './src/atlas-world.mjs';
 import { mountAtlasUI, mountAtlasWorldUI } from './atlas-ui.mjs';
+import { formatViewHash, parseViewHash } from './src/atlas-timeline.mjs';
 
 const readInput = () => JSON.parse(document.getElementById('live-atlas-input').textContent);
 
@@ -22,6 +23,7 @@ const publishApi = (ui, cleanup) => {
     selectRef: ui.selectRef,
     selectRelationRef: ui.selectRelationRef,
     setFrame: ui.setFrame,
+    stepFrame: ui.stepFrame,
     setSession: ui.setSession,
     fit: ui.fit,
     focusSelected: ui.focusSelected,
@@ -42,7 +44,11 @@ const publishApi = (ui, cleanup) => {
   return api;
 };
 
-const startWorldAtlas = ({ input, eventsUrl, selected, chrome }) => {
+// The World keeps its viewed state in the URL fragment (`#sel=…&t=…`), so a
+// reload restores the selection and a held past frame; `t` is absent while
+// following the present.
+const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
+  const view = parseViewHash(location.hash);
   const ui = mountAtlasWorldUI({
     root: document.body,
     input,
@@ -50,8 +56,9 @@ const startWorldAtlas = ({ input, eventsUrl, selected, chrome }) => {
     mode: eventsUrl ? 'live' : 'sample',
     connected: false,
     now: Date.now(),
-    selected: selected || null,
-    onSelect: id => history.replaceState(null, '', '#sel=' + encodeURIComponent(id)),
+    selected: view.selected || null,
+    frameId: view.frameId,
+    onView: next => history.replaceState(null, '', location.pathname + location.search + formatViewHash(next)),
   });
 
   let source = null;
@@ -115,6 +122,6 @@ export const startLiveAtlas = ({ chrome = 'full' } = {}) => {
   const input = readInput();
   const selected = hashSelection();
   return input?.kind === ATLAS_WORLD_KIND
-    ? startWorldAtlas({ input, eventsUrl, selected, chrome })
+    ? startWorldAtlas({ input, eventsUrl, chrome })
     : startLegacyAtlas({ input, eventsUrl, selected });
 };
