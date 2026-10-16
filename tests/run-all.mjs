@@ -38,6 +38,7 @@ import "./check-atlas-world.mjs";
 import "./check-atlas-world-chrome.mjs";
 import "./check-atlas-world-timeline.mjs";
 import "./check-atlas-world-readability.mjs";
+import "./check-atlas-world-hidden-paths.mjs";
 import "./check-serve-static.mjs";
 import "../capabilities/editable-sheet/tests/run.mjs";
 console.log("ui-all-checks-pass");

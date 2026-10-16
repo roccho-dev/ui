@@ -4,6 +4,7 @@
 
 import { createGraphLayout } from '../../semantic-map/layout/graph.js';
 import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
+import { fitCamera } from '../../semantic-map/camera-fit.js';
 import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 import { projectTimeline, timelinePosition } from './atlas-timeline.mjs';
 
@@ -334,6 +335,74 @@ const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
   });
 };
 
+// Content-fitted layout for an area without containment. Node text is drawn
+// at a fixed screen size, so each box is sized in screen pixels for the
+// expected camera scale (`textScale`, world units per pixel inverted): wide
+// enough for its longest line, tall enough for its lines, never wider than
+// LABEL_MAX_PX — longer lines are broken into more lines instead. The same
+// estimate as the renderer's label decision is used (13 px text).
+const LABEL_FONT_PX = 13;
+const LABEL_LINE_PX = 18;
+const LABEL_PAD_X_PX = 16;
+const LABEL_PAD_Y_PX = 9;
+const LABEL_MAX_PX = 340;
+const AREA_HEADER_PX = 40;
+const FLAT_GAP = 24;
+const charPx = character => (/\s/u.test(character) ? 0.34 : character.codePointAt(0) > 0xff ? 1 : 0.59) * LABEL_FONT_PX;
+const linePx = line => [...line].reduce((sum, character) => sum + charPx(character), 0);
+// Break a label into lines no wider than `max`, at spaces when a line has
+// one, else between characters. Every supplied character is kept in order.
+export const wrapLabel = (label, max = LABEL_MAX_PX) => String(label).split(/\r?\n/u).flatMap(line => {
+  if (linePx(line) <= max) return [line];
+  const lines = [];
+  let current = '';
+  for (const word of line.split(/(?<=\s)/u)) {
+    if (current && linePx(current + word) > max) { lines.push(current.trimEnd()); current = ''; }
+    if (linePx(word) <= max) { current += word; continue; }
+    for (const character of word) {
+      if (current && linePx(current + character) > max) { lines.push(current); current = ''; }
+      current += character;
+    }
+  }
+  if (current) lines.push(current.trimEnd());
+  return lines;
+}).join('\n');
+
+const flatAreaLayout = ({ area, rows, rank, labelOf, textScale }) => {
+  const entityByKey = new Map(rows.map(entity => [entityKey(entity.ref), entity]));
+  const ordered = orderedKeys([...entityByKey.keys()], entityByKey, rank);
+  const shown = [], omitted = [];
+  for (const key of ordered) (entityByKey.get(key).visible && shown.length < MAX_ENTITIES_PER_AREA ? shown : omitted).push(key);
+  const labels = new Map(shown.map(key => [key, wrapLabel(labelOf(entityByKey.get(key)))]));
+  const size = label => {
+    const lines = label.split('\n');
+    return { width: (Math.max(...lines.map(linePx)) + 2 * LABEL_PAD_X_PX) / textScale,
+      height: (lines.length * LABEL_LINE_PX + 2 * LABEL_PAD_Y_PX) / textScale };
+  };
+  const sizes = new Map(shown.map(key => [key, size(labels.get(key))]));
+  const header = (AREA_HEADER_PX) / textScale;
+  const pad = LABEL_PAD_X_PX / textScale;
+  const inner = Math.max(linePx(area.label) / textScale, ...[...sizes.values()].map(item => item.width), 120);
+  const bounds = new Map();
+  let y = header;
+  for (const key of shown) {
+    const { width, height } = sizes.get(key);
+    // translateBounds widens x and width by WORLD_WIDTH_SCALE; undo it here.
+    bounds.set(key, Object.freeze({ x: (pad + (inner - width) / 2) / WORLD_WIDTH_SCALE, y, width: width / WORLD_WIDTH_SCALE, height }));
+    y += height + FLAT_GAP;
+  }
+  const rootBounds = Object.freeze({ x: 0, y: 0, width: (inner + 2 * pad) / WORLD_WIDTH_SCALE, height: Math.max(y - FLAT_GAP + pad, header + pad) });
+  return Object.freeze({
+    layout: Object.freeze({ rootBounds, bounds }),
+    labels,
+    entityByKey,
+    childrenByParent: new Map(),
+    shown: Object.freeze(shown),
+    shownSet: new Set(shown),
+    omitted: Object.freeze([...omitted].sort()),
+  });
+};
+
 const containmentDepth = (key, parentByChild) => {
   let depth = 1, current = key;
   while (parentByChild.has(current)) {
@@ -430,8 +499,10 @@ export const projectWorldScene = ({
   latest = true,
   admission = null,
   ordering = 'relations',
+  textScale = 1,
 } = {}) => {
   if (!['relations', 'supplied'].includes(ordering)) throw new Error('atlas-world: unsupported ordering ' + ordering);
+  if (!(textScale > 0)) throw new Error('atlas-world: textScale must be positive');
   const index = indexWorldFrame(frame);
   const displayedActivity = activityDisplay({ mode, connected, latest, admission }).displayed;
   const containment = containmentIndex(frame);
@@ -458,9 +529,12 @@ export const projectWorldScene = ({
       appearance: status ? STATUS[status].appearance : appearance[activity] };
   };
 
+  const nestedAreas = new Set([...containment.parentByChild.keys()].map(key => index.entityByKey.get(key)?.area));
   for (const area of areas) {
     const rows = areaEntities.get(area.id) ?? [];
-    const nested = nestedAreaLayout({ area, rows, containment, rank, labelOf: entity => look(entity).label });
+    const nested = nestedAreas.has(area.id)
+      ? nestedAreaLayout({ area, rows, containment, rank, labelOf: entity => look(entity).label })
+      : flatAreaLayout({ area, rows, rank, labelOf: entity => look(entity).label, textScale });
     const rootBounds = nested.layout.rootBounds;
     const dx = contentRight - rootBounds.x * WORLD_WIDTH_SCALE;
     const dy = AREA_TOP - rootBounds.y;
@@ -490,7 +564,8 @@ export const projectWorldScene = ({
       const entityBounds = translateBounds(localBounds, dx, dy);
       const shownChildren = (nested.childrenByParent.get(key) ?? []).filter(child => nested.shownSet.has(child));
       const hasChildren = shownChildren.length > 0;
-      const { activity, status, label, appearance: entityAppearance } = look(entity);
+      const { activity, status, label: lookLabel, appearance: entityAppearance } = look(entity);
+      const label = nested.labels?.get(key) ?? lookLabel;
       visibleEntityKeys.add(key);
       representations.push(Object.freeze({
         regionId: regionId(key),
@@ -805,16 +880,25 @@ export const projectAtlasWorld = ({
   chrome = 'full',
 } = {}) => {
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world: unsupported chrome ' + chrome);
-  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission });
+  const fullLayout = worldViewport(viewport);
+  const layout = chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false });
+  // Size content-fitted boxes for the scale Fit will choose: start at 1 and,
+  // while Fit would be smaller, size for slightly less than that scale.
+  let textScale = 1;
+  let scene = projectWorldScene({ input, frame, mode, connected, latest, admission, textScale });
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const fitted = fitCamera(scene.world, layout.graph, 0.94).scale;
+    if (fitted >= textScale) break;
+    textScale = fitted * 0.97;
+    scene = projectWorldScene({ input, frame, mode, connected, latest, admission, textScale });
+  }
   // The detail is paged against the full layout's panel in both chromes, so the
   // selected record's text and pages do not depend on what is drawn.
-  const fullLayout = worldViewport(viewport);
   const detail = projectDetail({ input, receivedInput, frame, counterpart, selected, mode, connected, latest, admission,
     scene, panel: fullLayout.panel, detailTab, detailPage });
   const hud = chrome === 'full'
     ? projectChrome({ frame, selected, latest, scene, detail, camera, viewport, panel: fullLayout.panel })
     : Object.freeze([]);
-  const layout = chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false });
   // The timeline is its own layer: present in every chrome. No plan input is
   // supplied yet, so its planned part reads undeclared (UNKNOWN).
   const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, plan: null, strip: layout.timeline, camera });
