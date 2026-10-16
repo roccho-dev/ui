@@ -1,7 +1,0 @@
-{"authority":false,"schema":"atlas.purpose-closure/1"}
-{"id":"current.before","kind":"current","label":"例：抽出前","value":"起動処理がui内に残っている","sources":[{"sourceRef":"fixture:current-replacement@1","sourceDigest":"sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb"}]}
-{"current":"current.before","delta":"起動と入力選択をapps側へ分ける","id":"gap.extraction","ideal":"ideal.extraction","kind":"gap","label":"例：application責務の分離","owner":"apps","proof":"同じUIを参照し、既存操作と入力保持が退行しない","sources":[{"sourceRef":"fixture:current-replacement@1","sourceDigest":"sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb"}]}
-{"gaps":["gap.extraction"],"id":"fill.extraction","kind":"fill","label":"例：bootstrapを分離する仕事","scope":["入力選択と起動処理","共有UIの再利用"],"sources":[{"sourceRef":"fixture:current-replacement@1","sourceDigest":"sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb"}]}
-{"evidence":["fixture:extraction-check@1"],"fill":"fill.extraction","id":"receipt.partial","kind":"receipt","label":"例：一部だけ解消した結果","status":"reduced","sources":[{"sourceRef":"fixture:current-replacement@1","sourceDigest":"sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb"}]}
-{"id":"residual.source","kind":"residual","label":"例：実入力の接続が残る","next":[],"receipt":"receipt.partial","sources":[{"sourceRef":"fixture:current-replacement@1","sourceDigest":"sha256:6e3a597db92c53f2862843fb7e6d98647d8f0254669c53eb3331578515fbf5fb"}]}
-
