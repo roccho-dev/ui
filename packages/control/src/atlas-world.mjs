@@ -187,8 +187,60 @@ const normalizeCoverage = (value, at) => {
   });
 };
 
+// Plans in force at a frame. Absent or null: no plan declared (UNKNOWN); []:
+// declared, none in force. A plan is never a fact: nothing here feeds Gap,
+// Current, coverage or status. `nodes`/`edges` null means the content is
+// unknown, which is not the same as empty.
+const textList = (value, at) => {
+  check(Array.isArray(value), at + ' must be an array');
+  return Object.freeze(value.map((item, index) => text(item, at + '[' + index + ']')));
+};
+const normalizePlanSource = (value, at) => {
+  exactKeys(value, ['repo', 'commentId', 'updatedAt', 'sha256'], at);
+  const id = value.commentId;
+  check(id === null || id === undefined || (typeof id === 'string' && id.length > 0) || (Number.isSafeInteger(id) && id >= 0), at + '.commentId must be text, an integer or null');
+  return Object.freeze({
+    repo: text(value.repo, at + '.repo'),
+    commentId: id ?? null,
+    updatedAt: timeValue(value.updatedAt, at + '.updatedAt'),
+    sha256: value.sha256 === null || value.sha256 === undefined ? null : text(value.sha256, at + '.sha256'),
+  });
+};
+const normalizePlan = (value, at) => {
+  exactKeys(value, ['ref', 'plan', 'version', 'label', 'serves', 'nodes', 'edges', 'unknown', 'source'], at);
+  const nodes = value.nodes === null || value.nodes === undefined ? null : (check(Array.isArray(value.nodes), at + '.nodes must be an array or null'),
+    Object.freeze(value.nodes.map((item, index) => {
+      exactKeys(item, ['id', 'label'], at + '.nodes[' + index + ']');
+      return Object.freeze({ id: text(item.id, at + '.nodes[' + index + '].id'), label: optionalText(item.label, at + '.nodes[' + index + '].label') });
+    })));
+  const edges = value.edges === null || value.edges === undefined ? null : (check(Array.isArray(value.edges), at + '.edges must be an array or null'),
+    Object.freeze(value.edges.map((item, index) => {
+      exactKeys(item, ['from', 'to', 'kind'], at + '.edges[' + index + ']');
+      return Object.freeze({ from: text(item.from, at + '.edges[' + index + '].from'), to: text(item.to, at + '.edges[' + index + '].to'),
+        kind: optionalText(item.kind, at + '.edges[' + index + '].kind') });
+    })));
+  return Object.freeze({
+    ref: text(value.ref, at + '.ref'),
+    plan: text(value.plan, at + '.plan'),
+    version: integer(value.version, at + '.version'),
+    label: text(value.label, at + '.label'),
+    serves: textList(value.serves ?? [], at + '.serves'),
+    nodes,
+    edges,
+    unknown: textList(value.unknown ?? [], at + '.unknown'),
+    source: normalizePlanSource(value.source, at + '.source'),
+  });
+};
+const normalizePlans = (value, at) => {
+  if (value === null) return null;
+  check(Array.isArray(value), at + ' must be an array or null');
+  const plans = value.map((item, index) => normalizePlan(item, at + '[' + index + ']'));
+  check(new Set(plans.map(item => item.plan)).size === plans.length, at + ': duplicate plan id');
+  return Object.freeze(plans);
+};
+
 const normalizeFrame = (value, at, areaIds) => {
-  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations'], at);
+  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans'], at);
   check(Array.isArray(value.entities) && value.entities.length > 0, at + '.entities must be non-empty');
   check(Array.isArray(value.relations), at + '.relations must be an array');
   const entities = value.entities.map((item, index) => normalizeEntity(item, at + '.entities[' + index + ']', areaIds));
@@ -206,6 +258,8 @@ const normalizeFrame = (value, at, areaIds) => {
     coverage: normalizeCoverage(value.coverage, at + '.coverage'),
     entities: Object.freeze(entities),
     relations: Object.freeze(relations),
+    // Kept only when supplied, so a frame without plans normalizes as before.
+    ...(value.plans === undefined ? {} : { plans: normalizePlans(value.plans, at + '.plans') }),
   });
 };
 

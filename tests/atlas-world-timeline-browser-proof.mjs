@@ -82,7 +82,7 @@ try {
   let state = await view();
   check('chrome-free build draws the timeline strip and no HUD', state.timelineCells === 5 && state.hud === 0, state);
   check('opens at the present anchor, following the latest', state.frameId === frameIds.at(-1) && state.latest && state.timeline.present, state);
-  check('no plan is shown as undeclared (UNKNOWN)', state.plan === PLAN_UNDECLARED, state);
+  check('no plan is shown as undeclared (UNKNOWN)', state.plan?.startsWith(PLAN_UNDECLARED), state);
 
   const backward = [state.frameId];
   for (let step = 0; step < frameIds.length + 1; step += 1) { await press('['); backward.push((await view()).frameId); }

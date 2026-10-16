@@ -16,6 +16,7 @@ import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { ATLAS_STATUS } from '../packages/control/src/atlas-world-projection.mjs';
 import { statusWorld } from './fixtures/atlas-readability-worlds.mjs';
 import { bundledWorld } from './fixtures/atlas-timeline-frames.mjs';
+import { planWorld } from './fixtures/atlas-plan-worlds.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -31,7 +32,7 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-readability-'));
-const worlds = [['bundled', bundledWorld()], ['status', statusWorld()],
+const worlds = [['bundled', bundledWorld()], ['status', statusWorld()], ['plans', planWorld()],
   ...argv.filter(([name]) => name === 'input').map(([, file]) => [path.basename(file), JSON.parse(fs.readFileSync(file, 'utf8'))])];
 fs.mkdirSync(out);
 const builds = [];
@@ -59,7 +60,7 @@ let browser, interruption = null;
 try {
   browser = await chromium.launch({ headless: true });
   for (const build of builds) {
-    for (const viewport of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }]) {
+    for (const viewport of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }, { width: 1920, height: 1080 }]) {
       current = build.dir;
       const page = await browser.newPage({ viewport });
       page.on('pageerror', error => pageErrors.push(String(error)));
@@ -142,6 +143,34 @@ try {
         check(where + ': labels stay inside their node', outside.length === 0, outside.slice(0, 5));
         check(where + ': no overlapping entity text', overlaps.length === 0, overlaps.slice(0, 5));
         check(where + ': status nodes carry color and symbol', wrongLook.length === 0, wrongLook.slice(0, 5));
+        // Timeline cells, with the plan detail closed and then open: the drawn
+        // text rectangle must lie inside its cell and inside the screen, and be
+        // the whole label. textContent alone would pass text drawn off-cell.
+        const timelineTexts = () => page.evaluate(() => {
+          const atlas = window.liveAtlas, adapter = atlas.adapter;
+          const screen = document.getElementById('atlas-world').getBoundingClientRect();
+          return { screen: { left: screen.left, top: screen.top, right: screen.right, bottom: screen.bottom },
+            cells: atlas.projection.scene.representations.filter(item => item.regionId.startsWith('timeline:')).map(item => {
+              const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
+              const box = state?.text?.node?.getBoundingClientRect?.() ?? null;
+              const shape = state?.shape?.node?.getBoundingClientRect?.() ?? null;
+              return { id: item.regionId, label: item.label, text: state?.text?.node?.textContent ?? '',
+                box: box && { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
+                shape: shape && { left: shape.left, top: shape.top, right: shape.right, bottom: shape.bottom } };
+            }) };
+        });
+        const timelineFailures = ({ screen, cells }) => cells.filter(item => !item.box || !item.shape
+          || flat(item.text) !== flat(item.label) || !item.text.trim()
+          || item.box.left < item.shape.left - LEADING || item.box.right > item.shape.right + LEADING
+          || item.box.top < item.shape.top - LEADING || item.box.bottom > item.shape.bottom + LEADING
+          || item.box.left < screen.left - 1 || item.box.right > screen.right + 1);
+        const closedCells = await timelineTexts();
+        check(where + ': timeline cell text inside its cell and the screen', timelineFailures(closedCells).length === 0, timelineFailures(closedCells).slice(0, 5));
+        await page.evaluate(() => { window.liveAtlas.page.planOpen = true; window.liveAtlas.setSession({}); });
+        const openCells = await timelineTexts();
+        check(where + ': open plan detail rows inside their row and the screen', openCells.cells.some(item => item.id.startsWith('timeline:plan-line:'))
+          && timelineFailures(openCells).length === 0, timelineFailures(openCells).slice(0, 5));
+        await page.evaluate(() => { window.liveAtlas.page.planOpen = false; window.liveAtlas.setSession({}); });
         measured.push({ where, entities: drawn.length, statuses: statusDrawn.length,
           suppliedEllipsis: drawn.filter(item => item.label.includes('…')).length });
       }
