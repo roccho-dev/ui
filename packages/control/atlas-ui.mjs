@@ -516,8 +516,25 @@ export const mountAtlasWorldUI = ({
     searchCount.title = searchCount.textContent;
   };
 
+  // Without the HUD there is no Fit control on screen, so the camera may not
+  // carry the World out of view: on each axis a World larger than the graph
+  // view must cover it, and a smaller one must stay inside it.
+  const clampCamera = world => {
+    const { scale, translateX, translateY } = adapter.camera();
+    const view = graphView();
+    const axis = (translate, start, size, worldStart, worldSize) => {
+      const a = start / scale - worldStart, b = (start + size) / scale - worldStart - worldSize;
+      return Math.min(Math.max(translate, Math.min(a, b)), Math.max(a, b));
+    };
+    const x = axis(translateX, view.x, view.width, world.x, world.width);
+    const y = axis(translateY, view.y, view.height, world.y, world.height);
+    if (Math.abs(x - translateX) < 1e-9 && Math.abs(y - translateY) < 1e-9) return false;
+    adapter.setCamera(scale, x, y);
+    return true;
+  };
+
   const draw = () => {
-    const projection = projectAtlasWorld({
+    const project = () => projectAtlasWorld({
       input: page.pair.input,
       receivedInput: page.input,
       frame: currentFrame(),
@@ -532,6 +549,9 @@ export const mountAtlasWorldUI = ({
       chrome,
       planOpen: page.planOpen,
     });
+    let projection = project();
+    // Screen-placed layers follow the camera, so project again if it moved.
+    if (chrome === 'none' && clampCamera(projection.world)) projection = project();
     page.projection = projection;
     page.detailPage = projection.detail.page;
     adapter.render(projection.scene);
