@@ -8,6 +8,11 @@ import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 export const TIMELINE_ID_PREFIX = 'timeline:';
 export const PLAN_UNDECLARED = '予定：計画未宣言（UNKNOWN）';
 export const PLAN_NONE = '予定：有効な計画 0 件';
+// The live connection as the strip states it: 'sample' (no `?events=`),
+// 'live' (connected) or 'disconnected' (asked for events, none arriving).
+export const TRANSPORT_LIVE = '受信中';
+export const TRANSPORT_DISCONNECTED = 'SSE 未接続';
+export const transportOf = ({ mode, connected }) => mode !== 'live' ? 'sample' : connected ? 'live' : 'disconnected';
 const CONTENT_UNKNOWN = '内容 UNKNOWN';
 
 // The plan cell's line for the displayed frame's plans (frame.plans):
@@ -76,6 +81,7 @@ export const projectTimeline = ({
   frame,
   latest = true,
   planOpen = false,
+  transport = 'sample',
   strip,
   camera = { scale: 1, translateX: 0, translateY: 0 },
 } = {}) => {
@@ -91,10 +97,16 @@ export const projectTimeline = ({
   const cell = (id, labels, share, { activation = null, look = 'control', atlas = {} } = {}) => cells.push({ id, labels, share, activation, look, atlas });
   const back = stepIndex(position, -1), forward = stepIndex(position, 1);
   const step = index < 0 ? '保持中' : (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count;
+  // The connection is part of every variant while it is lost, so no width
+  // can show a disconnected page as following the latest.
+  const [wordLong, wordShort] = transport === 'disconnected' ? [TRANSPORT_DISCONNECTED + '・最新か不明', TRANSPORT_DISCONNECTED]
+    : transport === 'live' ? [present && latest ? '最新に追従・' + TRANSPORT_LIVE : TRANSPORT_LIVE, TRANSPORT_LIVE]
+      : ['', ''];
+  const with_ = (text, word) => word ? text + ' · ' + word : text;
   const where = index < 0
-    ? ['表示中：保持中の frame ' + frame.id + '（最新入力に無い）', '表示中：保持中（最新入力に無い）', '保持中']
-    : ['表示中：' + step + ' · ' + frame.id + (present && latest ? ' · 最新に追従' : ''), '表示中：' + step + ' · ' + frame.id,
-      '表示中：' + step, step];
+    ? [with_('表示中：保持中の frame ' + frame.id + '（最新入力に無い）', wordLong), with_('表示中：保持中（最新入力に無い）', wordShort), with_('保持中', wordShort)]
+    : [with_('表示中：' + step + ' · ' + frame.id, wordLong), with_('表示中：' + step, wordLong), with_(step, wordShort),
+      transport === 'disconnected' ? TRANSPORT_DISCONNECTED : step];
   const toggle = planOpen ? '閉じる' : '詳細';
   cell('back', ['◀ 前へ · [', '◀ 前へ', '◀'], 1, back !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: -1 } } : { look: 'idle' });
   cell('position', where, 3, { look: 'idle', atlas: { index, count, present, frameId: frame.id } });

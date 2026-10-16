@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { stepIndex, timelinePosition } from './src/atlas-timeline.mjs';
+import { TRANSPORT_DISCONNECTED, stepIndex, timelinePosition, transportOf } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -512,7 +512,8 @@ export const mountAtlasWorldUI = ({
     choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
     searchCount.textContent = page.searchResults.length + ' results in supplied ' +
       (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
-      ' · ' + (page.latest ? 'LATEST' : 'HELD');
+      ' · ' + (page.latest ? 'LATEST' : 'HELD') +
+      (transportOf(page) === 'disconnected' ? ' · ' + TRANSPORT_DISCONNECTED : '');
     searchCount.title = searchCount.textContent;
   };
 

@@ -6,7 +6,7 @@ import { createGraphLayout } from '../../semantic-map/layout/graph.js';
 import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
-import { projectTimeline, timelinePosition } from './atlas-timeline.mjs';
+import { projectTimeline, timelinePosition, transportOf } from './atlas-timeline.mjs';
 
 const AREA_GAP = 40;
 const AREA_TOP = 56;
@@ -882,7 +882,8 @@ export const projectAtlasWorld = ({
     : Object.freeze([]);
   // The timeline is its own layer: present in every chrome. Its planned part
   // reads the displayed frame's supplied plans and nothing else.
-  const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen, strip: layout.timeline, camera });
+  const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen,
+    transport: transportOf({ mode, connected }), strip: layout.timeline, camera });
 
   return Object.freeze({
     scene: Object.freeze({
