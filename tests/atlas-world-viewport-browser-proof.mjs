@@ -96,8 +96,10 @@ try {
       check(where + ': every node box holds its label at the fixed label size', small.length === 0,
         { scale: state.camera.scale, small: small.slice(0, 4).map(node => ({ id: node.id, label: node.label, width: node.shape && node.shape.right - node.shape.left })) });
       check(where + ': drawn node text stays inside its box', spill.length === 0, spill.slice(0, 4));
-      check(where + ': the drawing is not shrunk', state.camera.scale >= Math.min(1, fitScale) * 0.99,
-        { scale: state.camera.scale, fitScale, world: state.world });
+      // The chrome-free view: Fit when the whole World fits at 1 or more,
+      // otherwise exactly 1, never below.
+      check(where + ': the drawing is at Fit and never below scale 1', state.camera.scale >= 1 - 1e-9
+        && Math.abs(state.camera.scale - Math.max(1, fitScale)) < 1e-6, { scale: state.camera.scale, fitScale, world: state.world });
       // A World taller than the view at its minimum scale is reached by the
       // wheel: scrolling down brings its lowest node into the graph view.
       const overflow = state.world.height * state.camera.scale - state.graph.height;
@@ -115,6 +117,36 @@ try {
           return { lowest: Math.max(...bottoms) - top, limit: graph.y + graph.height, scale: adapter.camera().scale };
         });
         check(where + ': scrolling brings the lowest node into view at the same scale', reach.lowest <= reach.limit + 1 && reach.scale === state.camera.scale, reach);
+      }
+      // Scrolling too far in any direction keeps part of the World on screen,
+      // and L (現在へ戻る) always leaves the World visible.
+      const visibleNodes = () => page.evaluate(() => {
+        const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
+        const top = document.getElementById('atlas-world').getBoundingClientRect();
+        const graph = atlas.projection.viewport.graph;
+        const g = { left: top.left + graph.x, top: top.top + graph.y, right: top.left + graph.x + graph.width, bottom: top.top + graph.y + graph.height };
+        const nodes = atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity');
+        const seen = nodes.filter(item => {
+          const box = view.getState(adapter.cellsByRegionId.get(item.regionId))?.shape?.node?.getBoundingClientRect?.();
+          return box && box.right > g.left && box.left < g.right && box.bottom > g.top && box.top < g.bottom;
+        });
+        return { seen: seen.length, total: nodes.length };
+      });
+      const container = await page.evaluate(() => document.getElementById('atlas-world').getBoundingClientRect().toJSON());
+      for (const [name, dx, dy] of [['down', 0, 400], ['up', 0, -400], ['right', 400, 0], ['left', -400, 0]]) {
+        await page.evaluate(() => window.liveAtlas.fit());
+        await page.mouse.move(container.left + container.width / 2, container.top + state.graph.y + 40);
+        for (let turn = 0; turn < 30; turn += 1) await page.mouse.wheel(dx, dy);
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const after = await visibleNodes();
+        check(where + ': scrolling far ' + name + ' leaves part of the World on screen', after.seen > 0, after);
+        if (name === 'down') {
+          await page.focus('#atlas-world');
+          await page.keyboard.press('l');
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          const back = await visibleNodes();
+          check(where + ': after scrolling too far, L leaves the World visible', back.seen > 0, back);
+        }
       }
       check(where + ': no page or console errors', errors.length === 0, errors);
       measured.push({ where, scale: state.camera.scale, fitScale, world: [Math.round(state.world.width), Math.round(state.world.height)], nodes: state.nodes.length });
