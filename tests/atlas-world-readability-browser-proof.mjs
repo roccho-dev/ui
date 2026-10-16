@@ -1,0 +1,131 @@
+// Rendered readability of the chrome-free World. Run inside the
+// semantic-map-browser-proof Nix shell:
+//   node tests/atlas-world-readability-browser-proof.mjs --out=<fresh absent directory> [--input=<World JSON> ...]
+// For the bundled World, a status World and any given World, at 1280x720 and
+// 1500x1000 after Fit: every entity label is drawn whole (the drawn text is the
+// projected label: nothing dropped or cut by the UI), none is empty, no two
+// entity texts overlap, and each status node is drawn with its color and
+// symbol. Ellipses already present in a supplied label are counted separately:
+// they come from the supplier, not from this UI.
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { ATLAS_STATUS } from '../packages/control/src/atlas-world-projection.mjs';
+import { statusWorld } from './fixtures/atlas-readability-worlds.mjs';
+import { bundledWorld } from './fixtures/atlas-timeline-frames.mjs';
+
+const argv = process.argv.slice(2).map(argument => {
+  const index = argument.indexOf('=');
+  if (!argument.startsWith('--') || index < 3) throw new Error('expected --name=value, got ' + argument);
+  return [argument.slice(2, index), argument.slice(index + 1)];
+});
+const out = argv.find(([name]) => name === 'out')?.[1];
+if (!out) throw new Error('--out is required');
+const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
+if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.PLAYWRIGHT_BROWSERS_PATH ?? '')) {
+  throw new Error('run inside the semantic-map-browser-proof Nix shell');
+}
+const { chromium } = createRequire(import.meta.url)(driverRoot);
+
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-readability-'));
+const worlds = [['bundled', bundledWorld()], ['status', statusWorld()],
+  ...argv.filter(([name]) => name === 'input').map(([, file]) => [path.basename(file), JSON.parse(fs.readFileSync(file, 'utf8'))])];
+fs.mkdirSync(out);
+const builds = [];
+for (const [name, world] of worlds) {
+  const input = path.join(scratch, builds.length + '.json');
+  fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
+  const dir = path.join(out, String(builds.length));
+  builds.push({ name, dir, receipt: await buildLiveAtlas({ input, out: dir, consumer: 'app', chrome: 'none' }) });
+}
+
+let current = null;
+const server = http.createServer((request, response) => {
+  const body = fs.readFileSync(path.join(path.resolve(current), 'index.html'));
+  response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
+  response.end(body);
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const origin = 'http://127.0.0.1:' + server.address().port + '/';
+
+const checks = [];
+const check = (name, pass, detail = null) => checks.push({ name, pass: Boolean(pass), ...(pass ? {} : { detail }) });
+const measured = [];
+const pageErrors = [], consoleErrors = [];
+let browser, interruption = null;
+try {
+  browser = await chromium.launch({ headless: true });
+  for (const build of builds) {
+    for (const viewport of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }]) {
+      current = build.dir;
+      const page = await browser.newPage({ viewport });
+      page.on('pageerror', error => pageErrors.push(String(error)));
+      page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+      const frames = await (async () => {
+        await page.goto(origin, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+        return page.evaluate(() => window.liveAtlas.input.frames.length);
+      })();
+      for (let step = 0; step < frames; step += 1) {
+        if (step > 0) { await page.focus('#atlas-world'); await page.keyboard.press('['); }
+        await page.evaluate(() => window.liveAtlas.fit());
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const drawn = await page.evaluate(() => {
+          const atlas = window.liveAtlas, adapter = atlas.adapter;
+          return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
+            const cell = adapter.cellsByRegionId.get(item.regionId);
+            const state = cell ? adapter.graph.getView().getState(cell) : null;
+            const node = state?.text?.node ?? null;
+            const box = node?.getBoundingClientRect();
+            const shape = state?.shape?.node?.getBoundingClientRect?.() ?? null;
+            const style = state?.style ?? {};
+            return { id: item.regionId, label: item.label, status: item.atlas.status, text: node?.textContent ?? '',
+              box: box && { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
+              shape: shape && { left: shape.left, top: shape.top, right: shape.right, bottom: shape.bottom },
+              fill: style.fillColor ?? null, stroke: style.strokeColor ?? null };
+          });
+        });
+        const where = build.name + ' frame ' + step + ' at ' + viewport.width + 'x' + viewport.height;
+        const flat = value => value.replace(/\s/gu, '');
+        const cut = drawn.filter(item => flat(item.text) !== flat(item.label));
+        const empty = drawn.filter(item => !item.text.trim() || !item.box || item.box.right - item.box.left <= 0);
+        // The text box is the SVG line box, whose leading extends below the
+        // glyphs; up to 2 px of it may pass the node edge without any ink.
+        const LEADING = 2;
+        const outside = drawn.filter(item => item.box && item.shape && (item.box.left < item.shape.left - LEADING || item.box.right > item.shape.right + LEADING
+          || item.box.top < item.shape.top - LEADING || item.box.bottom > item.shape.bottom + LEADING));
+        const overlaps = [];
+        for (let i = 0; i < drawn.length; i += 1) for (let j = i + 1; j < drawn.length; j += 1) {
+          const a = drawn[i].box, b = drawn[j].box;
+          if (a && b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) overlaps.push([drawn[i].id, drawn[j].id]);
+        }
+        const statusDrawn = drawn.filter(item => item.status);
+        const wrongLook = statusDrawn.filter(item => !item.text.startsWith(ATLAS_STATUS[item.status].symbol)
+          || item.fill?.toLowerCase() !== ATLAS_STATUS[item.status].appearance.fillColor.toLowerCase()
+          || item.stroke?.toLowerCase() !== ATLAS_STATUS[item.status].appearance.strokeColor.toLowerCase());
+        check(where + ': every label drawn whole (no UI cut or drop)', cut.length === 0, cut.slice(0, 5));
+        check(where + ': no empty label', empty.length === 0, empty.slice(0, 5));
+        check(where + ': labels stay inside their node', outside.length === 0, outside.slice(0, 5));
+        check(where + ': no overlapping entity text', overlaps.length === 0, overlaps.slice(0, 5));
+        check(where + ': status nodes carry color and symbol', wrongLook.length === 0, wrongLook.slice(0, 5));
+        measured.push({ where, entities: drawn.length, statuses: statusDrawn.length,
+          suppliedEllipsis: drawn.filter(item => item.label.includes('…')).length });
+      }
+      await page.close();
+    }
+  }
+  check('no browser page/console errors', pageErrors.length === 0 && consoleErrors.length === 0, { pageErrors, consoleErrors });
+} catch (error) {
+  interruption = String(error?.stack ?? error);
+} finally {
+  await browser?.close();
+  await new Promise(resolve => server.close(resolve));
+}
+const failed = checks.filter(item => !item.pass);
+const result = { schema: 'atlas-world-readability-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',
+  builds: builds.map(item => ({ name: item.name, output: item.receipt.output })), checks: checks.length, measured, failed, interruption };
+console.log(JSON.stringify(result));
+if (result.status !== 'PASS') process.exitCode = 1;
