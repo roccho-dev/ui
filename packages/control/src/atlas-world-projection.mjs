@@ -4,7 +4,6 @@
 
 import { createGraphLayout } from '../../semantic-map/layout/graph.js';
 import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
-import { fitCamera } from '../../semantic-map/camera-fit.js';
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 import { projectTimeline, timelinePosition } from './atlas-timeline.mjs';
@@ -337,8 +336,8 @@ const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
 };
 
 // Content-fitted layout for an area without containment. Node text is drawn
-// at a fixed screen size, so each box is sized in screen pixels for the
-// expected camera scale (`textScale`, world units per pixel inverted): wide
+// at a fixed screen size, so each box is sized in screen pixels for a camera
+// scale of `textScale` (1 in the app; Fit never goes below it): wide
 // enough for its longest line, tall enough for its lines, never wider than
 // LABEL_MAX_PX — longer lines are broken into more lines instead
 // (atlas-text.mjs).
@@ -610,6 +609,9 @@ export const projectWorldScene = ({
     groupByRelationId,
     omittedRelationIds: Object.freeze([...new Set(grouped.omitted)].sort()),
     omittedEntityIds: Object.freeze([...new Set(omittedEntityIds)].sort()),
+    // True when some area drew content-fitted boxes, which hold their text
+    // only at a camera scale of at least `textScale`.
+    contentFitted: areas.some(area => !nestedAreas.has(area.id) && (areaEntities.get(area.id) ?? []).length > 0),
   });
 };
 
@@ -863,16 +865,14 @@ export const projectAtlasWorld = ({
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world: unsupported chrome ' + chrome);
   const fullLayout = worldViewport(viewport);
   const layout = chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false });
-  // Size content-fitted boxes for the scale Fit will choose: start at 1 and,
-  // while Fit would be smaller, size for slightly less than that scale.
-  let textScale = 1;
-  let scene = projectWorldScene({ input, frame, mode, connected, latest, admission, textScale });
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const fitted = fitCamera(scene.world, layout.graph, 0.94).scale;
-    if (fitted >= textScale) break;
-    textScale = fitted * 0.97;
-    scene = projectWorldScene({ input, frame, mode, connected, latest, admission, textScale });
-  }
+  // Content-fitted boxes are sized for scale 1, whatever the viewport, so the
+  // World does not change size with the window. `minScale` tells Fit not to
+  // go below 1 when such boxes are drawn, and always in the chrome-free view,
+  // whose node text is the whole screen: a World larger than the view is
+  // panned, never shrunk until its text no longer fits. The HUD view keeps
+  // its whole-World overview for nested Worlds.
+  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission });
+  const minScale = scene.contentFitted || chrome === 'none' ? 1 : null;
   // The detail is paged against the full layout's panel in both chromes, so the
   // selected record's text and pages do not depend on what is drawn.
   const detail = projectDetail({ input, receivedInput, frame, counterpart, selected, mode, connected, latest, admission,
@@ -894,6 +894,7 @@ export const projectAtlasWorld = ({
       selectionProxies: Object.freeze({}),
     }),
     world: scene.world,
+    minScale,
     selected: Object.freeze({ key: selected, record: detail.currentRecord ?? null, counterpart: detail.counterpartRecord ?? null, comparison: detail.comparison }),
     selectedRegionId: focusRegion({ chrome, scene, detail, selected }),
     aggregateRelationIds: detail.aggregateRelationIds,
