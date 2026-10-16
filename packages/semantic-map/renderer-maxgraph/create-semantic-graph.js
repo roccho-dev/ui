@@ -32,7 +32,9 @@ export const createSemanticGraph = options => {
     x, y, parent, vertices, edges,
     (state, px, py) => (
       state.cell?.semantic?.mode === 'boundary'
-      || (state.cell?.semantic?.readOnly === true && !state.cell?.semantic?.activation)
+      || (state.cell?.semantic?.type === 'region'
+        && state.cell?.semantic?.readOnly === true
+        && !state.cell?.semantic?.activation)
       || Boolean(ignoreFn?.(state, px, py))
     ),
   );

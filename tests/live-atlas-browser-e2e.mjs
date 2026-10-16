@@ -489,6 +489,113 @@ try {
     await context.close();
   }
 
+  // Exercise bounded history through the public HTML, model and revision control.
+  {
+    const history = await resolveHistory(fixture);
+    const seed = history.snapshots.at(-1);
+    const epoch = Date.now() - 200000;
+    const envelope = rev => restamp(seed, rev, epoch + rev * 1000);
+    const initial = Array.from({ length: 64 }, (_, index) => envelope(index + 1));
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await context.setOffline(true);
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(String(error)));
+    await page.goto(sampleUrl);
+    await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true');
+    const reset = () => page.evaluate(async snapshots => {
+      const { loadHistory } = await import('ui:packages/control/src/live-atlas.mjs');
+      const state = loadHistory({ kind: 'ui.liveAtlasHistory.v1', complete: true, snapshots });
+      window.liveAtlas.setSession({ state, mode: 'live', connected: true, now: Date.now(), latest: true });
+    }, initial);
+    const publish = snapshots => page.evaluate(async updates => {
+      const { applyEnvelope } = await import('ui:packages/control/src/live-atlas.mjs');
+      const atlas = window.liveAtlas;
+      const violations = [];
+      for (const input of updates) {
+        const now = Date.now();
+        const state = applyEnvelope(atlas.state, input, { now });
+        atlas.setSession({ state, now });
+        const retained = new Set([...state.history, state.held].filter(Boolean).map(snapshot => snapshot.rev));
+        const outside = [...atlas.page.layouts.keys()].filter(rev => !retained.has(rev));
+        if (outside.length || atlas.page.layouts.size > retained.size) violations.push({ rev: input.rev, outside });
+      }
+      return violations;
+    }, snapshots);
+    const readViewed = () => {
+      const atlas = window.liveAtlas;
+      const state = atlas.state;
+      const snapshot = atlas.page.revIndex === null ? state.held : state.history[atlas.page.revIndex];
+      return { rev: snapshot?.rev, held: state.held.rev, index: atlas.page.revIndex,
+        mode: document.getElementById('atlas-mode').textContent,
+        notice: document.querySelector('#atlas-banners > summary').textContent,
+        revisionLabel: document.getElementById('atlas-rev-label').textContent,
+        audit: document.querySelector('#atlas-audit tbody td')?.textContent,
+        selected: atlas.page.selected, camera: atlas.adapter.camera(),
+        history: state.history.map(item => item.rev), layouts: [...atlas.page.layouts.keys()], gaps: state.gaps };
+    };
+
+    await reset();
+    await page.locator('#atlas-scopes button').filter({ hasText: '(ws-ci)' }).first().click();
+    await page.evaluate(() => window.liveAtlas.zoomBy(1.3));
+    await page.locator('#atlas-rev').fill('9');
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const before = await page.evaluate(readViewed);
+    await publish([envelope(65)]);
+    const retained = await page.evaluate(readViewed);
+    check('64-to-65 publication keeps viewed rev10 and renders its source rows',
+      before.rev === 10 && retained.rev === 10 && retained.held === 65
+      && /HISTORY · rev 10 ·/u.test(retained.mode) && /^rev 10 /u.test(retained.audit), { before, retained });
+    check('retained history update preserves logical selection and camera',
+      retained.selected === before.selected && JSON.stringify(retained.camera) === JSON.stringify(before.camera), { before, retained });
+
+    await reset();
+    await page.locator('#atlas-rev').fill('0');
+    await publish([envelope(65)]);
+    const expired = await page.evaluate(readViewed);
+    await page.locator('#atlas-banners > summary').click();
+    const expiryNoticeVisible = await page.locator('#atlas-banners p').filter({ hasText: 'Viewed revision 1 expired' }).isVisible();
+    check('expired viewed rev1 falls back to oldest retained rev2 with a visible explanation',
+      expiryNoticeVisible && expired.rev === 2 && expired.history[0] === 2 && /HISTORY · rev 2 ·/u.test(expired.mode)
+      && /^rev 2 /u.test(expired.audit)
+      && /Viewed revision 1 expired from retained history\. Showing oldest retained revision 2\./u.test(expired.notice), expired);
+    await page.locator('#atlas-rev').fill('63');
+    await publish([envelope(66)]);
+    const latest = await page.evaluate(readViewed);
+    check('choosing latest clears expiry and resumes following new revisions',
+      latest.index === null && latest.rev === 66 && latest.held === 66
+      && /LIVE · connected · rev 66 ·/u.test(latest.mode) && !/expired from retained history/u.test(latest.notice), latest);
+
+    // Visit all retained layouts, then trim more than one complete window.
+    await page.evaluate(() => {
+      const slider = document.getElementById('atlas-rev');
+      for (let index = 0; index < window.liveAtlas.state.history.length; index += 1) {
+        slider.value = String(index);
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    const filled = await page.evaluate(readViewed);
+    const updates = Array.from({ length: 66 }, (_, index) => index + 67).filter(rev => rev !== 68).map(envelope);
+    const violations = await publish(updates);
+    const trimmed = await page.evaluate(readViewed);
+    check('repeated history eviction keeps every cached layout inside history/held',
+      filled.layouts.length === 64 && trimmed.history.length === 64 && trimmed.layouts.length <= 64
+      && violations.length === 0 && trimmed.layouts.every(rev => trimmed.history.includes(rev) || rev === trimmed.held),
+      { filled: filled.layouts, trimmed, violations });
+    check('gap evidence survives even after its source revision leaves the window',
+      trimmed.rev === 132 && !trimmed.history.includes(67)
+      && trimmed.gaps.some(gap => gap.fromRev === 67 && gap.toRev === 69)
+      && /gaps 67→69/u.test(trimmed.revisionLabel), trimmed);
+    check('repeated eviction preserves selection and camera',
+      trimmed.selected === latest.selected && JSON.stringify(trimmed.camera) === JSON.stringify(latest.camera), { latest, trimmed });
+    await page.getByRole('button', { name: 'Fit', exact: true }).click();
+    const fitted = await page.evaluate(readScreen);
+    check('Fit remains an actual working control after repeated history eviction',
+      fitted.outside.length === 0 && await page.evaluate(() => window.liveAtlas.projection.lod) === 'far', fitted);
+    check('bounded history browser path raised no error', errors.length === 0, errors);
+    await context.close();
+  }
+
   // Served live mode: the same file consumes an external producer.
   {
     const history = await resolveHistory(fixture);
@@ -503,6 +610,14 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
+    await page.addInitScript(() => {
+      const original = globalThis.setInterval;
+      globalThis.__atlasTestTicks = [];
+      globalThis.setInterval = (callback, delay, ...args) => {
+        if (delay === 1000) globalThis.__atlasTestTicks.push(() => callback(...args));
+        return original(callback, delay, ...args);
+      };
+    });
     await page.goto(`${sampleUrl}?events=${encodeURIComponent(producer.url)}`);
     await page.waitForFunction(() => window.liveAtlas?.state.held?.rev === 1, null, { timeout: 15000 });
     const mode = () => page.locator('#atlas-mode').innerText();
@@ -537,6 +652,23 @@ try {
       /HISTORY · rev 1/u.test(await mode()) && await page.locator('#atlas-rev').inputValue() === '0', await mode());
     await page.locator('#atlas-rev').fill('2');
     check('choosing latest returns to current live revision', /^activity current · LIVE · connected · rev 4/u.test(await mode()), await mode());
+
+    const ttl = await page.evaluate(() => {
+      const atlas = window.liveAtlas;
+      const expiredNow = Date.parse(atlas.state.held.asOf) + atlas.state.held.maxAgeMs + 1;
+      const originalNow = Date.now;
+      try {
+        Date.now = () => expiredNow;
+        for (const tick of globalThis.__atlasTestTicks) tick();
+        return { timers: globalThis.__atlasTestTicks.length, now: atlas.page.now, expiredNow,
+          mode: document.getElementById('atlas-mode').textContent,
+          tokens: atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'scope').map(item => item.atlas.token) };
+      } finally { Date.now = originalNow; }
+    });
+    check('legacy app retains its one-second TTL callback and downgrades expired activity',
+      ttl.timers === 1 && ttl.now === ttl.expiredNow
+      && /activity UNKNOWN \(snapshot is older than maxAgeMs\)/u.test(ttl.mode)
+      && ttl.tokens.length > 0 && ttl.tokens.every(token => token === '?'), ttl);
 
     check('live page raised no error', errors.length === 0, errors);
     await context.close();

@@ -1,4 +1,4 @@
-import { TOPOLOGY_SPACE } from '../../../domain/index.js';
+import { TOPOLOGY_SPACE } from '../../../domain/coordinate-spaces.js';
 
 export const GRAPH_PATTERN = 'graph/1';
 const TERMINAL_KINDS = new Set(['start', 'end', 'terminal', 'initial', 'final']);

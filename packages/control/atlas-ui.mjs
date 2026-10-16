@@ -10,6 +10,9 @@ import {
 } from './src/live-atlas.mjs';
 import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
+import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
+import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
+import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}
@@ -69,7 +72,7 @@ export const mountAtlasUI = ({
   const style = el('style', { 'data-live-atlas-style': 'true', text: STYLE });
   root.append(style);
   const page = {
-    mode: initialMode, connected, state, revIndex: null,
+    mode: initialMode, connected, state, revIndex: null, expiredRev: null,
     selected, query: '', projection: null, fitScale: 1, readability: null, layouts: new Map(),
     now, drawing: false, destroyed: false,
   };
@@ -215,6 +218,7 @@ export const mountAtlasUI = ({
     // Notices that change what the picture means come first.
     const critical = [];
     const notes = [];
+    if (page.expiredRev !== null && snapshot) critical.push(`Viewed revision ${page.expiredRev} expired from retained history. Showing oldest retained revision ${snapshot.rev}.`);
     if (page.projection && !page.projection.supported) critical.push(`Unsupported: ${page.projection.diagnostic}. Every source row stays in the audit below.`);
     if (page.readability?.unreadable.length) critical.push(`Degraded: ${page.readability.unreadable.length} of ${page.readability.chips} scope chips are not readable at fit in this viewport; use the scope table below.`);
     if (state.attempt && state.attempt.outcome !== 'accepted') {
@@ -367,6 +371,7 @@ export const mountAtlasUI = ({
   revInput.addEventListener('input', () => {
     const index = Number(revInput.value);
     page.revIndex = index >= page.state.history.length - 1 ? null : index;
+    page.expiredRev = null;
     draw();
     panels();
   });
@@ -380,11 +385,23 @@ export const mountAtlasUI = ({
     latest = false,
   } = {}) => {
     if (page.destroyed) return;
+    // Preserve the viewed identity when the bounded history shifts its indices.
+    const previousRev = page.revIndex === null ? null : viewed()?.rev;
     page.state = state;
     page.mode = mode;
     page.connected = connected;
     page.now = now;
-    if (latest) page.revIndex = null;
+    if (latest) {
+      page.revIndex = null;
+      page.expiredRev = null;
+    } else if (previousRev !== null && previousRev !== undefined) {
+      const index = state.history.findIndex(snapshot => snapshot.rev === previousRev);
+      page.revIndex = Math.max(0, index);
+      if (index < 0) page.expiredRev = previousRev;
+    }
+    const retained = new Set(state.history.map(snapshot => snapshot.rev));
+    if (state.held) retained.add(state.held.rev);
+    for (const rev of page.layouts.keys()) if (!retained.has(rev)) page.layouts.delete(rev);
     update();
   };
   const tick = now => {
@@ -413,5 +430,340 @@ export const mountAtlasUI = ({
     get state() { return page.state; },
     get projection() { return page.projection; },
     lodFor,
+  });
+};
+
+
+const WORLD_STYLE = `
+body{margin:0;overflow:hidden}
+#atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
+#atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
+#atlas-world svg text{white-space:pre}
+#atlas-world-search-bar{box-sizing:border-box;flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:4px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
+#atlas-world-search{width:20%;min-width:80px;font:inherit}
+#atlas-world-search-results{width:42%;min-width:80px;font:inherit}
+#atlas-world-search-count{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+`;
+
+export const mountAtlasWorldUI = ({
+  root = document.body,
+  input,
+  mode: initialMode = 'sample',
+  connected = false,
+  now = 0,
+  selected = null,
+  onSelect = null,
+} = {}) => {
+  if (!root?.append) throw new Error('atlas-world-ui: mount root required');
+  const worldInput = parseAtlasWorldInput(input);
+  const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
+  const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
+  const search = el('input', { type: 'search', id: 'atlas-world-search', placeholder: 'Search supplied records', 'aria-label': 'Search displayed World records' });
+  const choices = el('select', { id: 'atlas-world-search-results', 'aria-label': 'World search results' });
+  const searchCount = el('span', { id: 'atlas-world-search-count', role: 'status' });
+  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount);
+  const screen = el('div', { id: 'atlas-world-screen' }, searchBar, container);
+  root.append(style, screen);
+
+  const page = {
+    kind: 'world',
+    query: '',
+    searchResults: [],
+    input: worldInput,
+    frameIndex: worldInput.frames.length - 1,
+    latest: true,
+    pair: worldPair(worldInput),
+    side: 'after',
+    detailTab: 'record',
+    detailPage: 0,
+    detailPages: {},
+    admission: null,
+    selected: selected || entityKey(worldInput.presentation.defaultSelection),
+    mode: initialMode,
+    connected,
+    now,
+    projection: null,
+    destroyed: false,
+  };
+
+  const adapter = createMaxGraphAdapter(container, { theme: { ...DEFAULT_THEME,
+    vertex: { ...DEFAULT_THEME.vertex, fontSize: 13, deepFontSize: 13, fontStyle: 0 } } });
+  adapter.setTool('select');
+  let suppressSelection = false;
+  let cameraFrame = 0;
+
+  const currentFrame = () => page.side === 'before' && page.pair.before ? page.pair.before : page.pair.after;
+  const counterpartFrame = () => page.side === 'before' && page.pair.before ? page.pair.after : page.pair.before;
+  const viewport = () => ({ width: container.clientWidth, height: container.clientHeight });
+  const renderSearch = () => {
+    const frame = currentFrame();
+    page.searchResults = searchAtlasWorld(frame, page.query);
+    choices.replaceChildren(el('option', { value: '', text: 'Select a supplied record' }),
+      ...page.searchResults.map(({ key, record }) => el('option', {
+        value: key, text: (record.label || record.kind || key) + ' · ' + key,
+      })));
+    choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
+    searchCount.textContent = page.searchResults.length + ' results in supplied ' +
+      (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
+      ' · ' + (page.latest ? 'LATEST' : 'HELD');
+    searchCount.title = searchCount.textContent;
+  };
+
+  const draw = () => {
+    const projection = projectAtlasWorld({
+      input: page.pair.input,
+      receivedInput: page.input,
+      frame: currentFrame(),
+      counterpart: counterpartFrame(),
+      selected: page.selected,
+      mode: page.mode,
+      connected: page.connected,
+      latest: page.latest,
+      scale: adapter.camera().scale,
+      camera: adapter.camera(), viewport: viewport(),
+      detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
+    });
+    page.projection = projection;
+    page.detailPage = projection.detail.page;
+    adapter.render(projection.scene);
+    adapter.setFocusMarker(projection.selectedRegionId);
+    renderSearch();
+    return projection;
+  };
+
+  const fit = () => {
+    const projection = page.projection ?? draw();
+    const view = worldViewport(viewport()).graph;
+    const camera = fitCamera(projection.world, view, 0.94);
+    adapter.setCamera(camera.scale, camera.translateX + view.x / camera.scale, camera.translateY + view.y / camera.scale);
+    draw();
+  };
+
+  const zoomBy = (factor, at = { x: container.clientWidth / 2, y: container.clientHeight / 2 }) => {
+    const { scale, translateX, translateY } = adapter.camera();
+    const next = Math.max(0.05, Math.min(20, scale * factor));
+    adapter.setCamera(next, translateX + at.x / next - at.x / scale, translateY + at.y / next - at.y / scale);
+    draw();
+  };
+
+  const syncGraphSelection = key => {
+    suppressSelection = true;
+    try {
+      if (String(key).startsWith('relation:')) adapter.setSelection({ relationIds: [key] });
+      else adapter.setSelection({});
+    } finally {
+      suppressSelection = false;
+    }
+  };
+
+  const select = (key, { sync = true, inspect = false } = {}) => {
+    if (typeof key !== 'string' || !key) return;
+    if (page.selected !== key || inspect) { page.detailPages[page.detailTab] = page.detailPage; page.detailPage = 0; page.detailTab = 'record'; }
+    page.selected = key;
+    onSelect?.(key);
+    draw();
+    if (sync) syncGraphSelection(key);
+  };
+
+  const onSearchInput = () => {
+    if (page.destroyed) return;
+    page.query = search.value;
+    // A fixed-height native bar leaves camera, pair and qualified selection intact.
+    draw();
+  };
+  const onSearchSelection = () => {
+    if (page.destroyed) return;
+    const key = choices.value;
+    if (page.searchResults.some(row => row.key === key)) select(key, { inspect: true });
+  };
+  search.addEventListener('input', onSearchInput);
+  choices.addEventListener('change', onSearchSelection);
+
+  const selectRef = ref => select(entityKey(ref));
+  const selectRelationRef = ref => select(relationKey(ref));
+
+  const cycle = ids => {
+    if (!ids?.length) return;
+    const index = Math.max(-1, ids.indexOf(page.selected));
+    select(ids[(index + 1) % ids.length]);
+  };
+
+  adapter.setActivationHandler(activation => {
+    if (activation?.type === 'atlas.world.select') select(activation.id, { inspect: true });
+    else if (activation?.type === 'atlas.world.next-aggregate') cycle(page.projection?.aggregateRelationIds);
+    else if (activation?.type === 'atlas.world.next-omitted') cycle(page.projection?.omittedRelationIds);
+    else if (activation?.type === 'atlas.world.next-omitted-entity') cycle(page.projection?.omittedEntityIds);
+    else if (activation?.type === 'atlas.world.frame-before') showSide('before');
+    else if (activation?.type === 'atlas.world.frame-after') showSide('after');
+    else if (activation?.type === 'atlas.world.latest') followLatest();
+    else if (activation?.type === 'atlas.world.tab') { page.detailPages[page.detailTab] = page.detailPage; page.detailTab = activation.value; page.detailPage = page.detailPages[activation.value] ?? 0; draw(); }
+    else if (activation?.type === 'atlas.world.detail-next') turnPage(1);
+    else if (activation?.type === 'atlas.world.detail-previous') turnPage(-1);
+    else if (activation?.type === 'atlas.world.endpoint' && activation.value) select(activation.value, { inspect: true });
+    else if (activation?.type === 'atlas.world.fit') fit();
+    else if (activation?.type === 'atlas.world.focus') focusSelected();
+    else if (activation?.type === 'atlas.world.tool-select') adapter.setTool('select');
+    else if (activation?.type === 'atlas.world.tool-hand') adapter.setTool('hand');
+  });
+
+  adapter.onSelectionChange(selection => {
+    if (suppressSelection || !selection.relationIds.length) return;
+    select(selection.relationIds[0], { sync: false });
+  });
+
+  const updateFrameIndex = () => { page.frameIndex = page.input.frames.findIndex(frame => frame.id === currentFrame().id); };
+  const showSide = side => {
+    page.side = side === 'before' && page.pair.before ? 'before' : 'after';
+    page.latest = false;
+    page.detailPage = 0;
+    updateFrameIndex();
+    draw();
+    syncGraphSelection(page.selected);
+  };
+  const followLatest = () => {
+    page.pair = worldPair(page.input);
+    page.side = 'after';
+    page.latest = true;
+    page.detailPage = 0;
+    updateFrameIndex();
+    draw();
+    syncGraphSelection(page.selected);
+  };
+  const setFrame = (index, { latest = false } = {}) => {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= page.input.frames.length) return;
+    if (latest) { followLatest(); return; }
+    if (index === 0) showSide('before');
+    else if (index === page.input.frames.length - 1) showSide('after');
+    else { page.pair = worldPair(page.input, index); showSide('after'); }
+  };
+  const turnPage = delta => {
+    page.detailPage = Math.max(0, Math.min(page.projection.detail.pageCount - 1, page.detailPage + delta));
+    draw();
+  };
+  const rejectInput = reason => {
+    if (page.destroyed) return;
+    // No state supplied by the rejected payload is admitted. This receipt is UI
+    // status; it never becomes observation time or owner comparison evidence.
+    page.admission = Object.freeze({ status: 'rejected', reason: String(reason) });
+    draw();
+  };
+  const setSession = ({
+    input: nextInput = page.input,
+    mode = page.mode,
+    connected: nextConnected = page.connected,
+    now: nextNow = page.now,
+    latest = page.latest,
+    reportInvalid = false,
+  } = {}) => {
+    if (page.destroyed) return;
+    const supplied = nextInput !== page.input;
+    // Validate before any mutation. The app requests a visible admission
+    // receipt; direct callers still detect invalid input by throw. Rendering
+    // failures are not mislabeled as input rejection.
+    let accepted;
+    try { accepted = supplied ? parseAtlasWorldInput(nextInput) : page.input; }
+    catch (error) {
+      if (!reportInvalid) throw error;
+      rejectInput(error.message);
+      return;
+    }
+    page.input = accepted;
+    if (supplied) page.admission = null;
+    page.mode = mode;
+    page.connected = nextConnected;
+    page.now = nextNow;
+    page.latest = latest;
+    if (latest) { page.pair = worldPair(accepted); page.side = 'after'; }
+    // Held input, both frame contents, presentation and owner receipts stay
+    // referenced as one immutable pair, even when absent in the next payload.
+    updateFrameIndex();
+    draw();
+    syncGraphSelection(page.selected);
+  };
+
+  const tick = nextNow => {
+    if (page.destroyed) return;
+    page.now = nextNow;
+  };
+
+  const focusSelected = () => {
+    const id = page.projection?.selectedRegionId;
+    const cell = id ? adapter.cellsByRegionId.get(id) : null;
+    const bounds = cell?.getGeometry?.();
+    if (!bounds) return;
+    if (cell.semantic?.zIndex >= 10000) return;
+    const view = worldViewport(viewport()).graph;
+    const camera = fitCamera({ x: bounds.x - 24, y: bounds.y - 24, width: bounds.width + 48, height: bounds.height + 48 }, view, 0.94);
+    adapter.setCamera(camera.scale, camera.translateX + view.x / camera.scale, camera.translateY + view.y / camera.scale);
+    draw();
+  };
+
+  const onKeyDown = event => {
+    if (event.key === 's' || event.key === 'S') adapter.setTool('select');
+    else if (event.key === 'h' || event.key === 'H') adapter.setTool('hand');
+    else if (event.key === 'f' || event.key === 'F') focusSelected();
+    else if (event.key === '0' || event.key === 'Escape') fit();
+    else if (event.key === '[') showSide('before');
+    else if (event.key === ']') showSide('after');
+    else if (event.key === 'l' || event.key === 'L') followLatest();
+    else if (event.key === 'PageDown') turnPage(1);
+    else if (event.key === 'PageUp') turnPage(-1);
+    else return;
+    event.preventDefault();
+  };
+  container.addEventListener('keydown', onKeyDown);
+
+  const onWheel = event => {
+    event.preventDefault();
+    const box = container.getBoundingClientRect();
+    if (event.clientY - box.top >= page.projection.viewport.panel.y) turnPage(event.deltaY < 0 ? -1 : 1);
+    else zoomBy(event.deltaY < 0 ? 1.2 : 1 / 1.2, { x: event.clientX - box.left, y: event.clientY - box.top });
+  };
+  const onResize = () => fit();
+  const onCameraChange = () => {
+    if (page.destroyed || cameraFrame) return;
+    cameraFrame = requestAnimationFrame(() => {
+      cameraFrame = 0;
+      if (!page.destroyed) draw();
+    });
+  };
+  container.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('resize', onResize);
+  adapter.onCameraChange(onCameraChange);
+
+  const destroy = () => {
+    if (page.destroyed) return;
+    page.destroyed = true;
+    if (cameraFrame) cancelAnimationFrame(cameraFrame);
+    container.removeEventListener('wheel', onWheel);
+    container.removeEventListener('keydown', onKeyDown);
+    search.removeEventListener('input', onSearchInput);
+    choices.removeEventListener('change', onSearchSelection);
+    window.removeEventListener('resize', onResize);
+    adapter.setActivationHandler(null);
+    adapter.graph.getView().removeListener?.(onCameraChange);
+    adapter.graph.destroy?.();
+    screen.remove();
+    style.remove();
+  };
+
+  draw();
+  fit();
+
+  return Object.freeze({
+    adapter,
+    page,
+    select,
+    selectRef,
+    selectRelationRef,
+    setFrame,
+    setSession,
+    tick,
+    fit,
+    focusSelected,
+    zoomBy,
+    destroy,
+    get input() { return page.input; },
+    get projection() { return page.projection; },
   });
 };

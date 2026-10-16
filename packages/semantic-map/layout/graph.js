@@ -1,4 +1,4 @@
-import { TOPOLOGY_SPACE } from '../domain/index.js';
+import { TOPOLOGY_SPACE } from '../domain/coordinate-spaces.js';
 import { isGraphItemKind } from '../pattern/view-types/graph/contract.js';
 
 const GRAPH_LEAF_WIDTH = 180;

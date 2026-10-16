@@ -315,8 +315,8 @@ function installEditEvents() {
     const relations = new Set();
     for (const cell of selected) {
       if (cell.semantic?.type === 'region' && !cell.semantic.readOnly) regions.add(authoringRegionId(cell));
-      if (cell.semantic?.type === 'relation' && !cell.semantic.readOnly && cell.semantic.relationIds.length === 1) {
-        relations.add(cell.semantic.relationIds[0]);
+      if (cell.semantic?.type === 'relation') {
+        for (const relationId of cell.semantic.relationIds ?? []) relations.add(relationId);
       }
     }
     if (selected.some((cell) => cell.isEdge() && !cell.semantic) && this.pendingRelationSelection) {
@@ -374,11 +374,11 @@ function setSelection({ regionIds = [], relationIds = [] }) {
       .filter((item) => !item.readOnly && !item.isGuide && !item.isRoot)
       .map((item) => item.sourceRegionId ?? item.regionId) ?? [],
   );
-  const readOnlyRelations = new Set(
-    this.lastScene?.relations.filter((item) => item.readOnly).flatMap((item) => item.relationIds) ?? [],
+  const knownRelations = new Set(
+    this.lastScene?.relations.flatMap((item) => item.relationIds) ?? [],
   );
   this.selectionRegionIds = new Set(regionIds.filter((id) => editableRegions.has(id)));
-  this.selectionRelationIds = new Set(relationIds.filter((id) => !readOnlyRelations.has(id)));
+  this.selectionRelationIds = new Set(relationIds.filter((id) => knownRelations.has(id)));
   this.restoreSelection(this.lastScene);
   this.emitSelection();
 }
@@ -487,11 +487,17 @@ function isEditableTouchTarget(clientX, clientY, target = null) {
 
 function deleteSelection() {
   const selection = this.selectionSnapshot();
-  if (!selection.regionIds.length && !selection.relationIds.length) return null;
+  const editableRelations = new Set(
+    this.lastScene?.relations
+      .filter((item) => !item.readOnly && item.relationIds.length === 1)
+      .flatMap((item) => item.relationIds) ?? [],
+  );
+  const relationIds = selection.relationIds.filter((id) => editableRelations.has(id));
+  if (!selection.regionIds.length && !relationIds.length) return null;
   return this.submitOperation({
     type: 'RemoveSelection',
     regionIds: selection.regionIds,
-    relationIds: selection.relationIds,
+    relationIds,
   });
 }
 
