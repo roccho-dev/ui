@@ -168,7 +168,14 @@ const wrapLines = (lines, width) => {
   });
 };
 
-export const worldViewport = ({ width = 1500, height = 1000 } = {}) => {
+export const ATLAS_CHROMES = Object.freeze(['full', 'none']);
+
+// `panel: false` is the chrome-free layout: the graph takes the whole viewport
+// and no control row or detail panel is reserved.
+export const worldViewport = ({ width = 1500, height = 1000 } = {}, { panel: withPanel = true } = {}) => {
+  if (!withPanel) {
+    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32) }), panel: null });
+  }
   // Keep the representative nested Before world readable at 1200x900. The
   // detail panel uses paging rather than shrinking node names to status glyphs.
   const panelHeight = Math.min(400, Math.max(280, Math.floor(height * 0.3)));
@@ -329,31 +336,29 @@ const comparisonSideText = side => side
     + (side.record ? ' · record present' : ' · record missing · reason/time UNKNOWN')
   : 'UNKNOWN · no comparison frame';
 
-export const projectAtlasWorld = ({
+const activityDisplay = ({ mode, connected, latest, admission }) => {
+  const liveLatest = mode === 'live' && latest;
+  const currentUnavailable = !connected || admission?.status === 'rejected';
+  return Object.freeze({
+    liveLatest,
+    currentUnavailable,
+    displayed: declared => (liveLatest && currentUnavailable && declared !== 'none' ? 'unknown' : declared),
+  });
+};
+
+// The three-area World alone: areas, nested entities and drawn relation groups
+// in world coordinates. It knows nothing of the camera, panel or controls.
+export const projectWorldScene = ({
   input,
-  receivedInput = input,
   frame,
-  counterpart = null,
-  selected,
   mode = 'sample',
   connected = false,
   latest = true,
-  scale = 1,
-  camera = { scale, translateX: 0, translateY: 0 },
-  viewport = { width: 1500, height: 1000 },
-  detailTab = 'record',
-  detailPage = 0,
   admission = null,
 } = {}) => {
   const index = indexWorldFrame(frame);
-  const counterpartIndex = counterpart ? indexWorldFrame(counterpart) : null;
-  const liveLatest = mode === 'live' && latest;
-  const currentUnavailable = !connected || admission?.status === 'rejected';
-  const displayedActivity = declared => (
-    liveLatest && currentUnavailable && declared !== 'none' ? 'unknown' : declared
-  );
+  const displayedActivity = activityDisplay({ mode, connected, latest, admission }).displayed;
   const containment = containmentIndex(frame);
-  const counterpartContainment = counterpart ? containmentIndex(counterpart) : null;
   const areas = input.presentation.areas;
   const areaEntities = new Map(areas.map(area => [area.id, []]));
   for (const entity of frame.entities) areaEntities.get(entity.area)?.push(entity);
@@ -450,6 +455,42 @@ export const projectAtlasWorld = ({
     for (const id of ids) groupByRelationId.set(id, sceneRelation);
   }
 
+  const totalWidth = Math.max(640, contentRight - AREA_GAP + AREA_PAD);
+  return Object.freeze({
+    representations: Object.freeze(representations),
+    relations: Object.freeze(relations),
+    world: Object.freeze({ x: 0, y: 44, width: totalWidth, height: worldHeight - 44 + AREA_PAD }),
+    areaBounds,
+    index,
+    containment,
+    visibleEntityKeys,
+    groupByRelationId,
+    omittedRelationIds: Object.freeze([...new Set(grouped.omitted)].sort()),
+    omittedEntityIds: Object.freeze([...new Set(omittedEntityIds)].sort()),
+  });
+};
+
+// The judgement panel's text: every tab's logical lines for the selected
+// record, wrapped to the panel width and paged. Pure text; no regions.
+export const projectDetail = ({
+  input,
+  receivedInput = input,
+  frame,
+  counterpart = null,
+  selected,
+  mode = 'sample',
+  connected = false,
+  latest = true,
+  admission = null,
+  scene = projectWorldScene({ input, frame, mode, connected, latest, admission }),
+  panel = worldViewport().panel,
+  detailTab = 'record',
+  detailPage = 0,
+} = {}) => {
+  const { index, containment, groupByRelationId } = scene;
+  const counterpartIndex = counterpart ? indexWorldFrame(counterpart) : null;
+  const counterpartContainment = counterpart ? containmentIndex(counterpart) : null;
+  const { liveLatest, currentUnavailable, displayed: displayedActivity } = activityDisplay({ mode, connected, latest, admission });
   const currentRecord = recordFor(index, selected);
   const counterpartRecord = counterpartIndex ? recordFor(counterpartIndex, selected) : null;
   const currentKind = recordKind(index, selected);
@@ -461,8 +502,8 @@ export const projectAtlasWorld = ({
     : { routes: [], limited: false, reason: 'selected record missing in both frames' };
   const pathLabels = (direction.routes[0]?.entities ?? []).map(key => evidenceIndex.entityByKey.get(key)?.label ?? key);
   const aggregateIds = groupByRelationId.get(selected)?.relationIds ?? Object.freeze([]);
-  const omittedIds = Object.freeze([...new Set(grouped.omitted)].sort());
-  const omittedEntities = Object.freeze([...new Set(omittedEntityIds)].sort());
+  const omittedIds = scene.omittedRelationIds;
+  const omittedEntities = scene.omittedEntityIds;
   const computedCoverage = 'entities ' + frame.entities.length
     + ' · omitted entities ' + omittedEntities.length
     + ' · relations ' + frame.relations.length
@@ -546,13 +587,44 @@ export const projectAtlasWorld = ({
   const tabs = { record: [...acceptanceLines, ...detailLines], world: [...acceptanceLines, 'Latest received: ' + frameText(receivedInput.frames.at(-1)), ...worldLines], direction: [...acceptanceLines, ...routeLines],
     records: catalog.map(item => item.key + ' · ' + item.label) };
   const tab = Object.hasOwn(tabs, detailTab) ? detailTab : 'record';
-  const layout = worldViewport(viewport);
-  const panel = layout.panel;
   const physical = wrapLines(tabs[tab], panel.width - 32);
   const pageSize = Math.max(1, Math.floor((panel.height - 114) / 24));
   const pageCount = Math.max(1, Math.ceil(physical.length / pageSize));
   const pageIndex = Math.max(0, Math.min(pageCount - 1, detailPage));
   const pageRows = physical.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
+  return Object.freeze({
+    view: Object.freeze({ tab, page: pageIndex, pageCount, pageSize, logicalLines: Object.freeze(tabs[tab]), physicalLines: Object.freeze(physical), rows: Object.freeze(pageRows) }),
+    lines: detailLines,
+    catalog: Object.freeze(catalog),
+    record,
+    currentRecord,
+    counterpartRecord,
+    comparison,
+    direction,
+    evidenceSide,
+    beforeFrame,
+    afterFrame,
+    owners,
+    worldLines,
+    aggregateRelationIds: aggregateIds,
+  });
+};
+
+// The operating HUD: frame/tool controls, the judgement panel and its rows,
+// placed in screen space through the camera. It owns no World meaning.
+export const projectChrome = ({
+  frame,
+  selected,
+  latest = true,
+  scene,
+  detail,
+  camera = { scale: 1, translateX: 0, translateY: 0 },
+  viewport = { width: 1500, height: 1000 },
+  panel = worldViewport(viewport).panel,
+} = {}) => {
+  const representations = [];
+  const { tab, page: pageIndex, pageCount, rows: pageRows } = detail.view;
+  const { record, catalog, evidenceSide, beforeFrame, aggregateRelationIds: aggregateIds } = detail;
   const screenBounds = ({ x, y, width, height }) => ({
     x: x / camera.scale - camera.translateX, y: y / camera.scale - camera.translateY,
     width: width / camera.scale, height: height / camera.scale,
@@ -574,7 +646,7 @@ export const projectAtlasWorld = ({
     bounds: { x: 8 + position * controlWidth, y: 8, width: controlWidth - 6, height: 32 },
     activation: { type: 'atlas.world.' + action }, atlas: { control: id } }));
   hud({ id: 'world:judgement', label: '', bounds: panel, kind: 'judgement', zIndex: 10000,
-    activation: { type: 'atlas.world.noop' }, atlas: { selected, lines: detailLines } });
+    activation: { type: 'atlas.world.noop' }, atlas: { selected, lines: detail.lines } });
   hud({ id: 'world:judgement-title', label: 'Judgement · ' + tab + ' · ' + (latest ? 'LATEST' : 'HELD') + ' · viewing ' + (frame === beforeFrame ? 'Before' : 'After') + (tab === 'record' ? ' · evidence ' + evidenceSide : '') + ' · page ' + (pageIndex + 1) + '/' + pageCount + ' · JSON strings',
     bounds: { x: panel.x + 8, y: panel.y + 6, width: panel.width - 16, height: 26 }, kind: 'judgement-title' });
   const detailControls = [
@@ -587,8 +659,8 @@ export const projectAtlasWorld = ({
     activation: { type: 'atlas.world.' + action, value }, kind: 'detail-control' }));
   const memberControls = [
     ['aggregate-cycle', 'Members ' + aggregateIds.length + ' · next', 'next-aggregate'],
-    ['omitted-entity-cycle', 'Omitted entities ' + omittedEntities.length + ' · next', 'next-omitted-entity'],
-    ['omitted-cycle', 'Omitted relations ' + omittedIds.length + ' · next', 'next-omitted'],
+    ['omitted-entity-cycle', 'Omitted entities ' + scene.omittedEntityIds.length + ' · next', 'next-omitted-entity'],
+    ['omitted-cycle', 'Omitted relations ' + scene.omittedRelationIds.length + ' · next', 'next-omitted'],
     ['endpoint-from', 'Inspect from endpoint', 'endpoint', record?.from ? entityKey(record.from) : null],
     ['endpoint-to', 'Inspect to endpoint', 'endpoint', record?.to ? entityKey(record.to) : null],
   ];
@@ -599,38 +671,85 @@ export const projectAtlasWorld = ({
     bounds: { x: panel.x + 16, y: panel.y + 108 + position * 24, width: panel.width - 32, height: 22 },
     kind: 'judgement-line', atlas: { ...row, selected },
     activation: tab === 'records' ? { type: 'atlas.world.select', id: catalog[row.lineIndex].key } : null }));
-  const totalWidth = Math.max(640, contentRight - AREA_GAP + AREA_PAD);
-  const world = Object.freeze({ x: 0, y: 44, width: totalWidth, height: worldHeight - 44 + AREA_PAD });
-  let selectedRegionId = null;
-  if (index.entityByKey.has(selected) && visibleEntityKeys.has(selected)) selectedRegionId = regionId(selected);
-  else if (index.entityByKey.has(selected) && omittedEntities.includes(selected)) selectedRegionId = 'world:omitted-entity-cycle';
-  else if (!currentRecord) selectedRegionId = 'world:judgement-line:1';
-  else if (index.relationByKey.has(selected) && grouped.omitted.includes(selected)) selectedRegionId = 'world:omitted-cycle';
-  else if (index.relationByKey.has(selected)) selectedRegionId = 'world:judgement-line:1';
+  return Object.freeze(representations);
+};
+
+// Where the focus marker goes. With the HUD, records that are not drawn point
+// at the HUD control or judgement line that recovers them. Without it, only
+// drawn regions qualify: an omitted entity marks its nearest drawn container
+// (else its area); a relation or a record missing from this frame marks none.
+const focusRegion = ({ chrome, scene, detail, selected }) => {
+  const { index, visibleEntityKeys, containment } = scene;
+  if (index.entityByKey.has(selected) && visibleEntityKeys.has(selected)) return regionId(selected);
+  if (chrome === 'full') {
+    if (index.entityByKey.has(selected) && scene.omittedEntityIds.includes(selected)) return 'world:omitted-entity-cycle';
+    if (!detail.currentRecord) return 'world:judgement-line:1';
+    if (index.relationByKey.has(selected) && scene.omittedRelationIds.includes(selected)) return 'world:omitted-cycle';
+    if (index.relationByKey.has(selected)) return 'world:judgement-line:1';
+    return null;
+  }
+  const entity = index.entityByKey.get(selected);
+  if (!entity) return null;
+  for (let parent = containment.parentByChild.get(selected); parent; parent = containment.parentByChild.get(parent)) {
+    if (visibleEntityKeys.has(parent)) return regionId(parent);
+  }
+  return scene.areaBounds.has(entity.area) ? areaRegionId(entity.area) : null;
+};
+
+// One World projection composed from separate layers. `chrome: 'full'` is the
+// established HUD screen; `'none'` draws the three areas alone. Later layers
+// (a timeline) compose here beside the chrome without touching the scene.
+export const projectAtlasWorld = ({
+  input,
+  receivedInput = input,
+  frame,
+  counterpart = null,
+  selected,
+  mode = 'sample',
+  connected = false,
+  latest = true,
+  scale = 1,
+  camera = { scale, translateX: 0, translateY: 0 },
+  viewport = { width: 1500, height: 1000 },
+  detailTab = 'record',
+  detailPage = 0,
+  admission = null,
+  chrome = 'full',
+} = {}) => {
+  if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world: unsupported chrome ' + chrome);
+  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission });
+  // The detail is paged against the full layout's panel in both chromes, so the
+  // selected record's text and pages do not depend on what is drawn.
+  const fullLayout = worldViewport(viewport);
+  const detail = projectDetail({ input, receivedInput, frame, counterpart, selected, mode, connected, latest, admission,
+    scene, panel: fullLayout.panel, detailTab, detailPage });
+  const hud = chrome === 'full'
+    ? projectChrome({ frame, selected, latest, scene, detail, camera, viewport, panel: fullLayout.panel })
+    : Object.freeze([]);
 
   return Object.freeze({
     scene: Object.freeze({
       pattern: 'graph/1',
       scale,
       resourceComposition: null,
-      representations: Object.freeze(representations),
-      relations: Object.freeze(relations),
+      representations: Object.freeze([...scene.representations, ...hud]),
+      relations: scene.relations,
       selectionProxies: Object.freeze({}),
     }),
-    world,
-    selected: Object.freeze({ key: selected, record: currentRecord ?? null, counterpart: counterpartRecord ?? null, comparison }),
-    selectedRegionId,
-    aggregateRelationIds: aggregateIds,
-    omittedRelationIds: omittedIds,
-    omittedEntityIds: omittedEntities,
-    areaBounds,
-    direction,
-    detail: Object.freeze({ tab, page: pageIndex, pageCount, pageSize, logicalLines: Object.freeze(tabs[tab]), physicalLines: Object.freeze(physical), rows: Object.freeze(pageRows) }),
-    viewport: layout,
-    worldComparison: Object.freeze({ before: beforeFrame, after: afterFrame, owners, lines: worldLines }),
+    world: scene.world,
+    selected: Object.freeze({ key: selected, record: detail.currentRecord ?? null, counterpart: detail.counterpartRecord ?? null, comparison: detail.comparison }),
+    selectedRegionId: focusRegion({ chrome, scene, detail, selected }),
+    aggregateRelationIds: detail.aggregateRelationIds,
+    omittedRelationIds: scene.omittedRelationIds,
+    omittedEntityIds: scene.omittedEntityIds,
+    areaBounds: scene.areaBounds,
+    direction: detail.direction,
+    detail: detail.view,
+    viewport: chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false }),
+    worldComparison: Object.freeze({ before: detail.beforeFrame, after: detail.afterFrame, owners: detail.owners, lines: detail.worldLines }),
     coverage: Object.freeze({
-      omittedRelations: omittedIds.length,
-      omittedEntities: omittedEntities.length,
+      omittedRelations: scene.omittedRelationIds.length,
+      omittedEntities: scene.omittedEntityIds.length,
       totalRelations: frame.relations.length,
       totalEntities: frame.entities.length,
     }),
