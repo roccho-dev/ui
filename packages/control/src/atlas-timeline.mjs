@@ -8,28 +8,39 @@ import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 export const TIMELINE_ID_PREFIX = 'timeline:';
 export const PLAN_UNDECLARED = '予定：計画未宣言（UNKNOWN）';
 export const PLAN_NONE = '予定：有効な計画 0 件';
-// The live connection as the strip states it: 'sample' (no `?events=`),
-// 'disconnected' (no connection), 'silent' (connected, but no snapshot or
-// heartbeat on this connection within RECEIVE_WINDOW_MS) or 'live' (one did).
-// An open connection alone is never reported as receiving.
+// The live connection as the strip states it, from what arrived on the
+// current connection (an open connection alone is never receiving):
+// 'sample'       no `?events=`
+// 'disconnected' no connection
+// 'silent'       nothing accepted within RECEIVE_WINDOW_MS
+// 'nodata'       heartbeats arrive, but no snapshot was accepted
+// 'mismatch'     the last heartbeat's size differs from the accepted snapshot
+// 'live'         the accepted snapshot is what the producer holds, recently
+// Only 'live' may say the World shown follows the latest.
 export const TRANSPORT_LIVE = '受信中';
 export const TRANSPORT_DISCONNECTED = 'SSE 未接続';
 export const TRANSPORT_SILENT = 'SSE 応答なし';
+export const TRANSPORT_NO_DATA = 'SSE 接続中・データ未受信';
+export const TRANSPORT_MISMATCH = '最新か不明（大きさ不一致）';
 // Three times the HQ producer's 30 s heartbeat.
 export const RECEIVE_WINDOW_MS = 90_000;
-export const transportOf = ({ mode, connected, receivedAt = null, now = null }) => {
+export const transportOf = ({ mode, connected, receivedAt = null, now = null, snapshotBytes = null, heartbeatBytes = null }) => {
   if (mode !== 'live') return 'sample';
   if (!connected) return 'disconnected';
-  return receivedAt !== null && now !== null && now - receivedAt <= RECEIVE_WINDOW_MS ? 'live' : 'silent';
+  if (receivedAt === null || now === null || now - receivedAt > RECEIVE_WINDOW_MS) return 'silent';
+  if (snapshotBytes === null) return 'nodata';
+  if (heartbeatBytes !== null && heartbeatBytes !== snapshotBytes) return 'mismatch';
+  return 'live';
 };
 const clockText = at => new Date(at).toISOString().slice(11, 19) + 'Z';
+const TRANSPORT_WARNING = Object.freeze({ disconnected: TRANSPORT_DISCONNECTED, silent: TRANSPORT_SILENT, nodata: TRANSPORT_NO_DATA, mismatch: TRANSPORT_MISMATCH });
 // The status line's account of the live stream: when it last received, and
 // any reason not to trust that the World shown is the latest.
-export const transportStatus = ({ mode, connected, receivedAt = null, now = null }) => {
-  const transport = transportOf({ mode, connected, receivedAt, now });
+export const transportStatus = state => {
+  const transport = transportOf(state);
   if (transport === 'sample') return '';
-  const last = receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(receivedAt);
-  return ' · ' + last + (transport === 'disconnected' ? ' · ' + TRANSPORT_DISCONNECTED : transport === 'silent' ? ' · ' + TRANSPORT_SILENT : '');
+  const last = state.receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(state.receivedAt);
+  return ' · ' + last + (TRANSPORT_WARNING[transport] ? ' · ' + TRANSPORT_WARNING[transport] : '');
 };
 const CONTENT_UNKNOWN = '内容 UNKNOWN';
 
@@ -121,14 +132,16 @@ export const projectTimeline = ({
   const last = receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(receivedAt);
   const [wordLong, wordShort] = transport === 'disconnected' ? [TRANSPORT_DISCONNECTED + '・最新か不明 · ' + last, TRANSPORT_DISCONNECTED]
     : transport === 'silent' ? [TRANSPORT_SILENT + '・最新か不明 · ' + last, TRANSPORT_SILENT]
-      : transport === 'live' ? [(present && latest ? '最新に追従・' : '') + TRANSPORT_LIVE + ' · ' + last, TRANSPORT_LIVE]
-        : ['', ''];
+      : transport === 'nodata' ? [TRANSPORT_NO_DATA + '・最新か不明 · ' + last, 'データ未受信']
+        : transport === 'mismatch' ? [TRANSPORT_LIVE + '・' + TRANSPORT_MISMATCH + ' · ' + last, '最新か不明']
+          : transport === 'live' ? [(present && latest ? '最新に追従・' : '') + TRANSPORT_LIVE + ' · ' + last, TRANSPORT_LIVE]
+            : ['', ''];
   const with_ = (text, word) => word ? text + ' · ' + word : text;
   const where = index < 0
     ? [with_('表示中：保持中の frame ' + frame.id + '（最新入力に無い）', wordLong), with_('表示中：保持中（最新入力に無い）', wordShort), with_('保持中', wordShort)]
     : [with_('表示中：' + step + ' · ' + frame.id, wordLong), with_('表示中：' + step + ' · ' + frame.id, wordShort),
       with_('表示中：' + step, wordLong), with_(step, wordShort),
-      transport === 'disconnected' || transport === 'silent' ? wordShort : step];
+      ['disconnected', 'silent', 'nodata', 'mismatch'].includes(transport) ? wordShort : step];
   const toggle = planOpen ? '閉じる' : '詳細';
   cell('back', ['◀ 前へ · [', '◀ 前へ', '◀'], 1, back !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: -1 } } : { look: 'idle' });
   cell('position', where, 3, { look: 'idle', atlas: { index, count, present, frameId: frame.id } });

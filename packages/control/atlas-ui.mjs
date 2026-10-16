@@ -488,6 +488,8 @@ export const mountAtlasWorldUI = ({
     connected,
     now,
     receivedAt: null,
+    snapshotBytes: null,
+    heartbeatBytes: null,
     projection: null,
     planOpen: false,
     destroyed: false,
@@ -513,7 +515,9 @@ export const mountAtlasWorldUI = ({
     choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
     searchCount.textContent = page.searchResults.length + ' results in supplied ' +
       (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
-      ' · ' + (page.latest ? 'LATEST' : 'HELD') +
+      // LATEST is the newest supplied frame; while the live stream cannot
+      // vouch for that supply, it is qualified.
+      ' · ' + (page.latest ? (['sample', 'live'].includes(transportOf(page)) ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD') +
       transportStatus(page);
     searchCount.title = searchCount.textContent;
   };
@@ -551,6 +555,8 @@ export const mountAtlasWorldUI = ({
       chrome,
       planOpen: page.planOpen,
       receivedAt: page.receivedAt,
+      snapshotBytes: page.snapshotBytes,
+      heartbeatBytes: page.heartbeatBytes,
       now: page.now,
     });
     let projection = project();
@@ -724,9 +730,11 @@ export const mountAtlasWorldUI = ({
     now: nextNow = page.now,
     latest = page.latest,
     receivedAt = page.receivedAt,
+    snapshotBytes = page.snapshotBytes,
+    heartbeatBytes = page.heartbeatBytes,
     reportInvalid = false,
   } = {}) => {
-    if (page.destroyed) return;
+    if (page.destroyed) return false;
     const supplied = nextInput !== page.input;
     // Validate before any mutation. The app requests a visible admission
     // receipt; direct callers still detect invalid input by throw. Rendering
@@ -736,7 +744,7 @@ export const mountAtlasWorldUI = ({
     catch (error) {
       if (!reportInvalid) throw error;
       rejectInput(error.message);
-      return;
+      return false;
     }
     page.input = accepted;
     if (supplied) page.admission = null;
@@ -744,6 +752,8 @@ export const mountAtlasWorldUI = ({
     page.connected = nextConnected;
     page.now = nextNow;
     page.receivedAt = receivedAt;
+    page.snapshotBytes = snapshotBytes;
+    page.heartbeatBytes = heartbeatBytes;
     page.latest = latest;
     if (latest) { page.pair = worldPair(accepted); page.side = 'after'; }
     // Held input, both frame contents, presentation and owner receipts stay
@@ -751,6 +761,7 @@ export const mountAtlasWorldUI = ({
     updateFrameIndex();
     draw();
     syncGraphSelection(page.selected);
+    return true;
   };
 
   // Time passing can change what the screen may claim (receiving -> no

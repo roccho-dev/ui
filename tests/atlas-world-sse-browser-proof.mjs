@@ -68,8 +68,9 @@ const producer = http.createServer((request, response) => {
 await new Promise(resolve => producer.listen(0, '127.0.0.1', resolve));
 const publish = world => { current = JSON.stringify(world); for (const client of clients) client.write(event(current)); };
 // The HQ producer's keep-alive: `heartbeat` with the time and held World size.
-const heartbeat = () => {
-  for (const client of clients) client.write('event: heartbeat\ndata: ' + JSON.stringify({ at: new Date().toISOString(), bytes: current.length }) + '\n\n');
+// `bytes` is, as there, the length of the held World's one-line JSON string.
+const heartbeat = (bytes = current.length) => {
+  for (const client of clients) client.write('event: heartbeat\ndata: ' + JSON.stringify({ at: new Date().toISOString(), bytes }) + '\n\n');
 };
 const url = 'http://127.0.0.1:' + page.address().port + '/index.html?events='
   + encodeURIComponent('http://127.0.0.1:' + producer.address().port + '/events');
@@ -87,6 +88,8 @@ const silentUrl = url.replace(/events=.*/u, 'events=' + encodeURIComponent('http
 // it is receiving: the HQ heartbeat interval (30 s) times three.
 const QUIET_MS = 90_000;
 const SILENT = 'SSE 応答なし';
+const NO_DATA = 'データ未受信';
+const UNSURE = '最新か不明';
 
 const checks = [];
 const check = (name, pass, detail = null) => checks.push({ name, pass: Boolean(pass), ...(pass ? {} : { detail }) });
@@ -156,7 +159,74 @@ try {
   const mute = await shown(quiet);
   check('an open connection that never sends is not receiving', mute.inside && !mute.position.includes(RECEIVING)
     && mute.position.includes(SILENT) && mute.status.includes(SILENT) && !/最新に追従/u.test(mute.position), mute);
+
+  // Heartbeats without any snapshot on this connection: malformed ones count
+  // for nothing; well-formed ones show the stream is alive but never that the
+  // World shown is the latest.
+  const toSilent = text => { for (const client of silentClients) client.write(text); };
+  for (let turn = 0; turn < 3; turn += 1) {
+    toSilent('event: heartbeat\ndata: not-json garbage\n\n');
+    toSilent('event: heartbeat\ndata: \n\n');
+    toSilent('event: heartbeat\ndata: {"at":"yesterday","bytes":-1}\n\n');
+    await quiet.waitForTimeout(300);
+  }
+  const junk = await shown(quiet);
+  check('malformed heartbeats alone are not receiving', !junk.position.includes(RECEIVING) && !/最新に追従/u.test(junk.position)
+    && junk.position.includes(SILENT) && !/LATEST(?!（最新か不明）)/u.test(junk.status), junk);
+  toSilent('event: heartbeat\ndata: ' + JSON.stringify({ at: new Date().toISOString(), bytes: 1234 }) + '\n\n');
+  await quiet.waitForTimeout(500);
+  const alive = await shown(quiet);
+  check('well-formed heartbeats without a snapshot say connected but no data, never latest', !/最新に追従/u.test(alive.position)
+    && alive.position.includes(NO_DATA) && alive.status.includes(NO_DATA) && !/LATEST(?!（最新か不明）)/u.test(alive.status), alive);
   await quiet.close();
+
+  // A heartbeat whose size differs from the accepted snapshot means a missed
+  // snapshot: the screen must stop claiming the latest until it matches.
+  const sized = await open();
+  await settle(sized);
+  heartbeat(current.length + 1);
+  await sized.waitForTimeout(500);
+  const off = await shown(sized);
+  check('a heartbeat size unlike the accepted snapshot reads not known latest', !/最新に追従/u.test(off.position)
+    && off.position.includes(UNSURE) && off.status.includes(UNSURE), off);
+  heartbeat();
+  await sized.waitForTimeout(500);
+  const on = await shown(sized);
+  // The cell may drop 最新に追従 for width; receiving, no doubt in the cell,
+  // and an unqualified LATEST in the status line are what latest means.
+  check('a matching heartbeat size (UTF-16 length of the snapshot data) is latest again', on.position.includes(RECEIVING)
+    && !on.position.includes(UNSURE) && /LATEST(?!（)/u.test(on.status) && !on.status.includes(UNSURE), on);
+  await sized.close();
+
+  // A background tab: its clock moves on without timers firing; coming back
+  // to the front must re-judge at once.
+  const hidden = await (await browser.newContext({ viewport: null })).newPage();
+  await hidden.clock.install({ time: new Date('2026-10-17T00:00:00Z') });
+  await hidden.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await hidden.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true' && window.liveAtlas.page.connected, null, { timeout: 60000 });
+  await settle(hidden);
+  const pageNow = await hidden.evaluate(() => Date.now());
+  await hidden.clock.pauseAt(new Date(pageNow + 1000));
+  const before = await shown(hidden);
+  check('in front before hiding, receiving', before.position.includes(RECEIVING), before);
+  await hidden.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  // Move the wall clock only; no timer runs, as in a throttled background tab.
+  await hidden.clock.setSystemTime(new Date(pageNow + 1000 + QUIET_MS * 2));
+  await hidden.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await hidden.clock.resume();
+  await hidden.waitForTimeout(300);
+  const back = await shown(hidden);
+  check('back in front after the window, it reads no response at once', !back.position.includes(RECEIVING)
+    && back.position.includes(SILENT) && !/最新に追従/u.test(back.position), back);
+  await hidden.close();
 
   const timed = await (await browser.newContext({ viewport: null })).newPage();
   await timed.clock.install({ time: new Date('2026-10-17T00:00:00Z') });

@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { parseAtlasWorldInput, worldPair } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
+import { parseHeartbeat, snapshotSize } from '../packages/control/src/live-atlas.mjs';
 import { PLAN_UNDECLARED, RECEIVE_WINDOW_MS, TIMELINE_ID_PREFIX, formatViewHash, parseViewHash, stepIndex, timelinePosition, transportOf } from '../packages/control/src/atlas-timeline.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
 
@@ -81,7 +82,25 @@ assert.deepEqual(parseViewHash('#sel=' + encodeURIComponent('entity:a%3Ab:c:d'))
 assert.equal(transportOf({ mode: 'sample', connected: true, receivedAt: 1, now: 1 }), 'sample');
 assert.equal(transportOf({ mode: 'live', connected: false, receivedAt: 1, now: 1 }), 'disconnected');
 assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: null, now: 5 }), 'silent', 'open but nothing received');
-assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: RECEIVE_WINDOW_MS }), 'live');
-assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: RECEIVE_WINDOW_MS + 1 }), 'silent', 'quiet past the window');
+assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: RECEIVE_WINDOW_MS, snapshotBytes: 10 }), 'live');
+assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: RECEIVE_WINDOW_MS + 1, snapshotBytes: 10 }), 'silent', 'quiet past the window');
 assert.equal(transportOf({ mode: 'live', connected: true, receivedAt: 0, now: null }), 'silent', 'no clock: not receiving');
+// Only an accepted snapshot whose size the heartbeats confirm is the latest.
+const fresh = { mode: 'live', connected: true, receivedAt: 0, now: 1 };
+assert.equal(transportOf({ ...fresh, snapshotBytes: null, heartbeatBytes: 10 }), 'nodata', 'heartbeats without a snapshot');
+assert.equal(transportOf({ ...fresh, snapshotBytes: 10, heartbeatBytes: 11 }), 'mismatch', 'heartbeat size differs');
+assert.equal(transportOf({ ...fresh, snapshotBytes: 10, heartbeatBytes: 10 }), 'live');
+assert.equal(transportOf({ ...fresh, snapshotBytes: 10, heartbeatBytes: null }), 'live', 'a snapshot alone, recently');
+
+// Heartbeats: exactly {at: ISO time, bytes: integer >= 0}; anything else is
+// not one. Sizes are the snapshot data string's length (UTF-16 code units),
+// the producer's JSON.stringify(...).length, also for non-ASCII text.
+for (const bad of ['not-json garbage', '', 'null', '[]', '{"at":"yesterday","bytes":1}', '{"at":"2026-10-17T00:00:00Z","bytes":-1}',
+  '{"at":"2026-10-17T00:00:00Z","bytes":1.5}', '{"at":"2026-10-17T00:00:00Z"}', '{"at":"2026-10-17T00:00:00Z","bytes":1,"x":0}']) {
+  assert.equal(parseHeartbeat(bad), null, 'not a heartbeat: ' + bad);
+}
+assert.deepEqual(parseHeartbeat('{"at":"2026-10-17T00:00:00.123Z","bytes":0}'), { at: '2026-10-17T00:00:00.123Z', bytes: 0 });
+const held = JSON.stringify({ label: '目的：宣言だけで回る組織 🙂', n: 1 });
+assert.equal(snapshotSize(held), held.length, 'the producer counts JSON.stringify(...).length');
+assert.notEqual(snapshotSize(held), Buffer.byteLength(held), 'which is not the UTF-8 byte count for non-ASCII text');
 console.log(JSON.stringify({ status: 'atlas-world-timeline-checks-pass', cases }));
