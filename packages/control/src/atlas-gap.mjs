@@ -7,7 +7,9 @@
 // inferred.
 // A frame carrying any of them is drawn from them in two areas: the purpose
 // area holds the phase line, 目的, 理想状態, 差 and 現在状態, and the next area
-// holds one Scope per open part plus the conditions closed so far as history.
+// holds the Scopes the frame supplies there (as supplied, nesting included) or,
+// when it supplies none, one Scope per open part plus the conditions closed so
+// far as history.
 // Other areas keep their supplied entities. Plans never enter a gap.
 
 const check = (condition, message) => { if (!condition) throw new Error('atlas-world: ' + message); };
@@ -338,7 +340,11 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     const sinceFrame = [...earlier, frame].find(item => item.id === since);
     return (ago === 0 ? 'この時点から' : ago + ' 時点前から') + '（' + clockText(sinceFrame.asOf) + '）';
   };
-  (g?.parts ?? []).forEach((part, index) => {
+  // A Scope area the frame supplies itself (e.g. nested per owner, with its
+  // containment) is drawn as supplied; Scopes are derived from the parts only
+  // when it supplies none. The kinds derived here are never counted as supplied.
+  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed'].includes(item.ref.kind));
+  (suppliedScopes.length ? [] : g?.parts ?? []).forEach((part, index) => {
     const partRef = ref('gap-part', part.condition);
     const flags = [part.state === 'unmet' ? 'scope_status=unmet' : 'scope_status=unknown', ...(part.scope === null ? ['unassigned'] : [])];
     // v6: each side's cause is shown, the ideal side first; a side without one is left out.
@@ -356,14 +362,14 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // History: every condition closed in this or an earlier frame. Kept, never
   // erased, drawn as one quiet node; the full list is its summary.
   const history = [...earlier, frame].flatMap(item => item.gap?.closed ?? []);
-  if (history.length) {
+  if (history.length && !suppliedScopes.length) {
     entities.push(entity(ref('gap-closed', frame.id), '閉じた差 ' + history.length + '（この時点 ' + (gap?.closed.length ?? 0) + '）\n'
       + history.slice(-2).map(item => item.condition + ' ' + CLOSED_LABEL[item.by]).join('・'), areas.scope, g?.parts.length ?? 0,
     history.map(item => item.condition + ' · at ' + item.at + ' · ' + CLOSED_LABEL[item.by]).join(' / '), ['history-preserved']));
   }
 
-  // Keep the other areas' entities and the relations among them.
-  const kept = frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope);
+  // Keep the other areas' entities, any supplied Scopes, and the relations among them.
+  const kept = [...suppliedScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
   return Object.freeze({ entities: Object.freeze([...entities, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });

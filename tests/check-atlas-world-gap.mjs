@@ -11,6 +11,7 @@ import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 const input = parseAtlasWorldInput(gapWorld());
 const byKind = frame => Object.fromEntries(frame.entities.map(item => [item.ref.kind + ':' + item.ref.id, item.label]));
 const frame = id => input.frames.find(item => item.id === id);
+const byKindKeys = item => item.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
 const expected = {
   t0: { 'phase:hq': '局面：目的変更 · 差 不明', 'gap:hq': '差 不明\n照らし合わせる理想状態がまだ無い', 'current-state:hq': '現在状態\n観測の仕訳なし',
     'purpose:hq': '目的\n宣言だけで回る組織\nrev 1' },
@@ -77,6 +78,23 @@ assert.equal(byKind(frame('t3'))['current-state:hq'], '現在状態\n観測 1 �
 const cumulative = gapWorld();
 cumulative.frames.forEach((item, index) => { item.journal = cumulative.frames.slice(0, index + 1).flatMap(each => structuredClone(each.journal)); });
 assert.throws(() => parseAtlasWorldInput(cumulative), /t1: journal\[0\] repeats an entry of frame t0/);
+// A Scope area the frame supplies (nested per owner, K8) is kept as supplied,
+// with its containment; Scopes are derived from the parts only otherwise. The
+// purpose area is drawn from the gap either way.
+const grouped = parseAtlasWorldInput(gapWorld({ groups: true }));
+for (const item of grouped.frames) {
+  const raw = gapWorld({ groups: true }).frames.find(each => each.id === item.id);
+  const suppliedScopes = raw.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
+  const drawnScopes = item.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
+  if (suppliedScopes.length) {
+    assert.deepEqual(drawnScopes, suppliedScopes, item.id + ': supplied Scopes kept as supplied');
+    assert.equal(item.relations.filter(relation => relation.containment).length, raw.relations.filter(relation => relation.containment).length, item.id + ': containment kept');
+  } else assert.deepEqual(drawnScopes, byKindKeys(frame(item.id)), item.id + ': no supplied Scopes: derived from the parts');
+  assert.deepEqual(item.entities.filter(entity => entity.area === 'purpose').map(entity => entity.label),
+    frame(item.id).entities.filter(entity => entity.area === 'purpose').map(entity => entity.label), item.id + ': purpose area from the gap');
+}
+assert.ok(grouped.frames.some(item => item.relations.some(relation => relation.containment)), 'the grouped fixture supplies containment');
+assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(grouped))), grouped, 'grouped gap view is idempotent');
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/照合不能 1/u.test(byKind(frame('t6'))['gap:hq']) && /未観測 0/u.test(byKind(frame('t6'))['gap:hq']));
 // History stays: c3/c1/c4 closed at t5 are still listed at t6.
