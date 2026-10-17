@@ -1,4 +1,4 @@
-// The gap view, phases, band and ui clock as drawn (adrs#647 contract v3).
+// The gap view, phases, band and ui clock as drawn (adrs#647 contract v3-v6).
 // Run inside the semantic-map-browser-proof Nix shell:
 //   node tests/atlas-world-gap-browser-proof.mjs --out=<fresh absent directory> [--input=<World JSON>]
 // Chrome-free builds opened over HTTP in windows of 1280x720, 1500x1000 and
@@ -8,8 +8,11 @@
 //   whole inside their boxes, with the fixture's wording per frame: every
 //   phase; the ideal alone moving (t3); matched with its freshness (t5);
 //   stale observation back to approximating (t6);
+// - each part names the cause of each side, and 差 counts both sides (v6);
 // - the band's phase segments and journal marks are drawn inside their cells,
-//   and a mark opens its entries' author and source;
+//   each mark at the frame carrying the entry, and a mark opens its entries'
+//   author and source; 現在状態 counts the journal up to the frame shown,
+//   also after stepping back (v6);
 // - on the browser's clock, the present matched frame turns stale after its
 //   matched_until without any input.
 import fs from 'node:fs';
@@ -48,16 +51,16 @@ const serve = async (name, world) => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return server;
 };
-// `--compat` uses the fixture without what contract v5 added, so a ui from
-// before v5 can read it; `--page=<index.html>` serves that existing build
-// (built from the same fixture) instead of building from this checkout.
+// `--compat=1` uses the fixture without what contract v5 added and with each
+// cause as the earlier list (read as v6's sides); `--page=<index.html>` serves
+// an existing build (from the same fixture) instead of building from this checkout.
 const compat = argv.some(([key]) => key === 'compat');
 const servePage = file => { const body = fs.readFileSync(file); const server = http.createServer((request, response) => {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' }); response.end(body); });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server))); };
 const all = arg('page') ? await servePage(arg('page'))
-  : await serve('all', arg('input') ? JSON.parse(fs.readFileSync(arg('input'), 'utf8')) : gapWorld({ v5: !compat }));
-const matched = fixture && !arg('page') ? await serve('matched', gapWorld({ through: 't5', v5: !compat })) : null;
+  : await serve('all', arg('input') ? JSON.parse(fs.readFileSync(arg('input'), 'utf8')) : gapWorld({ v5: !compat, sides: !compat }));
+const matched = fixture && !arg('page') ? await serve('matched', gapWorld({ through: 't5', v5: !compat, sides: !compat })) : null;
 // The before-ideal wording, read at the present t5 on two stories: only the
 // ideal moves (same purpose), and the purpose itself changes. Prebuilt pages
 // (`--page-ideal-only=`, `--page-new-purpose=`) apply it to an earlier build.
@@ -72,13 +75,19 @@ const expected = {
   t0: { phase: '局面：目的変更 · 差 不明', gap: '差 不明', 'current-state': '現在状態観測の仕訳なし' },
   t1: { phase: '局面：定義中 · 差 不明', 'ideal-state': '照らし合わせる理想状態なし（定義中）' },
   t2: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'ideal-state': 'v1 · 条件 2', gap: '差 0（前 不明） · ✓2 ?0 !0', 'current-state': '現在状態観測 1 件 · 最新 01:40Z' },
-  t3: { phase: '局面：近似中 · 差 1 · v2', 'ideal-state': 'v1→v2 移動 · 条件 3（追加 1', gap: '差 1（前 0） · ✓2 ?0 !1理想の移動 1・現在の後退 0・未観測 0', 'current-state': '現在状態観測 1 件 · 最新 01:40Z',
-    purpose: '宣言だけで回る組織rev 1 · 過去の評価：理想状態が不十分' },
-  t4: { phase: '局面：近似中 · 差 3 · v2', gap: '差 3（前 1） · ✓1 ?1 !2理想の移動 0・現在の後退 1・未観測 1', 'current-state': '現在状態観測 1 件 · 最新 01:40Z' },
-  t5: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z', purpose: 'rev 1 · 評価：到達', 'gap-closed': '閉じた差 3（この時点 3）' },
+  // v6: a part names the cause of each side; 差 counts each side.
+  t3: { phase: '局面：近似中 · 差 1 · v2', 'ideal-state': 'v1→v2 移動 · 条件 3（追加 1', gap: '差 1（前 0） · ✓2 ?0 !1理想の側 追加 1・改訂 0 · 現在の側 後退 0・未観測 1',
+    'current-state': '現在状態観測 1 件 · 最新 01:40Z', purpose: '宣言だけで回る組織rev 1 · 過去の評価：理想状態が不十分',
+    'gap-part': 'windows repo を退役する未達 · 理想に追加 · 未観測 · この時点から' },
+  // v6: the journal accumulates: t4 carries one more observation.
+  t4: { phase: '局面：近似中 · 差 3 · v2', gap: '差 3（前 1） · ✓1 ?1 !2理想の側 追加 0・改訂 0 · 現在の側 後退 1・未観測 1 · 継続 1', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
+  t5: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z', purpose: 'rev 1 · 評価：到達', 'gap-closed': '閉じた差 3（この時点 3）', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
   t6: { gap: '鮮度切れ 1', 'gap-part': '端末で直接入力できる未達 · 鮮度切れ' },
-  t7: { phase: '局面：目的の終了 · Scope は凍結（履歴）', gap: '差 対象外', 'gap-closed': 'c1 目的の終了' },
+  t7: { phase: '局面：目的の終了 · Scope は凍結（履歴）', gap: '差 対象外', 'gap-closed': 'c1 目的の終了', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
 };
+// v6: each journal entry is marked at the frame that carries it.
+const expectedMarks = { 'timeline:journal:0:purpose.set': '◎1', 'timeline:journal:2:observation': '·1', 'timeline:journal:3:purpose.evaluated': '★1',
+  'timeline:journal:4:observation': '·1', 'timeline:journal:4:plan.set': '◇1', 'timeline:journal:5:purpose.evaluated': '★1' };
 // What only contract v5 adds; checked unless --compat.
 if (!compat) {
   expected.t5.phase += ' · 理想状態の確定前の観測で一致 1 件';
@@ -161,6 +170,21 @@ try {
       if (fixture) check(size.width + 'x' + size.height + ': only the ideal moving (t2 -> t3) leaves the drawn 現在状態 unchanged',
         currentByFrame.t2 && currentByFrame.t2 === currentByFrame.t3, { t2: currentByFrame.t2, t3: currentByFrame.t3 });
       if (fixture) {
+        const band = (await read(page)).band;
+        for (const [id, words] of Object.entries(expectedMarks)) {
+          const cell = band.find(item => item.id === id);
+          check(size.width + 'x' + size.height + ': journal mark ' + id + ' reads ' + words, cell && flat(cell.text) === flat(words), cell ?? band.map(item => item.id));
+        }
+        // Going back, 現在状態 is that frame's own total, not the newest.
+        await page.focus('#atlas-world');
+        for (let step = 0; step < frames.length - 1 - frames.indexOf('t3'); step += 1) await page.keyboard.press('[');
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const back = await read(page);
+        const backCurrent = back.nodes.find(node => node.kind === 'current-state');
+        check(size.width + 'x' + size.height + ': back at t3, 現在状態 counts the journal up to t3 only',
+          back.frameId === 't3' && flat(backCurrent?.text) === flat('現在状態観測 1 件 · 最新 01:40Z') && inside(backCurrent), { frameId: back.frameId, text: backCurrent?.text });
+        await page.keyboard.press('L');
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         // A journal mark opens its entries: kind, time, author and source.
         const mark = (await read(page)).band.find(cell => cell.id === 'timeline:journal:3:purpose.evaluated');
         check(size.width + 'x' + size.height + ': the evaluation mark is drawn', mark && flat(mark.text) === '★1', mark);
