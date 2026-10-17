@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { DEFAULT_THEME } from '../renderer-maxgraph/index.js';
 import { connectIcon, paletteFor, styleScaleFor } from '../renderer-maxgraph/theme.js';
+import { vertexStyle } from '../renderer-maxgraph/styles.js';
 
 const rendererFiles = [
   '../renderer-maxgraph/adapter.js',
@@ -40,6 +41,13 @@ assert.equal(styleScaleFor(1.7), 2);
 assert.throws(() => styleScaleFor(0), /cameraScale must be positive/u);
 assert.throws(() => styleScaleFor(Number.NaN), /cameraScale must be positive/u);
 assert.equal(DEFAULT_THEME.vertex.shadow, false);
+for (const scale of [1, 0.75]) {
+  const region = { kind: 'group', depth: 1, readOnly: true };
+  assert.equal(vertexStyle({ ...region, shape: 'boundary' }, scale, DEFAULT_THEME).overflow, 'visible');
+  for (const shape of ['seq-lane', 'graph-node', 'decision'])
+    assert.equal(vertexStyle({ ...region, shape }, scale, DEFAULT_THEME).overflow, DEFAULT_THEME.vertex.overflow,
+      'boundary title fix must retain ordinary cell/lane clipping');
+}
 assert.equal(rendererSource.includes("if (height < minimumHeight) return '';"), true, 'MUTATION:restore-all-renderer-labels');
 assert.equal(rendererSource.includes('estimatedLabelWidth(label, fontSize)'), true);
 const icon = decodeURIComponent(connectIcon(DEFAULT_THEME));
