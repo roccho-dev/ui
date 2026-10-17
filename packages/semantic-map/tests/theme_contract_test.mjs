@@ -44,7 +44,7 @@ assert.equal(DEFAULT_THEME.vertex.shadow, false);
 for (const scale of [1, 0.75]) {
   const region = { kind: 'group', depth: 1, readOnly: true };
   assert.equal(vertexStyle({ ...region, shape: 'boundary' }, scale, DEFAULT_THEME).overflow, 'visible');
-  for (const shape of ['seq-lane', 'graph-node', 'decision'])
+  for (const shape of ['seq-lane', 'graph-node', 'graph-decision'])
     assert.equal(vertexStyle({ ...region, shape }, scale, DEFAULT_THEME).overflow, DEFAULT_THEME.vertex.overflow,
       'boundary title fix must retain ordinary cell/lane clipping');
 }
