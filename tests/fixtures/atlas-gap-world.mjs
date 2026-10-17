@@ -6,7 +6,7 @@
 // t3 approximating    only the ideal moves (v1 -> v2 adds c3); a past evaluation
 // t4 approximating    c1 regresses (no owner), c4 unobserved, c3 carries on
 // t5 matched          all satisfied again; fresh until 05:41Z; evaluated
-// t6 approximating    c1's observation went stale
+// t6 approximating    c1's observation went stale; c4's cannot be matched (v5)
 // t7 ended            the purpose ends; c1 closes as purpose-ended
 // (t0/t1/t7 carry v4's gap with parts null: UNKNOWN, closed kept)
 const ref = (kind, id) => ({ space: 'fixture:gap', kind, id });
@@ -45,7 +45,16 @@ const c3 = cause => part('c3', 'windows repo を退役する', 'unmet', cause, '
 const c1 = (cause, since) => part('c1', '端末で直接入力できる', 'unmet', cause, since, null);
 const c4 = cause => part('c4', 'envs のスコープ主張', 'unknown', cause, 't4', 'scope:envs');
 
-export const gapWorld = ({ through = 't7' } = {}) => {
+// `v5: false` leaves out what contract v5 added (summary.before_ideal, the
+// cause current-unmatchable), so an earlier ui can read the same story.
+export const gapWorld = ({ through = 't7', v5 = true } = {}) => {
+  const matchedT5 = gap('v2', 't4', [], [
+    { condition: 'c3', at: 't5', by: 'current-satisfied' }, { condition: 'c1', at: 't5', by: 'current-satisfied' },
+    { condition: 'c4', at: 't5', by: 'current-satisfied' }], 4, 4);
+  // t5: one satisfied condition rests on an observation older than ideal.set v2.
+  if (v5) matchedT5.summary.before_ideal = 1;
+  const t6Parts = [c1(['current-stale'], 't6'),
+    ...(v5 ? [part('c4', 'envs のスコープ主張', 'unknown', ['current-unmatchable'], 't6', 'scope:envs')] : [])];
   const frames = [
     frame('t0', 1, '2026-10-17T00:00:00Z', 'purpose-changed', noIdeal(null)),
     frame('t1', 2, '2026-10-17T01:00:00Z', 'defining', noIdeal('t0')),
@@ -53,10 +62,8 @@ export const gapWorld = ({ through = 't7' } = {}) => {
     frame('t3', 4, '2026-10-17T03:00:00Z', 'approximating', gap('v2', 't2', [c3(['ideal-added'])], [], 3, 2)),
     frame('t4', 5, '2026-10-17T04:00:00Z', 'approximating', gap('v2', 't3',
       [c3(['carried']), c1(['current-regressed'], 't4'), c4(['current-unobserved'])], [], 4, 1)),
-    frame('t5', 6, '2026-10-17T05:00:00Z', 'matched', gap('v2', 't4', [], [
-      { condition: 'c3', at: 't5', by: 'current-satisfied' }, { condition: 'c1', at: 't5', by: 'current-satisfied' },
-      { condition: 'c4', at: 't5', by: 'current-satisfied' }], 4, 4), '2026-10-17T05:41:00Z'),
-    frame('t6', 7, '2026-10-17T06:00:00Z', 'approximating', gap('v2', 't5', [c1(['current-stale'], 't6')], [], 4, 3)),
+    frame('t5', 6, '2026-10-17T05:00:00Z', 'matched', matchedT5, '2026-10-17T05:41:00Z'),
+    frame('t6', 7, '2026-10-17T06:00:00Z', 'approximating', gap('v2', 't5', t6Parts, [], 4, 4 - t6Parts.length)),
     frame('t7', 8, '2026-10-17T07:00:00Z', 'ended', noIdeal('t6', [{ condition: 'c1', at: 't7', by: 'purpose-ended' }])),
   ];
   return {

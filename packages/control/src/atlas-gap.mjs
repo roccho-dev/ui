@@ -32,13 +32,14 @@ const json = (value, at) => {
 };
 
 export const GAP_CAUSES = Object.freeze(['initial', 'purpose-changed', 'ideal-added', 'ideal-revised', 'current-regressed',
-  'current-unobserved', 'current-stale', 'current-confirmed-unmet', 'current-conflict', 'carried']);
+  'current-unobserved', 'current-stale', 'current-confirmed-unmet', 'current-conflict', 'current-unmatchable', 'carried']);
 export const GAP_CLOSED_BY = Object.freeze(['current-satisfied', 'ideal-removed', 'purpose-changed', 'purpose-ended']);
 export const PHASES = Object.freeze(['purpose-changed', 'defining', 'approximating', 'matched', 'ended']);
 export const JOURNAL_KINDS = Object.freeze(['purpose.set', 'ideal.drafting', 'ideal.set', 'plan.set', 'purpose.evaluated', 'purpose.ended', 'observation']);
 export const CAUSE_LABEL = Object.freeze({ initial: '初回', 'purpose-changed': '目的の変更', 'ideal-added': '理想に追加',
   'ideal-revised': '理想の改訂', 'current-regressed': '現在の後退', 'current-unobserved': '未観測', 'current-stale': '鮮度切れ',
-  'current-confirmed-unmet': '未達と確認', 'current-conflict': '観測の矛盾', carried: '継続' });
+  'current-confirmed-unmet': '未達と確認', 'current-conflict': '観測の矛盾',
+  'current-unmatchable': '照合不能', carried: '継続' });
 export const PHASE_LABEL = Object.freeze({ 'purpose-changed': '目的変更', defining: '定義中', approximating: '近似中', matched: '一致・維持', ended: '目的の終了' });
 export const JOURNAL_MARK = Object.freeze({ 'purpose.set': '◎', 'ideal.drafting': '△', 'ideal.set': '▲', 'plan.set': '◇',
   'purpose.evaluated': '★', 'purpose.ended': '■', observation: '·' });
@@ -90,7 +91,7 @@ export const normalizeGap = (value, at) => {
     check(GAP_CLOSED_BY.includes(item.by), where + '.by must be ' + GAP_CLOSED_BY.join('|'));
     return Object.freeze({ condition: text(item.condition, where + '.condition'), at: text(item.at, where + '.at'), by: item.by });
   });
-  exact(value.summary, ['open', 'by_cause'], at + '.summary', ['conditions', 'satisfied']);
+  exact(value.summary, ['open', 'by_cause'], at + '.summary', ['conditions', 'satisfied', 'before_ideal']);
   check(plain(value.summary.by_cause), at + '.summary.by_cause must be an object');
   for (const key of Object.keys(value.summary.by_cause)) check(GAP_CAUSES.includes(key), at + '.summary.by_cause has unknown cause ' + key);
   const optionalCount = key => value.summary[key] === undefined || value.summary[key] === null ? null : count(value.summary[key], at + '.summary.' + key);
@@ -100,6 +101,7 @@ export const normalizeGap = (value, at) => {
     by_cause: Object.freeze(Object.fromEntries(Object.entries(value.summary.by_cause).map(([key, n]) => [key, count(n, at + '.summary.by_cause.' + key)]))),
     conditions: optionalCount('conditions'),
     satisfied: optionalCount('satisfied'),
+    before_ideal: optionalCount('before_ideal'),
   });
   return Object.freeze({ basis, parts: parts === null ? null : Object.freeze(parts), closed: Object.freeze(closed), summary });
 };
@@ -214,7 +216,10 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     : phase === 'matched' ? '新規 0 · 次の鮮度切れ ' + (frame.matched_until ? clockText(frame.matched_until) : '不明')
       : phase === 'ended' ? 'Scope は凍結（履歴）'
         : phase === null ? '差 ' + (counts ? counts.open : unknownCount) : '差 ' + unknownCount;
-  const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + ' · ' + phaseDetail + (consistent ? '' : ' · gap と不整合');
+  // v5: satisfied conditions whose evidence predates the ideal.set are shown,
+  // not hidden: a match that may be a false positive.
+  const beforeIdeal = g?.summary.before_ideal ? ' · 目的の変更前の観測で一致 ' + g.summary.before_ideal + ' 件' : '';
+  const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + ' · ' + phaseDetail + beforeIdeal + (consistent ? '' : ' · gap と不整合');
 
   const prevVersion = prevGap?.basis.ideal_version ?? null;
   // The ideal state moves only within one purpose; a new purpose's ideal is
@@ -226,14 +231,19 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     : (moved ? versionText(prevVersion) + '→' + versionText(g.basis.ideal_version) + ' 移動' : versionText(g.basis.ideal_version))
       + ' · ' + conditionsText + '（追加 ' + counts.byCause['ideal-added'] + ' · 改訂 ' + counts.byCause['ideal-revised'] + '）';
   const prevOpen = g === null ? '' : g.basis.prev_frame === null ? '初回' : prevGap ? '前 ' + prevGap.parts.length : '前 不明';
-  const others = g === null ? [] : ['current-confirmed-unmet', 'current-conflict', 'current-stale', 'purpose-changed', 'initial', 'carried']
+  const others = g === null ? [] : ['current-unmatchable', 'current-confirmed-unmet', 'current-conflict', 'current-stale', 'purpose-changed', 'initial', 'carried']
     .filter(cause => counts.byCause[cause] > 0).map(cause => CAUSE_LABEL[cause] + ' ' + counts.byCause[cause]);
+  const satisfiedText = g === null || g.summary.satisfied === null ? '✓ 未供給' : '✓' + g.summary.satisfied;
   const deltaText = g === null ? (phase === 'ended' ? '差 対象外\n目的は終了した' : '差 不明\n照らし合わせる理想状態がまだ無い')
-    : '差 ' + counts.open + '（' + prevOpen + '）' + (counts.agrees ? '' : ' · 集計不一致') + '\n'
+    : '差 ' + counts.open + '（' + prevOpen + '）' + ' · ' + satisfiedText + ' ?' + counts.unknown + ' !' + counts.unmet + (counts.agrees ? '' : ' · 集計不一致') + '\n'
       + ['理想の移動 ' + counts.idealMoved, '現在の後退 ' + counts.byCause['current-regressed'], '未観測 ' + counts.byCause['current-unobserved'], ...others].join('・');
   const deltaFlags = g === null ? ['scope_status=unknown'] : counts.open === 0 ? ['standing=completed-history'] : counts.unknown > 0 ? ['scope_status=unknown'] : ['scope_status=unmet'];
-  const satisfiedText = g === null || g.summary.satisfied === null ? '✓ 未供給' : '✓' + g.summary.satisfied;
-  const currentLine = clockText(frame.asOf) + (g === null ? ' · 判定 不明' : ' · ' + satisfiedText + ' ?' + counts.unknown + ' !' + counts.unmet);
+  // v5: the current state is observation only, never a verdict against the
+  // ideal (the verdict ✓?! is on 差). Observations are the frame's journal
+  // entries of kind observation; none recorded reads so, never 0 observed.
+  const observations = (frame.journal ?? []).filter(entry => entry.kind === 'observation');
+  const lastObserved = observations.map(entry => entry.observedAt ?? entry.recordedAt).sort().at(-1);
+  const currentLine = observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし';
 
   // The supplied purpose label; when this frame was already drawn from its
   // gap (the World is normalized twice in the app), drop the line added here.
@@ -258,7 +268,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     entity(deltaRef, deltaText, areas.purpose, 3, g === null ? '差は不明（0 ではない）。'
       : '現在状態と理想状態の差。原因ごとの件数は parts から数えた値（1 件が複数の原因を持てる）。'
         + (counts.agrees ? '' : ' 供給された summary は parts と一致しない: ' + JSON.stringify(g.summary)), deltaFlags),
-    entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 4, '現在状態は時刻 ' + frame.asOf + ' の観測。✓=充足 ?=不明 !=未達。'),
+    entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 4, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
   ];
   const relations = [
     relation('current-delta', currentRef, deltaRef, '差'),
