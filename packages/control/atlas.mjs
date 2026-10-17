@@ -69,13 +69,25 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
   // and restarts the window; a rejected snapshot or malformed heartbeat
   // changes nothing. A snapshot records its size; a heartbeat its claimed
   // size, which must match it for the screen to call the World the latest.
-  let source = null, expiry = null;
+  let source = null, expiry = null, freshness = null;
   const restartWindow = () => {
     if (expiry !== null) clearTimeout(expiry);
     expiry = setTimeout(() => { expiry = null; ui.tick(Date.now()); }, RECEIVE_WINDOW_MS + 1);
   };
-  // A background tab may not run the timer; judge again on coming back.
-  const onVisible = () => { if (document.visibilityState === 'visible') ui.tick(Date.now()); };
+  // A matched present frame goes stale at its matched_until: one timeout for
+  // that moment (re-armed when the World changes), never a periodic tick.
+  const armFreshness = () => {
+    if (freshness !== null) clearTimeout(freshness);
+    freshness = null;
+    const present = ui.input.frames.at(-1);
+    const until = present.phase === 'matched' && typeof present.matched_until === 'string' ? Date.parse(present.matched_until) : NaN;
+    const wait = until - Date.now();
+    if (Number.isFinite(wait) && wait >= 0) freshness = setTimeout(() => { freshness = null; ui.tick(Date.now(), true); }, Math.min(wait + 1, 2 ** 31 - 1));
+  };
+  armFreshness();
+  // A background tab may not run the timers; judge again on coming back.
+  const onVisible = () => { if (document.visibilityState === 'visible') ui.tick(Date.now(), true); };
+  document.addEventListener('visibilitychange', onVisible);
   if (eventsUrl) {
     source = connectLiveAtlas({
       url: eventsUrl,
@@ -85,7 +97,7 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
         const at = Date.now();
         const accepted = ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: at, receivedAt: at,
           snapshotBytes: snapshotSize(data), heartbeatBytes: null, latest: ui.page.latest, reportInvalid: true });
-        if (accepted) restartWindow();
+        if (accepted) { restartWindow(); armFreshness(); }
       },
       onHeartbeat: beat => {
         const at = Date.now();
@@ -93,11 +105,11 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
         restartWindow();
       },
     });
-    document.addEventListener('visibilitychange', onVisible);
   }
 
   return publishApi(ui, () => {
     if (expiry !== null) clearTimeout(expiry);
+    if (freshness !== null) clearTimeout(freshness);
     document.removeEventListener('visibilitychange', onVisible);
     source?.close();
   });

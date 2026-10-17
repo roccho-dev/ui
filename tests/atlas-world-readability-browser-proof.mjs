@@ -17,6 +17,7 @@ import { ATLAS_STATUS } from '../packages/control/src/atlas-world-projection.mjs
 import { statusWorld } from './fixtures/atlas-readability-worlds.mjs';
 import { bundledWorld } from './fixtures/atlas-timeline-frames.mjs';
 import { planWorld } from './fixtures/atlas-plan-worlds.mjs';
+import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 import { LABEL_LINE_PX, linePx } from '../packages/control/src/atlas-text.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
@@ -33,7 +34,7 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-readability-'));
-const worlds = [['bundled', bundledWorld()], ['status', statusWorld()], ['plans', planWorld()],
+const worlds = [['bundled', bundledWorld()], ['status', statusWorld()], ['plans', planWorld()], ['gap', gapWorld()],
   ...argv.filter(([name]) => name === 'input').map(([, file]) => [path.basename(file), JSON.parse(fs.readFileSync(file, 'utf8'))])];
 fs.mkdirSync(out);
 const builds = [];

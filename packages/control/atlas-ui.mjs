@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { stepIndex, timelinePosition, transportOf, transportStatus } from './src/atlas-timeline.mjs';
+import { hasBand, stepIndex, timelinePosition, transportOf, transportStatus } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -492,6 +492,7 @@ export const mountAtlasWorldUI = ({
     heartbeatBytes: null,
     projection: null,
     planOpen: false,
+    journalOpen: null,
     destroyed: false,
   };
 
@@ -504,7 +505,7 @@ export const mountAtlasWorldUI = ({
   const currentFrame = () => page.side === 'before' && page.pair.before ? page.pair.before : page.pair.after;
   const counterpartFrame = () => page.side === 'before' && page.pair.before ? page.pair.after : page.pair.before;
   const viewport = () => ({ width: container.clientWidth, height: container.clientHeight });
-  const graphView = () => worldViewport(viewport(), { panel: chrome === 'full' }).graph;
+  const graphView = () => worldViewport(viewport(), { panel: chrome === 'full', band: hasBand(page.input) }).graph;
   const renderSearch = () => {
     const frame = currentFrame();
     page.searchResults = searchAtlasWorld(frame, page.query);
@@ -554,6 +555,7 @@ export const mountAtlasWorldUI = ({
       detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
       chrome,
       planOpen: page.planOpen,
+      journalOpen: page.journalOpen,
       receivedAt: page.receivedAt,
       snapshotBytes: page.snapshotBytes,
       heartbeatBytes: page.heartbeatBytes,
@@ -657,7 +659,12 @@ export const mountAtlasWorldUI = ({
     else if (activation?.type === 'atlas.world.frame-after') showSide('after');
     else if (activation?.type === 'atlas.world.latest') followLatest();
     else if (activation?.type === 'atlas.world.timeline-step') stepFrame(activation.value);
-    else if (activation?.type === 'atlas.world.plan-toggle') { page.planOpen = !page.planOpen; draw(); }
+    else if (activation?.type === 'atlas.world.plan-toggle') { page.planOpen = !page.planOpen; page.journalOpen = null; draw(); }
+    else if (activation?.type === 'atlas.world.journal-toggle') {
+      page.journalOpen = page.journalOpen === activation.value ? null : activation.value;
+      page.planOpen = false;
+      draw();
+    }
     else if (activation?.type === 'atlas.world.tab') { page.detailPages[page.detailTab] = page.detailPage; page.detailTab = activation.value; page.detailPage = page.detailPages[activation.value] ?? 0; draw(); }
     else if (activation?.type === 'atlas.world.detail-next') turnPage(1);
     else if (activation?.type === 'atlas.world.detail-previous') turnPage(-1);
@@ -766,11 +773,13 @@ export const mountAtlasWorldUI = ({
 
   // Time passing can change what the screen may claim (receiving -> no
   // response), so redraw when the stated connection changes.
-  const tick = nextNow => {
+  // `force` redraws regardless, for a deadline the caller waited for (a
+  // matched phase's matched_until).
+  const tick = (nextNow, force = false) => {
     if (page.destroyed) return;
     const before = transportOf(page);
     page.now = nextNow;
-    if (transportOf(page) !== before) draw();
+    if (force || transportOf(page) !== before) draw();
   };
 
   const focusSelected = () => {

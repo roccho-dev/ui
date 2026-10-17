@@ -6,7 +6,8 @@ import { createGraphLayout } from '../../semantic-map/layout/graph.js';
 import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
-import { projectTimeline, timelinePosition, transportOf } from './atlas-timeline.mjs';
+import { hasBand, projectTimeline, timelinePosition, transportOf } from './atlas-timeline.mjs';
+import { STALE_PHASE_LABEL, phaseStale } from './atlas-gap.mjs';
 
 const AREA_GAP = 40;
 const AREA_TOP = 56;
@@ -194,23 +195,29 @@ const wrapLines = (lines, width) => {
 
 export const ATLAS_CHROMES = Object.freeze(['full', 'none']);
 const TIMELINE_STRIP = 44;
+const BAND_HEIGHT = 64;
 
 // Every layout keeps one timeline strip directly below the graph, whatever
 // the chrome. `panel: false` is the chrome-free layout: no control row or
 // detail panel is reserved, so the graph takes the rest of the viewport.
-export const worldViewport = ({ width = 1500, height = 1000 } = {}, { panel: withPanel = true } = {}) => {
+// `band: true` (a World with phases or a journal) adds the phase/journal band
+// just above the strip, taking its height from the graph (chrome-free) or
+// the panel (HUD), as the strip does.
+export const worldViewport = ({ width = 1500, height = 1000 } = {}, { panel: withPanel = true, band: withBand = false } = {}) => {
   const strip = top => Object.freeze({ x: 8, y: top, width: Math.max(1, width - 16), height: TIMELINE_STRIP - 8 });
+  const extra = withBand ? BAND_HEIGHT : 0;
+  const band = top => withBand ? Object.freeze({ x: 8, y: top, width: Math.max(1, width - 16), height: BAND_HEIGHT - 6 }) : null;
   if (!withPanel) {
-    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32 - TIMELINE_STRIP) }),
-      panel: null, timeline: strip(height - TIMELINE_STRIP) });
+    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32 - TIMELINE_STRIP - extra) }),
+      panel: null, band: band(height - TIMELINE_STRIP - extra), timeline: strip(height - TIMELINE_STRIP) });
   }
   // Keep the representative nested Before world readable at 1200x900: the
   // graph keeps its size, and the strip takes its height from the detail
   // panel, which pages rather than shrinking node names to status glyphs.
   const panelHeight = Math.min(400, Math.max(280, Math.floor(height * 0.3)));
   return Object.freeze({ graph: Object.freeze({ x: 16, y: 52, width: Math.max(1, width - 32), height: Math.max(1, height - panelHeight - 68) }),
-    panel: Object.freeze({ x: 8, y: height - panelHeight + TIMELINE_STRIP, width: Math.max(1, width - 16), height: panelHeight - 8 - TIMELINE_STRIP }),
-    timeline: strip(height - panelHeight) });
+    panel: Object.freeze({ x: 8, y: height - panelHeight + TIMELINE_STRIP + extra, width: Math.max(1, width - 16), height: panelHeight - 8 - TIMELINE_STRIP - extra }),
+    band: band(height - panelHeight), timeline: strip(height - panelHeight + extra) });
 };
 
 const regionId = key => 'world:' + key;
@@ -479,6 +486,7 @@ export const projectWorldScene = ({
   admission = null,
   ordering = 'relations',
   textScale = 1,
+  staleAt = null,
 } = {}) => {
   if (!['relations', 'supplied'].includes(ordering)) throw new Error('atlas-world: unsupported ordering ' + ordering);
   if (!(textScale > 0)) throw new Error('atlas-world: textScale must be positive');
@@ -500,7 +508,14 @@ export const projectWorldScene = ({
   const rank = ordering === 'supplied' ? new Map() : areaRanks(frame, areas, containment);
   // Live activity keeps its own glyph and color; otherwise the supplied status
   // flags choose them. Either way a symbol precedes the label.
-  const look = entity => {
+  // A matched phase past its matched_until, on the ui's clock, for the frame
+  // shown as the present: say it is stale and not known latest. The gap is
+  // not derived again.
+  const stale = staleAt !== null && phaseStale(frame, staleAt);
+  const look = supplied => {
+    const entity = stale && supplied.ref.kind === 'phase'
+      ? { ...supplied, label: STALE_PHASE_LABEL + '（' + frame.matched_until.slice(11, 16) + 'Z を過ぎた）', flags: ['scope_status=unknown'] }
+      : supplied;
     const activity = displayedActivity(entity.activity);
     const status = activity === 'none' ? statusOf(entity.flags) : null;
     const symbol = status ? STATUS[status].symbol : token[activity];
@@ -861,21 +876,24 @@ export const projectAtlasWorld = ({
   admission = null,
   chrome = 'full',
   planOpen = false,
+  journalOpen = null,
   receivedAt = null,
   now = null,
   snapshotBytes = null,
   heartbeatBytes = null,
 } = {}) => {
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world: unsupported chrome ' + chrome);
-  const fullLayout = worldViewport(viewport);
-  const layout = chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false });
+  const band = hasBand(receivedInput);
+  const fullLayout = worldViewport(viewport, { band });
+  const layout = chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false, band });
   // Content-fitted boxes are sized for scale 1, whatever the viewport, so the
   // World does not change size with the window. `minScale` tells Fit not to
   // go below 1 when such boxes are drawn, and always in the chrome-free view,
   // whose node text is the whole screen: a World larger than the view is
   // panned, never shrunk until its text no longer fits. The HUD view keeps
   // its whole-World overview for nested Worlds.
-  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission });
+  const present = timelinePosition(receivedInput.frames, frame.id).present;
+  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission, staleAt: present ? now : null });
   const minScale = scene.contentFitted || chrome === 'none' ? 1 : null;
   // The detail is paged against the full layout's panel in both chromes, so the
   // selected record's text and pages do not depend on what is drawn.
@@ -887,7 +905,8 @@ export const projectAtlasWorld = ({
   // The timeline is its own layer: present in every chrome. Its planned part
   // reads the displayed frame's supplied plans and nothing else.
   const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen,
-    transport: transportOf({ mode, connected, receivedAt, now, snapshotBytes, heartbeatBytes }), receivedAt, strip: layout.timeline, camera });
+    transport: transportOf({ mode, connected, receivedAt, now, snapshotBytes, heartbeatBytes }), receivedAt, strip: layout.timeline,
+    band: layout.band, journalOpen, camera });
 
   return Object.freeze({
     scene: Object.freeze({
