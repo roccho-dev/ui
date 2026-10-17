@@ -1,7 +1,7 @@
 // Generic bounded Atlas world input for the a2 presentation.
 // This is a display/read-model seam, never a business authority or owner codec.
 
-import { gapView, normalizeGap } from './atlas-gap.mjs';
+import { gapView, hasGapView, normalizeGap, normalizeJournal, normalizePhase } from './atlas-gap.mjs';
 
 export const ATLAS_WORLD_KIND = 'ui.atlasWorldInput.v1';
 
@@ -242,7 +242,7 @@ const normalizePlans = (value, at) => {
 };
 
 const normalizeFrame = (value, at, areaIds) => {
-  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans', 'gap'], at);
+  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans', 'gap', 'phase', 'journal', 'matched_until'], at);
   check(Array.isArray(value.entities) && value.entities.length > 0, at + '.entities must be non-empty');
   check(Array.isArray(value.relations), at + '.relations must be an array');
   const entities = value.entities.map((item, index) => normalizeEntity(item, at + '.entities[' + index + ']', areaIds));
@@ -263,6 +263,9 @@ const normalizeFrame = (value, at, areaIds) => {
     // Kept only when supplied, so a frame without plans normalizes as before.
     ...(value.plans === undefined ? {} : { plans: normalizePlans(value.plans, at + '.plans') }),
     ...(value.gap === undefined ? {} : { gap: normalizeGap(value.gap, at + '.gap') }),
+    ...(value.phase === undefined ? {} : { phase: normalizePhase(value.phase, at + '.phase') }),
+    ...(value.journal === undefined ? {} : { journal: normalizeJournal(value.journal, at + '.journal') }),
+    ...(value.matched_until === undefined ? {} : { matched_until: value.matched_until === null ? null : timeValue(value.matched_until, at + '.matched_until') }),
   });
 };
 
@@ -270,7 +273,7 @@ const normalizeFrame = (value, at, areaIds) => {
 // areas keep their supplied entities. Deriving again from a derived frame
 // gives the same frame.
 const withGapView = (frame, earlier, presentation) => {
-  if (!frame.gap) return frame;
+  if (!hasGapView(frame)) return frame;
   const view = gapView({ frame, earlier, presentation, key: entityKey });
   const entityIds = view.entities.map(item => entityKey(item.ref));
   check(new Set(entityIds).size === entityIds.length, frame.id + ': gap view entity collides with a supplied entity');

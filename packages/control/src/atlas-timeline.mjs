@@ -4,6 +4,10 @@
 // undeclared (UNKNOWN), not as an empty future. Pure; no DOM.
 
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
+import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL } from './atlas-gap.mjs';
+
+// Whether a World carries phases or a journal, and so gets the band.
+export const hasBand = input => input.frames.some(frame => Object.hasOwn(frame, 'phase') || Object.hasOwn(frame, 'journal'));
 
 export const TIMELINE_ID_PREFIX = 'timeline:';
 export const PLAN_UNDECLARED = '予定：計画未宣言（UNKNOWN）';
@@ -113,6 +117,8 @@ export const projectTimeline = ({
   transport = 'sample',
   receivedAt = null,
   strip,
+  band = null,
+  journalOpen = null,
   camera = { scale: 1, translateX: 0, translateY: 0 },
 } = {}) => {
   const plans = frame.plans ?? null;
@@ -168,14 +174,78 @@ export const projectTimeline = ({
     x += width + 6;
     return drawn;
   });
-  if (planOpen) {
-    // Rows stack upward from the strip, each as tall as its wrapped lines.
-    let bottom = strip.y - 6;
-    const rows = planDetailLines(plans).map(line => wrapLabel(line, strip.width - 32));
-    rows.reverse().forEach((label, reversed) => {
+  // The band (when the World carries phases or a journal): one row of phase
+  // segments over the received frames, and above it one row of journal
+  // marks, grouped per frame and kind; a mark opens its entries.
+  const journalRows = [];
+  if (band) {
+    const span = band.width / Math.max(1, frames.length);
+    const segments = [];
+    frames.forEach((item, at) => {
+      const phase = item.phase ?? null;
+      if (segments.length && segments.at(-1).phase === phase) segments.at(-1).to = at;
+      else segments.push({ phase, from: at, to: at });
+    });
+    const rowHeight = (band.height - 4) / 2;
+    for (const segment of segments) {
+      const name = segment.phase === null ? '局面 未供給' : PHASE_LABEL[segment.phase];
+      const width = span * (segment.to - segment.from + 1) - 4;
+      const shown = segment.from <= index && index <= segment.to;
+      regions.push(region('phase:' + segment.from, fitCellLabel([name, name.slice(0, 2), name.slice(0, 1)], width),
+        { x: band.x + span * segment.from, y: band.y + rowHeight + 4, width, height: rowHeight }, shown ? 'control' : 'idle', null,
+        { phase: segment.phase, from: frames[segment.from].id, to: frames[segment.to].id, fullLabel: name }));
+    }
+    // Entries recorded up to the newest frame, each placed in the first frame
+    // whose asOf is not before it was recorded.
+    const journal = frames.at(-1)?.journal ?? [];
+    const placeOf = entry => {
+      const at = frames.findIndex(item => Date.parse(item.asOf) >= Date.parse(entry.recordedAt));
+      return at < 0 ? frames.length - 1 : at;
+    };
+    const groups = new Map();
+    for (const entry of journal) {
+      const groupKey = placeOf(entry) + ':' + entry.kind;
+      if (!groups.has(groupKey)) groups.set(groupKey, []);
+      groups.get(groupKey).push(entry);
+    }
+    for (let at = 0; at < frames.length; at += 1) {
+      const kinds = [...groups.keys()].filter(groupKey => groupKey.startsWith(at + ':'));
+      const MARK_WIDTH = 60;
+      const fits = kinds.length * (MARK_WIDTH + 4) <= span - 4;
+      const cellsHere = fits ? kinds.map(groupKey => [groupKey, JOURNAL_MARK[groupKey.split(':')[1]] + groups.get(groupKey).length])
+        : kinds.length ? [[at + ':*', '仕訳 ' + kinds.reduce((sum, groupKey) => sum + groups.get(groupKey).length, 0)]] : [];
+      cellsHere.forEach(([groupKey, label], n) => {
+        const width = fits ? MARK_WIDTH : span - 4;
+        const kind = groupKey.split(':')[1];
+        regions.push(region('journal:' + groupKey, fitCellLabel([label, kind === '*' ? '仕訳' : JOURNAL_MARK[kind]], width),
+          { x: band.x + span * at + n * (MARK_WIDTH + 4), y: band.y, width, height: rowHeight }, 'plan',
+          { type: 'atlas.world.journal-toggle', value: groupKey }, { group: groupKey, fullLabel: label }));
+      });
+    }
+    if (journalOpen !== null) {
+      const [at, kind] = journalOpen.split(':');
+      const entries = kind === '*' ? [...groups.entries()].filter(([groupKey]) => groupKey.startsWith(at + ':')).flatMap(([, list]) => list)
+        : groups.get(journalOpen) ?? [];
+      for (const entry of entries) {
+        journalRows.push(JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
+          + ' · 出所 ' + entry.source.ref + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
+          + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN'));
+      }
+      if (!entries.length) journalRows.push('この印の仕訳はもう無い');
+    }
+  }
+  // Detail rows (the plan's or a journal mark's) stack upward from the strip,
+  // or from the band when there is one, each as tall as its wrapped lines.
+  const detail = planOpen ? planDetailLines(plans).map(line => ['plan-line:', line]) : journalRows.map(line => ['journal-line:', line]);
+  if (detail.length) {
+    let bottom = (band ? band.y : strip.y) - 6;
+    // The per-character estimate can fall short of a real font on long Latin
+    // runs (digests); wrap with a fifth to spare.
+    const rows = detail.map(([prefix, line]) => [prefix, wrapLabel(line, (strip.width - 32) * 0.8)]);
+    rows.reverse().forEach(([prefix, label], reversed) => {
       const height = label.split('\n').length * LABEL_LINE_PX + 8;
       bottom -= height;
-      regions.push(region('plan-line:' + (rows.length - 1 - reversed), label, { x: strip.x, y: bottom, width: strip.width, height }, 'plan', null,
+      regions.push(region(prefix + (rows.length - 1 - reversed), label, { x: strip.x, y: bottom, width: strip.width, height }, 'plan', null,
         { line: rows.length - 1 - reversed }));
       bottom -= 2;
     });
