@@ -340,23 +340,47 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     const sinceFrame = [...earlier, frame].find(item => item.id === since);
     return (ago === 0 ? 'この時点から' : ago + ' 時点前から') + '（' + clockText(sinceFrame.asOf) + '）';
   };
-  // A Scope area the frame supplies itself (e.g. nested per owner, with its
-  // containment) is drawn as supplied; Scopes are derived from the parts only
-  // when it supplies none. The kinds derived here are never counted as supplied.
-  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed'].includes(item.ref.kind));
-  (suppliedScopes.length ? [] : g?.parts ?? []).forEach((part, index) => {
-    const partRef = ref('gap-part', part.condition);
-    const flags = [part.state === 'unmet' ? 'scope_status=unmet' : 'scope_status=unknown', ...(part.scope === null ? ['unassigned'] : [])];
-    // v6: each side's cause is shown, the ideal side first; a side without one is left out.
+  // A part's line: its state, the cause of each side (v6: ideal side first; a
+  // side without one is left out) and since when it is open.
+  const partLine = part => {
     const sides = causeSides(part.cause);
     const causeText = [sides.ideal, sides.current, sides.carried ? ['carried'] : []].filter(list => list.length)
       .map(list => list.map(cause => CAUSE_LABEL[cause]).join('・')).join(' · ');
-    const causeRecord = Array.isArray(part.cause) ? part.cause.join(',') : 'ideal:' + (part.cause.ideal ?? 'なし') + ',current:' + (part.cause.current ?? 'なし');
-    entities.push(entity(partRef, (part.label ?? part.condition) + '\n' + (part.state === 'unmet' ? '未達' : '不明') + ' · '
-      + causeText + ' · ' + sinceText(part.since) + ' · ' + (part.scope ?? '担当なし')
-      + (part.observed_before_ideal ? ' · 理想状態の確定前の観測' : ''),
-    areas.scope, index, 'condition=' + part.condition + ' · state=' + part.state + ' · cause=' + causeRecord
-      + ' · since=' + part.since + ' · scope=' + (part.scope ?? 'null（担当なし）') + ' · refs=' + (part.refs.join(', ') || 'なし'), flags));
+    return (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText + ' · ' + sinceText(part.since);
+  };
+  const partRecord = part => 'condition=' + part.condition + ' · state=' + part.state + ' · cause='
+    + (Array.isArray(part.cause) ? part.cause.join(',') : 'ideal:' + (part.cause.ideal ?? 'なし') + ',current:' + (part.cause.current ?? 'なし'))
+    + ' · since=' + part.since + ' · scope=' + (part.scope ?? 'null（担当なし）') + ' · refs=' + (part.refs.join(', ') || 'なし');
+  const beforeIdealMark = part => part.observed_before_ideal ? ' · 理想状態の確定前の観測' : '';
+  // A Scope area the frame supplies itself (e.g. nested per owner, with its
+  // containment) is drawn as supplied; Scopes are derived from the parts only
+  // when it supplies none. The kinds derived here are never counted as supplied.
+  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed'].includes(item.ref.kind))
+    .map(item => item.flags.includes('gap-view')
+      ? Object.freeze({ ...item, label: item.label.split('\n').slice(0, -1).join('\n'), summary: item.summary?.split('\n').slice(0, -1).join('\n') || null,
+        flags: Object.freeze(item.flags.filter(flag => flag !== 'gap-view')) })
+      : item);
+  // Each open part is shown on the one supplied Scope whose id is its scope or
+  // its condition; a part matching none or several, or sharing its Scope with
+  // another part, is shown on none (never attached by guess).
+  const matches = new Map();
+  for (const part of suppliedScopes.length ? g?.parts ?? [] : []) {
+    const hits = suppliedScopes.filter(item => item.ref.id === part.scope || item.ref.id === part.condition);
+    if (hits.length === 1) matches.set(key(hits[0].ref), [...(matches.get(key(hits[0].ref)) ?? []), part]);
+  }
+  const shownScopes = suppliedScopes.map(item => {
+    const parts = matches.get(key(item.ref));
+    if (parts?.length !== 1) return item;
+    const [part] = parts;
+    relations.push(relation('part-' + part.condition, item.ref, deltaRef, '差'));
+    return Object.freeze({ ...item, label: item.label + '\n' + partLine(part) + (part.scope === null ? ' · 担当なし' : '') + beforeIdealMark(part),
+      summary: (item.summary ?? '') + '\n' + partRecord(part), flags: Object.freeze([...item.flags, 'gap-view']) });
+  });
+  (suppliedScopes.length ? [] : g?.parts ?? []).forEach((part, index) => {
+    const partRef = ref('gap-part', part.condition);
+    const flags = [part.state === 'unmet' ? 'scope_status=unmet' : 'scope_status=unknown', ...(part.scope === null ? ['unassigned'] : [])];
+    entities.push(entity(partRef, (part.label ?? part.condition) + '\n' + partLine(part) + ' · ' + (part.scope ?? '担当なし') + beforeIdealMark(part),
+      areas.scope, index, partRecord(part), flags));
     relations.push(relation('part-' + part.condition, partRef, deltaRef, '差'));
   });
   // History: every condition closed in this or an earlier frame. Kept, never
@@ -369,7 +393,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   }
 
   // Keep the other areas' entities, any supplied Scopes, and the relations among them.
-  const kept = [...suppliedScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
+  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
   return Object.freeze({ entities: Object.freeze([...entities, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });

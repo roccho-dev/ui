@@ -333,6 +333,7 @@ const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
   });
   return Object.freeze({
     layout,
+    widthScale: WORLD_WIDTH_SCALE,
     rootId,
     entityByKey,
     childrenByParent,
@@ -342,49 +343,87 @@ const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
   });
 };
 
-// Content-fitted layout for an area without containment. Node text is drawn
-// at a fixed screen size, so each box is sized in screen pixels for a camera
-// scale of `textScale` (1 in the app; Fit never goes below it): wide
-// enough for its longest line, tall enough for its lines, never wider than
-// LABEL_MAX_PX — longer lines are broken into more lines instead
-// (atlas-text.mjs).
+// Content-fitted layout of an area. Node text is drawn at a fixed screen
+// size, so each box is sized in screen pixels for a camera scale of
+// `textScale` (1 in the app; Fit never goes below it): wide enough for its
+// longest line, tall enough for its lines, never wider than LABEL_MAX_PX —
+// longer lines are broken into more lines instead (atlas-text.mjs).
+// A supplied container (containment), when fitted, is a box headed by its
+// label with its children stacked below, as wide as the widest of them.
+// Contained entities keep their supplied order; the relation ordering moves
+// only an area's top-level entities. Whole, even widths keep every centre
+// exact, so an area's boxes share one centre line.
 const LABEL_PAD_X_PX = 16;
 const LABEL_PAD_Y_PX = 9;
 const AREA_HEADER_PX = 40;
 const FLAT_GAP = 24;
+const NEST_PAD_PX = 10;
+const NEST_GAP_PX = 10;
 export { wrapLabel };
 
-const flatAreaLayout = ({ area, rows, rank, labelOf, textScale }) => {
+const fittedAreaLayout = ({ area, rows, containment, rank, labelOf, textScale }) => {
   const entityByKey = new Map(rows.map(entity => [entityKey(entity.ref), entity]));
-  const ordered = orderedKeys([...entityByKey.keys()], entityByKey, rank);
-  const shown = [], omitted = [];
-  for (const key of ordered) (entityByKey.get(key).visible && shown.length < MAX_ENTITIES_PER_AREA ? shown : omitted).push(key);
-  const labels = new Map(shown.map(key => [key, wrapLabel(labelOf(entityByKey.get(key)))]));
-  const size = label => {
-    const lines = label.split('\n');
-    return { width: (Math.max(...lines.map(linePx)) + 2 * LABEL_PAD_X_PX) / textScale,
-      height: (lines.length * LABEL_LINE_PX + 2 * LABEL_PAD_Y_PX) / textScale };
-  };
-  const sizes = new Map(shown.map(key => [key, size(labels.get(key))]));
-  const header = (AREA_HEADER_PX) / textScale;
-  const pad = LABEL_PAD_X_PX / textScale;
-  const inner = Math.max(linePx(area.label) / textScale, ...[...sizes.values()].map(item => item.width), 120);
-  const bounds = new Map();
-  let y = header;
-  for (const key of shown) {
-    const { width, height } = sizes.get(key);
-    // translateBounds widens x and width by WORLD_WIDTH_SCALE; undo it here.
-    bounds.set(key, Object.freeze({ x: (pad + (inner - width) / 2) / WORLD_WIDTH_SCALE, y, width: width / WORLD_WIDTH_SCALE, height }));
-    y += height + FLAT_GAP;
+  const childrenByParent = new Map([...entityByKey.keys()].map(key => [key, []]));
+  const roots = [];
+  for (const key of entityByKey.keys()) {
+    const parent = containment.parentByChild.get(key);
+    if (parent && entityByKey.has(parent)) childrenByParent.get(parent).push(key);
+    else roots.push(key);
   }
-  const rootBounds = Object.freeze({ x: 0, y: 0, width: (inner + 2 * pad) / WORLD_WIDTH_SCALE, height: Math.max(y - FLAT_GAP + pad, header + pad) });
+  for (const [parent, children] of childrenByParent) childrenByParent.set(parent, orderedKeys(children, entityByKey));
+  const shown = [];
+  const omitted = new Set();
+  const visit = key => {
+    if (!entityByKey.get(key).visible || shown.length >= MAX_ENTITIES_PER_AREA) { markSubtreeOmitted(key, childrenByParent, omitted); return; }
+    shown.push(key);
+    for (const child of childrenByParent.get(key)) visit(child);
+  };
+  const tops = orderedKeys(roots, entityByKey, rank);
+  for (const root of tops) visit(root);
+  const shownSet = new Set(shown);
+  const kids = key => childrenByParent.get(key).filter(child => shownSet.has(child));
+  const labels = new Map(shown.map(key => [key, wrapLabel(labelOf(entityByKey.get(key)))]));
+  const even = value => 2 * Math.ceil(value / 2);
+  const nestPad = NEST_PAD_PX / textScale, nestGap = NEST_GAP_PX / textScale;
+  const headHeight = key => Math.ceil((labels.get(key).split('\n').length * LABEL_LINE_PX + 2 * LABEL_PAD_Y_PX) / textScale);
+  const sizes = new Map();
+  const measure = key => {
+    const head = { width: even((Math.max(...labels.get(key).split('\n').map(linePx)) + 2 * LABEL_PAD_X_PX) / textScale), height: headHeight(key) };
+    const inside = kids(key).map(measure);
+    const size = inside.length ? { width: Math.max(head.width, ...inside.map(item => item.width + 2 * nestPad)),
+      height: head.height + inside.reduce((sum, item) => sum + item.height, 0) + nestGap * (inside.length - 1) + nestPad } : head;
+    sizes.set(key, size);
+    return size;
+  };
+  const top = tops.filter(key => shownSet.has(key));
+  top.forEach(measure);
+  const header = AREA_HEADER_PX / textScale;
+  const pad = LABEL_PAD_X_PX / textScale;
+  const inner = even(Math.max(linePx(area.label) / textScale, ...top.map(key => sizes.get(key).width), 120));
+  const bounds = new Map();
+  const place = (key, x, y) => {
+    const { width, height } = sizes.get(key);
+    bounds.set(key, Object.freeze({ x, y, width, height }));
+    let childY = y + headHeight(key);
+    for (const child of kids(key)) {
+      place(child, x + (width - sizes.get(child).width) / 2, childY);
+      childY += sizes.get(child).height + nestGap;
+    }
+  };
+  let y = header;
+  for (const key of top) {
+    place(key, pad + (inner - sizes.get(key).width) / 2, y);
+    y += sizes.get(key).height + FLAT_GAP;
+  }
+  const rootBounds = Object.freeze({ x: 0, y: 0, width: inner + 2 * pad, height: Math.max(y - FLAT_GAP + pad, header + pad) });
   return Object.freeze({
     layout: Object.freeze({ rootBounds, bounds }),
+    widthScale: 1,
     labels,
     entityByKey,
-    childrenByParent: new Map(),
+    childrenByParent,
     shown: Object.freeze(shown),
-    shownSet: new Set(shown),
+    shownSet,
     omitted: Object.freeze([...omitted].sort()),
   });
 };
@@ -398,10 +437,10 @@ const containmentDepth = (key, parentByChild) => {
   return depth;
 };
 
-const translateBounds = (bounds, dx, dy) => Object.freeze({
-  x: bounds.x * WORLD_WIDTH_SCALE + dx,
+const translateBounds = (bounds, dx, dy, widthScale) => Object.freeze({
+  x: bounds.x * widthScale + dx,
   y: bounds.y + dy,
-  width: bounds.width * WORLD_WIDTH_SCALE,
+  width: bounds.width * widthScale,
   height: bounds.height,
 });
 
@@ -477,6 +516,9 @@ const activityDisplay = ({ mode, connected, latest, admission }) => {
 
 // The three-area World alone: areas, nested entities and drawn relation groups
 // in world coordinates. It knows nothing of the camera, panel or controls.
+// `fitNested: true` fits nested areas to their content too (the chrome-free
+// view, which never shrinks the World); otherwise a nested area keeps the
+// graph layout, whose larger boxes hold their text in a shrunk overview.
 export const projectWorldScene = ({
   input,
   frame,
@@ -487,6 +529,7 @@ export const projectWorldScene = ({
   ordering = 'relations',
   textScale = 1,
   staleAt = null,
+  fitNested = false,
 } = {}) => {
   if (!['relations', 'supplied'].includes(ordering)) throw new Error('atlas-world: unsupported ordering ' + ordering);
   if (!(textScale > 0)) throw new Error('atlas-world: textScale must be positive');
@@ -524,15 +567,17 @@ export const projectWorldScene = ({
   };
 
   const nestedAreas = new Set([...containment.parentByChild.keys()].map(key => index.entityByKey.get(key)?.area));
+  // Graph-laid areas: nested ones, unless nested areas are fitted too.
+  const graphLaid = new Set(fitNested ? [] : nestedAreas);
   for (const area of areas) {
     const rows = areaEntities.get(area.id) ?? [];
-    const nested = nestedAreas.has(area.id)
+    const nested = graphLaid.has(area.id)
       ? nestedAreaLayout({ area, rows, containment, rank, labelOf: entity => look(entity).label })
-      : flatAreaLayout({ area, rows, rank, labelOf: entity => look(entity).label, textScale });
+      : fittedAreaLayout({ area, rows, containment, rank, labelOf: entity => look(entity).label, textScale });
     const rootBounds = nested.layout.rootBounds;
-    const dx = contentRight - rootBounds.x * WORLD_WIDTH_SCALE;
+    const dx = contentRight - rootBounds.x * nested.widthScale;
     const dy = AREA_TOP - rootBounds.y;
-    const bounds = translateBounds(rootBounds, dx, dy);
+    const bounds = translateBounds(rootBounds, dx, dy, nested.widthScale);
     areaBounds.set(area.id, bounds);
     worldHeight = Math.max(worldHeight, bounds.y + bounds.height);
     contentRight = bounds.x + bounds.width + AREA_GAP;
@@ -555,7 +600,7 @@ export const projectWorldScene = ({
     for (const key of nested.shown) {
       const entity = nested.entityByKey.get(key);
       const localBounds = nested.layout.bounds.get(key);
-      const entityBounds = translateBounds(localBounds, dx, dy);
+      const entityBounds = translateBounds(localBounds, dx, dy, nested.widthScale);
       const shownChildren = (nested.childrenByParent.get(key) ?? []).filter(child => nested.shownSet.has(child));
       const hasChildren = shownChildren.length > 0;
       const { activity, status, label: lookLabel, appearance: entityAppearance } = look(entity);
@@ -626,7 +671,7 @@ export const projectWorldScene = ({
     omittedEntityIds: Object.freeze([...new Set(omittedEntityIds)].sort()),
     // True when some area drew content-fitted boxes, which hold their text
     // only at a camera scale of at least `textScale`.
-    contentFitted: areas.some(area => !nestedAreas.has(area.id) && (areaEntities.get(area.id) ?? []).length > 0),
+    contentFitted: areas.some(area => !graphLaid.has(area.id) && (areaEntities.get(area.id) ?? []).length > 0),
   });
 };
 
@@ -893,7 +938,7 @@ export const projectAtlasWorld = ({
   // panned, never shrunk until its text no longer fits. The HUD view keeps
   // its whole-World overview for nested Worlds.
   const present = timelinePosition(receivedInput.frames, frame.id).present;
-  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission, staleAt: present ? now : null });
+  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission, staleAt: present ? now : null, fitNested: chrome === 'none' });
   const minScale = scene.contentFitted || chrome === 'none' ? 1 : null;
   // The detail is paged against the full layout's panel in both chromes, so the
   // selected record's text and pages do not depend on what is drawn.

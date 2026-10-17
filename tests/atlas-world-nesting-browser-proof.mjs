@@ -8,8 +8,12 @@
 // both are drawn and the child's rectangle lies inside its parent's;
 // children of one parent do not overlap each other or the parent's title;
 // every nested text is drawn whole inside its box; and a nested status node
-// carries its symbol. A World supplying no containment at all fails: the
-// proof would be empty.
+// carries its symbol. Each supplied Scope with an open part (the one whose id
+// is the part's scope or condition, read from the input) shows the part's
+// causes and since; one without shows none. As first shown, at 1500x1000 the
+// areas stand side by side within the screen, and at 1280x720 the last area
+// is at least partly on it. A World supplying no containment, or no Scope
+// with an open part, fails: the proof would be empty.
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -17,6 +21,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { ATLAS_STATUS } from '../packages/control/src/atlas-world-projection.mjs';
+import { CAUSE_LABEL } from '../packages/control/src/atlas-gap.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
@@ -51,6 +56,19 @@ for (const [name, world] of worlds) {
 }
 
 const keyOf = ref => ref.space + '\u0000' + ref.kind + '\u0000' + ref.id;
+// The supplied Scope each open part belongs to, read from the input alone: the
+// one Scope-area entity whose id is the part's scope or its condition. A part
+// with no such entity, or with more than one, is matched to none.
+const partOwners = (frame, scopeArea) => {
+  const scopes = frame.entities.filter(item => item.area === scopeArea);
+  const owners = new Map();
+  for (const part of frame.gap?.parts ?? []) {
+    const hits = scopes.filter(item => item.ref.id === part.scope || item.ref.id === part.condition);
+    if (hits.length === 1) owners.set(keyOf(hits[0].ref), part);
+  }
+  return { scopes, owners };
+};
+const causeList = cause => Array.isArray(cause) ? cause : [cause.ideal, cause.current].flat().filter(Boolean);
 // The supplied pairs of a raw frame, read from its relations alone.
 const suppliedPairs = frame => frame.relations.filter(item => item.containment).map(item => item.containment === 'from-contains-to'
   ? { parent: keyOf(item.from), child: keyOf(item.to) } : { parent: keyOf(item.to), child: keyOf(item.from) });
@@ -79,6 +97,9 @@ try {
   for (const build of builds) {
     const pairsByFrame = new Map(build.world.frames.map(item => [item.id, suppliedPairs(item)]));
     check(build.name + ': the World supplies containment to draw', [...pairsByFrame.values()].some(list => list.length > 0), null);
+    const scopeArea = build.world.presentation.areas[build.world.presentation.areas.findIndex(item => item.id === build.world.presentation.purposeAreaId) + 1].id;
+    const ownersByFrame = new Map(build.world.frames.map(item => [item.id, partOwners(item, scopeArea)]));
+    check(build.name + ': some supplied Scope has an open part to show', [...ownersByFrame.values()].some(item => item.owners.size > 0), null);
     for (const viewport of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }, { width: 1920, height: 1080 }]) {
       current = build.file;
       const page = await browser.newPage({ viewport });
@@ -87,6 +108,26 @@ try {
       await page.goto(origin, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
       const count = await page.evaluate(() => window.liveAtlas.input.frames.length);
+      // As first shown (no Fit, no input): at 1500x1000 the areas stand side by
+      // side, each across within the screen with its top in the graph view
+      // (above the band and strip, which are drawn over it); a taller area
+      // continues below and is reached by panning. At 1280x720 the last area
+      // (Agent) is at least partly on the screen.
+      const first = await page.evaluate(() => {
+        const atlas = window.liveAtlas, view = atlas.adapter.graph.getView();
+        const rect = node => { const box = node?.getBoundingClientRect?.(); return box ? { left: box.left, right: box.right, top: box.top, bottom: box.bottom } : null; };
+        const shapeOf = item => rect(view.getState(atlas.adapter.cellsByRegionId.get(item.regionId))?.shape?.node);
+        const reps = atlas.projection.scene.representations;
+        return { screen: rect(document.getElementById('atlas-world')),
+          timelineTop: Math.min(...reps.filter(item => item.regionId.startsWith('timeline:')).map(shapeOf).filter(Boolean).map(box => box.top)),
+          areas: reps.filter(item => item.atlas?.kind === 'area').map(item => ({ id: item.atlas.areaId, shape: shapeOf(item) })) };
+      });
+      const firstWhere = build.name + ' first shown at ' + viewport.width + 'x' + viewport.height;
+      if (viewport.width === 1500) check(firstWhere + ': every area lies across within the screen, its top in the graph view',
+        first.areas.length >= 3 && first.areas.every(item => item.shape && item.shape.left >= first.screen.left - 1 && item.shape.right <= first.screen.right + 1
+          && item.shape.top >= first.screen.top - 1 && item.shape.top < first.timelineTop - 40), first);
+      if (viewport.width === 1280) check(firstWhere + ': the last area is at least partly on the screen',
+        first.areas.length >= 3 && first.areas.at(-1).shape && first.areas.at(-1).shape.left < first.screen.right - 40, first);
       for (let step = 0; step < count; step += 1) {
         if (step > 0) { await page.focus('#atlas-world'); await page.keyboard.press('['); }
         await page.evaluate(() => window.liveAtlas.fit());
@@ -103,6 +144,23 @@ try {
           }) };
         });
         const where = build.name + ' ' + state.frameId + ' at ' + viewport.width + 'x' + viewport.height;
+        // Each supplied Scope with an open part shows that part's causes and
+        // since; one without shows no such line (nothing is attached by guess).
+        const { scopes, owners } = ownersByFrame.get(state.frameId);
+        const drawnByKey = new Map(state.nodes.map(item => [item.key, item]));
+        const noCause = [], guessed = [];
+        for (const scope of scopes) {
+          const drawn = drawnByKey.get(keyOf(scope.ref));
+          if (!drawn) continue;
+          const part = owners.get(keyOf(scope.ref));
+          const sinceShown = /時点(前)?から/u.test(drawn.text);
+          if (part) {
+            const words = [...causeList(part.cause).map(cause => CAUSE_LABEL[cause]), ...(part.scope === null ? ['担当なし'] : [])];
+            if (!sinceShown || !words.every(word => flat(drawn.text).includes(flat(word)))) noCause.push({ id: drawn.id, words, text: drawn.text });
+          } else if (sinceShown) guessed.push({ id: drawn.id, text: drawn.text });
+        }
+        if (owners.size) check(where + ': each Scope with an open part shows its cause and since', noCause.length === 0, noCause.slice(0, 5));
+        check(where + ': a Scope with no open part gets no cause line', guessed.length === 0, guessed.slice(0, 5));
         const pairs = pairsByFrame.get(state.frameId) ?? [];
         if (!pairs.length) continue;
         const byKey = new Map(state.nodes.map(item => [item.key, item]));
