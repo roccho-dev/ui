@@ -1,6 +1,8 @@
 // Generic bounded Atlas world input for the a2 presentation.
 // This is a display/read-model seam, never a business authority or owner codec.
 
+import { gapView, normalizeGap } from './atlas-gap.mjs';
+
 export const ATLAS_WORLD_KIND = 'ui.atlasWorldInput.v1';
 
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -240,7 +242,7 @@ const normalizePlans = (value, at) => {
 };
 
 const normalizeFrame = (value, at, areaIds) => {
-  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans'], at);
+  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans', 'gap'], at);
   check(Array.isArray(value.entities) && value.entities.length > 0, at + '.entities must be non-empty');
   check(Array.isArray(value.relations), at + '.relations must be an array');
   const entities = value.entities.map((item, index) => normalizeEntity(item, at + '.entities[' + index + ']', areaIds));
@@ -260,7 +262,20 @@ const normalizeFrame = (value, at, areaIds) => {
     relations: Object.freeze(relations),
     // Kept only when supplied, so a frame without plans normalizes as before.
     ...(value.plans === undefined ? {} : { plans: normalizePlans(value.plans, at + '.plans') }),
+    ...(value.gap === undefined ? {} : { gap: normalizeGap(value.gap, at + '.gap') }),
   });
+};
+
+// A frame that carries a gap is drawn from it (atlas-gap.mjs); its other
+// areas keep their supplied entities. Deriving again from a derived frame
+// gives the same frame.
+const withGapView = (frame, earlier, presentation) => {
+  if (!frame.gap) return frame;
+  const view = gapView({ frame, earlier, presentation, key: entityKey });
+  const entityIds = view.entities.map(item => entityKey(item.ref));
+  check(new Set(entityIds).size === entityIds.length, frame.id + ': gap view entity collides with a supplied entity');
+  deriveContainmentIndex(view.entities, view.relations, frame.id);
+  return Object.freeze({ ...frame, entities: view.entities, relations: view.relations });
 };
 
 const normalizePresentation = value => {
@@ -361,7 +376,8 @@ export const parseAtlasWorldInput = input => {
   const presentation = normalizePresentation(value.presentation);
   const areaIds = new Set(presentation.areas.map(area => area.id));
   check(Array.isArray(value.frames) && value.frames.length > 0, 'input.frames must be non-empty');
-  const frames = value.frames.map((frame, index) => normalizeFrame(frame, 'frames[' + index + ']', areaIds));
+  const supplied = value.frames.map((frame, index) => normalizeFrame(frame, 'frames[' + index + ']', areaIds));
+  const frames = supplied.map((frame, index) => withGapView(frame, supplied.slice(0, index), presentation));
   check(new Set(frames.map(frame => frame.id)).size === frames.length, 'frame ids must be unique');
   check(new Set(frames.map(frame => frame.rev)).size === frames.length, 'frame rev values must be unique');
   let previousAsOf = Number.NEGATIVE_INFINITY;
