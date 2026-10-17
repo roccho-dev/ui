@@ -251,11 +251,75 @@ try {
   same(stale.afterCamera, stale.beforeCamera, 'relation selection must not move camera');
   if (stale.graphSelectionCount !== 0) throw new Error('removed/unsupported relation left a selected graph cell');
 
+  // 6. Render-owned IDs distinguish equal labels, including read-only shapes,
+  // and remain correct across camera/label refresh and removal/recreation.
+  const identity = await page.evaluate(() => {
+    const proof = globalThis.relationSelectionProof;
+    const beforeOperations = proof.operations.length;
+    const scene = { ...proof.scene, representations: proof.scene.representations.map(item =>
+      ({ ...item, label: 'Same label', readOnly: true })) };
+    const snapshot = () => ({
+      regions: [...document.querySelectorAll('[data-semantic-region-id]')].map(node => ({
+        id: node.getAttribute('data-semantic-region-id'), role: node.getAttribute('data-semantic-role'),
+        text: node.textContent, width: node.getBoundingClientRect().width,
+      })).sort((a, b) => (a.id + a.role).localeCompare(b.id + b.role)),
+      edges: [...document.querySelectorAll('[data-semantic-relation-ids][data-semantic-role="shape"]')]
+        .map(node => JSON.parse(node.getAttribute('data-semantic-relation-ids'))).sort((a, b) => a[0].localeCompare(b[0])),
+    });
+    proof.adapter.render(scene);
+    const first = snapshot();
+    proof.adapter.setCamera(0.75, 10, 12);
+    proof.adapter.refreshRenderedLabels();
+    const moved = snapshot();
+    proof.adapter.render({ ...scene, representations: scene.representations.filter(item => item.regionId !== 'd'),
+      relations: scene.relations.filter(item => item.from !== 'd' && item.to !== 'd') });
+    const removed = snapshot();
+    proof.adapter.render(scene);
+    return { first, moved, removed, recreated: snapshot(), operations: proof.operations.length - beforeOperations };
+  });
+  const expectedIds = ['a', 'b', 'c', 'd'].flatMap(id => ['shape', 'text'].map(role => ({ id, role })))
+    .sort((a, b) => (a.id + a.role).localeCompare(b.id + b.role));
+  for (const snapshot of [identity.first, identity.moved, identity.recreated]) {
+    same(snapshot.regions.map(({ id, role }) => ({ id, role })), expectedIds, 'per-ID shape and label cardinality');
+    if (snapshot.regions.some(row => !(row.width > 0) || row.role === 'text' && row.text !== 'Same label'))
+      throw new Error('rendered duplicate-label identity lost its actual shape/text');
+    same(snapshot.edges, [['agg-a', 'agg-b'], ['edit-agg-a', 'edit-agg-b'], ['edit-one'], ['ro-single']],
+      'every aggregate edge retains its full semantic identities');
+  }
+  if (identity.removed.regions.some(row => row.id === 'd') || identity.removed.edges.some(ids => ids.includes('edit-agg-a')))
+    throw new Error('removed painted nodes left stale semantic identity');
+  same(identity.operations, 0, 'identity inspection and read-only rerender emit no operations');
+
+  // 7. Boundary titles retain whole glyph ascenders at fixed screen font
+  // sizes. The old tight label clip cut their top even inside the boundary.
+  const titles = await page.evaluate(() => {
+    const proof = globalThis.relationSelectionProof, result = [];
+    for (const scale of [1, 0.75]) {
+      proof.adapter.setCamera(scale, 0, 0);
+      proof.adapter.render({ ...proof.scene, relations: [], representations: [{ ...proof.scene.representations[0],
+        regionId: 'title-boundary', shape: 'boundary', label: '配布領域Ág', readOnly: true,
+        bounds: { x: 40, y: 40, width: 360, height: 220 } }] });
+      const label = document.querySelector('[data-semantic-region-id="title-boundary"][data-semantic-role="text"] text');
+      const shape = document.querySelector('[data-semantic-region-id="title-boundary"][data-semantic-role="shape"]').firstElementChild;
+      const box = label.getBBox(), matrix = label.getScreenCTM(), boundary = shape.getBoundingClientRect();
+      const glyph = { x: box.x * matrix.a + matrix.e, y: box.y * matrix.d + matrix.f,
+        width: box.width * matrix.a, height: box.height * matrix.d };
+      let nativeClip = false;
+      for (let node = label; node?.namespaceURI === 'http://www.w3.org/2000/svg'; node = node.parentElement)
+        if (getComputedStyle(node).clipPath !== 'none') nativeClip = true;
+      result.push({ scale, nativeClip, whole: glyph.width > 0 && glyph.height > 0 && glyph.x >= boundary.x && glyph.y >= boundary.y
+        && glyph.x + glyph.width <= boundary.right && glyph.y + glyph.height <= boundary.bottom });
+    }
+    return result;
+  });
+  if (titles.length !== 2 || titles.some(title => title.nativeClip || !title.whole))
+    throw new Error('whole boundary title glyphs clipped or outside actual boundary: ' + JSON.stringify(titles));
+
   if (errors.length) throw new Error(`browser page errors: ${JSON.stringify(errors)}`);
   console.log(JSON.stringify({
     schema: 'semantic-map-read-only-relation-selection-browser-e2e/1',
     status: 'PASS',
-    checks: 14,
+    checks: 27,
   }));
 } finally {
   try {
