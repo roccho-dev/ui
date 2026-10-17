@@ -290,11 +290,36 @@ try {
     throw new Error('removed painted nodes left stale semantic identity');
   same(identity.operations, 0, 'identity inspection and read-only rerender emit no operations');
 
+  // 7. Boundary titles retain whole glyph ascenders at fixed screen font
+  // sizes. The old tight label clip cut their top even inside the boundary.
+  const titles = await page.evaluate(() => {
+    const proof = globalThis.relationSelectionProof, result = [];
+    for (const scale of [1, 0.75]) {
+      proof.adapter.setCamera(scale, 0, 0);
+      proof.adapter.render({ ...proof.scene, relations: [], representations: [{ ...proof.scene.representations[0],
+        regionId: 'title-boundary', shape: 'boundary', label: '配布領域Ág', readOnly: true,
+        bounds: { x: 40, y: 40, width: 360, height: 220 } }] });
+      const label = document.querySelector('[data-semantic-region-id="title-boundary"][data-semantic-role="text"] text');
+      const shape = document.querySelector('[data-semantic-region-id="title-boundary"][data-semantic-role="shape"]').firstElementChild;
+      const box = label.getBBox(), matrix = label.getScreenCTM(), boundary = shape.getBoundingClientRect();
+      const glyph = { x: box.x * matrix.a + matrix.e, y: box.y * matrix.d + matrix.f,
+        width: box.width * matrix.a, height: box.height * matrix.d };
+      let nativeClip = false;
+      for (let node = label; node?.namespaceURI === 'http://www.w3.org/2000/svg'; node = node.parentElement)
+        if (getComputedStyle(node).clipPath !== 'none') nativeClip = true;
+      result.push({ scale, nativeClip, whole: glyph.width > 0 && glyph.height > 0 && glyph.x >= boundary.x && glyph.y >= boundary.y
+        && glyph.x + glyph.width <= boundary.right && glyph.y + glyph.height <= boundary.bottom });
+    }
+    return result;
+  });
+  if (titles.length !== 2 || titles.some(title => title.nativeClip || !title.whole))
+    throw new Error('whole boundary title glyphs clipped or outside actual boundary: ' + JSON.stringify(titles));
+
   if (errors.length) throw new Error(`browser page errors: ${JSON.stringify(errors)}`);
   console.log(JSON.stringify({
     schema: 'semantic-map-read-only-relation-selection-browser-e2e/1',
     status: 'PASS',
-    checks: 25,
+    checks: 27,
   }));
 } finally {
   try {

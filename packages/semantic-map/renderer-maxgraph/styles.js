@@ -147,7 +147,10 @@ function paletteVertexStyle(representation, scale, theme) {
       fontSize: theme.vertex.fontSize / scale,
       fontStyle: theme.vertex.fontStyle,
       whiteSpace: theme.vertex.whiteSpace,
-      overflow: theme.vertex.overflow,
+      // A boundary's top-aligned title has a fixed screen font. The renderer's
+      // tight text clip can cut glyph ascenders above that clip even while the
+      // whole title lies inside its boundary. Keep ordinary cell/lane clipping.
+      overflow: representation.shape === 'boundary' ? 'visible' : theme.vertex.overflow,
       perimeter: 'rectanglePerimeter',
       shadow: theme.vertex.boundaryShadow,
       movable: false,
