@@ -195,19 +195,16 @@ export const projectTimeline = ({
         { x: band.x + span * segment.from, y: band.y + rowHeight + 4, width, height: rowHeight }, shown ? 'control' : 'idle', null,
         { phase: segment.phase, from: frames[segment.from].id, to: frames[segment.to].id, fullLabel: name }));
     }
-    // Entries recorded up to the newest frame, each placed in the first frame
-    // whose asOf is not before it was recorded.
-    const journal = frames.at(-1)?.journal ?? [];
-    const placeOf = entry => {
-      const at = frames.findIndex(item => Date.parse(item.asOf) >= Date.parse(entry.recordedAt));
-      return at < 0 ? frames.length - 1 : at;
-    };
+    // v6: each frame carries only its new entries; each is placed at the frame
+    // that carries it.
     const groups = new Map();
-    for (const entry of journal) {
-      const groupKey = placeOf(entry) + ':' + entry.kind;
-      if (!groups.has(groupKey)) groups.set(groupKey, []);
-      groups.get(groupKey).push(entry);
-    }
+    frames.forEach((item, at) => {
+      for (const entry of item.journal ?? []) {
+        const groupKey = at + ':' + entry.kind;
+        if (!groups.has(groupKey)) groups.set(groupKey, []);
+        groups.get(groupKey).push(entry);
+      }
+    });
     for (let at = 0; at < frames.length; at += 1) {
       const kinds = [...groups.keys()].filter(groupKey => groupKey.startsWith(at + ':'));
       const MARK_WIDTH = 60;

@@ -24,6 +24,8 @@ for (const input of [parseAtlasWorldInput(raw), parseAtlasWorldInput(withOmitted
   for (const [index, frame] of input.frames.entries()) {
     const counterpart = input.frames[index === 0 ? input.frames.length - 1 : 0];
     const scene = projectWorldScene({ input, frame });
+    // The chrome-free view fits nested areas to their content as well.
+    const fittedScene = projectWorldScene({ input, frame, fitNested: true });
     const drawn = new Set(scene.representations.map(item => item.regionId));
     const keys = [...frame.entities.map(item => entityKey(item.ref)), ...frame.relations.map(item => relationKey(item.ref)), 'entity:missing/none/none'];
     for (const selected of keys) {
@@ -38,14 +40,14 @@ for (const input of [parseAtlasWorldInput(raw), parseAtlasWorldInput(withOmitted
         const timelineOf = projection => projection.scene.representations.filter(item => item.regionId.startsWith(TIMELINE_ID_PREFIX));
         const withoutTimeline = projection => projection.scene.representations.filter(item => !item.regionId.startsWith(TIMELINE_ID_PREFIX));
         assert.ok(timelineOf(none).length > 0 && timelineOf(full).length === timelineOf(none).length, 'both chromes keep the timeline layer');
-        assert.deepEqual(withoutTimeline(none), scene.representations, 'none draws exactly the World scene besides the timeline');
+        assert.deepEqual(withoutTimeline(none), fittedScene.representations, 'none draws exactly the fitted World scene besides the timeline');
         assert.deepEqual(withoutTimeline(full).slice(0, scene.representations.length), scene.representations,
           'full draws the same scene first');
         const hud = withoutTimeline(full).slice(scene.representations.length);
         assert.ok(hud.length > 0 && hud.every(item => item.isGuide && item.zIndex >= 10000), 'full adds only HUD regions');
         assert.equal(withoutTimeline(none).filter(item => item.isGuide || item.zIndex >= 10000).length, 0, 'none has no HUD region');
         assert.deepEqual(none.scene.relations, full.scene.relations, 'same relations');
-        assert.deepEqual(none.world, full.world, 'same World bounds');
+        assert.deepEqual([none.world, full.world], [fittedScene.world, scene.world], 'each chrome takes its own scene\'s World bounds');
         assert.deepEqual(none.detail, full.detail, 'detail text and pages do not depend on the chrome');
         assert.deepEqual(none.selected, full.selected, 'same selected record');
 

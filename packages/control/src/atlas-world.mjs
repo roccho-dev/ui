@@ -1,7 +1,7 @@
 // Generic bounded Atlas world input for the a2 presentation.
 // This is a display/read-model seam, never a business authority or owner codec.
 
-import { gapView, hasGapView, normalizeGap, normalizeJournal, normalizePhase } from './atlas-gap.mjs';
+import { checkJournalDeltas, gapView, hasGapView, normalizeGap, normalizeJournal, normalizePhase } from './atlas-gap.mjs';
 
 export const ATLAS_WORLD_KIND = 'ui.atlasWorldInput.v1';
 
@@ -380,6 +380,7 @@ export const parseAtlasWorldInput = input => {
   const areaIds = new Set(presentation.areas.map(area => area.id));
   check(Array.isArray(value.frames) && value.frames.length > 0, 'input.frames must be non-empty');
   const supplied = value.frames.map((frame, index) => normalizeFrame(frame, 'frames[' + index + ']', areaIds));
+  checkJournalDeltas(supplied);
   const frames = supplied.map((frame, index) => withGapView(frame, supplied.slice(0, index), presentation));
   check(new Set(frames.map(frame => frame.id)).size === frames.length, 'frame ids must be unique');
   check(new Set(frames.map(frame => frame.rev)).size === frames.length, 'frame rev values must be unique');

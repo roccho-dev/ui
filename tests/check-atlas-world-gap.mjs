@@ -1,4 +1,4 @@
-// The gap view on adrs#647 contract v3 (frames[i].gap / phase / journal /
+// The gap view on adrs#647 contract v3-v6 (frames[i].gap / phase / journal /
 // matched_until). Pure; no browser. The drawn journey, the band and the ui
 // clock are tests/atlas-world-gap-browser-proof.mjs.
 import assert from 'node:assert/strict';
@@ -11,25 +11,27 @@ import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 const input = parseAtlasWorldInput(gapWorld());
 const byKind = frame => Object.fromEntries(frame.entities.map(item => [item.ref.kind + ':' + item.ref.id, item.label]));
 const frame = id => input.frames.find(item => item.id === id);
+const byKindKeys = item => item.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
 const expected = {
   t0: { 'phase:hq': '局面：目的変更 · 差 不明', 'gap:hq': '差 不明\n照らし合わせる理想状態がまだ無い', 'current-state:hq': '現在状態\n観測の仕訳なし',
     'purpose:hq': '目的\n宣言だけで回る組織\nrev 1' },
   t1: { 'phase:hq': '局面：定義中 · 差 不明', 'ideal-state:hq': '理想状態\n照らし合わせる理想状態なし（定義中）' },
   t2: { 'phase:hq': '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'ideal-state:hq': '理想状態\nv1 · 条件 2（追加 0 · 改訂 0）',
-    'gap:hq': '差 0（前 不明） · ✓2 ?0 !0\n理想の移動 0・現在の後退 0・未観測 0', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z' },
+    'gap:hq': '差 0（前 不明） · ✓2 ?0 !0\n理想の側 追加 0・改訂 0 · 現在の側 後退 0・未観測 0', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z' },
   t3: { 'phase:hq': '局面：近似中 · 差 1 · v2', 'ideal-state:hq': '理想状態\nv1→v2 移動 · 条件 3（追加 1 · 改訂 0）',
-    'gap:hq': '差 1（前 0） · ✓2 ?0 !1\n理想の移動 1・現在の後退 0・未観測 0', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z',
+    'gap:hq': '差 1（前 0） · ✓2 ?0 !1\n理想の側 追加 1・改訂 0 · 現在の側 後退 0・未観測 1', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z',
     'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 過去の評価：理想状態が不十分',
-    'gap-part:c3': 'windows repo を退役する\n未達 · 理想に追加 · この時点から（03:00Z） · scope:atlas' },
-  t4: { 'phase:hq': '局面：近似中 · 差 3 · v2', 'gap:hq': '差 3（前 1） · ✓1 ?1 !2\n理想の移動 0・現在の後退 1・未観測 1・継続 1',
+    'gap-part:c3': 'windows repo を退役する\n未達 · 理想に追加 · 未観測 · この時点から（03:00Z） · scope:atlas' },
+  t4: { 'phase:hq': '局面：近似中 · 差 3 · v2', 'gap:hq': '差 3（前 1） · ✓1 ?1 !2\n理想の側 追加 0・改訂 0 · 現在の側 後退 1・未観測 1 · 継続 1',
+    'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z',
     'gap-part:c3': 'windows repo を退役する\n未達 · 継続 · 1 時点前から（03:00Z） · scope:atlas',
     'gap-part:c1': '端末で直接入力できる\n未達 · 現在の後退 · この時点から（04:00Z） · 担当なし' },
   t5: { 'phase:hq': '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件', 'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 評価：到達',
-    'gap:hq': '差 0（前 3） · ✓4 ?0 !0\n理想の移動 0・現在の後退 0・未観測 0', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z', 'gap-closed:t5': '閉じた差 3（この時点 3）\nc1 現在が充足・c4 現在が充足' },
-  t6: { 'phase:hq': '局面：近似中 · 差 2 · v2', 'gap:hq': '差 2（前 0） · ✓2 ?1 !1\n理想の移動 0・現在の後退 0・未観測 0・照合不能 1・鮮度切れ 1',
+    'gap:hq': '差 0（前 3） · ✓4 ?0 !0\n理想の側 追加 0・改訂 0 · 現在の側 後退 0・未観測 0', 'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z', 'gap-closed:t5': '閉じた差 3（この時点 3）\nc1 現在が充足・c4 現在が充足' },
+  t6: { 'phase:hq': '局面：近似中 · 差 2 · v2', 'gap:hq': '差 2（前 0） · ✓2 ?1 !1\n理想の側 追加 0・改訂 0 · 現在の側 後退 0・未観測 0・照合不能 1・鮮度切れ 1',
     'gap-part:c4': 'envs のスコープ主張\n不明 · 照合不能 · この時点から（06:00Z） · scope:envs' },
   t7: { 'phase:hq': '局面：目的の終了 · Scope は凍結（履歴）', 'gap:hq': '差 対象外\n目的は終了した',
-    'ideal-state:hq': '理想状態\n照らし合わせる理想状態なし（目的は終了）', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z',
+    'ideal-state:hq': '理想状態\n照らし合わせる理想状態なし（目的は終了）', 'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z',
     'gap-closed:t7': '閉じた差 4（この時点 1）\nc4 現在が充足・c1 目的の終了' },
 };
 for (const item of input.frames) {
@@ -58,6 +60,67 @@ for (const newPurpose of [false, true]) {
   const t5 = story.frames.find(item => item.id === 't5').entities.find(item => item.ref.kind === 'phase').label;
   assert.ok(t5.endsWith(' · 理想状態の確定前の観測で一致 1 件') && !t5.includes('目的の変更前'), (newPurpose ? 'new purpose' : 'ideal only') + ': ' + t5);
 }
+// v6: a part shows the cause of each side it has; the earlier single list is
+// still read and, split by the cause names, drawn the same.
+const legacy = parseAtlasWorldInput(gapWorld({ sides: false }));
+for (const item of legacy.frames) assert.deepEqual(byKind(item), byKind(frame(item.id)), item.id + ': cause list draws as the sides');
+const sided = gapWorld();
+sided.frames[3].gap.parts[0].cause = { ideal: ['ideal-added'], current: [] };
+sided.frames[3].gap.summary.by_cause = { 'ideal-added': 1 };
+assert.equal(byKind(parseAtlasWorldInput(sided).frames[3])['gap-part:c3'], 'windows repo を退役する\n未達 · 理想に追加 · この時点から（03:00Z） · scope:atlas',
+  'one side only: that side alone');
+// v6: the journal is accumulated from each frame's new entries, up to the
+// frame shown; going back draws that frame's own total.
+assert.deepEqual(input.frames.map(item => item.journal.length), [1, 1, 2, 2, 2, 1, 0, 0], 'each frame carries only its new entries');
+assert.equal(byKind(frame('t3'))['current-state:hq'], '現在状態\n観測 1 件 · 最新 01:40Z', 't3: the 03:40Z observation is not yet counted');
+// A frame that carries an earlier frame's entry again (a producer still on the
+// whole list) is refused, never counted twice.
+const cumulative = gapWorld();
+cumulative.frames.forEach((item, index) => { item.journal = cumulative.frames.slice(0, index + 1).flatMap(each => structuredClone(each.journal)); });
+assert.throws(() => parseAtlasWorldInput(cumulative), /t1: journal\[0\] repeats an entry of frame t0/);
+// A Scope area the frame supplies (nested per owner, K8) is kept as supplied,
+// with its containment; Scopes are derived from the parts only otherwise. The
+// purpose area is drawn from the gap either way.
+const grouped = parseAtlasWorldInput(gapWorld({ groups: true }));
+for (const item of grouped.frames) {
+  const raw = gapWorld({ groups: true }).frames.find(each => each.id === item.id);
+  const suppliedScopes = raw.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
+  const drawnScopes = item.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
+  if (suppliedScopes.length) {
+    assert.deepEqual(drawnScopes, suppliedScopes, item.id + ': supplied Scopes kept as supplied');
+    assert.equal(item.relations.filter(relation => relation.containment).length, raw.relations.filter(relation => relation.containment).length, item.id + ': containment kept');
+  } else assert.deepEqual(drawnScopes, byKindKeys(frame(item.id)), item.id + ': no supplied Scopes: derived from the parts');
+  assert.deepEqual(item.entities.filter(entity => entity.area === 'purpose').map(entity => entity.label),
+    frame(item.id).entities.filter(entity => entity.area === 'purpose').map(entity => entity.label), item.id + ': purpose area from the gap');
+}
+assert.ok(grouped.frames.some(item => item.relations.some(relation => relation.containment)), 'the grouped fixture supplies containment');
+// Each open part is shown on the one supplied Scope whose id is its scope or
+// condition: its state, causes and since; 担当なし when it has no scope.
+const groupedLabel = (id, entityKind, entityId) => grouped.frames.find(item => item.id === id).entities
+  .find(entity => entity.ref.kind === entityKind && entity.ref.id === entityId).label;
+assert.equal(groupedLabel('t4', 'semantic-scope', 'c3'), 'windows repo を退役する\n未達\n未達 · 継続 · 1 時点前から（03:00Z）');
+assert.equal(groupedLabel('t4', 'unassigned-change', 'c1'), '端末で直接入力できる\n未達\n未達 · 現在の後退 · この時点から（04:00Z） · 担当なし');
+assert.equal(groupedLabel('t6', 'closed-change', 'c3@t5'), 'c3\ncurrent-satisfied', 'no open part: nothing attached');
+assert.equal(groupedLabel('t6', 'scope-group', 'owner:none'), '担当なし', 'a container is not a part');
+// An open part on no supplied Scope is counted on 差 (not when there is none)
+// and its condition and causes are in 差's record, shown in its detail.
+const unplacedWorld = parseAtlasWorldInput(gapWorld({ groups: 'unplaced' }));
+const deltaOf = world => world.frames[4].entities.find(entity => entity.ref.kind === 'gap');
+assert.match(deltaOf(unplacedWorld).label, /\nScope に付かない差 1 件$/u);
+assert.ok(!deltaOf(grouped).label.includes('Scope に付かない差'), 'all placed: no unplaced line');
+assert.ok(!byKind(frame('t4'))['gap:hq'].includes('Scope に付かない差'), 'derived Scopes: no unplaced line');
+assert.match(deltaOf(unplacedWorld).summary, /Scope に付かない差: condition=c4 · state=unknown · cause=ideal:なし,current:current-unobserved/u);
+const unplacedDetail = projectAtlasWorld({ input: unplacedWorld, frame: unplacedWorld.frames[4], selected: entityKey(deltaOf(unplacedWorld).ref) }).detail;
+assert.ok(unplacedDetail.logicalLines.join('\n').includes('condition=c4 · state=unknown · cause=ideal:なし,current:current-unobserved'),
+  'the detail of 差 names the unplaced condition and causes');
+// Two Scopes a part could belong to: it is shown on neither.
+const ambiguous = gapWorld({ groups: true });
+ambiguous.frames[4].entities.push({ ref: { space: 'fixture:gap', kind: 'semantic-scope', id: 'scope:atlas' }, label: '別の主張', area: 'scopes', order: 9, visible: true, activity: 'none' });
+const ambiguousT4 = parseAtlasWorldInput(ambiguous).frames[4].entities;
+assert.equal(ambiguousT4.find(entity => entity.ref.id === 'c3').label, 'windows repo を退役する\n未達', 'ambiguous: not on the condition match');
+assert.equal(ambiguousT4.find(entity => entity.ref.id === 'scope:atlas').label, '別の主張', 'ambiguous: not on the scope match');
+assert.match(ambiguousT4.find(entity => entity.ref.kind === 'gap').label, /\nScope に付かない差 1 件$/u, 'ambiguous: counted on 差');
+assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(grouped))), grouped, 'grouped gap view is idempotent');
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/照合不能 1/u.test(byKind(frame('t6'))['gap:hq']) && /未観測 0/u.test(byKind(frame('t6'))['gap:hq']));
 // History stays: c3/c1/c4 closed at t5 are still listed at t6.
@@ -80,6 +143,8 @@ const segments = band.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX +
 assert.deepEqual(segments, ['目的変更', '定義中', '一致・維持', '近似中', '一致・維持', '近似中', '目的の終了'], 'phase segments in order');
 const marks = band.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal:') && !rep.regionId.includes('-line')).map(rep => rep.atlas.group + '=' + rep.label);
 assert.ok(marks.includes('0:purpose.set=◎1') && marks.includes('2:ideal.set=▲1') && marks.includes('3:purpose.evaluated=★1'), JSON.stringify(marks));
+// v6: each entry is marked at the frame that carries it.
+assert.ok(marks.includes('2:observation=·1') && marks.includes('4:observation=·1') && marks.includes('4:plan.set=◇1'), JSON.stringify(marks));
 const rows = band.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal-line:')).map(rep => rep.label.replace(/\n/gu, ''));
 assert.deepEqual(rows, ['★ 評価 · 2026-10-17T02:50:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
 
@@ -93,8 +158,7 @@ assert.ok(digestNode.summary.includes('sha256:' + 'c20f8992'.repeat(8)), 'full d
 // is shown as unknown, never guessed.
 const named = gapWorld();
 named.frames[3].gap.basis.purpose_label = '人は目的を宣言するだけ';
-// The band reads the newest frame's journal; every frame carries its own copy.
-for (const item of named.frames) if (item.journal[0]) item.journal[0].actor = null;
+named.frames[0].journal[0].actor = null;
 const namedInput = parseAtlasWorldInput(named);
 assert.equal(byKind(namedInput.frames[3])['purpose:hq'], '目的\n人は目的を宣言するだけ\nrev 1 · 過去の評価：理想状態が不十分');
 const unnamedRow = projectAtlasWorld({ input: namedInput, frame: namedInput.frames[3], selected: 'none', chrome: 'none', journalOpen: '0:purpose.set' })
@@ -118,6 +182,12 @@ const reject = (mutate, pattern) => { const raw = gapWorld(); mutate(raw.frames[
 reject(item => { item.gap.parts[0].state = 'satisfied'; }, /state must be unmet\|unknown/);
 reject(item => { item.gap.parts[0].cause = []; }, /cause must be a non-empty array/);
 reject(item => { item.gap.parts[0].cause = ['guessed']; }, /unknown cause guessed/);
+reject(item => { item.gap.parts[1].cause = {}; }, /must name a cause on at least one side/);
+reject(item => { item.gap.parts[1].cause = { ideal: 'current-stale' }; }, /cause.ideal must be/);
+reject(item => { item.gap.parts[1].cause = { current: 'ideal-added' }; }, /cause.current must be/);
+reject(item => { item.gap.parts[1].cause = { ideal: ['ideal-added', 'ideal-revised'] }; }, /cause.ideal must hold at most one cause/);
+reject(item => { item.gap.parts[1].cause = { ideal: 'carried', current: 'current-stale' }; }, /carried stands only when neither side has another cause/);
+reject(item => { item.gap.parts[1].cause = { current: 'current-stale', guess: 'x' }; }, /unknown field guess/);
 reject(item => { item.gap.parts[0].plans = []; }, /unknown field plans/);
 reject(item => { item.gap.parts[1].since = 'later'; }, /since must name this or an earlier frame/);
 reject(item => { item.gap.basis.prev_frame = 't9'; }, /prev_frame must name an earlier frame/);
