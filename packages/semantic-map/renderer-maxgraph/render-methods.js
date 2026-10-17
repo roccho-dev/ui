@@ -44,14 +44,28 @@ function motionOf(item) {
   return motion;
 }
 
-// Motion is a data attribute on maxGraph's own shape node; page CSS animates it.
+// Identity and motion live on maxGraph's render-owned nodes. Identity is an
+// association for inspection, never proof of visibility, geometry or validity.
 // A redraw keeps the node, but maxGraph may create a new shape (and node) for a
 // cell, so marks are reapplied after every render, camera change and label
 // refresh.
 function markMotion() {
   const view = this.graph.getView();
   for (const cell of [...this.cellsByRegionId.values(), ...this.edgesByProjectionKey.values()]) {
-    const node = view.getState(cell)?.shape?.node;
+    const state = view.getState(cell), semantic = cell.semantic;
+    for (const role of ['shape', 'text']) {
+      const element = state?.[role]?.node;
+      if (!element) continue;
+      element.setAttribute('data-semantic-role', role);
+      if (semantic?.type === 'region') {
+        element.setAttribute('data-semantic-region-id', semantic.regionId);
+        element.removeAttribute('data-semantic-relation-ids');
+      } else if (semantic?.type === 'relation') {
+        element.setAttribute('data-semantic-relation-ids', JSON.stringify(semantic.relationIds));
+        element.removeAttribute('data-semantic-region-id');
+      }
+    }
+    const node = state?.shape?.node;
     if (!node) continue;
     const motion = motionOf(cell.semantic);
     if (motion === 'none') node.removeAttribute('data-visual-motion');

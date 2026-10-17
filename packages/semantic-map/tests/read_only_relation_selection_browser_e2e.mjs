@@ -251,11 +251,50 @@ try {
   same(stale.afterCamera, stale.beforeCamera, 'relation selection must not move camera');
   if (stale.graphSelectionCount !== 0) throw new Error('removed/unsupported relation left a selected graph cell');
 
+  // 6. Render-owned IDs distinguish equal labels, including read-only shapes,
+  // and remain correct across camera/label refresh and removal/recreation.
+  const identity = await page.evaluate(() => {
+    const proof = globalThis.relationSelectionProof;
+    const beforeOperations = proof.operations.length;
+    const scene = { ...proof.scene, representations: proof.scene.representations.map(item =>
+      ({ ...item, label: 'Same label', readOnly: true })) };
+    const snapshot = () => ({
+      regions: [...document.querySelectorAll('[data-semantic-region-id]')].map(node => ({
+        id: node.getAttribute('data-semantic-region-id'), role: node.getAttribute('data-semantic-role'),
+        text: node.textContent, width: node.getBoundingClientRect().width,
+      })).sort((a, b) => (a.id + a.role).localeCompare(b.id + b.role)),
+      edges: [...document.querySelectorAll('[data-semantic-relation-ids][data-semantic-role="shape"]')]
+        .map(node => JSON.parse(node.getAttribute('data-semantic-relation-ids'))).sort((a, b) => a[0].localeCompare(b[0])),
+    });
+    proof.adapter.render(scene);
+    const first = snapshot();
+    proof.adapter.setCamera(0.75, 10, 12);
+    proof.adapter.refreshRenderedLabels();
+    const moved = snapshot();
+    proof.adapter.render({ ...scene, representations: scene.representations.filter(item => item.regionId !== 'd'),
+      relations: scene.relations.filter(item => item.from !== 'd' && item.to !== 'd') });
+    const removed = snapshot();
+    proof.adapter.render(scene);
+    return { first, moved, removed, recreated: snapshot(), operations: proof.operations.length - beforeOperations };
+  });
+  const expectedIds = ['a', 'b', 'c', 'd'].flatMap(id => ['shape', 'text'].map(role => ({ id, role })))
+    .sort((a, b) => (a.id + a.role).localeCompare(b.id + b.role));
+  for (const snapshot of [identity.first, identity.moved, identity.recreated]) {
+    same(snapshot.regions.map(({ id, role }) => ({ id, role })), expectedIds, 'per-ID shape and label cardinality');
+    if (snapshot.regions.some(row => !(row.width > 0) || row.role === 'text' && row.text !== 'Same label'))
+      throw new Error('rendered duplicate-label identity lost its actual shape/text');
+    same(snapshot.edges, [['agg-a', 'agg-b'], ['edit-agg-a', 'edit-agg-b'], ['edit-one'], ['ro-single']],
+      'every aggregate edge retains its full semantic identities');
+  }
+  if (identity.removed.regions.some(row => row.id === 'd') || identity.removed.edges.some(ids => ids.includes('edit-agg-a')))
+    throw new Error('removed painted nodes left stale semantic identity');
+  same(identity.operations, 0, 'identity inspection and read-only rerender emit no operations');
+
   if (errors.length) throw new Error(`browser page errors: ${JSON.stringify(errors)}`);
   console.log(JSON.stringify({
     schema: 'semantic-map-read-only-relation-selection-browser-e2e/1',
     status: 'PASS',
-    checks: 14,
+    checks: 25,
   }));
 } finally {
   try {
