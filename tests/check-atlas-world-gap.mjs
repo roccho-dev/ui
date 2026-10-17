@@ -102,12 +102,24 @@ assert.equal(groupedLabel('t4', 'semantic-scope', 'c3'), 'windows repo を退役
 assert.equal(groupedLabel('t4', 'unassigned-change', 'c1'), '端末で直接入力できる\n未達\n未達 · 現在の後退 · この時点から（04:00Z） · 担当なし');
 assert.equal(groupedLabel('t6', 'closed-change', 'c3@t5'), 'c3\ncurrent-satisfied', 'no open part: nothing attached');
 assert.equal(groupedLabel('t6', 'scope-group', 'owner:none'), '担当なし', 'a container is not a part');
+// An open part on no supplied Scope is counted on 差 (not when there is none)
+// and its condition and causes are in 差's record, shown in its detail.
+const unplacedWorld = parseAtlasWorldInput(gapWorld({ groups: 'unplaced' }));
+const deltaOf = world => world.frames[4].entities.find(entity => entity.ref.kind === 'gap');
+assert.match(deltaOf(unplacedWorld).label, /\nScope に付かない差 1 件$/u);
+assert.ok(!deltaOf(grouped).label.includes('Scope に付かない差'), 'all placed: no unplaced line');
+assert.ok(!byKind(frame('t4'))['gap:hq'].includes('Scope に付かない差'), 'derived Scopes: no unplaced line');
+assert.match(deltaOf(unplacedWorld).summary, /Scope に付かない差: condition=c4 · state=unknown · cause=ideal:なし,current:current-unobserved/u);
+const unplacedDetail = projectAtlasWorld({ input: unplacedWorld, frame: unplacedWorld.frames[4], selected: entityKey(deltaOf(unplacedWorld).ref) }).detail;
+assert.ok(unplacedDetail.logicalLines.join('\n').includes('condition=c4 · state=unknown · cause=ideal:なし,current:current-unobserved'),
+  'the detail of 差 names the unplaced condition and causes');
 // Two Scopes a part could belong to: it is shown on neither.
 const ambiguous = gapWorld({ groups: true });
 ambiguous.frames[4].entities.push({ ref: { space: 'fixture:gap', kind: 'semantic-scope', id: 'scope:atlas' }, label: '別の主張', area: 'scopes', order: 9, visible: true, activity: 'none' });
 const ambiguousT4 = parseAtlasWorldInput(ambiguous).frames[4].entities;
 assert.equal(ambiguousT4.find(entity => entity.ref.id === 'c3').label, 'windows repo を退役する\n未達', 'ambiguous: not on the condition match');
 assert.equal(ambiguousT4.find(entity => entity.ref.id === 'scope:atlas').label, '別の主張', 'ambiguous: not on the scope match');
+assert.match(ambiguousT4.find(entity => entity.ref.kind === 'gap').label, /\nScope に付かない差 1 件$/u, 'ambiguous: counted on 差');
 assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(grouped))), grouped, 'grouped gap view is idempotent');
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/照合不能 1/u.test(byKind(frame('t6'))['gap:hq']) && /未観測 0/u.test(byKind(frame('t6'))['gap:hq']));

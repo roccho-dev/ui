@@ -55,7 +55,9 @@ const c3 = cause => part('c3', 'windows repo を退役する', 'unmet', cause, '
 // A frame's Scope area as a producer supplies it nested (K8, contract v7): one
 // frame per owner, one for 担当なし and one for the closed history, each
 // containing its Scopes through from-contains-to relations.
-const groupedScopes = (frameId, parts, closed) => {
+// `leaveOut` names a condition whose Scope the producer does not supply, so
+// that open part matches no Scope.
+const groupedScopes = (frameId, parts, closed, leaveOut = null) => {
   const entities = [], relations = [];
   const scopeEntity = (kind, id, label, order, flags) => entities.push({ ref: ref(kind, id), label, area: 'scopes', order, visible: true, activity: 'none', flags });
   const group = (id, label, children) => {
@@ -63,7 +65,7 @@ const groupedScopes = (frameId, parts, closed) => {
     for (const child of children) relations.push({ ref: ref('scope-contains', frameId + ':' + id + ':' + child.id), from: ref('scope-group', id), to: ref(child.kind, child.id),
       kind: 'contains', path: false, containment: 'from-contains-to' });
   };
-  const items = parts.map((item, order) => {
+  const items = parts.filter(item => item.condition !== leaveOut).map((item, order) => {
     const kind = item.scope === null ? 'unassigned-change' : 'semantic-scope';
     scopeEntity(kind, item.condition, item.label + '\n' + (item.state === 'unmet' ? '未達' : '未確認'), order, ['scope_status=' + item.state]);
     return { kind, id: item.condition, scope: item.scope };
@@ -81,7 +83,8 @@ const groupedScopes = (frameId, parts, closed) => {
 // `sides: false` writes each cause as the earlier list instead of v6's
 // {ideal, current}. `newPurpose: true` makes the purpose itself change at t3
 // (hq -> hq.v2) instead of only the ideal state. `groups: true` adds, to each
-// frame with open parts, the Scope area nested as a producer supplies it.
+// frame with open parts, the Scope area nested as a producer supplies it;
+// `groups: 'unplaced'` does so without c4's Scope (c4 then matches none).
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false } = {}) => {
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
   const c1 = (current, since) => part('c1', '端末で直接入力できる', 'unmet', cause(null, current), since, null);
@@ -116,7 +119,7 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
     frames: frames.slice(0, frames.findIndex(item => item.id === through) + 1).map((item, index) => {
       if (newPurpose && index >= 3 && item.gap) item.gap.basis.purpose_id = 'hq.v2';
       const nested = groups && item.gap.parts?.length
-        ? groupedScopes(item.id, item.gap.parts, frames.slice(0, index + 1).flatMap(each => each.gap.closed)) : null;
+        ? groupedScopes(item.id, item.gap.parts, frames.slice(0, index + 1).flatMap(each => each.gap.closed), groups === 'unplaced' ? 'c4' : null) : null;
       return { ...item, journal: journalBetween(frames[index - 1]?.asOf ?? null, item.asOf),
         ...(nested ? { entities: [...item.entities, ...nested.entities], relations: [...item.relations, ...nested.relations] } : {}) };
     }),

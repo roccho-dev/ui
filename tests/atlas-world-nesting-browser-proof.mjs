@@ -41,7 +41,7 @@ const { chromium } = createRequire(import.meta.url)(driverRoot);
 // reads an existing build instead of building from this checkout.
 const prebuilt = argv.find(([name]) => name === 'page')?.[1] ?? null;
 const inputs = argv.filter(([name]) => name === 'input').map(([, file]) => [path.basename(file), JSON.parse(fs.readFileSync(file, 'utf8'))]);
-const worlds = prebuilt ? inputs : [['gap-grouped', gapWorld({ groups: true })], ...inputs];
+const worlds = prebuilt ? inputs : [['gap-grouped', gapWorld({ groups: true })], ['gap-grouped-unplaced', gapWorld({ groups: 'unplaced' })], ...inputs];
 if (prebuilt && worlds.length !== 1) throw new Error('--page needs exactly one --input');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-nesting-'));
 fs.mkdirSync(out);
@@ -58,15 +58,18 @@ for (const [name, world] of worlds) {
 const keyOf = ref => ref.space + '\u0000' + ref.kind + '\u0000' + ref.id;
 // The supplied Scope each open part belongs to, read from the input alone: the
 // one Scope-area entity whose id is the part's scope or its condition. A part
-// with no such entity, or with more than one, is matched to none.
+// with no such entity, with more than one, or sharing its entity with another
+// part, is matched to none and counted as unplaced (when Scopes are supplied).
 const partOwners = (frame, scopeArea) => {
   const scopes = frame.entities.filter(item => item.area === scopeArea);
-  const owners = new Map();
+  const byScope = new Map();
   for (const part of frame.gap?.parts ?? []) {
     const hits = scopes.filter(item => item.ref.id === part.scope || item.ref.id === part.condition);
-    if (hits.length === 1) owners.set(keyOf(hits[0].ref), part);
+    if (hits.length === 1) byScope.set(keyOf(hits[0].ref), [...(byScope.get(keyOf(hits[0].ref)) ?? []), part]);
   }
-  return { scopes, owners };
+  const owners = new Map([...byScope].filter(([, parts]) => parts.length === 1).map(([scope, [part]]) => [scope, part]));
+  const unplaced = scopes.length ? (frame.gap?.parts ?? []).length - owners.size : 0;
+  return { scopes, owners, unplaced };
 };
 const causeList = cause => Array.isArray(cause) ? cause : [cause.ideal, cause.current].flat().filter(Boolean);
 // The supplied pairs of a raw frame, read from its relations alone.
@@ -100,6 +103,7 @@ try {
     const scopeArea = build.world.presentation.areas[build.world.presentation.areas.findIndex(item => item.id === build.world.presentation.purposeAreaId) + 1].id;
     const ownersByFrame = new Map(build.world.frames.map(item => [item.id, partOwners(item, scopeArea)]));
     check(build.name + ': some supplied Scope has an open part to show', [...ownersByFrame.values()].some(item => item.owners.size > 0), null);
+    if (build.name === 'gap-grouped-unplaced') check(build.name + ': some open part is on no Scope', [...ownersByFrame.values()].some(item => item.unplaced > 0), null);
     for (const viewport of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }, { width: 1920, height: 1080 }]) {
       current = build.file;
       const page = await browser.newPage({ viewport });
@@ -146,7 +150,12 @@ try {
         const where = build.name + ' ' + state.frameId + ' at ' + viewport.width + 'x' + viewport.height;
         // Each supplied Scope with an open part shows that part's causes and
         // since; one without shows no such line (nothing is attached by guess).
-        const { scopes, owners } = ownersByFrame.get(state.frameId);
+        const { scopes, owners, unplaced } = ownersByFrame.get(state.frameId);
+        // An open part on no Scope is counted on 差, never dropped in silence.
+        const delta = state.nodes.find(item => item.id.startsWith('gap:'));
+        const unplacedWords = 'Scopeに付かない差' + unplaced + '件';
+        check(where + ': 差 counts the open parts on no Scope (' + unplaced + ')', delta && (unplaced
+          ? flat(delta.text).includes(unplacedWords) : !flat(delta.text).includes('Scopeに付かない差')), { unplaced, text: delta?.text });
         const drawnByKey = new Map(state.nodes.map(item => [item.key, item]));
         const noCause = [], guessed = [];
         for (const scope of scopes) {

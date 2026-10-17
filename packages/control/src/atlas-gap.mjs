@@ -293,10 +293,32 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const breakdown = g === null ? '' : [sideText('理想の側', ['ideal-added', 'ideal-revised'], ['purpose-changed', 'initial']),
     sideText('現在の側', ['current-regressed', 'current-unobserved'], ['current-unmatchable', 'current-confirmed-unmet', 'current-conflict', 'current-stale']),
     ...(counts.byCause.carried > 0 ? [CAUSE_LABEL.carried + ' ' + counts.byCause.carried] : [])].join(' · ');
+  const partRecord = part => 'condition=' + part.condition + ' · state=' + part.state + ' · cause='
+    + (Array.isArray(part.cause) ? part.cause.join(',') : 'ideal:' + (part.cause.ideal ?? 'なし') + ',current:' + (part.cause.current ?? 'なし'))
+    + ' · since=' + part.since + ' · scope=' + (part.scope ?? 'null（担当なし）') + ' · refs=' + (part.refs.join(', ') || 'なし');
+  // A Scope area the frame supplies itself (e.g. nested per owner, with its
+  // containment) is drawn as supplied; Scopes are derived from the parts only
+  // when it supplies none. The kinds derived here are never counted as supplied.
+  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed'].includes(item.ref.kind))
+    .map(item => item.flags.includes('gap-view')
+      ? Object.freeze({ ...item, label: item.label.split('\n').slice(0, -1).join('\n'), summary: item.summary?.split('\n').slice(0, -1).join('\n') || null,
+        flags: Object.freeze(item.flags.filter(flag => flag !== 'gap-view')) })
+      : item);
+  // Each open part is shown on the one supplied Scope whose id is its scope or
+  // its condition; a part matching none or several, or sharing its Scope with
+  // another part, is shown on none (never attached by guess). Those are
+  // counted on 差 and listed in its record, never dropped in silence.
+  const matches = new Map();
+  for (const part of suppliedScopes.length ? g?.parts ?? [] : []) {
+    const hits = suppliedScopes.filter(item => item.ref.id === part.scope || item.ref.id === part.condition);
+    if (hits.length === 1) matches.set(key(hits[0].ref), [...(matches.get(key(hits[0].ref)) ?? []), part]);
+  }
+  const placed = new Set([...matches.values()].filter(list => list.length === 1).flat());
+  const unplaced = suppliedScopes.length ? (g?.parts ?? []).filter(part => !placed.has(part)) : [];
   const satisfiedText = g === null || g.summary.satisfied === null ? '✓ 未供給' : '✓' + g.summary.satisfied;
   const deltaText = g === null ? (phase === 'ended' ? '差 対象外\n目的は終了した' : '差 不明\n照らし合わせる理想状態がまだ無い')
     : '差 ' + counts.open + '（' + prevOpen + '）' + ' · ' + satisfiedText + ' ?' + counts.unknown + ' !' + counts.unmet + (counts.agrees ? '' : ' · 集計不一致') + '\n'
-      + breakdown;
+      + breakdown + (unplaced.length ? '\nScope に付かない差 ' + unplaced.length + ' 件' : '');
   const deltaFlags = g === null ? ['scope_status=unknown'] : counts.open === 0 ? ['standing=completed-history'] : counts.unknown > 0 ? ['scope_status=unknown'] : ['scope_status=unmet'];
   // v5: the current state is observation only, never a verdict against the
   // ideal (the verdict ✓?! is on 差). Observations are the journal entries of
@@ -327,7 +349,8 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
         : '理想状態 ' + versionText(g.basis.ideal_version) + (moved ? '（直前 ' + versionText(prevVersion) + '）' : '') + '。追加・改訂は開いている差の原因の件数。'),
     entity(deltaRef, deltaText, areas.purpose, 3, g === null ? '差は不明（0 ではない）。'
       : '現在状態と理想状態の差。原因ごとの件数は parts から数えた値（1 件が複数の原因を持てる）。'
-        + (counts.agrees ? '' : ' 供給された summary は parts と一致しない: ' + JSON.stringify(g.summary)), deltaFlags),
+        + (counts.agrees ? '' : ' 供給された summary は parts と一致しない: ' + JSON.stringify(g.summary))
+        + unplaced.map(part => '\nScope に付かない差: ' + partRecord(part)).join(''), deltaFlags),
     entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 4, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
   ];
   const relations = [
@@ -348,26 +371,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
       .map(list => list.map(cause => CAUSE_LABEL[cause]).join('・')).join(' · ');
     return (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText + ' · ' + sinceText(part.since);
   };
-  const partRecord = part => 'condition=' + part.condition + ' · state=' + part.state + ' · cause='
-    + (Array.isArray(part.cause) ? part.cause.join(',') : 'ideal:' + (part.cause.ideal ?? 'なし') + ',current:' + (part.cause.current ?? 'なし'))
-    + ' · since=' + part.since + ' · scope=' + (part.scope ?? 'null（担当なし）') + ' · refs=' + (part.refs.join(', ') || 'なし');
   const beforeIdealMark = part => part.observed_before_ideal ? ' · 理想状態の確定前の観測' : '';
-  // A Scope area the frame supplies itself (e.g. nested per owner, with its
-  // containment) is drawn as supplied; Scopes are derived from the parts only
-  // when it supplies none. The kinds derived here are never counted as supplied.
-  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed'].includes(item.ref.kind))
-    .map(item => item.flags.includes('gap-view')
-      ? Object.freeze({ ...item, label: item.label.split('\n').slice(0, -1).join('\n'), summary: item.summary?.split('\n').slice(0, -1).join('\n') || null,
-        flags: Object.freeze(item.flags.filter(flag => flag !== 'gap-view')) })
-      : item);
-  // Each open part is shown on the one supplied Scope whose id is its scope or
-  // its condition; a part matching none or several, or sharing its Scope with
-  // another part, is shown on none (never attached by guess).
-  const matches = new Map();
-  for (const part of suppliedScopes.length ? g?.parts ?? [] : []) {
-    const hits = suppliedScopes.filter(item => item.ref.id === part.scope || item.ref.id === part.condition);
-    if (hits.length === 1) matches.set(key(hits[0].ref), [...(matches.get(key(hits[0].ref)) ?? []), part]);
-  }
   const shownScopes = suppliedScopes.map(item => {
     const parts = matches.get(key(item.ref));
     if (parts?.length !== 1) return item;
