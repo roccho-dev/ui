@@ -47,7 +47,9 @@ const c4 = cause => part('c4', 'envs のスコープ主張', 'unknown', cause, '
 
 // `v5: false` leaves out what contract v5 added (summary.before_ideal, the
 // cause current-unmatchable), so an earlier ui can read the same story.
-export const gapWorld = ({ through = 't7', v5 = true } = {}) => {
+// `newPurpose: true` makes the purpose itself change at t3 (hq -> hq.v2)
+// instead of only the ideal state.
+export const gapWorld = ({ through = 't7', v5 = true, newPurpose = false } = {}) => {
   const matchedT5 = gap('v2', 't4', [], [
     { condition: 'c3', at: 't5', by: 'current-satisfied' }, { condition: 'c1', at: 't5', by: 'current-satisfied' },
     { condition: 'c4', at: 't5', by: 'current-satisfied' }], 4, 4);
@@ -76,6 +78,9 @@ export const gapWorld = ({ through = 't7', v5 = true } = {}) => {
       directionTargets: [purpose],
       defaultSelection: purpose,
     },
-    frames: frames.slice(0, frames.findIndex(item => item.id === through) + 1),
+    frames: frames.slice(0, frames.findIndex(item => item.id === through) + 1).map((item, index) => {
+      if (newPurpose && index >= 3 && item.gap) item.gap.basis.purpose_id = 'hq.v2';
+      return item;
+    }),
   };
 };

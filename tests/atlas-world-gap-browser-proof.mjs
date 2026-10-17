@@ -58,6 +58,13 @@ const servePage = file => { const body = fs.readFileSync(file); const server = h
 const all = arg('page') ? await servePage(arg('page'))
   : await serve('all', arg('input') ? JSON.parse(fs.readFileSync(arg('input'), 'utf8')) : gapWorld({ v5: !compat }));
 const matched = fixture && !arg('page') ? await serve('matched', gapWorld({ through: 't5', v5: !compat })) : null;
+// The before-ideal wording, read at the present t5 on two stories: only the
+// ideal moves (same purpose), and the purpose itself changes. Prebuilt pages
+// (`--page-ideal-only=`, `--page-new-purpose=`) apply it to an earlier build.
+const wording = compat ? [] : [
+  ['ideal only', arg('page-ideal-only') ? await servePage(arg('page-ideal-only')) : arg('page') ? null : await serve('ideal-only', gapWorld({ through: 't5' }))],
+  ['new purpose', arg('page-new-purpose') ? await servePage(arg('page-new-purpose')) : arg('page') ? null : await serve('new-purpose', gapWorld({ through: 't5', newPurpose: true }))],
+].filter(([, server]) => server);
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
@@ -74,7 +81,7 @@ const expected = {
 };
 // What only contract v5 adds; checked unless --compat.
 if (!compat) {
-  expected.t5.phase += ' · 目的の変更前の観測で一致 1 件';
+  expected.t5.phase += ' · 理想状態の確定前の観測で一致 1 件';
   Object.assign(expected.t6, { phase: '局面：近似中 · 差 2 · v2', gap: '照合不能 1・鮮度切れ 1' });
 }
 const flat = value => String(value ?? '').replace(/\s/gu, '');
@@ -129,6 +136,8 @@ try {
         const purpose = state.nodes.find(node => node.kind === 'purpose');
         check(where + ': 目的 carries no satisfaction mark', purpose && flat(purpose.text).startsWith('目的'), purpose?.text);
         check(where + ': the word 目標 is not drawn in the gap view', !gapNodes.some(node => node.text.includes('目標')), null);
+        check(where + ': no 目的の変更前の観測 wording (the count is of observations before the ideal.set)',
+          !gapNodes.some(node => flat(node.text).includes('目的の変更前の観測')), gapNodes.map(node => node.text));
         // For any input, against the frame's own supplied fields: the phase
         // line names the supplied phase, and with no parts no 差 0 is drawn.
         const supplied = await page.evaluate(id => {
@@ -168,6 +177,21 @@ try {
       await browser.close();
     }
   }
+  for (const [story, server] of wording) {
+    const browser = await chromium.launch({ headless: true, args: ['--window-size=1500,1000'] });
+    try {
+      const page = await (await browser.newContext({ viewport: null })).newPage();
+      // Before t5's matched_until (05:41Z), so the line is not the stale one.
+      await page.clock.install({ time: new Date('2026-10-17T05:30:00Z') });
+      await page.goto(urlOf(server), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+      const node = (await read(page)).nodes.find(item => item.kind === 'phase');
+      check(story + ': the present phase line reads 理想状態の確定前の観測で一致 1 件, never 目的の変更前',
+        flat(node?.text).includes(flat('理想状態の確定前の観測で一致 1 件')) && !flat(node?.text).includes('目的の変更前') && inside(node), node?.text);
+    } finally {
+      await browser.close();
+    }
+  }
   if (matched) {
     // The ui clock alone turns the present matched frame stale.
     const browser = await chromium.launch({ headless: true, args: ['--window-size=1500,1000'] });
@@ -193,6 +217,7 @@ try {
 } finally {
   await new Promise(resolve => all.close(resolve));
   if (matched) await new Promise(resolve => matched.close(resolve));
+  for (const [, server] of wording) await new Promise(resolve => server.close(resolve));
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-gap-browser-proof/2', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

@@ -24,7 +24,7 @@ const expected = {
   t4: { 'phase:hq': '局面：近似中 · 差 3 · v2', 'gap:hq': '差 3（前 1） · ✓1 ?1 !2\n理想の移動 0・現在の後退 1・未観測 1・継続 1',
     'gap-part:c3': 'windows repo を退役する\n未達 · 継続 · 1 時点前から（03:00Z） · scope:atlas',
     'gap-part:c1': '端末で直接入力できる\n未達 · 現在の後退 · この時点から（04:00Z） · 担当なし' },
-  t5: { 'phase:hq': '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 目的の変更前の観測で一致 1 件', 'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 評価：到達',
+  t5: { 'phase:hq': '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件', 'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 評価：到達',
     'gap:hq': '差 0（前 3） · ✓4 ?0 !0\n理想の移動 0・現在の後退 0・未観測 0', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z', 'gap-closed:t5': '閉じた差 3（この時点 3）\nc1 現在が充足・c4 現在が充足' },
   t6: { 'phase:hq': '局面：近似中 · 差 2 · v2', 'gap:hq': '差 2（前 0） · ✓2 ?1 !1\n理想の移動 0・現在の後退 0・未観測 0・照合不能 1・鮮度切れ 1',
     'gap-part:c4': 'envs のスコープ主張\n不明 · 照合不能 · この時点から（06:00Z） · scope:envs' },
@@ -51,6 +51,13 @@ for (const item of input.frames) {
 // moves (t2 -> t3), the current-state line does not change.
 assert.equal(byKind(frame('t3'))['current-state:hq'], byKind(frame('t2'))['current-state:hq'], 'ideal-only move leaves 現在状態 unchanged');
 for (const item of input.frames) assert.ok(!/[✓?!]\d/u.test(byKind(item)['current-state:hq']), item.id + ': no verdict on 現在状態');
+// The before-ideal count is of observations older than the ideal.set: the
+// wording says so whether only the ideal moved or the purpose changed.
+for (const newPurpose of [false, true]) {
+  const story = parseAtlasWorldInput(gapWorld({ newPurpose }));
+  const t5 = story.frames.find(item => item.id === 't5').entities.find(item => item.ref.kind === 'phase').label;
+  assert.ok(t5.endsWith(' · 理想状態の確定前の観測で一致 1 件') && !t5.includes('目的の変更前'), (newPurpose ? 'new purpose' : 'ideal only') + ': ' + t5);
+}
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/照合不能 1/u.test(byKind(frame('t6'))['gap:hq']) && /未観測 0/u.test(byKind(frame('t6'))['gap:hq']));
 // History stays: c3/c1/c4 closed at t5 are still listed at t6.
@@ -61,7 +68,7 @@ assert.equal(byKind(frame('t6'))['gap-closed:t6'], '閉じた差 3（この時�
 const matchedNow = parseAtlasWorldInput(gapWorld({ through: 't5' }));
 const phaseLabel = (world, id, now) => projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none', now, chrome: 'none' })
   .scene.representations.find(rep => rep.atlas?.ref?.kind === 'phase').label.replace(/\s+/gu, ' ');
-assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:40:59Z')), '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 目的の変更前の観測で一致 1 件');
+assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:40:59Z')), '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件');
 assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:41:01Z')), '? · 局面：一致・維持 → 鮮度切れ・最新か不明（05:41Z を過ぎた）');
 assert.equal(phaseLabel(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')), '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'a past frame is not judged by today');
 

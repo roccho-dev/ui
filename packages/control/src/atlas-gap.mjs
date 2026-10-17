@@ -218,7 +218,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
         : phase === null ? '差 ' + (counts ? counts.open : unknownCount) : '差 ' + unknownCount;
   // v5: satisfied conditions whose evidence predates the ideal.set are shown,
   // not hidden: a match that may be a false positive.
-  const beforeIdeal = g?.summary.before_ideal ? ' · 目的の変更前の観測で一致 ' + g.summary.before_ideal + ' 件' : '';
+  const beforeIdeal = g?.summary.before_ideal ? ' · 理想状態の確定前の観測で一致 ' + g.summary.before_ideal + ' 件' : '';
   const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + ' · ' + phaseDetail + beforeIdeal + (consistent ? '' : ' · gap と不整合');
 
   const prevVersion = prevGap?.basis.ideal_version ?? null;
@@ -285,7 +285,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     const flags = [part.state === 'unmet' ? 'scope_status=unmet' : 'scope_status=unknown', ...(part.scope === null ? ['unassigned'] : [])];
     entities.push(entity(partRef, (part.label ?? part.condition) + '\n' + (part.state === 'unmet' ? '未達' : '不明') + ' · '
       + part.cause.map(cause => CAUSE_LABEL[cause]).join('・') + ' · ' + sinceText(part.since) + ' · ' + (part.scope ?? '担当なし')
-      + (part.observed_before_ideal ? ' · 理想の確定前の観測' : ''),
+      + (part.observed_before_ideal ? ' · 理想状態の確定前の観測' : ''),
     areas.scope, index, 'condition=' + part.condition + ' · state=' + part.state + ' · cause=' + part.cause.join(',')
       + ' · since=' + part.since + ' · scope=' + (part.scope ?? 'null（担当なし）') + ' · refs=' + (part.refs.join(', ') || 'なし'), flags));
     relations.push(relation('part-' + part.condition, partRef, deltaRef, '差'));
