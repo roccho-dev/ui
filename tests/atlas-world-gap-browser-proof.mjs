@@ -39,10 +39,10 @@ const { chromium } = createRequire(import.meta.url)(driverRoot);
 const fixture = !arg('input');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-gap-'));
 fs.mkdirSync(arg('out'));
-const serve = async (name, world) => {
+const serve = async (name, world, chrome = 'none') => {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
-  await buildLiveAtlas({ input, out: path.join(arg('out'), name), consumer: 'app', chrome: 'none' });
+  await buildLiveAtlas({ input, out: path.join(arg('out'), name), consumer: 'app', chrome });
   const body = fs.readFileSync(path.join(path.resolve(arg('out')), name, 'index.html'));
   const server = http.createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
@@ -71,6 +71,13 @@ const wording = compat ? [] : [
 // current = record(agent): the claims fixture (`--page-current=` applies the
 // check to an earlier build of it).
 const claims = compat ? null : arg('page-current') ? await servePage(arg('page-current')) : arg('page') ? null : await serve('current', gapWorld({ current: true }));
+// L3: plans bound to no ideal state (the fixture's unbound plans), as the HUD
+// draws them (the band and its rows; `--page-unbound-hud=` / `--page-unbound=`
+// apply the checks to earlier builds) and in the chrome-free view.
+const unbound = compat || (arg('page') && !arg('page-unbound')) ? null : {
+  hud: arg('page-unbound-hud') ? await servePage(arg('page-unbound-hud')) : await serve('unbound-hud', gapWorld({ unbound: true }), 'full'),
+  none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
+};
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
@@ -295,6 +302,61 @@ try {
       await browser.close();
     }
   }
+  if (unbound) {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      // The HUD at 1920x1080 (three marks fit in a frame): t4's two unbound
+      // plans are their own mark, beside the bound plan's unmarked one, and
+      // opening it lists them marked, with their plan, drawn inside each row.
+      const hud = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+      await hud.goto(urlOf(unbound.hud), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await hud.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+      await hud.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const cells = (await read(hud)).band;
+      const unboundCell = cells.find(cell => cell.id === 'timeline:journal:4:plan.set:unbound');
+      const boundCell = cells.find(cell => cell.id === 'timeline:journal:4:plan.set');
+      check('unbound plans: the HUD band draws their own mark, marked 未結合, inside its cell',
+        unboundCell && flat(unboundCell.text).includes('未結合') && flat(unboundCell.text) === flat(unboundCell.label) && inside(unboundCell), unboundCell ?? cells.map(cell => cell.id));
+      check('unbound plans: the bound plan beside them keeps its unmarked mark', boundCell && flat(boundCell.text) === '◇1', boundCell);
+      if (unboundCell) {
+        await hud.mouse.click((unboundCell.shape.left + unboundCell.shape.right) / 2, (unboundCell.shape.top + unboundCell.shape.bottom) / 2);
+        await hud.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const rows = (await read(hud)).band.filter(cell => cell.id.startsWith('timeline:journal-line:'));
+        check('unbound plans: opening the mark lists each plan marked （宣言に未結合）, drawn inside its row',
+          rows.length === 2 && ['resources#71:tool-split', 'nixos#12:fork-surface'].every(plan => rows.some(row => flat(row.text).includes(flat('◇ 計画（宣言に未結合） ' + plan))))
+            && rows.every(row => flat(row.text) === flat(row.label) && inside(row)), rows.map(row => row.text));
+      }
+      await hud.close();
+      // The chrome-free view: every frame draws the same texts and colors as
+      // the World without the unbound plans.
+      const drawnFrames = async server => {
+        const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+        await page.goto(urlOf(server), { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+        const out = {};
+        const count = await page.evaluate(() => window.liveAtlas.input.frames.length);
+        for (let step = 0; step < count; step += 1) {
+          if (step > 0) { await page.focus('#atlas-world'); await page.keyboard.press('['); }
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          const state = await read(page);
+          out[state.frameId] = await page.evaluate(() => {
+            const atlas = window.liveAtlas, view = atlas.adapter.graph.getView();
+            return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
+              const drawn = view.getState(atlas.adapter.cellsByRegionId.get(item.regionId));
+              return [item.regionId, drawn?.text?.node?.textContent ?? '', drawn?.style?.fillColor ?? null, drawn?.style?.strokeColor ?? null];
+            });
+          });
+        }
+        await page.close();
+        return out;
+      };
+      const [withUnbound, without] = [await drawnFrames(unbound.none), await drawnFrames(all)];
+      check('unbound plans: the chrome-free view draws every frame\'s texts and colors as without them',
+        Object.keys(without).length === 8 && JSON.stringify(withUnbound) === JSON.stringify(without), Object.keys(withUnbound));
+    } finally {
+      await browser.close();
+    }
+  }
   if (matched) {
     // The ui clock alone turns the present matched frame stale.
     const browser = await chromium.launch({ headless: true, args: ['--window-size=1500,1000'] });
@@ -322,6 +384,7 @@ try {
   if (matched) await new Promise(resolve => matched.close(resolve));
   for (const [, server] of wording) await new Promise(resolve => server.close(resolve));
   if (claims) await new Promise(resolve => claims.close(resolve));
+  if (unbound) for (const server of Object.values(unbound)) await new Promise(resolve => server.close(resolve));
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-gap-browser-proof/2', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

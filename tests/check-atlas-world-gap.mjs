@@ -178,6 +178,40 @@ assert.match(admittedRow.label.replace(/\n/gu, ''), /出所 adrs#647（未採択
 const badAdmission = gapWorld({ admission: true });
 badAdmission.frames[0].journal[0].source.admission = '';
 assert.throws(() => parseAtlasWorldInput(badAdmission), /source.admission must be non-empty text/);
+// L3 (adrs#647): a plan.set bound to no ideal state is accepted in the
+// contract's shape (no time, no author) and marked （宣言に未結合） in the HUD's
+// band and rows, as its own mark beside bound plans. Display only: every
+// entity, flag, status, color and the plan cell are as without it.
+const unboundWorld = parseAtlasWorldInput(gapWorld({ unbound: true }));
+for (const item of unboundWorld.frames) {
+  const plain = frame(item.id);
+  assert.deepEqual(item.entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
+    plain.entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': unbound plans change no entity');
+  for (const chrome of ['none', 'full']) {
+    const scene = world => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome }).scene.representations
+      .filter(rep => !rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal')).map(rep => [rep.regionId, rep.label, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
+    assert.deepEqual(scene(unboundWorld), scene(input), item.id + ' ' + chrome + ': same drawing, status, color and plan cell besides the journal marks');
+  }
+}
+// At 1920 px three marks fit in a frame's span (narrower, a frame's marks collapse into one 仕訳 n cell).
+const unboundBand = projectAtlasWorld({ input: unboundWorld, frame: unboundWorld.frames.at(-1), selected: 'none', chrome: 'full', journalOpen: '4:plan.set:unbound',
+  viewport: { width: 1920, height: 1080 } })
+  .scene.representations.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX));
+const unboundMarks = Object.fromEntries(unboundBand.filter(rep => rep.atlas?.group).map(rep => [rep.atlas.group, rep.atlas.fullLabel]));
+assert.equal(unboundMarks['4:plan.set:unbound'], '◇2（宣言に未結合）', 'two unbound plans at t4, their own mark');
+assert.equal(unboundMarks['4:plan.set'], '◇1', 'the bound plan at t4 keeps its unmarked mark');
+assert.equal(unboundMarks['6:plan.set:unbound'], '◇1（宣言に未結合）');
+// Rows stack upward from the band: read them in their row order.
+assert.deepEqual(unboundBand.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal-line:'))
+  .sort((a, b) => Number(a.regionId.split(':').at(-1)) - Number(b.regionId.split(':').at(-1))).map(rep => rep.label.replace(/\n/gu, '')), [
+  '◇ 計画（宣言に未結合） resources#71:tool-split v1 · 時刻不明 · 作者 不明 · 出所 roccho-dev/resources#71 · sha256 ' + 'c'.repeat(64),
+  '◇ 計画（宣言に未結合） nixos#12:fork-surface v2 · 時刻不明 · 作者 不明 · 出所 roccho-dev/nixos#12 comment 4100 · sha256 ' + 'd'.repeat(64)]);
+assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(unboundWorld))), unboundWorld, 'unbound plans are idempotent');
+const rejectUnbound = (mutate, pattern) => { const raw = gapWorld({ unbound: true }); mutate(raw.frames[4].journal); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
+rejectUnbound(list => { list.find(entry => entry.kind === 'observation').unbound = true; }, /unbound is for plan.set only/);
+rejectUnbound(list => { list.find(entry => entry.unbound).unbound = 'yes'; }, /unbound must be true/);
+rejectUnbound(list => { delete list.find(entry => entry.unbound).plan; }, /\.plan must be non-empty text/);
+rejectUnbound(list => { delete list.find(entry => entry.kind === 'plan.set' && !entry.unbound).recordedAt; }, /recordedAt must be/);
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/\? c4 · 照合不能/u.test(byKind(frame('t6'))['gap:hq']) && !/未観測/u.test(byKind(frame('t6'))['gap:hq']));
 // History stays: c3/c1/c4 closed at t5 are still listed at t6.
