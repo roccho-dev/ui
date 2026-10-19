@@ -30,8 +30,23 @@ const JOURNAL = [
   entry('observation', '2026-10-17T03:40:00Z', { target: 'c1', value: false }),
   entry('purpose.evaluated', '2026-10-17T04:50:00Z', { purpose_id: 'hq', purpose_rev: 1, ideal_version: 2, verdict: 'achieved', note: '到達' }),
 ];
+// current = record(agent) as the HQ World carries it (apps#122/#124): `work:`
+// and `evidence:` observations of target kind state, from `current:P#L<n>`
+// sources with no actor. b's later line wins (LWW); c's latest line was
+// invalid, so it has no value; a's evidence comes from another line than its
+// state (as atlas.current-c2's L2/L3 in the HQ World).
+const claim = (recordedAt, id, value, line) => ({ kind: 'observation', recordedAt, observedAt: recordedAt, actor: null,
+  source: { ref: 'current:P#L' + line + ' sha256:' + sha('b'), commentId: null, sha256: null }, target: { kind: 'state', id }, value });
+const CURRENT = [
+  claim('2026-10-17T03:50:00Z', 'work:b', 'progressed', 2),
+  claim('2026-10-17T03:50:00Z', 'work:c', 'progressed', 3),
+  claim('2026-10-17T05:30:00Z', 'work:a', 'created', 1),
+  claim('2026-10-17T05:30:00Z', 'evidence:a', 'roccho-dev/apps#124', 4),
+  claim('2026-10-17T05:30:00Z', 'work:b', 'reported-done', 2),
+  claim('2026-10-17T05:30:00Z', 'work:c', null, 3),
+];
 // v6: the entries recorded after the previous frame's asOf, up to this one's.
-const journalBetween = (after, asOf) => structuredClone(JOURNAL.filter(item => Date.parse(item.recordedAt) <= Date.parse(asOf)
+const journalBetween = (entries, after, asOf) => structuredClone(entries.filter(item => Date.parse(item.recordedAt) <= Date.parse(asOf)
   && (after === null || Date.parse(item.recordedAt) > Date.parse(after))));
 const causesOf = cause => Array.isArray(cause) ? cause : [...new Set([cause.ideal, cause.current])].filter(item => item !== null);
 const summaryOf = (parts, conditions, satisfied) => ({ open: parts.length, conditions, satisfied,
@@ -85,7 +100,9 @@ const groupedScopes = (frameId, parts, closed, leaveOut = null) => {
 // (hq -> hq.v2) instead of only the ideal state. `groups: true` adds, to each
 // frame with open parts, the Scope area nested as a producer supplies it;
 // `groups: 'unplaced'` does so without c4's Scope (c4 then matches none).
-export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false } = {}) => {
+// `current: true` adds the current claims above (at t4 and t6).
+export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false } = {}) => {
+  const entries = current ? [...JOURNAL, ...CURRENT].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : JOURNAL;
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
   const c1 = (current, since) => part('c1', '端末で直接入力できる', 'unmet', cause(null, current), since, null);
   const c4 = (current, since) => part('c4', 'envs のスコープ主張', 'unknown', cause(null, current), since, 'scope:envs');
@@ -120,7 +137,7 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
       if (newPurpose && index >= 3 && item.gap) item.gap.basis.purpose_id = 'hq.v2';
       const nested = groups && item.gap.parts?.length
         ? groupedScopes(item.id, item.gap.parts, frames.slice(0, index + 1).flatMap(each => each.gap.closed), groups === 'unplaced' ? 'c4' : null) : null;
-      return { ...item, journal: journalBetween(frames[index - 1]?.asOf ?? null, item.asOf),
+      return { ...item, journal: journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf),
         ...(nested ? { entities: [...item.entities, ...nested.entities], relations: [...item.relations, ...nested.relations] } : {}) };
     }),
   };

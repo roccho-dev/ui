@@ -68,6 +68,9 @@ const wording = compat ? [] : [
   ['ideal only', arg('page-ideal-only') ? await servePage(arg('page-ideal-only')) : arg('page') ? null : await serve('ideal-only', gapWorld({ through: 't5' }))],
   ['new purpose', arg('page-new-purpose') ? await servePage(arg('page-new-purpose')) : arg('page') ? null : await serve('new-purpose', gapWorld({ through: 't5', newPurpose: true }))],
 ].filter(([, server]) => server);
+// current = record(agent): the claims fixture (`--page-current=` applies the
+// check to an earlier build of it).
+const claims = compat ? null : arg('page-current') ? await servePage(arg('page-current')) : arg('page') ? null : await serve('current', gapWorld({ current: true }));
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
@@ -216,6 +219,38 @@ try {
       await browser.close();
     }
   }
+  for (const size of claims ? [{ width: 1500, height: 1000 }, { width: 1280, height: 720 }] : []) {
+    // At t6 each work's latest claim is a line of 現在状態, with source line
+    // and day-time; c's invalid latest line reads 不明. No status look, and
+    // 差 reads as without claims (a claim is not an achievement).
+    const browser = await chromium.launch({ headless: true, args: ['--window-size=' + size.width + ',' + size.height] });
+    try {
+      const page = await (await browser.newContext({ viewport: null })).newPage();
+      await page.goto(urlOf(claims), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+      await page.focus('#atlas-world');
+      await page.keyboard.press('[');
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const state = await read(page);
+      const where = 'current claims ' + size.width + 'x' + size.height + ' ' + state.frameId;
+      const node = state.nodes.find(item => item.kind === 'current-state');
+      const look = await page.evaluate(() => {
+        const atlas = window.liveAtlas;
+        const rep = atlas.projection.scene.representations.find(item => item.atlas?.ref?.kind === 'current-state');
+        return { status: rep?.atlas.status ?? null, fill: atlas.adapter.graph.getView().getState(atlas.adapter.cellsByRegionId.get(rep?.regionId))?.style?.fillColor ?? null };
+      });
+      // a's state (L1) and evidence (L4) come from different lines: each is drawn with its own.
+      const lines = ['作業の主張（current） 3 件', 'b · 完了と報告（出所 current:P#L2） · 10-17 05:30Z', 'c · 不明（最新の行が不正）（出所 current:P#L3） · 10-17 05:30Z',
+        'a · 作成（出所 current:P#L1） · 証拠 roccho-dev/apps#124（出所 current:P#L4） · 10-17 05:30Z'];
+      check(where + ': 現在状態 draws each claim, its state and its evidence each with its own source line, whole inside its box',
+        state.frameId === 't6' && node && lines.every(line => flat(node.text).includes(flat(line))) && flat(node.text) === flat(node.label) && inside(node), node?.text);
+      check(where + ': 現在状態 has no status look and no ✓', look.status === null && !/[✓]/u.test(node?.text ?? ''), look);
+      const delta = state.nodes.find(item => item.kind === 'gap');
+      check(where + ': 差 reads as without claims', flat(delta?.text).includes(flat('差 2（前 0） · ✓2 ?1 !1')), delta?.text);
+    } finally {
+      await browser.close();
+    }
+  }
   if (matched) {
     // The ui clock alone turns the present matched frame stale.
     const browser = await chromium.launch({ headless: true, args: ['--window-size=1500,1000'] });
@@ -242,6 +277,7 @@ try {
   await new Promise(resolve => all.close(resolve));
   if (matched) await new Promise(resolve => matched.close(resolve));
   for (const [, server] of wording) await new Promise(resolve => server.close(resolve));
+  if (claims) await new Promise(resolve => claims.close(resolve));
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-gap-browser-proof/2', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

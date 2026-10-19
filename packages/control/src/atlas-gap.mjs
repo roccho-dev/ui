@@ -198,6 +198,39 @@ const clockText = asOf => {
   const match = /T(\d\d:\d\d)/u.exec(asOf);
   return match ? match[1] + (/Z$/u.test(asOf) ? 'Z' : '') : asOf;
 };
+// Month, day and time: a claim's age must show, whatever day it is read.
+const dayClockText = at => {
+  const match = /^\d{4}-(\d\d-\d\d)T(\d\d:\d\d)/u.exec(String(at));
+  return match ? match[1] + ' ' + match[2] + (/Z$/u.test(at) ? 'Z' : '') : String(at ?? '時刻不明');
+};
+
+// current = record(agent) (apps#122): each work's state is a `work:<id>`
+// observation and its evidence an `evidence:<id>` one, from `current:...`
+// sources. They are the author's claims, never achievements: shown as
+// reported, with source and time, in the current state; no verdict, no
+// satisfied count. The latest observation per id stands (the producer applies
+// last-write-wins); no value is its latest line being invalid (apps#124).
+const CLAIM_LABEL = Object.freeze({ created: '作成', progressed: '進行', 'reported-done': '完了と報告',
+  'reported-blocked': '阻害と報告', 'reported-stopped': '中止と報告' });
+const currentClaims = journal => {
+  const latest = new Map();
+  for (const entry of journal) {
+    const id = entry.kind === 'observation' && typeof entry.target?.id === 'string' ? /^(work|evidence):(.+)$/u.exec(entry.target.id) : null;
+    if (id) latest.set(id[1] + ':' + id[2], entry);
+  }
+  const ids = [...new Set([...latest.keys()].map(item => item.replace(/^(work|evidence):/u, '')))];
+  return ids.map(id => {
+    const work = latest.get('work:' + id) ?? null, evidence = latest.get('evidence:' + id) ?? null;
+    const state = work === null ? '状態の行なし' : work.value === null || work.value === undefined ? '不明（最新の行が不正）'
+      : CLAIM_LABEL[work.value] ?? String(work.value) + '（未知の値）';
+    // The state and the evidence may come from different lines: each names its own.
+    const from = entry => '（出所 ' + entry.source.ref.split(' ')[0] + (entry.actor ? ' · ' + entry.actor : '') + '）';
+    const proof = evidence === null ? '' : ' · 証拠 ' + (evidence.value === null || evidence.value === undefined ? '不明' : String(evidence.value)) + from(evidence);
+    const said = work ?? evidence;
+    return id + ' · ' + state + (work ? from(work) : '') + proof + ' · ' + dayClockText(said.observedAt ?? said.recordedAt);
+  });
+};
+
 // A digest revision is shown by its first 8 hex digits, named as shortened;
 // the whole value is in the record.
 const revText = rev => {
@@ -325,7 +358,9 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // kind observation up to this frame; none recorded reads so, never 0 observed.
   const observations = journal.filter(entry => entry.kind === 'observation');
   const lastObserved = observations.map(entry => entry.observedAt ?? entry.recordedAt).sort().at(-1);
-  const currentLine = observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし';
+  const claims = currentClaims(journal);
+  const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし')
+    + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
 
   // The supplied purpose label; when this frame was already drawn from its
   // gap (the World is normalized twice in the app), drop the line added here.
