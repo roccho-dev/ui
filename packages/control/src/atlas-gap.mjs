@@ -52,6 +52,8 @@ export const JOURNAL_MARK = Object.freeze({ 'purpose.set': '◎', 'ideal.draftin
   'purpose.evaluated': '★', 'purpose.ended': '■', observation: '·' });
 export const JOURNAL_LABEL = Object.freeze({ 'purpose.set': '目的', 'ideal.drafting': '理想の定義開始', 'ideal.set': '理想の確定',
   'plan.set': '計画', 'purpose.evaluated': '評価', 'purpose.ended': '目的の終了', observation: '観測' });
+// L3: a plan.set bound to no ideal state's requires[].plans.
+export const UNBOUND_MARK = '（宣言に未結合）';
 // A3 (apps#120): a decision's source observed but not admitted is marked
 // where the decision is drawn. Display only: no judgment reads it. A value
 // this ui does not know is shown as it is.
@@ -160,6 +162,13 @@ export const normalizeJournal = (value, at) => {
     const where = at + '[' + index + ']';
     check(plain(entry), where + ' must be an object');
     check(JOURNAL_KINDS.includes(entry.kind), where + '.kind must be ' + JOURNAL_KINDS.join('|'));
+    // L3 (adrs#647): a plan.set no ideal state's requires[].plans binds carries
+    // unbound: true, for display only; it needs its plan.
+    if (entry.unbound !== undefined) {
+      check(entry.kind === 'plan.set', where + '.unbound is for plan.set only');
+      check(entry.unbound === true, where + '.unbound must be true');
+      text(entry.plan, where + '.plan');
+    }
     instant(entry.recordedAt, where + '.recordedAt');
     // An author the source does not name is null (shown as unknown), never guessed.
     if (entry.actor !== null) text(entry.actor, where + '.actor');
@@ -378,8 +387,16 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const claims = currentClaims(journal);
   const contrast = g === null ? '' : '\n' + (g.summary.satisfied === null || g.summary.conditions === null ? '理想の条件との一致 未供給'
     : '理想の条件 ' + g.summary.conditions + ' 件のうち一致 ' + g.summary.satisfied + ' 件');
+  // L3: plans bound to no ideal state are a current-side fact: each plan id
+  // up to this frame at its newest version, leaving out an id the frame's
+  // plans carry (bound by now). Counted nowhere.
+  const boundPlans = new Set((frame.plans ?? []).map(item => item.plan));
+  const unboundPlans = [...new Map(journal.filter(entry => entry.unbound === true).map(entry => [entry.plan, entry])).values()]
+    .filter(entry => !boundPlans.has(entry.plan));
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + contrast
-    + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
+    + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '')
+    + (unboundPlans.length ? '\n宣言に未結合の計画 ' + unboundPlans.length + ' 件：'
+      + unboundPlans.map(entry => entry.plan + (entry.version === undefined ? '' : ' ' + versionText(entry.version))).join(' · ') : '');
 
   // The supplied purpose label; when this frame was already drawn from its
   // gap (the World is normalized twice in the app), drop the line added here.

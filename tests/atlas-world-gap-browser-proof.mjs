@@ -39,10 +39,10 @@ const { chromium } = createRequire(import.meta.url)(driverRoot);
 const fixture = !arg('input');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-gap-'));
 fs.mkdirSync(arg('out'));
-const serve = async (name, world) => {
+const serve = async (name, world, chrome = 'none') => {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
-  await buildLiveAtlas({ input, out: path.join(arg('out'), name), consumer: 'app', chrome: 'none' });
+  await buildLiveAtlas({ input, out: path.join(arg('out'), name), consumer: 'app', chrome });
   const body = fs.readFileSync(path.join(path.resolve(arg('out')), name, 'index.html'));
   const server = http.createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
@@ -71,6 +71,12 @@ const wording = compat ? [] : [
 // current = record(agent): the claims fixture (`--page-current=` applies the
 // check to an earlier build of it).
 const claims = compat ? null : arg('page-current') ? await servePage(arg('page-current')) : arg('page') ? null : await serve('current', gapWorld({ current: true }));
+// L3: plans bound to no ideal state (the fixture's unbound plans), listed in
+// 現在状態 of the chrome-free view (`--page-unbound=` applies the check to an
+// earlier build).
+const unbound = compat || (arg('page') && !arg('page-unbound')) ? null : {
+  none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
+};
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
@@ -295,6 +301,51 @@ try {
       await browser.close();
     }
   }
+  if (unbound) {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      // At the present, 現在状態 lists each unbound plan at its newest version,
+      // drawn whole inside its box.
+      const present = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+      await present.goto(urlOf(unbound.none), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await present.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+      await present.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const presentState = await read(present);
+      const currentNode = presentState.nodes.find(node => node.kind === 'current-state');
+      check('unbound plans: 現在状態 at the present lists them at their newest versions, whole inside its box',
+        presentState.frameId === 't7' && flat(currentNode?.text).includes(flat('宣言に未結合の計画 3 件：resources#71:tool-split v2 · nixos#12:fork-surface v2 · mieru#3:release v1'))
+          && flat(currentNode.text) === flat(currentNode.label) && inside(currentNode), currentNode?.text);
+      await present.close();
+      // Every frame draws every other node's text, and every node's colors, as
+      // the World without the unbound plans.
+      const drawnFrames = async server => {
+        const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+        await page.goto(urlOf(server), { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+        const out = {};
+        const count = await page.evaluate(() => window.liveAtlas.input.frames.length);
+        for (let step = 0; step < count; step += 1) {
+          if (step > 0) { await page.focus('#atlas-world'); await page.keyboard.press('['); }
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+          const state = await read(page);
+          out[state.frameId] = await page.evaluate(() => {
+            const atlas = window.liveAtlas, view = atlas.adapter.graph.getView();
+            return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
+              const drawn = view.getState(atlas.adapter.cellsByRegionId.get(item.regionId));
+              return [item.regionId, item.atlas.ref.kind === 'current-state' ? null : drawn?.text?.node?.textContent ?? '', drawn?.style?.fillColor ?? null, drawn?.style?.strokeColor ?? null];
+            });
+          });
+        }
+        await page.close();
+        return out;
+      };
+      const [withUnbound, without] = [await drawnFrames(unbound.none), await drawnFrames(all)];
+      check('unbound plans: every frame draws 差, 理想状態, Scopes and Agents (texts and colors) and 現在状態\'s colors as without them',
+        Object.keys(without).length === 8 && JSON.stringify(withUnbound) === JSON.stringify(without), Object.keys(withUnbound));
+    } finally {
+      await browser.close();
+    }
+  }
   if (matched) {
     // The ui clock alone turns the present matched frame stale.
     const browser = await chromium.launch({ headless: true, args: ['--window-size=1500,1000'] });
@@ -322,6 +373,7 @@ try {
   if (matched) await new Promise(resolve => matched.close(resolve));
   for (const [, server] of wording) await new Promise(resolve => server.close(resolve));
   if (claims) await new Promise(resolve => claims.close(resolve));
+  if (unbound) for (const server of Object.values(unbound)) await new Promise(resolve => server.close(resolve));
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-gap-browser-proof/2', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

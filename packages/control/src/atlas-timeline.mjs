@@ -4,7 +4,7 @@
 // undeclared (UNKNOWN), not as an empty future. Pure; no DOM.
 
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
-import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, admissionMark } from './atlas-gap.mjs';
+import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, UNBOUND_MARK, admissionMark } from './atlas-gap.mjs';
 
 // Whether a World carries phases or a journal, and so gets the band.
 export const hasBand = input => input.frames.some(frame => Object.hasOwn(frame, 'phase') || Object.hasOwn(frame, 'journal'));
@@ -234,7 +234,9 @@ export const projectTimeline = ({
       const entries = kind === '*' ? [...groups.entries()].filter(([groupKey]) => groupKey.startsWith(at + ':')).flatMap(([, list]) => list)
         : groups.get(journalOpen) ?? [];
       for (const entry of entries) {
-        journalRows.push(JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
+        journalRows.push(JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + (entry.unbound === true ? UNBOUND_MARK : '')
+          + (entry.kind === 'plan.set' && entry.plan ? ' ' + entry.plan + (entry.version === undefined ? '' : ' v' + entry.version) : '')
+          + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
           + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
           + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN'));
       }

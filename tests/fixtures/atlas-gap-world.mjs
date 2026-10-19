@@ -105,7 +105,20 @@ const groupedScopes = (frameId, parts, closed, leaveOut = null) => {
 // the purpose.set and ideal.set v2 read observed_not_admitted, the first
 // evaluation a value this ui does not know (shown as is).
 const ADMISSION = { '2026-10-16T23:30:00Z': 'observed_not_admitted', '2026-10-17T02:30:00Z': 'observed_not_admitted', '2026-10-17T02:50:00Z': 'pending-review' };
-export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false } = {}) => {
+// `unbound: true` adds plan.set entries no ideal state binds (L3, adrs#647), in
+// the contract's shape {kind, plan, version, source, unbound: true}: two at t4
+// (beside the bound plan of resources#25) and one at t6.
+// v3: with their time (when appended to the ledger) and author (or null).
+// t6 carries a newer version of resources#71.
+const unboundPlan = (recordedAt, actor, plan, version, ref, commentId, digest) => ({ kind: 'plan.set', recordedAt, actor, plan, version,
+  source: { ref, commentId, sha256: sha(digest) }, unbound: true });
+const UNBOUND = {
+  t4: [unboundPlan('2026-10-17T03:20:00Z', 'roccho-dev', 'resources#71:tool-split', 1, 'roccho-dev/resources#71', null, 'c'),
+    unboundPlan('2026-10-17T03:30:00Z', null, 'nixos#12:fork-surface', 2, 'roccho-dev/nixos#12', 4100, 'd')],
+  t6: [unboundPlan('2026-10-17T05:20:00Z', 'roccho-dev', 'mieru#3:release', 1, 'roccho-dev/mieru#3', 4200, 'e'),
+    unboundPlan('2026-10-17T05:25:00Z', 'roccho-dev', 'resources#71:tool-split', 2, 'roccho-dev/resources#71', 4300, 'f')],
+};
+export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
   const entries = current ? [...decided, ...CURRENT].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
@@ -142,7 +155,7 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
       if (newPurpose && index >= 3 && item.gap) item.gap.basis.purpose_id = 'hq.v2';
       const nested = groups && item.gap.parts?.length
         ? groupedScopes(item.id, item.gap.parts, frames.slice(0, index + 1).flatMap(each => each.gap.closed), groups === 'unplaced' ? 'c4' : null) : null;
-      return { ...item, journal: journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf),
+      return { ...item, journal: [...journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf), ...(unbound ? structuredClone(UNBOUND[item.id] ?? []) : [])],
         ...(nested ? { entities: [...item.entities, ...nested.entities], relations: [...item.relations, ...nested.relations] } : {}) };
     }),
   };
