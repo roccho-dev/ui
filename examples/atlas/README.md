@@ -2,6 +2,20 @@
 
 This example proves the reusable UI capability needed by the Live Agent Organization Atlas application.
 
+## Application expectation and evidence
+
+The Atlas application expectations and acceptance criteria are owned by
+[apps#73](https://github.com/roccho-dev/apps/issues/73). This README owns the
+reusable UI example, its invocation and demonstrated capability coverage; it does
+not duplicate the application requirements.
+
+The fixture below proves the capabilities listed here. The accepted
+[one-world discussion example](../../docs/proposals/atlas-purpose-ui-20261007/unified.md)
+from [ui#333](https://github.com/roccho-dev/ui/pull/333) is the broader visual
+reference, not proof of production composition or real observer/SSE wiring.
+
+## Shared implementation
+
 ```text
 AtlasApp     = AppSourceAdapter + SharedAtlasUI
 AtlasExample = FixtureAdapter   + SharedAtlasUI
