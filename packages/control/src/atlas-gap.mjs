@@ -62,6 +62,43 @@ export const admissionMark = entry => typeof entry?.source?.admission === 'strin
   ? '（' + (ADMISSION_LABEL[entry.source.admission] ?? entry.source.admission) + '）' : '';
 const VERDICT_LABEL = Object.freeze({ achieved: '到達', 'not-yet': '未到達', 'ideal-insufficient': '理想状態が不十分' });
 const CLOSED_LABEL = Object.freeze({ 'current-satisfied': '現在が充足', 'ideal-removed': '理想から削除', 'purpose-changed': '目的の変更', 'purpose-ended': '目的の終了' });
+// GapA (目的↔理想の差): the ideal state's adequacy to the purpose. Only a
+// current human purpose.evaluated verdict `ideal-insufficient` names it
+// insufficient. No evaluation, a past one, or one that judges purpose
+// attainment (achieved/not-yet) leaves it unassessed: adequacy is not inferred
+// from a match, from CI, or from the absence of an evaluation (never zero).
+export const ADEQUACY_STATES = Object.freeze(['insufficient', 'unassessed']);
+export const ADEQUACY_LABEL = Object.freeze({ insufficient: '不十分（評価）', unassessed: '未評価' });
+// Current CI is an aggregate of the frame's own observations: at most one
+// observation per structural target (the latest), never an individual list.
+// Only an observed `:ci.rollup` target is counted — the producer has one such
+// rollup per PR — and individual job targets are never mixed in. Values are
+// counted as observed; an unknown value is 不明, and a missing rollup
+// observation is never 0 success or purpose achievement.
+const CI_CLASS = Object.freeze({ SUCCESS: '成功', FAILURE: '失敗', ERROR: '失敗', ACTION_REQUIRED: '失敗', STARTUP_FAILURE: '失敗',
+  CANCELLED: '中止', TIMED_OUT: '中止', SKIPPED: 'スキップ', NEUTRAL: 'その他', STALE: '不明', COMPLETED: '不明',
+  PENDING: '待機', EXPECTED: '待機', QUEUED: '待機', IN_PROGRESS: '実行中' });
+const CI_ORDER = Object.freeze(['成功', '失敗', '実行中', '待機', '中止', 'スキップ', 'その他', '不明']);
+const stableTarget = value => Array.isArray(value) ? value.map(stableTarget)
+  : value !== null && typeof value === 'object'
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, stableTarget(value[key])])) : value;
+const targetIdentity = target => typeof target === 'string' ? 'text:' + target : JSON.stringify(stableTarget(target));
+const isRollupTarget = target => typeof target === 'string' ? /:ci\.rollup$/u.test(target)
+  : target !== null && typeof target === 'object' && typeof target.id === 'string' && /:ci\.rollup$/u.test(target.id);
+const ciAggregate = journal => {
+  const latest = new Map();
+  for (const entry of journal) {
+    if (entry.kind !== 'observation' || !isRollupTarget(entry.target)) continue;
+    latest.set(targetIdentity(entry.target), entry);
+  }
+  if (!latest.size) return null;
+  const counts = new Map();
+  for (const entry of latest.values()) {
+    const label = typeof entry.value === 'string' && CI_CLASS[entry.value] ? CI_CLASS[entry.value] : '不明';
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return { targets: latest.size, counts };
+};
 
 // A cause is either the v6 sides {ideal, current}, each null, one cause or a
 // list of at most one (carried stands alone: both sides as before), or the
@@ -266,13 +303,34 @@ export const hasGapView = frame => Object.hasOwn(frame, 'gap') || Object.hasOwn(
 
 // The newest evaluation of this purpose recorded up to the frame, and whether
 // the purpose or the ideal state moved after it (a past evaluation).
-const evaluationOf = (journal, purposeId, basis) => {
+const evaluationEntry = (journal, purposeId, basis) => {
   const evaluation = journal.filter(entry => entry.kind === 'purpose.evaluated' && entry.purpose_id === purposeId).at(-1);
   if (!evaluation) return null;
   // Versions compare as written with or without a leading v (2 and 'v2' are the same version).
   const past = basis !== null && ((evaluation.purpose_rev !== undefined && String(evaluation.purpose_rev) !== String(basis.purpose_rev))
     || (evaluation.ideal_version !== undefined && versionText(evaluation.ideal_version) !== versionText(basis.ideal_version)));
+  return { evaluation, past };
+};
+const evaluationOf = (journal, purposeId, basis) => {
+  const found = evaluationEntry(journal, purposeId, basis);
+  if (!found) return null;
+  const { evaluation, past } = found;
   return { verdict: VERDICT_LABEL[evaluation.verdict] ?? String(evaluation.verdict ?? '不明'), mark: admissionMark(evaluation), past, recordedAt: evaluation.recordedAt };
+};
+// GapA is derived from the same real evaluation, never from GapB, CI or a
+// match: a current, admitted `ideal-insufficient` is insufficient; anything
+// else, including no evaluation, a past one, no ideal to compare with, or an
+// explicit non-admission (capture is not admission), is unassessed.
+const adequacyOf = (journal, purposeId, basis) => {
+  const found = evaluationEntry(journal, purposeId, basis);
+  if (!found) return { state: 'unassessed', found: null, reason: 'no-evaluation' };
+  const { evaluation, past } = found;
+  if (basis === null) return { state: 'unassessed', found, reason: 'no-ideal-basis' };
+  if (past) return { state: 'unassessed', found, reason: 'past' };
+  if (typeof evaluation.source?.admission === 'string')
+    return { state: 'unassessed', found, reason: 'not-admitted', admission: evaluation.source.admission };
+  if (evaluation.verdict === 'ideal-insufficient') return { state: 'insufficient', found, reason: 'evaluated' };
+  return { state: 'unassessed', found, reason: 'no-adequacy-verdict' };
 };
 
 // Entities and relations of a gap frame, in the normalized World shape.
@@ -309,6 +367,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const idealRef = ref('ideal-state', purposeId);
   const currentRef = ref('current-state', purposeId);
   const deltaRef = ref('gap', purposeId);
+  const adequacyRef = ref('gap-adequacy', purposeId);
   const unknownCount = '不明';
   // The newest decision of a kind, up to this frame, for the purpose drawn (and,
   // for an ideal.set, the version drawn): its source's admission marks it (A3).
@@ -393,8 +452,15 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const boundPlans = new Set((frame.plans ?? []).map(item => item.plan));
   const unboundPlans = [...new Map(journal.filter(entry => entry.unbound === true).map(entry => [entry.plan, entry])).values()]
     .filter(entry => !boundPlans.has(entry.plan));
+  // Current CI is aggregate-only: the observed rollup targets, latest per
+  // structural identity, never an individual job list. Missing is unknown, not
+  // 0 success, and no CI count becomes purpose achievement.
+  const ci = ciAggregate(journal);
+  const ciLine = ci === null ? '' : '\nCIロールアップ観測対象 ' + ci.targets + ' 件：'
+    + CI_ORDER.filter(label => ci.counts.get(label)).map(label => label + ' ' + ci.counts.get(label)).join(' · ');
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + contrast
     + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '')
+    + ciLine
     + (unboundPlans.length ? '\n宣言に未結合の計画 ' + unboundPlans.length + ' 件：'
       + unboundPlans.map(entry => entry.plan + (entry.version === undefined ? '' : ' ' + versionText(entry.version))).join(' · ') : '');
 
@@ -407,6 +473,16 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const evaluation = evaluationOf(journal, purposeId, gap?.basis ?? null);
   const purposeLines = [purposeLabel, (gap ? revText(gap.basis.purpose_rev) : 'rev 不明') + admissionMark(decided('purpose.set'))
     + (evaluation ? ' · ' + (evaluation.past ? '過去の評価：' : '評価：') + evaluation.verdict + evaluation.mark : '')];
+  // GapA (目的↔理想の差) is its own state, from the real purpose.evaluated
+  // journal entry only. It is never derived from GapB, CI or a match.
+  const adequacy = adequacyOf(journal, purposeId, gap?.basis ?? null);
+  const adequacyFlags = ['purpose_adequacy=' + adequacy.state];
+  if (adequacy.admission) adequacyFlags.push('adequacy_provenance=' + adequacy.admission);
+  const adequacyProvenance = adequacy.found
+    ? ' · 評価=' + (adequacy.found.evaluation.verdict ?? '不明') + ' (' + adequacy.found.evaluation.recordedAt + ') · ' + adequacy.reason
+    : ' · 評価なし';
+  const adequacyLabel = '目的↔理想の差\n' + ADEQUACY_LABEL[adequacy.state]
+    + (adequacy.state === 'unassessed' ? '（十分性は未判定）' : '');
 
   const entities = [
     entity(phaseRef, phaseLabel, areas.purpose, 0, '局面は供給された phase。matched は理想状態との一致で、目的の達成ではない。'
@@ -418,15 +494,22 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     entity(idealRef, '理想状態\n' + idealLine, areas.purpose, 2,
       g === null ? '照らし合わせる理想状態が無い（parts=null: UNKNOWN）。'
         : '理想状態 ' + versionText(g.basis.ideal_version) + (moved ? '（直前 ' + versionText(prevVersion) + '）' : '') + '。追加・改訂は開いている差の原因の件数。'),
-    entity(deltaRef, deltaText, areas.purpose, 3, g === null ? '差は不明（0 ではない）。'
-      : '現在状態と理想状態の差。原因ごとの件数は parts から数えた値（1 件が複数の原因を持てる）。'
+    entity(adequacyRef, adequacyLabel, areas.purpose, 3,
+      'GapA: 目的に対する理想状態の十分性。現在の版に一致する人評価 purpose.evaluated が '
+        + 'ideal-insufficient で、明示的な未採択（admission）が無いときだけ「不十分」。'
+        + '評価なし・過去・版不一致・理想なし・未採択は「未評価」（十分でも 0 でもない）。'
+        + 'CI や matched からは判定しない。' + adequacyProvenance, adequacyFlags),
+    entity(deltaRef, deltaText, areas.purpose, 4, g === null ? '差は不明（0 ではない）。'
+      : '現在状態と理想状態の差（GapB）。原因ごとの件数は parts から数えた値（1 件が複数の原因を持てる）。'
         + (counts.agrees ? '' : ' 供給された summary は parts と一致しない: ' + JSON.stringify(g.summary))
         + unplaced.map(part => '\nScope に付かない差: ' + partRecord(part)).join(''), deltaFlags),
-    entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 4, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
+    entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 5, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
   ];
   const relations = [
     relation('current-delta', currentRef, deltaRef, '差'),
     relation('delta-ideal', deltaRef, idealRef, '理想状態との差'),
+    relation('ideal-adequacy', idealRef, adequacyRef, '照らす'),
+    relation('adequacy-purpose', adequacyRef, purposeRef, '十分性'),
     relation('ideal-purpose', idealRef, purposeRef, '近似'),
   ];
   const sinceText = since => {
