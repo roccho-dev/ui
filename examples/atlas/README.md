@@ -288,8 +288,25 @@ accepted input retained** receipt. It does not change the held pair, received
 input, selection, camera or observation timestamps. Connection changes retain
 rejection until a valid snapshot arrives. Disconnection exposes UNKNOWN for live
 activity; reconnecting does not manufacture a new observation. Quiet World input
-has no autonomous clock timer. Rendering failures are not classified as input
+has no periodic clock timer (only the one-shot deadlines below). Rendering failures are not classified as input
 rejection.
+
+### Update stalled
+
+A live World page (opened with `?events=`) says **更新停止・最新か不明** in its
+status line, and qualifies LATEST as **LATEST（最新か不明）**, once the browser's
+clock is more than three update periods past the newest frame's `asOf`. Heartbeats
+do not clear it: they show the stream is open, not that the World advanced. The
+period is HQ's 10 minutes unless the build names another
+(`--update-interval-minutes=<n>`); one timeout per accepted World wakes the page at
+that moment, with no periodic timer. A sample page (no `?events=`) claims no
+updates and never reads stalled. `tests/atlas-world-stall-browser-proof.mjs`
+checks this on the browser's clock.
+
+Limit: the newest `asOf` is the time HQ read its current claims, so it advances on
+every update that passes them. An update that passes no current leaves `asOf` at
+the last ledger time, and such a World reads stalled after three periods even
+while its updates still run.
 
 The existing `tests/atlas-a2-ui-composition-gate.mjs` builds the public HTML and
 uses the existing HTTP/Node/Chromium environment. It keeps the positive SVG bbox,

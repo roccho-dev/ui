@@ -47,12 +47,13 @@ const publishApi = (ui, cleanup) => {
 // The World keeps its viewed state in the URL fragment (`#sel=…&t=…`), so a
 // reload restores the selection and a held past frame; `t` is absent while
 // following the present.
-const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
+const startWorldAtlas = ({ input, eventsUrl, chrome, updateIntervalMs }) => {
   const view = parseViewHash(location.hash);
   const ui = mountAtlasWorldUI({
     root: document.body,
     input,
     chrome,
+    ...(updateIntervalMs === undefined ? {} : { updateIntervalMs }),
     mode: eventsUrl ? 'live' : 'sample',
     connected: false,
     now: Date.now(),
@@ -69,7 +70,7 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
   // and restarts the window; a rejected snapshot or malformed heartbeat
   // changes nothing. A snapshot records its size; a heartbeat its claimed
   // size, which must match it for the screen to call the World the latest.
-  let source = null, expiry = null, freshness = null;
+  let source = null, expiry = null, freshness = null, stall = null;
   const restartWindow = () => {
     if (expiry !== null) clearTimeout(expiry);
     expiry = setTimeout(() => { expiry = null; ui.tick(Date.now()); }, RECEIVE_WINDOW_MS + 1);
@@ -85,6 +86,16 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
     if (Number.isFinite(wait) && wait >= 0) freshness = setTimeout(() => { freshness = null; ui.tick(Date.now(), true); }, Math.min(wait + 1, 2 ** 31 - 1));
   };
   armFreshness();
+  // A live World stops reading as updating three update periods after its
+  // newest frame's asOf: one timeout for that moment (re-armed when the World
+  // changes), whatever arrives meanwhile.
+  const armStall = () => {
+    if (stall !== null) clearTimeout(stall);
+    stall = null;
+    const wait = Date.parse(ui.input.frames.at(-1).asOf) + 3 * ui.page.updateIntervalMs - Date.now();
+    if (eventsUrl && Number.isFinite(wait) && wait >= 0) stall = setTimeout(() => { stall = null; ui.tick(Date.now(), true); }, Math.min(wait + 1, 2 ** 31 - 1));
+  };
+  armStall();
   // A background tab may not run the timers; judge again on coming back.
   const onVisible = () => { if (document.visibilityState === 'visible') ui.tick(Date.now(), true); };
   document.addEventListener('visibilitychange', onVisible);
@@ -97,7 +108,7 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
         const at = Date.now();
         const accepted = ui.setSession({ input: data, connected: ui.page.connected, mode: 'live', now: at, receivedAt: at,
           snapshotBytes: snapshotSize(data), heartbeatBytes: null, latest: ui.page.latest, reportInvalid: true });
-        if (accepted) { restartWindow(); armFreshness(); }
+        if (accepted) { restartWindow(); armFreshness(); armStall(); }
       },
       onHeartbeat: beat => {
         const at = Date.now();
@@ -110,6 +121,7 @@ const startWorldAtlas = ({ input, eventsUrl, chrome }) => {
   return publishApi(ui, () => {
     if (expiry !== null) clearTimeout(expiry);
     if (freshness !== null) clearTimeout(freshness);
+    if (stall !== null) clearTimeout(stall);
     document.removeEventListener('visibilitychange', onVisible);
     source?.close();
   });
@@ -153,13 +165,14 @@ const startLegacyAtlas = ({ input, eventsUrl, selected }) => {
   });
 };
 
-// `chrome` is fixed by the build (see scripts/build-live-atlas.mjs), not by the URL.
-export const startLiveAtlas = ({ chrome = 'full' } = {}) => {
+// `chrome` and the update interval are fixed by the build (see
+// scripts/build-live-atlas.mjs), not by the URL.
+export const startLiveAtlas = ({ chrome = 'full', updateIntervalMs } = {}) => {
   const params = new URLSearchParams(location.search);
   const eventsUrl = params.get('events');
   const input = readInput();
   const selected = hashSelection();
   return input?.kind === ATLAS_WORLD_KIND
-    ? startWorldAtlas({ input, eventsUrl, chrome })
+    ? startWorldAtlas({ input, eventsUrl, chrome, updateIntervalMs })
     : startLegacyAtlas({ input, eventsUrl, selected });
 };

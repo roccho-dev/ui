@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { hasBand, stepIndex, timelinePosition, transportOf, transportStatus } from './src/atlas-timeline.mjs';
+import { UPDATE_INTERVAL_MS, UPDATE_STALLED, hasBand, stepIndex, timelinePosition, transportOf, transportStatus, updateStalled } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -457,8 +457,10 @@ export const mountAtlasWorldUI = ({
   chrome = 'full',
   frameId: initialFrameId = '',
   onView = null,
+  updateIntervalMs = UPDATE_INTERVAL_MS,
 } = {}) => {
   if (!root?.append) throw new Error('atlas-world-ui: mount root required');
+  if (!(Number.isFinite(updateIntervalMs) && updateIntervalMs > 0)) throw new Error('atlas-world-ui: updateIntervalMs must be a positive number');
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world-ui: unsupported chrome ' + chrome);
   const worldInput = parseAtlasWorldInput(input);
   const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
@@ -493,6 +495,7 @@ export const mountAtlasWorldUI = ({
     projection: null,
     planOpen: false,
     journalOpen: null,
+    updateIntervalMs,
     destroyed: false,
   };
 
@@ -506,6 +509,7 @@ export const mountAtlasWorldUI = ({
   const counterpartFrame = () => page.side === 'before' && page.pair.before ? page.pair.after : page.pair.before;
   const viewport = () => ({ width: container.clientWidth, height: container.clientHeight });
   const graphView = () => worldViewport(viewport(), { panel: chrome === 'full', band: hasBand(page.input) }).graph;
+  const stalled = () => updateStalled({ mode: page.mode, now: page.now, asOf: page.input.frames.at(-1).asOf, updateIntervalMs: page.updateIntervalMs });
   const renderSearch = () => {
     const frame = currentFrame();
     page.searchResults = searchAtlasWorld(frame, page.query);
@@ -517,9 +521,9 @@ export const mountAtlasWorldUI = ({
     searchCount.textContent = page.searchResults.length + ' results in supplied ' +
       (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
       // LATEST is the newest supplied frame; while the live stream cannot
-      // vouch for that supply, it is qualified.
-      ' · ' + (page.latest ? (['sample', 'live'].includes(transportOf(page)) ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD') +
-      transportStatus(page);
+      // vouch for that supply, or the World stopped updating, it is qualified.
+      ' · ' + (page.latest ? (['sample', 'live'].includes(transportOf(page)) && !stalled() ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD') +
+      transportStatus(page) + (stalled() ? ' · ' + UPDATE_STALLED + '（最後の frame ' + page.input.frames.at(-1).asOf + '）' : '');
     searchCount.title = searchCount.textContent;
   };
 
