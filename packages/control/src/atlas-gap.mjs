@@ -223,10 +223,11 @@ const currentClaims = journal => {
     const work = latest.get('work:' + id) ?? null, evidence = latest.get('evidence:' + id) ?? null;
     const state = work === null ? '状態の行なし' : work.value === null || work.value === undefined ? '不明（最新の行が不正）'
       : CLAIM_LABEL[work.value] ?? String(work.value) + '（未知の値）';
-    const proof = evidence === null ? '' : ' · 証拠 ' + (evidence.value === null || evidence.value === undefined ? '不明' : String(evidence.value));
+    // The state and the evidence may come from different lines: each names its own.
+    const from = entry => '（出所 ' + entry.source.ref.split(' ')[0] + (entry.actor ? ' · ' + entry.actor : '') + '）';
+    const proof = evidence === null ? '' : ' · 証拠 ' + (evidence.value === null || evidence.value === undefined ? '不明' : String(evidence.value)) + from(evidence);
     const said = work ?? evidence;
-    return id + ' · ' + state + proof + ' · 出所 ' + said.source.ref.split(' ')[0] + (said.actor ? '（' + said.actor + '）' : '')
-      + ' · ' + dayClockText(said.observedAt ?? said.recordedAt);
+    return id + ' · ' + state + (work ? from(work) : '') + proof + ' · ' + dayClockText(said.observedAt ?? said.recordedAt);
   });
 };
 

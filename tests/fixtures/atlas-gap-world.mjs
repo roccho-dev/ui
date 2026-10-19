@@ -33,14 +33,15 @@ const JOURNAL = [
 // current = record(agent) as the HQ World carries it (apps#122/#124): `work:`
 // and `evidence:` observations of target kind state, from `current:P#L<n>`
 // sources with no actor. b's later line wins (LWW); c's latest line was
-// invalid, so it has no value.
+// invalid, so it has no value; a's evidence comes from another line than its
+// state (as atlas.current-c2's L2/L3 in the HQ World).
 const claim = (recordedAt, id, value, line) => ({ kind: 'observation', recordedAt, observedAt: recordedAt, actor: null,
   source: { ref: 'current:P#L' + line + ' sha256:' + sha('b'), commentId: null, sha256: null }, target: { kind: 'state', id }, value });
 const CURRENT = [
   claim('2026-10-17T03:50:00Z', 'work:b', 'progressed', 2),
   claim('2026-10-17T03:50:00Z', 'work:c', 'progressed', 3),
   claim('2026-10-17T05:30:00Z', 'work:a', 'created', 1),
-  claim('2026-10-17T05:30:00Z', 'evidence:a', 'roccho-dev/apps#124', 1),
+  claim('2026-10-17T05:30:00Z', 'evidence:a', 'roccho-dev/apps#124', 4),
   claim('2026-10-17T05:30:00Z', 'work:b', 'reported-done', 2),
   claim('2026-10-17T05:30:00Z', 'work:c', null, 3),
 ];

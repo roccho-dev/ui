@@ -239,9 +239,10 @@ try {
         const rep = atlas.projection.scene.representations.find(item => item.atlas?.ref?.kind === 'current-state');
         return { status: rep?.atlas.status ?? null, fill: atlas.adapter.graph.getView().getState(atlas.adapter.cellsByRegionId.get(rep?.regionId))?.style?.fillColor ?? null };
       });
-      const lines = ['作業の主張（current） 3 件', 'b · 完了と報告 · 出所 current:P#L2 · 10-17 05:30Z', 'c · 不明（最新の行が不正） · 出所 current:P#L3 · 10-17 05:30Z',
-        'a · 作成 · 証拠 roccho-dev/apps#124 · 出所 current:P#L1 · 10-17 05:30Z'];
-      check(where + ': 現在状態 draws each claim with source and day-time, whole inside its box',
+      // a's state (L1) and evidence (L4) come from different lines: each is drawn with its own.
+      const lines = ['作業の主張（current） 3 件', 'b · 完了と報告（出所 current:P#L2） · 10-17 05:30Z', 'c · 不明（最新の行が不正）（出所 current:P#L3） · 10-17 05:30Z',
+        'a · 作成（出所 current:P#L1） · 証拠 roccho-dev/apps#124（出所 current:P#L4） · 10-17 05:30Z'];
+      check(where + ': 現在状態 draws each claim, its state and its evidence each with its own source line, whole inside its box',
         state.frameId === 't6' && node && lines.every(line => flat(node.text).includes(flat(line))) && flat(node.text) === flat(node.label) && inside(node), node?.text);
       check(where + ': 現在状態 has no status look and no ✓', look.status === null && !/[✓]/u.test(node?.text ?? ''), look);
       const delta = state.nodes.find(item => item.kind === 'gap');
