@@ -165,7 +165,11 @@ assert.equal(admittedKinds('t3')['purpose:hq'], '目的\n宣言だけで回る�
 assert.equal(admittedKinds('t2')['ideal-state:hq'], '理想状態\nv1 · 条件 2', 'ideal.set v1 has no admission: no mark');
 for (const item of admitted.frames) {
   const plain = frame(item.id);
-  assert.deepEqual(item.entities.map(entity => [entity.ref.kind, entity.flags]), plain.entities.map(entity => [entity.ref.kind, entity.flags]), item.id + ': admission changes no flag');
+  // GapA is the one exception: an explicitly unadmitted evaluation carries its
+  // provenance and never confirms adequacy (see the GapA checks below).
+  const flagPairs = world => world.entities.filter(entity => entity.ref.kind !== 'gap-adequacy')
+    .map(entity => [entity.ref.kind, entity.flags]);
+  assert.deepEqual(flagPairs(item), flagPairs(plain), item.id + ': admission changes no flag but GapA provenance');
   assert.deepEqual(item.entities.filter(entity => !['purpose', 'ideal-state'].includes(entity.ref.kind)).map(entity => entity.label),
     plain.entities.filter(entity => !['purpose', 'ideal-state'].includes(entity.ref.kind)).map(entity => entity.label), item.id + ': 差, 現在状態, Scopes as without admission');
   assert.deepEqual(projectWorldScene({ input: admitted, frame: item }).representations.map(rep => [rep.regionId, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]),
@@ -322,4 +326,55 @@ assert.match(byKind(parseAtlasWorldInput(offSummary).frames[4])['gap:hq'], /^差
 const planned = gapWorld();
 planned.frames[3].plans = [];
 assert.deepEqual(parseAtlasWorldInput(planned).frames[3].entities, frame('t3').entities, 'plans change no gap entity');
+
+// GapA (目的↔理想の差) is its own state, from the real purpose.evaluated entry
+// only: a current, admitted `ideal-insufficient` is 不十分; absent, past,
+// version-mismatched, no-ideal and unadmitted evaluations are 未評価 (never 0,
+// never inferred from a match or CI).
+const adequacyOfFrame = world => id => world.frames.find(item => item.id === id).entities
+  .find(entity => entity.ref.kind === 'gap-adequacy');
+assert.equal(adequacyOfFrame(input)('t0').label, '目的↔理想の差\n未評価（十分性は未判定）', 'no ideal: unassessed');
+assert.deepEqual(adequacyOfFrame(input)('t0').flags, ['purpose_adequacy=unassessed']);
+assert.deepEqual(adequacyOfFrame(input)('t3').flags, ['purpose_adequacy=unassessed'], 'past evaluation: unassessed');
+assert.deepEqual(adequacyOfFrame(input)('t5').flags, ['purpose_adequacy=unassessed'], 'achieved judges purpose, not ideal adequacy');
+const currentInsuff = gapWorld();
+currentInsuff.frames[3].journal.find(entry => entry.kind === 'purpose.evaluated').ideal_version = 'v2';
+const insuff = parseAtlasWorldInput(currentInsuff);
+assert.equal(adequacyOfFrame(insuff)('t4').label, '目的↔理想の差\n不十分（評価）', 'current ideal-insufficient: insufficient');
+assert.deepEqual(adequacyOfFrame(insuff)('t4').flags, ['purpose_adequacy=insufficient']);
+const mismatched = gapWorld();
+mismatched.frames[3].journal.find(entry => entry.kind === 'purpose.evaluated').ideal_version = 'v9';
+assert.deepEqual(adequacyOfFrame(parseAtlasWorldInput(mismatched))('t4').flags, ['purpose_adequacy=unassessed'], 'version mismatch: unassessed');
+const unadmittedInsuff = gapWorld();
+const unadmittedEntry = unadmittedInsuff.frames[3].journal.find(entry => entry.kind === 'purpose.evaluated');
+unadmittedEntry.ideal_version = 'v2';
+unadmittedEntry.source = { ...unadmittedEntry.source, admission: 'observed_not_admitted' };
+const unadmitted = parseAtlasWorldInput(unadmittedInsuff);
+assert.equal(adequacyOfFrame(unadmitted)('t4').label, '目的↔理想の差\n未評価（十分性は未判定）', 'capture is not admission');
+assert.deepEqual(adequacyOfFrame(unadmitted)('t4').flags, ['purpose_adequacy=unassessed', 'adequacy_provenance=observed_not_admitted']);
+// The two gaps stay distinct: an insufficient ideal does not change GapB's parts.
+assert.equal(byKind(insuff.frames[4])['gap:hq'], byKind(frame('t4'))['gap:hq'], 'GapA does not rewrite GapB');
+
+// Current CI is aggregate-only: observed `:ci.rollup` targets, latest per full
+// structural identity, never an individual job target or any individual line.
+const ciWorld = gapWorld();
+const ciObservation = (at, target, value) => ({ kind: 'observation', recordedAt: at, observedAt: at, actor: 'atlas.events',
+  source: { ref: 'ci:rollup', commentId: null, sha256: null }, target, value });
+ciWorld.frames[3].journal.push(
+  ciObservation('2026-10-17T02:10:00Z', { space: 'fixture:gap', kind: 'check', id: 'roccho-dev/apps#100:ci.rollup' }, 'SUCCESS'),
+  ciObservation('2026-10-17T02:20:00Z', { space: 'fixture:gap', kind: 'check', id: 'roccho-dev/apps#100:ci.rollup' }, 'FAILURE'),
+  ciObservation('2026-10-17T02:15:00Z', { space: 'fixture:gap', kind: 'check', id: 'roccho-dev/ui#200:ci.rollup' }, 'WAT'),
+  ciObservation('2026-10-17T02:16:00Z', { space: 'fixture:gap', kind: 'check', id: 'roccho-dev/apps#100:ci.job.build' }, 'FAILURE'),
+);
+const ciInput = parseAtlasWorldInput(ciWorld);
+const ciCurrent = byKind(ciInput.frames[4])['current-state:hq'];
+assert.ok(ciCurrent.includes('\nCIロールアップ観測対象 2 件：失敗 1 · 不明 1'), ciCurrent);
+assert.ok(!ciCurrent.includes('roccho-dev/apps#100') && !ciCurrent.includes('ci.job'), 'no individual CI target or job line');
+assert.equal(byKind(ciInput.frames[4])['gap:hq'], byKind(frame('t4'))['gap:hq'], 'CI changes no gap');
+for (const item of ciInput.frames) {
+  assert.equal(item.entities.find(entity => entity.ref.kind === 'gap-adequacy').flags[0], 'purpose_adequacy=unassessed',
+    item.id + ': CI never proves ideal adequacy or purpose achievement');
+}
+// No rollup observed: no CI line at all (unknown, never 0 success).
+assert.ok(!byKind(frame('t4'))['current-state:hq'].includes('CIロールアップ観測対象'), 'missing CI is unknown, not 0 success');
 console.log(JSON.stringify({ status: 'atlas-world-gap-checks-pass', frames: input.frames.length }));
