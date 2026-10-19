@@ -52,6 +52,12 @@ export const JOURNAL_MARK = Object.freeze({ 'purpose.set': '◎', 'ideal.draftin
   'purpose.evaluated': '★', 'purpose.ended': '■', observation: '·' });
 export const JOURNAL_LABEL = Object.freeze({ 'purpose.set': '目的', 'ideal.drafting': '理想の定義開始', 'ideal.set': '理想の確定',
   'plan.set': '計画', 'purpose.evaluated': '評価', 'purpose.ended': '目的の終了', observation: '観測' });
+// A3 (apps#120): a decision's source observed but not admitted is marked
+// where the decision is drawn. Display only: no judgment reads it. A value
+// this ui does not know is shown as it is.
+const ADMISSION_LABEL = Object.freeze({ observed_not_admitted: '未採択' });
+export const admissionMark = entry => typeof entry?.source?.admission === 'string'
+  ? '（' + (ADMISSION_LABEL[entry.source.admission] ?? entry.source.admission) + '）' : '';
 const VERDICT_LABEL = Object.freeze({ achieved: '到達', 'not-yet': '未到達', 'ideal-insufficient': '理想状態が不十分' });
 const CLOSED_LABEL = Object.freeze({ 'current-satisfied': '現在が充足', 'ideal-removed': '理想から削除', 'purpose-changed': '目的の変更', 'purpose-ended': '目的の終了' });
 
@@ -157,8 +163,10 @@ export const normalizeJournal = (value, at) => {
     instant(entry.recordedAt, where + '.recordedAt');
     // An author the source does not name is null (shown as unknown), never guessed.
     if (entry.actor !== null) text(entry.actor, where + '.actor');
-    exact(entry.source, ['ref'], where + '.source', ['commentId', 'sha256', 'updatedAt']);
+    exact(entry.source, ['ref'], where + '.source', ['commentId', 'sha256', 'updatedAt', 'admission']);
     text(entry.source.ref, where + '.source.ref');
+    // A3: the source's admission, for display only (absent when it has none).
+    if (entry.source.admission !== undefined) text(entry.source.admission, where + '.source.admission');
     return json(entry, where);
   }));
 };
@@ -255,7 +263,7 @@ const evaluationOf = (journal, purposeId, basis) => {
   // Versions compare as written with or without a leading v (2 and 'v2' are the same version).
   const past = basis !== null && ((evaluation.purpose_rev !== undefined && String(evaluation.purpose_rev) !== String(basis.purpose_rev))
     || (evaluation.ideal_version !== undefined && versionText(evaluation.ideal_version) !== versionText(basis.ideal_version)));
-  return { verdict: VERDICT_LABEL[evaluation.verdict] ?? String(evaluation.verdict ?? '不明'), past, recordedAt: evaluation.recordedAt };
+  return { verdict: VERDICT_LABEL[evaluation.verdict] ?? String(evaluation.verdict ?? '不明'), mark: admissionMark(evaluation), past, recordedAt: evaluation.recordedAt };
 };
 
 // Entities and relations of a gap frame, in the normalized World shape.
@@ -293,6 +301,10 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const currentRef = ref('current-state', purposeId);
   const deltaRef = ref('gap', purposeId);
   const unknownCount = '不明';
+  // The newest decision of a kind, up to this frame, for the purpose drawn (and,
+  // for an ideal.set, the version drawn): its source's admission marks it (A3).
+  const decided = (kind, version = null) => journal.filter(entry => entry.kind === kind && (entry.purpose_id ?? entry.purpose?.id) === purposeId
+    && (version === null || versionText(entry.ideal_version ?? entry.version) === versionText(version))).at(-1) ?? null;
 
   // Phase line: what the supplied phase says, checked against the gap.
   const phase = frame.phase ?? null;
@@ -305,7 +317,9 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // v5: satisfied conditions whose evidence predates the ideal.set are shown,
   // not hidden: a match that may be a false positive.
   const beforeIdeal = g?.summary.before_ideal ? ' · 理想状態の確定前の観測で一致 ' + g.summary.before_ideal + ' 件' : '';
-  const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + ' · ' + phaseDetail + beforeIdeal + (consistent ? '' : ' · gap と不整合');
+  const phaseDecision = phase === 'defining' ? decided('ideal.drafting') : phase === 'ended' ? decided('purpose.ended') : null;
+  const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + admissionMark(phaseDecision) + ' · ' + phaseDetail + beforeIdeal
+    + (consistent ? '' : ' · gap と不整合');
 
   const prevVersion = prevGap?.basis.ideal_version ?? null;
   // The ideal state moves only within one purpose; a new purpose's ideal is
@@ -317,8 +331,8 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const moves = g === null ? [] : [['追加', 'ideal-added'], ['改訂', 'ideal-revised']].filter(([, cause]) => counts.byCause[cause] > 0)
     .map(([name, cause]) => name + ' ' + counts.byCause[cause]);
   const idealLine = g === null ? '照らし合わせる理想状態なし（' + (phase === 'defining' ? '定義中' : phase === 'ended' ? '目的は終了' : '未定義') + '）'
-    : (moved ? versionText(prevVersion) + '→' + versionText(g.basis.ideal_version) + ' 移動' : versionText(g.basis.ideal_version))
-      + ' · ' + conditionsText + (moves.length ? '（' + moves.join(' · ') + '）' : '');
+    : (moved ? versionText(prevVersion) + '→' : '') + versionText(g.basis.ideal_version) + admissionMark(decided('ideal.set', g.basis.ideal_version))
+      + (moved ? ' 移動' : '') + ' · ' + conditionsText + (moves.length ? '（' + moves.join(' · ') + '）' : '');
   const prevOpen = g === null ? '' : g.basis.prev_frame === null ? '初回' : prevGap ? '前 ' + prevGap.parts.length : '前 不明';
   // The cause of each side of a part (v6: ideal side first; a side without one is left out).
   const causeText = part => {
@@ -374,8 +388,8 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     : supplied?.flags.includes('gap-view') ? supplied.label.split('\n').slice(0, -1).join('\n')
       : supplied?.label ?? '目的\n' + purposeId;
   const evaluation = evaluationOf(journal, purposeId, gap?.basis ?? null);
-  const purposeLines = [purposeLabel, (gap ? revText(gap.basis.purpose_rev) : 'rev 不明')
-    + (evaluation ? ' · ' + (evaluation.past ? '過去の評価：' : '評価：') + evaluation.verdict : '')];
+  const purposeLines = [purposeLabel, (gap ? revText(gap.basis.purpose_rev) : 'rev 不明') + admissionMark(decided('purpose.set'))
+    + (evaluation ? ' · ' + (evaluation.past ? '過去の評価：' : '評価：') + evaluation.verdict + evaluation.mark : '')];
 
   const entities = [
     entity(phaseRef, phaseLabel, areas.purpose, 0, '局面は供給された phase。matched は理想状態との一致で、目的の達成ではない。'

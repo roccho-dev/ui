@@ -152,6 +152,32 @@ for (const item of claimed.frames) {
   assert.equal(projectWorldScene({ input: claimed, frame: item }).representations.find(rep => rep.atlas?.ref?.kind === 'current-state').atlas.status, null,
     item.id + ': 現在状態 is drawn with no status');
 }
+// A3 (apps#120): a decision whose source was observed but not admitted is
+// marked where it is drawn (observed_not_admitted reads 未採択; another value
+// is shown as is), for display only: every flag, count and other label is as
+// without the field.
+const admitted = parseAtlasWorldInput(gapWorld({ admission: true }));
+const admittedKinds = id => byKind(admitted.frames.find(item => item.id === id));
+assert.equal(admittedKinds('t2')['purpose:hq'], '目的\n宣言だけで回る組織\nrev 1（未採択）', 'purpose.set from an unadmitted source');
+assert.equal(admittedKinds('t3')['ideal-state:hq'], '理想状態\nv1→v2（未採択） 移動 · 条件 3（追加 1）', 'ideal.set v2 from an unadmitted source');
+assert.equal(admittedKinds('t3')['purpose:hq'], '目的\n宣言だけで回る組織\nrev 1（未採択） · 過去の評価：理想状態が不十分（pending-review）', 'an unknown admission value is shown as is');
+assert.equal(admittedKinds('t2')['ideal-state:hq'], '理想状態\nv1 · 条件 2', 'ideal.set v1 has no admission: no mark');
+for (const item of admitted.frames) {
+  const plain = frame(item.id);
+  assert.deepEqual(item.entities.map(entity => [entity.ref.kind, entity.flags]), plain.entities.map(entity => [entity.ref.kind, entity.flags]), item.id + ': admission changes no flag');
+  assert.deepEqual(item.entities.filter(entity => !['purpose', 'ideal-state'].includes(entity.ref.kind)).map(entity => entity.label),
+    plain.entities.filter(entity => !['purpose', 'ideal-state'].includes(entity.ref.kind)).map(entity => entity.label), item.id + ': 差, 現在状態, Scopes as without admission');
+  assert.deepEqual(projectWorldScene({ input: admitted, frame: item }).representations.map(rep => [rep.regionId, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]),
+    projectWorldScene({ input, frame: plain }).representations.map(rep => [rep.regionId, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]), item.id + ': same status and color');
+}
+assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(admitted))), admitted, 'admission marks are idempotent');
+// The HUD's journal row names the source's admission after the source.
+const admittedRow = projectAtlasWorld({ input: admitted, frame: admitted.frames[6], selected: 'none', chrome: 'full', journalOpen: '0:purpose.set' })
+  .scene.representations.find(rep => rep.regionId === TIMELINE_ID_PREFIX + 'journal-line:0');
+assert.match(admittedRow.label.replace(/\n/gu, ''), /出所 adrs#647（未採択） comment 6230983530/u);
+const badAdmission = gapWorld({ admission: true });
+badAdmission.frames[0].journal[0].source.admission = '';
+assert.throws(() => parseAtlasWorldInput(badAdmission), /source.admission must be non-empty text/);
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/\? c4 · 照合不能/u.test(byKind(frame('t6'))['gap:hq']) && !/未観測/u.test(byKind(frame('t6'))['gap:hq']));
 // History stays: c3/c1/c4 closed at t5 are still listed at t6.

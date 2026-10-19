@@ -101,8 +101,13 @@ const groupedScopes = (frameId, parts, closed, leaveOut = null) => {
 // frame with open parts, the Scope area nested as a producer supplies it;
 // `groups: 'unplaced'` does so without c4's Scope (c4 then matches none).
 // `current: true` adds the current claims above (at t4 and t6).
-export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false } = {}) => {
-  const entries = current ? [...JOURNAL, ...CURRENT].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : JOURNAL;
+// `admission: true` gives some decisions' sources an admission (A3, apps#120):
+// the purpose.set and ideal.set v2 read observed_not_admitted, the first
+// evaluation a value this ui does not know (shown as is).
+const ADMISSION = { '2026-10-16T23:30:00Z': 'observed_not_admitted', '2026-10-17T02:30:00Z': 'observed_not_admitted', '2026-10-17T02:50:00Z': 'pending-review' };
+export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false } = {}) => {
+  const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
+  const entries = current ? [...decided, ...CURRENT].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
   const c1 = (current, since) => part('c1', '端末で直接入力できる', 'unmet', cause(null, current), since, null);
   const c4 = (current, since) => part('c4', 'envs のスコープ主張', 'unknown', cause(null, current), since, 'scope:envs');
