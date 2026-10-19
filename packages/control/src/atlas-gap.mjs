@@ -162,18 +162,16 @@ export const normalizeJournal = (value, at) => {
     const where = at + '[' + index + ']';
     check(plain(entry), where + ' must be an object');
     check(JOURNAL_KINDS.includes(entry.kind), where + '.kind must be ' + JOURNAL_KINDS.join('|'));
-    // L3 (adrs#647): a plan.set no ideal state's requires[].plans binds is
-    // carried as {kind, plan, version, source, unbound: true}, for display only
-    // (its time and author, when absent, are unknown).
-    const unbound = entry.unbound !== undefined;
-    if (unbound) {
+    // L3 (adrs#647): a plan.set no ideal state's requires[].plans binds carries
+    // unbound: true, for display only; it needs its plan.
+    if (entry.unbound !== undefined) {
       check(entry.kind === 'plan.set', where + '.unbound is for plan.set only');
       check(entry.unbound === true, where + '.unbound must be true');
       text(entry.plan, where + '.plan');
     }
-    if (!unbound || entry.recordedAt !== undefined) instant(entry.recordedAt, where + '.recordedAt');
+    instant(entry.recordedAt, where + '.recordedAt');
     // An author the source does not name is null (shown as unknown), never guessed.
-    if (entry.actor !== null && !(unbound && entry.actor === undefined)) text(entry.actor, where + '.actor');
+    if (entry.actor !== null) text(entry.actor, where + '.actor');
     exact(entry.source, ['ref'], where + '.source', ['commentId', 'sha256', 'updatedAt', 'admission']);
     text(entry.source.ref, where + '.source.ref');
     // A3: the source's admission, for display only (absent when it has none).
@@ -389,8 +387,16 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const claims = currentClaims(journal);
   const contrast = g === null ? '' : '\n' + (g.summary.satisfied === null || g.summary.conditions === null ? '理想の条件との一致 未供給'
     : '理想の条件 ' + g.summary.conditions + ' 件のうち一致 ' + g.summary.satisfied + ' 件');
+  // L3: plans bound to no ideal state are a current-side fact: each plan id
+  // up to this frame at its newest version, leaving out an id the frame's
+  // plans carry (bound by now). Counted nowhere.
+  const boundPlans = new Set((frame.plans ?? []).map(item => item.plan));
+  const unboundPlans = [...new Map(journal.filter(entry => entry.unbound === true).map(entry => [entry.plan, entry])).values()]
+    .filter(entry => !boundPlans.has(entry.plan));
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + contrast
-    + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
+    + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '')
+    + (unboundPlans.length ? '\n宣言に未結合の計画 ' + unboundPlans.length + ' 件：'
+      + unboundPlans.map(entry => entry.plan + (entry.version === undefined ? '' : ' ' + versionText(entry.version))).join(' · ') : '');
 
   // The supplied purpose label; when this frame was already drawn from its
   // gap (the World is normalized twice in the app), drop the line added here.
