@@ -28,6 +28,16 @@ export const TRANSPORT_NO_DATA = 'SSE 接続中・データ未受信';
 export const TRANSPORT_MISMATCH = '最新か不明（大きさ不一致）';
 // Three times the HQ producer's 30 s heartbeat.
 export const RECEIVE_WINDOW_MS = 90_000;
+export const UPDATE_STALLED = '更新停止・最新か不明';
+// A live page whose newest frame's asOf is more than three update periods
+// old: the World stopped advancing. Heartbeats do not clear it (they show
+// the stream is open, not that the World moved). The period is the World's
+// actual update period, named only by the build (--update-interval-minutes);
+// without it no stall is claimed. Limit: an update that passes no current
+// leaves asOf at the last ledger time, so a World whose content does not
+// change can read stalled while its updates still run.
+export const updateStalled = ({ mode, now = null, asOf, updateIntervalMs = null }) => mode === 'live'
+  && updateIntervalMs !== null && Number.isFinite(now) && now - Date.parse(asOf) > 3 * updateIntervalMs;
 export const transportOf = ({ mode, connected, receivedAt = null, now = null, snapshotBytes = null, heartbeatBytes = null }) => {
   if (mode !== 'live') return 'sample';
   if (!connected) return 'disconnected';
