@@ -36,11 +36,14 @@ for (const input of [parseAtlasWorldInput(raw), parseAtlasWorldInput(withOmitted
         const none = projectAtlasWorld({ ...args, chrome: 'none' });
 
         assert.deepEqual(projectAtlasWorld({ ...args, chrome: 'full' }), full, 'full is the default');
-        // The timeline layer is present in both chromes and is not HUD.
+        // The timeline layer is not HUD; the HUD keeps it, the chrome-free view
+        // draws none (未設計のため。設計の合意後に戻す).
         const timelineOf = projection => projection.scene.representations.filter(item => item.regionId.startsWith(TIMELINE_ID_PREFIX));
         const withoutTimeline = projection => projection.scene.representations.filter(item => !item.regionId.startsWith(TIMELINE_ID_PREFIX));
-        assert.ok(timelineOf(none).length > 0 && timelineOf(full).length === timelineOf(none).length, 'both chromes keep the timeline layer');
-        assert.deepEqual(withoutTimeline(none), fittedScene.representations, 'none draws exactly the fitted World scene besides the timeline');
+        assert.ok(timelineOf(full).length > 0 && timelineOf(none).length === 0, 'the HUD keeps the timeline layer; none draws no strip or band');
+        assert.equal(none.viewport.timeline, null, 'none reserves no strip');
+        assert.equal(none.viewport.band, null, 'none reserves no band');
+        assert.deepEqual(withoutTimeline(none), fittedScene.representations, 'none draws exactly the fitted World scene');
         assert.deepEqual(withoutTimeline(full).slice(0, scene.representations.length), scene.representations,
           'full draws the same scene first');
         const hud = withoutTimeline(full).slice(scene.representations.length);

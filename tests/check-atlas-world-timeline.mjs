@@ -48,9 +48,18 @@ for (const count of [1, 2, 3, 5]) {
       const projection = project(index, { chrome, viewport });
       const cells = timelineOf(projection);
       const present = index === count - 1;
-      assert.deepEqual([...cells.keys()], ['back', 'position', 'forward', 'present', 'plan'], 'one strip in every chrome');
-      if (chrome === 'none') assert.equal(hudCount(projection), 0, 'none: 0 HUD regions besides the timeline');
       assert.deepEqual(projection.timeline, { index, count, present }, 'projection names the displayed position');
+      if (chrome === 'none') {
+        // The chrome-free view draws no strip (未設計のため。設計の合意後に戻す): no cell,
+        // no HUD, and the graph takes the whole height.
+        assert.equal(cells.size, 0, 'none: no strip');
+        assert.equal(hudCount(projection), 0, 'none: 0 HUD regions');
+        assert.equal(projection.viewport.timeline, null, 'none: no strip reserved');
+        assert.equal(projection.viewport.graph.y + projection.viewport.graph.height, viewport.height - 16, 'none: the graph reaches the bottom margin');
+        cases += 1;
+        continue;
+      }
+      assert.deepEqual([...cells.keys()], ['back', 'position', 'forward', 'present', 'plan'], 'the HUD keeps one strip');
       assert.equal(cells.get('position').label.startsWith('表示中：' + (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count), true, 'position label');
       assert.equal(Boolean(cells.get('back').activation), index > 0, 'back steps only while a past frame remains');
       assert.equal(Boolean(cells.get('forward').activation), index < count - 1, 'forward never steps past the present');
@@ -66,7 +75,7 @@ for (const count of [1, 2, 3, 5]) {
     }
   }
   // A held present (stepped onto, not followed) still offers the return.
-  assert.equal(timelineOf(project(count - 1, { latest: false })).get('present').activation.type, 'atlas.world.latest');
+  assert.equal(timelineOf(project(count - 1, { latest: false, chrome: 'full' })).get('present').activation.type, 'atlas.world.latest');
   assert.equal(worldViewport({ width: 1280, height: 720 }, { panel: false }).panel, null);
 }
 

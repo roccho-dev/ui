@@ -167,8 +167,11 @@ assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:41:01Z')), '
 assert.equal(phaseLabel(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')), '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'a past frame is not judged by today');
 
 // The band: phase segments merge, journal marks group per frame and kind,
-// and a mark opens its entries' kind, time, author and source.
-const band = projectAtlasWorld({ input, frame: frame('t6'), selected: 'none', chrome: 'none', journalOpen: '3:purpose.evaluated' })
+// and a mark opens its entries' kind, time, author and source. It is drawn in
+// the HUD only; the chrome-free view draws no band (未設計のため。設計の合意後に戻す).
+assert.equal(projectAtlasWorld({ input, frame: frame('t6'), selected: 'none', chrome: 'none', journalOpen: '3:purpose.evaluated' })
+  .scene.representations.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX)).length, 0, 'none: no band, no strip');
+const band = projectAtlasWorld({ input, frame: frame('t6'), selected: 'none', chrome: 'full', journalOpen: '3:purpose.evaluated' })
   .scene.representations.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX));
 const segments = band.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'phase:')).map(rep => rep.atlas.fullLabel);
 assert.deepEqual(segments, ['目的変更', '定義中', '一致・維持', '近似中', '一致・維持', '近似中', '目的の終了'], 'phase segments in order');
@@ -192,7 +195,7 @@ named.frames[3].gap.basis.purpose_label = '人は目的を宣言するだけ';
 named.frames[0].journal[0].actor = null;
 const namedInput = parseAtlasWorldInput(named);
 assert.equal(byKind(namedInput.frames[3])['purpose:hq'], '目的\n人は目的を宣言するだけ\nrev 1 · 過去の評価：理想状態が不十分');
-const unnamedRow = projectAtlasWorld({ input: namedInput, frame: namedInput.frames[3], selected: 'none', chrome: 'none', journalOpen: '0:purpose.set' })
+const unnamedRow = projectAtlasWorld({ input: namedInput, frame: namedInput.frames[3], selected: 'none', chrome: 'full', journalOpen: '0:purpose.set' })
   .scene.representations.find(rep => rep.regionId === TIMELINE_ID_PREFIX + 'journal-line:0');
 assert.match(unnamedRow.label.replace(/\n/gu, ''), /作者 不明/u);
 // Without a label, a part's headline is its condition id.

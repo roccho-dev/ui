@@ -64,6 +64,8 @@ for (const [index, latest] of [[0, false], [1, false], [2, true]]) {
   for (const chrome of ['none', 'full']) {
     const cells = projectAtlasWorld({ input: timelineInput, frame, latest, chrome, selected: 'none' }).scene.representations
       .filter(item => item.regionId.startsWith(TIMELINE_ID_PREFIX));
+    // The chrome-free view draws no strip (未設計のため。設計の合意後に戻す).
+    if (chrome === 'none') { assert.equal(cells.length, 0, 'none: no strip'); continue; }
     const plan = cells.find(item => item.regionId === TIMELINE_ID_PREFIX + 'plan');
     assert.ok(plan.label.startsWith('予定') && plan.visual.appearance.dashed, 'the plan reads 予定 and is dashed');
     assert.ok(!Object.values(ATLAS_STATUS).some(item => item.appearance.fillColor === plan.visual.appearance.fillColor

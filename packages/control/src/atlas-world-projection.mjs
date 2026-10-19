@@ -208,8 +208,10 @@ export const worldViewport = ({ width = 1500, height = 1000 } = {}, { panel: wit
   const extra = withBand ? BAND_HEIGHT : 0;
   const band = top => withBand ? Object.freeze({ x: 8, y: top, width: Math.max(1, width - 16), height: BAND_HEIGHT - 6 }) : null;
   if (!withPanel) {
-    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32 - TIMELINE_STRIP - extra) }),
-      panel: null, band: band(height - TIMELINE_STRIP - extra), timeline: strip(height - TIMELINE_STRIP) });
+    // The strip and band are not drawn in the chrome-free view (未設計のため。設計の合意後に戻す): the graph takes the whole height.
+    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32) }), panel: null, band: null, timeline: null });
+    // return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32 - TIMELINE_STRIP - extra) }),
+    //   panel: null, band: band(height - TIMELINE_STRIP - extra), timeline: strip(height - TIMELINE_STRIP) });
   }
   // Keep the representative nested Before world readable at 1200x900: the
   // graph keeps its size, and the strip takes its height from the detail
@@ -947,9 +949,10 @@ export const projectAtlasWorld = ({
   const hud = chrome === 'full'
     ? projectChrome({ frame, selected, latest, scene, detail, camera, viewport, panel: fullLayout.panel })
     : Object.freeze([]);
-  // The timeline is its own layer: present in every chrome. Its planned part
-  // reads the displayed frame's supplied plans and nothing else.
-  const timeline = projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen,
+  // The timeline is its own layer, drawn where the layout keeps a strip (the
+  // HUD; not the chrome-free view, see worldViewport). Its planned part reads
+  // the displayed frame's supplied plans and nothing else.
+  const timeline = layout.timeline === null ? [] : projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen,
     transport: transportOf({ mode, connected, receivedAt, now, snapshotBytes, heartbeatBytes }), receivedAt, strip: layout.timeline,
     band: layout.band, journalOpen, camera });
 

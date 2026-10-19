@@ -117,7 +117,8 @@ const read = page => page.evaluate(() => {
   const frameId = atlas.page.side === 'before' ? atlas.page.pair.before.id : atlas.page.pair.after.id;
   const reps = atlas.projection.scene.representations;
   return { frameId, screen, nodes: reps.filter(item => item.atlas?.kind === 'entity').map(drawn),
-    band: reps.filter(item => /^timeline:(phase|journal)/u.test(item.regionId)).map(drawn) };
+    band: reps.filter(item => /^timeline:(phase|journal)/u.test(item.regionId)).map(drawn),
+    timeline: reps.filter(item => item.regionId.startsWith('timeline:')).length, graph: atlas.projection.viewport.graph };
 });
 try {
   for (const size of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }, { width: 1920, height: 1080 }]) {
@@ -142,8 +143,12 @@ try {
         const gapNodes = state.nodes.filter(node => ['phase', 'purpose', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed'].includes(node.kind));
         const bad = gapNodes.filter(node => flat(node.text) !== flat(node.label) || !inside(node));
         check(where + ': gap nodes drawn whole inside their boxes', gapNodes.length >= 5 && bad.length === 0, bad.slice(0, 4));
-        const badBand = state.band.filter(cell => flat(cell.text) !== flat(cell.label) || !inside(cell) || cell.box.right > state.screen.right + 1);
-        check(where + ': band cells drawn whole inside their cells and the screen', state.band.length > 0 && badBand.length === 0, badBand.slice(0, 4));
+        // The chrome-free view draws no strip or band (未設計のため。設計の合意後に戻す),
+        // and the graph takes the screen down to its bottom margin.
+        const strip = await page.evaluate(() => [...window.liveAtlas.adapter.cellsByRegionId.keys()].filter(id => id.startsWith('timeline:')).length);
+        check(where + ': no strip or band is drawn and the graph reaches the bottom of the screen',
+          state.timeline === 0 && strip === 0 && Math.abs(state.graph.y + state.graph.height - (state.screen.bottom - state.screen.top - 16)) <= 1,
+          { timeline: state.timeline, strip, graph: state.graph, screen: state.screen });
         const current = state.nodes.find(node => node.kind === 'current-state');
         currentByFrame[state.frameId] = current?.text ?? null;
         check(where + ': 現在状態 carries no verdict mark', current && !/[✓?!]\d/u.test(current.text), current?.text);
@@ -195,11 +200,12 @@ try {
       if (fixture) check(size.width + 'x' + size.height + ': only the ideal moving (t2 -> t3) leaves the drawn observations of 現在状態 unchanged',
         observed(currentByFrame.t2) && observed(currentByFrame.t2) === observed(currentByFrame.t3), { t2: currentByFrame.t2, t3: currentByFrame.t3 });
       if (fixture) {
-        const band = (await read(page)).band;
-        for (const [id, words] of Object.entries(expectedMarks)) {
-          const cell = band.find(item => item.id === id);
-          check(size.width + 'x' + size.height + ': journal mark ' + id + ' reads ' + words, cell && flat(cell.text) === flat(words), cell ?? band.map(item => item.id));
-        }
+        // Stopped: the chrome-free view draws no band (未設計のため。設計の合意後に戻す).
+        // const band = (await read(page)).band;
+        // for (const [id, words] of Object.entries(expectedMarks)) {
+        //   const cell = band.find(item => item.id === id);
+        //   check(size.width + 'x' + size.height + ': journal mark ' + id + ' reads ' + words, cell && flat(cell.text) === flat(words), cell ?? band.map(item => item.id));
+        // }
         // Going back, 現在状態 is that frame's own total, not the newest.
         await page.focus('#atlas-world');
         for (let step = 0; step < frames.length - 1 - frames.indexOf('t3'); step += 1) await page.keyboard.press('[');
@@ -210,16 +216,17 @@ try {
           back.frameId === 't3' && flat(backCurrent?.text) === flat('現在状態観測 1 件 · 最新 01:40Z理想の条件 3 件のうち一致 2 件') && inside(backCurrent), { frameId: back.frameId, text: backCurrent?.text });
         await page.keyboard.press('L');
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        // A journal mark opens its entries: kind, time, author and source.
-        const mark = (await read(page)).band.find(cell => cell.id === 'timeline:journal:3:purpose.evaluated');
-        check(size.width + 'x' + size.height + ': the evaluation mark is drawn', mark && flat(mark.text) === '★1', mark);
-        if (mark) {
-          await page.mouse.click((mark.shape.left + mark.shape.right) / 2, (mark.shape.top + mark.shape.bottom) / 2);
-          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-          const rows = (await read(page)).band.filter(cell => cell.id.startsWith('timeline:journal-line:'));
-          check(size.width + 'x' + size.height + ': the mark opens its entry with author and source, drawn inside its row',
-            rows.length === 1 && flat(rows[0].text).includes(flat('★ 評価 · 2026-10-17T02:50:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530')) && inside(rows[0]), rows);
-        }
+        // Stopped: the chrome-free view draws no band, so no journal mark to open (未設計のため。設計の合意後に戻す).
+        // // A journal mark opens its entries: kind, time, author and source.
+        // const mark = (await read(page)).band.find(cell => cell.id === 'timeline:journal:3:purpose.evaluated');
+        // check(size.width + 'x' + size.height + ': the evaluation mark is drawn', mark && flat(mark.text) === '★1', mark);
+        // if (mark) {
+        //   await page.mouse.click((mark.shape.left + mark.shape.right) / 2, (mark.shape.top + mark.shape.bottom) / 2);
+        //   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        //   const rows = (await read(page)).band.filter(cell => cell.id.startsWith('timeline:journal-line:'));
+        //   check(size.width + 'x' + size.height + ': the mark opens its entry with author and source, drawn inside its row',
+        //     rows.length === 1 && flat(rows[0].text).includes(flat('★ 評価 · 2026-10-17T02:50:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530')) && inside(rows[0]), rows);
+        // }
       }
       check(size.width + 'x' + size.height + ': no page or console errors', errors.length === 0, errors);
     } finally {
