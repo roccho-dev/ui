@@ -77,15 +77,17 @@ const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 const expected = {
   t0: { phase: '局面：目的変更 · 差 不明', gap: '差 不明', 'current-state': '現在状態観測の仕訳なし' },
   t1: { phase: '局面：定義中 · 差 不明', 'ideal-state': '照らし合わせる理想状態なし（定義中）' },
-  t2: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'ideal-state': 'v1 · 条件 2', gap: '差 0（前 不明） · ✓2 ?0 !0', 'current-state': '現在状態観測 1 件 · 最新 01:40Z' },
-  // v6: a part names the cause of each side; 差 counts each side.
-  t3: { phase: '局面：近似中 · 差 1 · v2', 'ideal-state': 'v1→v2 移動 · 条件 3（追加 1', gap: '差 1（前 0） · ✓2 ?0 !1理想の側 追加 1・改訂 0 · 現在の側 後退 0・未観測 1',
-    'current-state': '現在状態観測 1 件 · 最新 01:40Z', purpose: '宣言だけで回る組織rev 1 · 過去の評価：理想状態が不十分',
+  // 差 is the difference only; 現在状態 holds the contrast with the ideal state.
+  t2: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'ideal-state': 'v1 · 条件 2', gap: '差 0（前 不明）',
+    'current-state': '現在状態観測 1 件 · 最新 01:40Z理想の条件 2 件のうち一致 2 件' },
+  // v6: a part names the cause of each side.
+  t3: { phase: '局面：近似中 · 差 1 · v2', 'ideal-state': 'v1→v2 移動 · 条件 3（追加 1）', gap: '差 1（前 0）! c3 · 理想に追加 · 未観測',
+    'current-state': '現在状態観測 1 件 · 最新 01:40Z理想の条件 3 件のうち一致 2 件', purpose: '宣言だけで回る組織rev 1 · 過去の評価：理想状態が不十分',
     'gap-part': 'windows repo を退役する未達 · 理想に追加 · 未観測 · この時点から' },
   // v6: the journal accumulates: t4 carries one more observation.
-  t4: { phase: '局面：近似中 · 差 3 · v2', gap: '差 3（前 1） · ✓1 ?1 !2理想の側 追加 0・改訂 0 · 現在の側 後退 1・未観測 1 · 継続 1', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
+  t4: { phase: '局面：近似中 · 差 3 · v2', gap: '差 3（前 1）! c3 · 継続! c1 · 現在の後退? c4 · 未観測', 'current-state': '現在状態観測 2 件 · 最新 03:40Z理想の条件 4 件のうち一致 1 件' },
   t5: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z', purpose: 'rev 1 · 評価：到達', 'gap-closed': '閉じた差 3（この時点 3）', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
-  t6: { gap: '鮮度切れ 1', 'gap-part': '端末で直接入力できる未達 · 鮮度切れ' },
+  t6: { gap: '! c1 · 鮮度切れ', 'gap-part': '端末で直接入力できる未達 · 鮮度切れ' },
   t7: { phase: '局面：目的の終了 · Scope は凍結（履歴）', gap: '差 対象外', 'gap-closed': 'c1 目的の終了', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
 };
 // v6: each journal entry is marked at the frame that carries it.
@@ -94,7 +96,7 @@ const expectedMarks = { 'timeline:journal:0:purpose.set': '◎1', 'timeline:jour
 // What only contract v5 adds; checked unless --compat.
 if (!compat) {
   expected.t5.phase += ' · 理想状態の確定前の観測で一致 1 件';
-  Object.assign(expected.t6, { phase: '局面：近似中 · 差 2 · v2', gap: '照合不能 1・鮮度切れ 1' });
+  Object.assign(expected.t6, { phase: '局面：近似中 · 差 2 · v2', gap: '! c1 · 鮮度切れ? c4 · 照合不能' });
 }
 const flat = value => String(value ?? '').replace(/\s/gu, '');
 const inside = item => item.box && item.shape && item.box.left >= item.shape.left - 2 && item.box.right <= item.shape.right + 2
@@ -144,7 +146,7 @@ try {
         check(where + ': band cells drawn whole inside their cells and the screen', state.band.length > 0 && badBand.length === 0, badBand.slice(0, 4));
         const current = state.nodes.find(node => node.kind === 'current-state');
         currentByFrame[state.frameId] = current?.text ?? null;
-        check(where + ': 現在状態 carries no verdict (✓?! are on 差)', current && !/[✓?!]\d/u.test(current.text), current?.text);
+        check(where + ': 現在状態 carries no verdict mark', current && !/[✓?!]\d/u.test(current.text), current?.text);
         const purpose = state.nodes.find(node => node.kind === 'purpose');
         check(where + ': 目的 carries no satisfaction mark', purpose && flat(purpose.text).startsWith('目的'), purpose?.text);
         check(where + ': the word 目標 is not drawn in the gap view', !gapNodes.some(node => node.text.includes('目標')), null);
@@ -154,8 +156,26 @@ try {
         // line names the supplied phase, and with no parts no 差 0 is drawn.
         const supplied = await page.evaluate(id => {
           const item = window.liveAtlas.input.frames.find(frame => frame.id === id);
-          return { phase: item.phase ?? null, partsNull: item.gap ? item.gap.parts === null : null };
+          return { phase: item.phase ?? null, partsNull: item.gap ? item.gap.parts === null : null,
+            conditions: item.gap?.parts ? item.gap.summary.conditions : null, satisfied: item.gap?.parts ? item.gap.summary.satisfied : null,
+            differing: item.gap?.parts ? item.gap.parts.map(part => (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition) : null };
         }, state.frameId);
+        // The ideal state's conditions face, in 現在状態, how many of them match
+        // (as supplied); 差 names each differing condition and holds no match
+        // count and no counter reading 0.
+        if (supplied.conditions !== null && supplied.satisfied !== null) {
+          const ideal = state.nodes.find(node => node.kind === 'ideal-state');
+          check(where + ': 理想状態 names its conditions and 現在状態 how many match them',
+            flat(ideal?.text).includes(flat('条件 ' + supplied.conditions)) && flat(current?.text).includes(flat('理想の条件 ' + supplied.conditions + ' 件のうち一致 ' + supplied.satisfied + ' 件')),
+            { ideal: ideal?.text, current: current?.text, supplied });
+        }
+        if (supplied.differing) {
+          const delta = state.nodes.find(node => node.kind === 'gap');
+          const lines = flat(delta?.text).split(/(?=[!?](?!\d))/u);
+          check(where + ': 差 names each differing condition and nothing but the difference',
+            delta && supplied.differing.every(item => flat(delta.text).includes(flat(item))) && !/✓\d/u.test(flat(delta.text))
+              && !/(追加|改訂|後退|未観測|照合不能|鮮度切れ|継続)0/u.test(flat(delta.text)), { text: delta?.text, differing: supplied.differing, lines: lines.length });
+        }
         const phaseNode = state.nodes.find(node => node.kind === 'phase');
         const PHASE_WORDS = { 'purpose-changed': '目的変更', defining: '定義中', approximating: '近似中', matched: '一致・維持', ended: '目的の終了' };
         check(where + ': the phase line names the supplied phase', phaseNode
@@ -170,8 +190,10 @@ try {
             !gapNodes.some(node => /差0/u.test(flat(node.text))), gapNodes.map(node => node.text));
         }
       }
-      if (fixture) check(size.width + 'x' + size.height + ': only the ideal moving (t2 -> t3) leaves the drawn 現在状態 unchanged',
-        currentByFrame.t2 && currentByFrame.t2 === currentByFrame.t3, { t2: currentByFrame.t2, t3: currentByFrame.t3 });
+      // Only its contrast with the moved ideal changes, never its observations.
+      const observed = text => text?.split('理想の条件')[0] ?? null;
+      if (fixture) check(size.width + 'x' + size.height + ': only the ideal moving (t2 -> t3) leaves the drawn observations of 現在状態 unchanged',
+        observed(currentByFrame.t2) && observed(currentByFrame.t2) === observed(currentByFrame.t3), { t2: currentByFrame.t2, t3: currentByFrame.t3 });
       if (fixture) {
         const band = (await read(page)).band;
         for (const [id, words] of Object.entries(expectedMarks)) {
@@ -185,7 +207,7 @@ try {
         const back = await read(page);
         const backCurrent = back.nodes.find(node => node.kind === 'current-state');
         check(size.width + 'x' + size.height + ': back at t3, 現在状態 counts the journal up to t3 only',
-          back.frameId === 't3' && flat(backCurrent?.text) === flat('現在状態観測 1 件 · 最新 01:40Z') && inside(backCurrent), { frameId: back.frameId, text: backCurrent?.text });
+          back.frameId === 't3' && flat(backCurrent?.text) === flat('現在状態観測 1 件 · 最新 01:40Z理想の条件 3 件のうち一致 2 件') && inside(backCurrent), { frameId: back.frameId, text: backCurrent?.text });
         await page.keyboard.press('L');
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         // A journal mark opens its entries: kind, time, author and source.
@@ -246,7 +268,7 @@ try {
         state.frameId === 't6' && node && lines.every(line => flat(node.text).includes(flat(line))) && flat(node.text) === flat(node.label) && inside(node), node?.text);
       check(where + ': 現在状態 has no status look and no ✓', look.status === null && !/[✓]/u.test(node?.text ?? ''), look);
       const delta = state.nodes.find(item => item.kind === 'gap');
-      check(where + ': 差 reads as without claims', flat(delta?.text).includes(flat('差 2（前 0） · ✓2 ?1 !1')), delta?.text);
+      check(where + ': 差 reads as without claims', flat(delta?.text) === flat('? · 差 2（前 0）! c1 · 鮮度切れ? c4 · 照合不能'), delta?.text);
     } finally {
       await browser.close();
     }

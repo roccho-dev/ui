@@ -52,8 +52,6 @@ export const JOURNAL_MARK = Object.freeze({ 'purpose.set': '◎', 'ideal.draftin
   'purpose.evaluated': '★', 'purpose.ended': '■', observation: '·' });
 export const JOURNAL_LABEL = Object.freeze({ 'purpose.set': '目的', 'ideal.drafting': '理想の定義開始', 'ideal.set': '理想の確定',
   'plan.set': '計画', 'purpose.evaluated': '評価', 'purpose.ended': '目的の終了', observation: '観測' });
-// Within a side of the breakdown the side's name is not repeated.
-const SIDE_LABEL = Object.freeze({ ...CAUSE_LABEL, 'ideal-added': '追加', 'ideal-revised': '改訂', 'current-regressed': '後退' });
 const VERDICT_LABEL = Object.freeze({ achieved: '到達', 'not-yet': '未到達', 'ideal-insufficient': '理想状態が不十分' });
 const CLOSED_LABEL = Object.freeze({ 'current-satisfied': '現在が充足', 'ideal-removed': '理想から削除', 'purpose-changed': '目的の変更', 'purpose-ended': '目的の終了' });
 
@@ -315,17 +313,19 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const moved = g !== null && prevVersion !== null && prevGap.basis.purpose_id === g.basis.purpose_id
     && versionText(prevVersion) !== versionText(g.basis.ideal_version);
   const conditionsText = g === null || g.summary.conditions === null ? '条件 未供給' : '条件 ' + g.summary.conditions;
+  // Only what is there is written: additions and revisions when there are any.
+  const moves = g === null ? [] : [['追加', 'ideal-added'], ['改訂', 'ideal-revised']].filter(([, cause]) => counts.byCause[cause] > 0)
+    .map(([name, cause]) => name + ' ' + counts.byCause[cause]);
   const idealLine = g === null ? '照らし合わせる理想状態なし（' + (phase === 'defining' ? '定義中' : phase === 'ended' ? '目的は終了' : '未定義') + '）'
     : (moved ? versionText(prevVersion) + '→' + versionText(g.basis.ideal_version) + ' 移動' : versionText(g.basis.ideal_version))
-      + ' · ' + conditionsText + '（追加 ' + counts.byCause['ideal-added'] + ' · 改訂 ' + counts.byCause['ideal-revised'] + '）';
+      + ' · ' + conditionsText + (moves.length ? '（' + moves.join(' · ') + '）' : '');
   const prevOpen = g === null ? '' : g.basis.prev_frame === null ? '初回' : prevGap ? '前 ' + prevGap.parts.length : '前 不明';
-  // v6: the breakdown by side; the leading causes of each side are always
-  // counted, the others only when present.
-  const sideText = (name, always, rest) => name + ' ' + [...always, ...rest.filter(cause => counts.byCause[cause] > 0)]
-    .map(cause => SIDE_LABEL[cause] + ' ' + counts.byCause[cause]).join('・');
-  const breakdown = g === null ? '' : [sideText('理想の側', ['ideal-added', 'ideal-revised'], ['purpose-changed', 'initial']),
-    sideText('現在の側', ['current-regressed', 'current-unobserved'], ['current-unmatchable', 'current-confirmed-unmet', 'current-conflict', 'current-stale']),
-    ...(counts.byCause.carried > 0 ? [CAUSE_LABEL.carried + ' ' + counts.byCause.carried] : [])].join(' · ');
+  // The cause of each side of a part (v6: ideal side first; a side without one is left out).
+  const causeText = part => {
+    const sides = causeSides(part.cause);
+    return [sides.ideal, sides.current, sides.carried ? ['carried'] : []].filter(list => list.length)
+      .map(list => list.map(cause => CAUSE_LABEL[cause]).join('・')).join(' · ');
+  };
   const partRecord = part => 'condition=' + part.condition + ' · state=' + part.state + ' · cause='
     + (Array.isArray(part.cause) ? part.cause.join(',') : 'ideal:' + (part.cause.ideal ?? 'なし') + ',current:' + (part.cause.current ?? 'なし'))
     + ' · since=' + part.since + ' · scope=' + (part.scope ?? 'null（担当なし）') + ' · refs=' + (part.refs.join(', ') || 'なし');
@@ -348,18 +348,23 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   }
   const placed = new Set([...matches.values()].filter(list => list.length === 1).flat());
   const unplaced = suppliedScopes.length ? (g?.parts ?? []).filter(part => !placed.has(part)) : [];
-  const satisfiedText = g === null || g.summary.satisfied === null ? '✓ 未供給' : '✓' + g.summary.satisfied;
+  // 差 is the difference only: which conditions differ (! unmet, ? unknown)
+  // and why. The ideal's and the current state's contents are in their nodes.
   const deltaText = g === null ? (phase === 'ended' ? '差 対象外\n目的は終了した' : '差 不明\n照らし合わせる理想状態がまだ無い')
-    : '差 ' + counts.open + '（' + prevOpen + '）' + ' · ' + satisfiedText + ' ?' + counts.unknown + ' !' + counts.unmet + (counts.agrees ? '' : ' · 集計不一致') + '\n'
-      + breakdown + (unplaced.length ? '\nScope に付かない差 ' + unplaced.length + ' 件' : '');
+    : '差 ' + counts.open + '（' + prevOpen + '）' + (counts.agrees ? '' : ' · 集計不一致')
+      + g.parts.map(part => '\n' + (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · ' + causeText(part)).join('')
+      + (unplaced.length ? '\nScope に付かない差 ' + unplaced.length + ' 件' : '');
   const deltaFlags = g === null ? ['scope_status=unknown'] : counts.open === 0 ? ['standing=completed-history'] : counts.unknown > 0 ? ['scope_status=unknown'] : ['scope_status=unmet'];
-  // v5: the current state is observation only, never a verdict against the
-  // ideal (the verdict ✓?! is on 差). Observations are the journal entries of
-  // kind observation up to this frame; none recorded reads so, never 0 observed.
+  // The current state: observations (journal entries of kind observation up
+  // to this frame; none recorded reads so, never 0 observed), its contrast with
+  // the ideal state as supplied (how many of its conditions match; unmet ones
+  // are 差, never written here) and the current claims.
   const observations = journal.filter(entry => entry.kind === 'observation');
   const lastObserved = observations.map(entry => entry.observedAt ?? entry.recordedAt).sort().at(-1);
   const claims = currentClaims(journal);
-  const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし')
+  const contrast = g === null ? '' : '\n' + (g.summary.satisfied === null || g.summary.conditions === null ? '理想の条件との一致 未供給'
+    : '理想の条件 ' + g.summary.conditions + ' 件のうち一致 ' + g.summary.satisfied + ' 件');
+  const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + contrast
     + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
 
   // The supplied purpose label; when this frame was already drawn from its
@@ -398,14 +403,8 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     const sinceFrame = [...earlier, frame].find(item => item.id === since);
     return (ago === 0 ? 'この時点から' : ago + ' 時点前から') + '（' + clockText(sinceFrame.asOf) + '）';
   };
-  // A part's line: its state, the cause of each side (v6: ideal side first; a
-  // side without one is left out) and since when it is open.
-  const partLine = part => {
-    const sides = causeSides(part.cause);
-    const causeText = [sides.ideal, sides.current, sides.carried ? ['carried'] : []].filter(list => list.length)
-      .map(list => list.map(cause => CAUSE_LABEL[cause]).join('・')).join(' · ');
-    return (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText + ' · ' + sinceText(part.since);
-  };
+  // A part's line: its state, its causes and since when it is open.
+  const partLine = part => (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + sinceText(part.since);
   const beforeIdealMark = part => part.observed_before_ideal ? ' · 理想状態の確定前の観測' : '';
   const shownScopes = suppliedScopes.map(item => {
     const parts = matches.get(key(item.ref));
