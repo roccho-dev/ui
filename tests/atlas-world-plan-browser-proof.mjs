@@ -29,8 +29,9 @@ const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 // Stopped: the chrome-free view draws no strip (未設計のため。設計の合意後に戻す);
 // this journey clicks and reads the strip's plan cell. The code below is kept.
+// Exit 78 (stopped), never 0: a stopped proof must not read as a pass.
 console.log(JSON.stringify({ schema: 'atlas-world-plan-browser-proof/1', status: 'STOPPED', reason: 'chrome-free view draws no strip (undesigned)' }));
-process.exit(0);
+process.exit(78);
 
 const world = planWorld();
 const parsed = parseAtlasWorldInput(world);
