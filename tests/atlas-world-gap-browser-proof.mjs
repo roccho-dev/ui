@@ -99,6 +99,9 @@ if (!compat) {
   Object.assign(expected.t6, { phase: '局面：近似中 · 差 2 · v2', gap: '! c1 · 鮮度切れ? c4 · 照合不能' });
 }
 const flat = value => String(value ?? '').replace(/\s/gu, '');
+// Fixed words, so the check does not depend on the module under test.
+const ADMISSION_WORDS = { observed_not_admitted: '未採択' };
+const markedFrames = new Set();
 const inside = item => item.box && item.shape && item.box.left >= item.shape.left - 2 && item.box.right <= item.shape.right + 2
   && item.box.top >= item.shape.top - 2 && item.box.bottom <= item.shape.bottom + 2;
 
@@ -163,8 +166,20 @@ try {
           const item = window.liveAtlas.input.frames.find(frame => frame.id === id);
           return { phase: item.phase ?? null, partsNull: item.gap ? item.gap.parts === null : null,
             conditions: item.gap?.parts ? item.gap.summary.conditions : null, satisfied: item.gap?.parts ? item.gap.summary.satisfied : null,
-            differing: item.gap?.parts ? item.gap.parts.map(part => (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition) : null };
+            differing: item.gap?.parts ? item.gap.parts.map(part => (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition) : null,
+            // The newest purpose.set, up to this frame, of the purpose drawn, and its source's admission (A3).
+            admission: (() => {
+              const purposeId = item.gap?.basis.purpose_id ?? window.liveAtlas.input.presentation.directionTargets[0].id;
+              const upTo = window.liveAtlas.input.frames.slice(0, window.liveAtlas.input.frames.indexOf(item) + 1).flatMap(each => each.journal ?? []);
+              return upTo.filter(entry => entry.kind === 'purpose.set' && (entry.purpose_id ?? entry.purpose?.id) === purposeId).at(-1)?.source.admission ?? null;
+            })() };
         }, state.frameId);
+        // A3: 目的 is marked exactly when its purpose.set's source was not admitted.
+        const purposeNode = state.nodes.find(node => node.kind === 'purpose');
+        const mark = supplied.admission === null ? null : '（' + (ADMISSION_WORDS[supplied.admission] ?? supplied.admission) + '）';
+        if (mark) markedFrames.add(state.frameId);
+        check(where + ': 目的 shows an unadmitted purpose.set\'s mark, and no mark otherwise',
+          purposeNode && (mark ? flat(purposeNode.text).includes(flat(mark)) : !/（未採択）/u.test(purposeNode.text)), { admission: supplied.admission, text: purposeNode?.text });
         // The ideal state's conditions face, in 現在状態, how many of them match
         // (as supplied); 差 names each differing condition and holds no match
         // count and no counter reading 0.
@@ -310,6 +325,6 @@ try {
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-gap-browser-proof/2', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',
-  checks: checks.length, failed, interruption };
+  checks: checks.length, admissionMarkedFrames: [...markedFrames], failed, interruption };
 console.log(JSON.stringify(result));
 if (result.status !== 'PASS') process.exitCode = 1;
