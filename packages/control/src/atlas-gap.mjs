@@ -52,6 +52,8 @@ export const JOURNAL_MARK = Object.freeze({ 'purpose.set': '◎', 'ideal.draftin
   'purpose.evaluated': '★', 'purpose.ended': '■', observation: '·' });
 export const JOURNAL_LABEL = Object.freeze({ 'purpose.set': '目的', 'ideal.drafting': '理想の定義開始', 'ideal.set': '理想の確定',
   'plan.set': '計画', 'purpose.evaluated': '評価', 'purpose.ended': '目的の終了', observation: '観測' });
+// L3: a plan.set bound to no ideal state's requires[].plans.
+export const UNBOUND_MARK = '（宣言に未結合）';
 // A3 (apps#120): a decision's source observed but not admitted is marked
 // where the decision is drawn. Display only: no judgment reads it. A value
 // this ui does not know is shown as it is.
@@ -160,9 +162,18 @@ export const normalizeJournal = (value, at) => {
     const where = at + '[' + index + ']';
     check(plain(entry), where + ' must be an object');
     check(JOURNAL_KINDS.includes(entry.kind), where + '.kind must be ' + JOURNAL_KINDS.join('|'));
-    instant(entry.recordedAt, where + '.recordedAt');
+    // L3 (adrs#647): a plan.set no ideal state's requires[].plans binds is
+    // carried as {kind, plan, version, source, unbound: true}, for display only
+    // (its time and author, when absent, are unknown).
+    const unbound = entry.unbound !== undefined;
+    if (unbound) {
+      check(entry.kind === 'plan.set', where + '.unbound is for plan.set only');
+      check(entry.unbound === true, where + '.unbound must be true');
+      text(entry.plan, where + '.plan');
+    }
+    if (!unbound || entry.recordedAt !== undefined) instant(entry.recordedAt, where + '.recordedAt');
     // An author the source does not name is null (shown as unknown), never guessed.
-    if (entry.actor !== null) text(entry.actor, where + '.actor');
+    if (entry.actor !== null && !(unbound && entry.actor === undefined)) text(entry.actor, where + '.actor');
     exact(entry.source, ['ref'], where + '.source', ['commentId', 'sha256', 'updatedAt', 'admission']);
     text(entry.source.ref, where + '.source.ref');
     // A3: the source's admission, for display only (absent when it has none).

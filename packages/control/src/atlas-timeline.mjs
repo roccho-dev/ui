@@ -4,7 +4,7 @@
 // undeclared (UNKNOWN), not as an empty future. Pure; no DOM.
 
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
-import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, admissionMark } from './atlas-gap.mjs';
+import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, UNBOUND_MARK, admissionMark } from './atlas-gap.mjs';
 
 // Whether a World carries phases or a journal, and so gets the band.
 export const hasBand = input => input.frames.some(frame => Object.hasOwn(frame, 'phase') || Object.hasOwn(frame, 'journal'));
@@ -206,11 +206,11 @@ export const projectTimeline = ({
         { phase: segment.phase, from: frames[segment.from].id, to: frames[segment.to].id, fullLabel: name }));
     }
     // v6: each frame carries only its new entries; each is placed at the frame
-    // that carries it.
+    // that carries it. L3: plans bound to no ideal state form their own mark.
     const groups = new Map();
     frames.forEach((item, at) => {
       for (const entry of item.journal ?? []) {
-        const groupKey = at + ':' + entry.kind;
+        const groupKey = at + ':' + entry.kind + (entry.unbound === true ? ':unbound' : '');
         if (!groups.has(groupKey)) groups.set(groupKey, []);
         groups.get(groupKey).push(entry);
       }
@@ -218,23 +218,31 @@ export const projectTimeline = ({
     for (let at = 0; at < frames.length; at += 1) {
       const kinds = [...groups.keys()].filter(groupKey => groupKey.startsWith(at + ':'));
       const MARK_WIDTH = 60;
-      const fits = kinds.length * (MARK_WIDTH + 4) <= span - 4;
-      const cellsHere = fits ? kinds.map(groupKey => [groupKey, JOURNAL_MARK[groupKey.split(':')[1]] + groups.get(groupKey).length])
-        : kinds.length ? [[at + ':*', '仕訳 ' + kinds.reduce((sum, groupKey) => sum + groups.get(groupKey).length, 0)]] : [];
-      cellsHere.forEach(([groupKey, label], n) => {
-        const width = fits ? MARK_WIDTH : span - 4;
-        const kind = groupKey.split(':')[1];
-        regions.push(region('journal:' + groupKey, fitCellLabel([label, kind === '*' ? '仕訳' : JOURNAL_MARK[kind]], width),
-          { x: band.x + span * at + n * (MARK_WIDTH + 4), y: band.y, width, height: rowHeight }, 'plan',
+      // An unbound plans' mark is as wide as it needs to say 未結合, never
+      // shortened to the bare plan mark (it would read as bound).
+      const unboundOf = groupKey => groupKey.endsWith(':unbound');
+      const markOf = groupKey => JOURNAL_MARK[groupKey.split(':')[1]] + groups.get(groupKey).length;
+      const widthOf = groupKey => unboundOf(groupKey) ? Math.max(MARK_WIDTH, Math.ceil(linePx(markOf(groupKey) + '未結合')) + 2 * CELL_PAD_PX) : MARK_WIDTH;
+      const fits = kinds.reduce((sum, groupKey) => sum + widthOf(groupKey) + 4, 0) <= span - 4;
+      const cellsHere = fits ? kinds.map(groupKey => [groupKey, markOf(groupKey) + (unboundOf(groupKey) ? UNBOUND_MARK : ''),
+        unboundOf(groupKey) ? [markOf(groupKey) + '未結合'] : [JOURNAL_MARK[groupKey.split(':')[1]]], widthOf(groupKey)])
+        : kinds.length ? [[at + ':*', '仕訳 ' + kinds.reduce((sum, groupKey) => sum + groups.get(groupKey).length, 0), ['仕訳'], span - 4]] : [];
+      let x = band.x + span * at;
+      for (const [groupKey, label, short, width] of cellsHere) {
+        regions.push(region('journal:' + groupKey, fitCellLabel([label, ...short], width),
+          { x, y: band.y, width, height: rowHeight }, 'plan',
           { type: 'atlas.world.journal-toggle', value: groupKey }, { group: groupKey, fullLabel: label }));
-      });
+        x += width + 4;
+      }
     }
     if (journalOpen !== null) {
       const [at, kind] = journalOpen.split(':');
       const entries = kind === '*' ? [...groups.entries()].filter(([groupKey]) => groupKey.startsWith(at + ':')).flatMap(([, list]) => list)
         : groups.get(journalOpen) ?? [];
       for (const entry of entries) {
-        journalRows.push(JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
+        journalRows.push(JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + (entry.unbound === true ? UNBOUND_MARK : '')
+          + (entry.kind === 'plan.set' && entry.plan ? ' ' + entry.plan + (entry.version === undefined ? '' : ' v' + entry.version) : '')
+          + ' · ' + (entry.recordedAt ?? '時刻不明') + ' · 作者 ' + (entry.actor ?? '不明')
           + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
           + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN'));
       }
