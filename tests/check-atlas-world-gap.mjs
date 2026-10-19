@@ -7,6 +7,7 @@ import { entityKey, parseAtlasWorldInput } from '../packages/control/src/atlas-w
 import { projectAtlasWorld, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
 import { TIMELINE_ID_PREFIX } from '../packages/control/src/atlas-timeline.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
+import { knownPlan } from './fixtures/atlas-plan-worlds.mjs';
 
 const input = parseAtlasWorldInput(gapWorld());
 const byKind = frame => Object.fromEntries(frame.entities.map(item => [item.ref.kind + ':' + item.ref.id, item.label]));
@@ -178,39 +179,52 @@ assert.match(admittedRow.label.replace(/\n/gu, ''), /出所 adrs#647（未採択
 const badAdmission = gapWorld({ admission: true });
 badAdmission.frames[0].journal[0].source.admission = '';
 assert.throws(() => parseAtlasWorldInput(badAdmission), /source.admission must be non-empty text/);
-// L3 (adrs#647): a plan.set bound to no ideal state is accepted in the
-// contract's shape (no time, no author) and marked （宣言に未結合） in the HUD's
-// band and rows, as its own mark beside bound plans. Display only: every
-// entity, flag, status, color and the plan cell are as without it.
+// L3 (adrs#647, CLAIM v3): a plan.set bound to no ideal state, with its time
+// and author like any journal entry, is a current-side fact: 現在状態 lists,
+// up to the frame, each such plan id at its newest version, leaving out an id
+// the frame's plans carry. Display only: 差, 理想状態, the Scopes, the Agents,
+// the match count n/m, every flag, status, color and the plan cell are as
+// without them; the band has no mark of its own for them.
 const unboundWorld = parseAtlasWorldInput(gapWorld({ unbound: true }));
+const unboundLine = { t4: '宣言に未結合の計画 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2',
+  t6: '宣言に未結合の計画 3 件：resources#71:tool-split v2 · nixos#12:fork-surface v2 · mieru#3:release v1' };
+unboundLine.t5 = unboundLine.t4;
+unboundLine.t7 = unboundLine.t6;
 for (const item of unboundWorld.frames) {
   const plain = frame(item.id);
-  assert.deepEqual(item.entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
-    plain.entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': unbound plans change no entity');
+  const currentOf = each => each.entities.find(entity => entity.ref.kind === 'current-state').label;
+  assert.equal(currentOf(item), currentOf(plain) + (unboundLine[item.id] ? '\n' + unboundLine[item.id] : ''), item.id + ': 現在状態 lists the unbound plans');
+  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'current-state').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
+    plain.entities.filter(entity => entity.ref.kind !== 'current-state').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': every other entity as without them');
+  assert.deepEqual(item.entities.map(entity => entity.flags), plain.entities.map(entity => entity.flags), item.id + ': no flag changes');
   for (const chrome of ['none', 'full']) {
     const scene = world => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome }).scene.representations
-      .filter(rep => !rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal')).map(rep => [rep.regionId, rep.label, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
-    assert.deepEqual(scene(unboundWorld), scene(input), item.id + ' ' + chrome + ': same drawing, status, color and plan cell besides the journal marks');
+      .filter(rep => !rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal')).map(rep => [rep.regionId, rep.atlas?.ref?.kind === 'current-state' ? null : rep.label,
+        rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
+    assert.deepEqual(scene(unboundWorld), scene(input), item.id + ' ' + chrome + ': same drawing, status, color and plan cell besides 現在状態\'s text');
   }
 }
-// At 1920 px three marks fit in a frame's span (narrower, a frame's marks collapse into one 仕訳 n cell).
-const unboundBand = projectAtlasWorld({ input: unboundWorld, frame: unboundWorld.frames.at(-1), selected: 'none', chrome: 'full', journalOpen: '4:plan.set:unbound',
-  viewport: { width: 1920, height: 1080 } })
-  .scene.representations.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX));
-const unboundMarks = Object.fromEntries(unboundBand.filter(rep => rep.atlas?.group).map(rep => [rep.atlas.group, rep.atlas.fullLabel]));
-assert.equal(unboundMarks['4:plan.set:unbound'], '◇2（宣言に未結合）', 'two unbound plans at t4, their own mark');
-assert.equal(unboundMarks['4:plan.set'], '◇1', 'the bound plan at t4 keeps its unmarked mark');
-assert.equal(unboundMarks['6:plan.set:unbound'], '◇1（宣言に未結合）');
-// Rows stack upward from the band: read them in their row order.
-assert.deepEqual(unboundBand.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal-line:'))
-  .sort((a, b) => Number(a.regionId.split(':').at(-1)) - Number(b.regionId.split(':').at(-1))).map(rep => rep.label.replace(/\n/gu, '')), [
-  '◇ 計画（宣言に未結合） resources#71:tool-split v1 · 時刻不明 · 作者 不明 · 出所 roccho-dev/resources#71 · sha256 ' + 'c'.repeat(64),
-  '◇ 計画（宣言に未結合） nixos#12:fork-surface v2 · 時刻不明 · 作者 不明 · 出所 roccho-dev/nixos#12 comment 4100 · sha256 ' + 'd'.repeat(64)]);
+// An id the frame's plans carry (bound later) is not listed as unbound.
+const laterBound = gapWorld({ unbound: true });
+laterBound.frames[7].plans = [{ ...knownPlan, ref: 'mieru#3', plan: 'mieru#3:release', label: 'mieru release (mieru#3 v1)', version: 1 }];
+assert.ok(parseAtlasWorldInput(laterBound).frames[7].entities.find(entity => entity.ref.kind === 'current-state').label
+  .endsWith('\n宣言に未結合の計画 2 件：resources#71:tool-split v2 · nixos#12:fork-surface v2'), 'an id in the frame\'s plans is left out');
+// The band keeps one plan mark per frame (no mark of its own for unbound
+// plans); its rows name each entry, the unbound ones marked, with time and author.
+const unboundBand = projectAtlasWorld({ input: unboundWorld, frame: unboundWorld.frames.at(-1), selected: 'none', chrome: 'full', journalOpen: '4:plan.set',
+  viewport: { width: 1920, height: 1080 } }).scene.representations.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX));
+assert.ok(!unboundBand.some(rep => String(rep.atlas?.group).endsWith(':unbound')), 'no band mark of their own');
+const unboundRows = unboundBand.filter(rep => rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal-line:')).map(rep => rep.label.replace(/\n/gu, ''));
+assert.ok(unboundRows.includes('◇ 計画（宣言に未結合） resources#71:tool-split v1 · 2026-10-17T03:20:00Z · 作者 roccho-dev · 出所 roccho-dev/resources#71 · sha256 ' + 'c'.repeat(64))
+  && unboundRows.includes('◇ 計画（宣言に未結合） nixos#12:fork-surface v2 · 2026-10-17T03:30:00Z · 作者 不明 · 出所 roccho-dev/nixos#12 comment 4100 · sha256 ' + 'd'.repeat(64))
+  && unboundRows.some(row => row.startsWith('◇ 計画 resources#25:migration · ')), JSON.stringify(unboundRows));
 assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(unboundWorld))), unboundWorld, 'unbound plans are idempotent');
 const rejectUnbound = (mutate, pattern) => { const raw = gapWorld({ unbound: true }); mutate(raw.frames[4].journal); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
 rejectUnbound(list => { list.find(entry => entry.kind === 'observation').unbound = true; }, /unbound is for plan.set only/);
 rejectUnbound(list => { list.find(entry => entry.unbound).unbound = 'yes'; }, /unbound must be true/);
 rejectUnbound(list => { delete list.find(entry => entry.unbound).plan; }, /\.plan must be non-empty text/);
+rejectUnbound(list => { delete list.find(entry => entry.unbound).recordedAt; }, /recordedAt must be/);
+rejectUnbound(list => { delete list.find(entry => entry.unbound).actor; }, /actor must be/);
 rejectUnbound(list => { delete list.find(entry => entry.kind === 'plan.set' && !entry.unbound).recordedAt; }, /recordedAt must be/);
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/\? c4 · 照合不能/u.test(byKind(frame('t6'))['gap:hq']) && !/未観測/u.test(byKind(frame('t6'))['gap:hq']));

@@ -71,11 +71,10 @@ const wording = compat ? [] : [
 // current = record(agent): the claims fixture (`--page-current=` applies the
 // check to an earlier build of it).
 const claims = compat ? null : arg('page-current') ? await servePage(arg('page-current')) : arg('page') ? null : await serve('current', gapWorld({ current: true }));
-// L3: plans bound to no ideal state (the fixture's unbound plans), as the HUD
-// draws them (the band and its rows; `--page-unbound-hud=` / `--page-unbound=`
-// apply the checks to earlier builds) and in the chrome-free view.
+// L3: plans bound to no ideal state (the fixture's unbound plans), listed in
+// 現在状態 of the chrome-free view (`--page-unbound=` applies the check to an
+// earlier build).
 const unbound = compat || (arg('page') && !arg('page-unbound')) ? null : {
-  hud: arg('page-unbound-hud') ? await servePage(arg('page-unbound-hud')) : await serve('unbound-hud', gapWorld({ unbound: true }), 'full'),
   none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
 };
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
@@ -305,29 +304,19 @@ try {
   if (unbound) {
     const browser = await chromium.launch({ headless: true });
     try {
-      // The HUD at 1920x1080 (three marks fit in a frame): t4's two unbound
-      // plans are their own mark, beside the bound plan's unmarked one, and
-      // opening it lists them marked, with their plan, drawn inside each row.
-      const hud = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-      await hud.goto(urlOf(unbound.hud), { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await hud.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
-      await hud.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      const cells = (await read(hud)).band;
-      const unboundCell = cells.find(cell => cell.id === 'timeline:journal:4:plan.set:unbound');
-      const boundCell = cells.find(cell => cell.id === 'timeline:journal:4:plan.set');
-      check('unbound plans: the HUD band draws their own mark, marked 未結合, inside its cell',
-        unboundCell && flat(unboundCell.text).includes('未結合') && flat(unboundCell.text) === flat(unboundCell.label) && inside(unboundCell), unboundCell ?? cells.map(cell => cell.id));
-      check('unbound plans: the bound plan beside them keeps its unmarked mark', boundCell && flat(boundCell.text) === '◇1', boundCell);
-      if (unboundCell) {
-        await hud.mouse.click((unboundCell.shape.left + unboundCell.shape.right) / 2, (unboundCell.shape.top + unboundCell.shape.bottom) / 2);
-        await hud.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        const rows = (await read(hud)).band.filter(cell => cell.id.startsWith('timeline:journal-line:'));
-        check('unbound plans: opening the mark lists each plan marked （宣言に未結合）, drawn inside its row',
-          rows.length === 2 && ['resources#71:tool-split', 'nixos#12:fork-surface'].every(plan => rows.some(row => flat(row.text).includes(flat('◇ 計画（宣言に未結合） ' + plan))))
-            && rows.every(row => flat(row.text) === flat(row.label) && inside(row)), rows.map(row => row.text));
-      }
-      await hud.close();
-      // The chrome-free view: every frame draws the same texts and colors as
+      // At the present, 現在状態 lists each unbound plan at its newest version,
+      // drawn whole inside its box.
+      const present = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+      await present.goto(urlOf(unbound.none), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await present.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+      await present.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const presentState = await read(present);
+      const currentNode = presentState.nodes.find(node => node.kind === 'current-state');
+      check('unbound plans: 現在状態 at the present lists them at their newest versions, whole inside its box',
+        presentState.frameId === 't7' && flat(currentNode?.text).includes(flat('宣言に未結合の計画 3 件：resources#71:tool-split v2 · nixos#12:fork-surface v2 · mieru#3:release v1'))
+          && flat(currentNode.text) === flat(currentNode.label) && inside(currentNode), currentNode?.text);
+      await present.close();
+      // Every frame draws every other node's text, and every node's colors, as
       // the World without the unbound plans.
       const drawnFrames = async server => {
         const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
@@ -343,7 +332,7 @@ try {
             const atlas = window.liveAtlas, view = atlas.adapter.graph.getView();
             return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
               const drawn = view.getState(atlas.adapter.cellsByRegionId.get(item.regionId));
-              return [item.regionId, drawn?.text?.node?.textContent ?? '', drawn?.style?.fillColor ?? null, drawn?.style?.strokeColor ?? null];
+              return [item.regionId, item.atlas.ref.kind === 'current-state' ? null : drawn?.text?.node?.textContent ?? '', drawn?.style?.fillColor ?? null, drawn?.style?.strokeColor ?? null];
             });
           });
         }
@@ -351,7 +340,7 @@ try {
         return out;
       };
       const [withUnbound, without] = [await drawnFrames(unbound.none), await drawnFrames(all)];
-      check('unbound plans: the chrome-free view draws every frame\'s texts and colors as without them',
+      check('unbound plans: every frame draws 差, 理想状態, Scopes and Agents (texts and colors) and 現在状態\'s colors as without them',
         Object.keys(without).length === 8 && JSON.stringify(withUnbound) === JSON.stringify(without), Object.keys(withUnbound));
     } finally {
       await browser.close();

@@ -108,10 +108,15 @@ const ADMISSION = { '2026-10-16T23:30:00Z': 'observed_not_admitted', '2026-10-17
 // `unbound: true` adds plan.set entries no ideal state binds (L3, adrs#647), in
 // the contract's shape {kind, plan, version, source, unbound: true}: two at t4
 // (beside the bound plan of resources#25) and one at t6.
+// v3: with their time (when appended to the ledger) and author (or null).
+// t6 carries a newer version of resources#71.
+const unboundPlan = (recordedAt, actor, plan, version, ref, commentId, digest) => ({ kind: 'plan.set', recordedAt, actor, plan, version,
+  source: { ref, commentId, sha256: sha(digest) }, unbound: true });
 const UNBOUND = {
-  t4: [{ kind: 'plan.set', plan: 'resources#71:tool-split', version: 1, source: { ref: 'roccho-dev/resources#71', commentId: null, sha256: sha('c') }, unbound: true },
-    { kind: 'plan.set', plan: 'nixos#12:fork-surface', version: 2, source: { ref: 'roccho-dev/nixos#12', commentId: 4100, sha256: sha('d') }, unbound: true }],
-  t6: [{ kind: 'plan.set', plan: 'mieru#3:release', version: 1, source: { ref: 'roccho-dev/mieru#3', commentId: 4200, sha256: sha('e') }, unbound: true }],
+  t4: [unboundPlan('2026-10-17T03:20:00Z', 'roccho-dev', 'resources#71:tool-split', 1, 'roccho-dev/resources#71', null, 'c'),
+    unboundPlan('2026-10-17T03:30:00Z', null, 'nixos#12:fork-surface', 2, 'roccho-dev/nixos#12', 4100, 'd')],
+  t6: [unboundPlan('2026-10-17T05:20:00Z', 'roccho-dev', 'mieru#3:release', 1, 'roccho-dev/mieru#3', 4200, 'e'),
+    unboundPlan('2026-10-17T05:25:00Z', 'roccho-dev', 'resources#71:tool-split', 2, 'roccho-dev/resources#71', 4300, 'f')],
 };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
