@@ -171,12 +171,16 @@ try {
           || item.box.left < item.shape.left - LEADING || item.box.right > item.shape.right + LEADING
           || item.box.top < item.shape.top - LEADING || item.box.bottom > item.shape.bottom + LEADING
           || item.box.left < screen.left - 1 || item.box.right > screen.right + 1);
+        // The chrome-free view draws no strip or band, closed or with the plan
+        // opened (未設計のため。設計の合意後に戻す). The checks of their text are kept below.
         const closedCells = await timelineTexts();
-        check(where + ': timeline cell text inside its cell and the screen', timelineFailures(closedCells).length === 0, timelineFailures(closedCells).slice(0, 5));
+        check(where + ': no strip or band is drawn', closedCells.cells.length === 0, closedCells.cells.slice(0, 5).map(item => item.id));
+        // check(where + ': timeline cell text inside its cell and the screen', timelineFailures(closedCells).length === 0, timelineFailures(closedCells).slice(0, 5));
         await page.evaluate(() => { window.liveAtlas.page.planOpen = true; window.liveAtlas.setSession({}); });
         const openCells = await timelineTexts();
-        check(where + ': open plan detail rows inside their row and the screen', openCells.cells.some(item => item.id.startsWith('timeline:plan-line:'))
-          && timelineFailures(openCells).length === 0, timelineFailures(openCells).slice(0, 5));
+        check(where + ': with the plan opened, still no strip or rows', openCells.cells.length === 0, openCells.cells.slice(0, 5).map(item => item.id));
+        // check(where + ': open plan detail rows inside their row and the screen', openCells.cells.some(item => item.id.startsWith('timeline:plan-line:'))
+        //   && timelineFailures(openCells).length === 0, timelineFailures(openCells).slice(0, 5));
         await page.evaluate(() => { window.liveAtlas.page.planOpen = false; window.liveAtlas.setSession({}); });
         measured.push({ where, entities: drawn.length, statuses: statusDrawn.length,
           suppliedEllipsis: drawn.filter(item => item.label.includes('…')).length });

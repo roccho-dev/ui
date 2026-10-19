@@ -30,6 +30,12 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 }
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
+// Stopped: the chrome-free view draws no strip (未設計のため。設計の合意後に戻す);
+// this journey reads the strip's position cell. The code below is kept.
+// Exit 78 (stopped), never 0: a stopped proof must not read as a pass.
+console.log(JSON.stringify({ schema: 'atlas-world-sse-browser-proof/1', status: 'STOPPED', reason: 'chrome-free view draws no strip (undesigned)' }));
+process.exit(78);
+
 // Built: frames 1..3. Streamed first: the same. Then: frames 1..4, the new
 // frame later in rev and asOf, as a producer reading an updated file sends.
 // `--input`/`--events-input` replace both, e.g. with a recorded HQ pair.

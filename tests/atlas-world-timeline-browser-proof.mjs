@@ -26,6 +26,12 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 }
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
+// Stopped: the chrome-free view draws no strip (未設計のため。設計の合意後に戻す);
+// this journey clicks and reads the strip's cells. The code below is kept.
+// Exit 78 (stopped), never 0: a stopped proof must not read as a pass.
+console.log(JSON.stringify({ schema: 'atlas-world-timeline-browser-proof/1', status: 'STOPPED', reason: 'chrome-free view draws no strip (undesigned)' }));
+process.exit(78);
+
 const world = worldWithFrames(3);
 const frameIds = world.frames.map(frame => frame.id);
 const inputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-timeline-'));

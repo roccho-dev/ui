@@ -114,22 +114,23 @@ try {
       const count = await page.evaluate(() => window.liveAtlas.input.frames.length);
       // As first shown (no Fit, no input): at 1500x1000 the areas stand side by
       // side, each across within the screen with its top in the graph view
-      // (above the band and strip, which are drawn over it); a taller area
-      // continues below and is reached by panning. At 1280x720 the last area
-      // (Agent) is at least partly on the screen.
+      // (whose bottom is the projection's; the chrome-free view draws no strip
+      // or band); a taller area continues below and is reached by panning. At
+      // 1280x720 the last area (Agent) is at least partly on the screen.
       const first = await page.evaluate(() => {
         const atlas = window.liveAtlas, view = atlas.adapter.graph.getView();
         const rect = node => { const box = node?.getBoundingClientRect?.(); return box ? { left: box.left, right: box.right, top: box.top, bottom: box.bottom } : null; };
         const shapeOf = item => rect(view.getState(atlas.adapter.cellsByRegionId.get(item.regionId))?.shape?.node);
         const reps = atlas.projection.scene.representations;
-        return { screen: rect(document.getElementById('atlas-world')),
-          timelineTop: Math.min(...reps.filter(item => item.regionId.startsWith('timeline:')).map(shapeOf).filter(Boolean).map(box => box.top)),
+        const screen = rect(document.getElementById('atlas-world'));
+        const graph = atlas.projection.viewport.graph;
+        return { screen, graphBottom: screen.top + graph.y + graph.height,
           areas: reps.filter(item => item.atlas?.kind === 'area').map(item => ({ id: item.atlas.areaId, shape: shapeOf(item) })) };
       });
       const firstWhere = build.name + ' first shown at ' + viewport.width + 'x' + viewport.height;
       if (viewport.width === 1500) check(firstWhere + ': every area lies across within the screen, its top in the graph view',
         first.areas.length >= 3 && first.areas.every(item => item.shape && item.shape.left >= first.screen.left - 1 && item.shape.right <= first.screen.right + 1
-          && item.shape.top >= first.screen.top - 1 && item.shape.top < first.timelineTop - 40), first);
+          && item.shape.top >= first.screen.top - 1 && item.shape.top < first.graphBottom - 40), first);
       if (viewport.width === 1280) check(firstWhere + ': the last area is at least partly on the screen',
         first.areas.length >= 3 && first.areas.at(-1).shape && first.areas.at(-1).shape.left < first.screen.right - 40, first);
       for (let step = 0; step < count; step += 1) {

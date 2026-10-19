@@ -55,6 +55,12 @@ for (const chrome of ['none', 'full']) {
   for (let index = 0; index < 3; index += 1) {
     const frame = frameAt(index);
     const closed = projectAtlasWorld({ input, frame, latest: index === 2, chrome, selected: 'none' });
+    // The chrome-free view draws no strip, so no plan cell or rows (未設計のため。設計の合意後に戻す).
+    if (chrome === 'none') {
+      assert.equal(cell(closed, 'plan'), undefined, 'none: no plan cell');
+      assert.equal(lines(projectAtlasWorld({ input, frame, latest: index === 2, chrome, selected: 'none', planOpen: true })).length, 0, 'none: no plan rows');
+      continue;
+    }
     assert.equal(cell(closed, 'plan').label, expected[index] + ' · 詳細', chrome + ' frame ' + index + ': plan line');
     assert.equal(cell(closed, 'plan').activation.type, 'atlas.world.plan-toggle');
     assert.equal(cell(closed, 'plan').visual.appearance.dashed, true, 'the plan keeps the dashed plan look');
