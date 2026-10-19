@@ -121,6 +121,25 @@ assert.equal(ambiguousT4.find(entity => entity.ref.id === 'c3').label, 'windows 
 assert.equal(ambiguousT4.find(entity => entity.ref.id === 'scope:atlas').label, '別の主張', 'ambiguous: not on the scope match');
 assert.match(ambiguousT4.find(entity => entity.ref.kind === 'gap').label, /\nScope に付かない差 1 件$/u, 'ambiguous: counted on 差');
 assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(grouped))), grouped, 'grouped gap view is idempotent');
+// current = record(agent): each work's latest claim is a line of 現在状態,
+// with evidence, source line and day-time; no value reads 不明. Claims are not
+// achievements: 差, its ✓ and every Scope are the same with or without them,
+// and 現在状態 carries no status.
+const claimed = parseAtlasWorldInput(gapWorld({ current: true }));
+const claimedState = id => byKind(claimed.frames.find(item => item.id === id))['current-state:hq'];
+assert.equal(claimedState('t4'), '現在状態\n観測 4 件 · 最新 03:50Z\n作業の主張（current） 2 件\n'
+  + 'b · 進行 · 出所 current:P#L2 · 10-17 03:50Z\nc · 進行 · 出所 current:P#L3 · 10-17 03:50Z');
+assert.equal(claimedState('t6'), '現在状態\n観測 8 件 · 最新 05:30Z\n作業の主張（current） 3 件\n'
+  + 'b · 完了と報告 · 出所 current:P#L2 · 10-17 05:30Z\nc · 不明（最新の行が不正） · 出所 current:P#L3 · 10-17 05:30Z\n'
+  + 'a · 作成 · 証拠 roccho-dev/apps#124 · 出所 current:P#L1 · 10-17 05:30Z');
+for (const item of claimed.frames) {
+  const plainKinds = Object.entries(byKind(frame(item.id))).filter(([entityKey]) => !entityKey.startsWith('current-state:'));
+  assert.deepEqual(Object.entries(byKind(item)).filter(([entityKey]) => !entityKey.startsWith('current-state:')), plainKinds, item.id + ': claims change nothing but 現在状態');
+  const currentNode = item.entities.find(entity => entity.ref.kind === 'current-state');
+  assert.deepEqual(currentNode.flags, [], item.id + ': 現在状態 has no status flag');
+  assert.equal(projectWorldScene({ input: claimed, frame: item }).representations.find(rep => rep.atlas?.ref?.kind === 'current-state').atlas.status, null,
+    item.id + ': 現在状態 is drawn with no status');
+}
 // v5: unmatchable is its own cause, not unobserved.
 assert.ok(/照合不能 1/u.test(byKind(frame('t6'))['gap:hq']) && /未観測 0/u.test(byKind(frame('t6'))['gap:hq']));
 // History stays: c3/c1/c4 closed at t5 are still listed at t6.
