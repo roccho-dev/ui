@@ -4,7 +4,7 @@
 // undeclared (UNKNOWN), not as an empty future. Pure; no DOM.
 
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
-import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL } from './atlas-gap.mjs';
+import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, admissionMark } from './atlas-gap.mjs';
 
 // Whether a World carries phases or a journal, and so gets the band.
 export const hasBand = input => input.frames.some(frame => Object.hasOwn(frame, 'phase') || Object.hasOwn(frame, 'journal'));
@@ -235,7 +235,7 @@ export const projectTimeline = ({
         : groups.get(journalOpen) ?? [];
       for (const entry of entries) {
         journalRows.push(JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
-          + ' · 出所 ' + entry.source.ref + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
+          + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
           + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN'));
       }
       if (!entries.length) journalRows.push('この印の仕訳はもう無い');

@@ -171,6 +171,10 @@ for (const item of admitted.frames) {
     projectWorldScene({ input, frame: plain }).representations.map(rep => [rep.regionId, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]), item.id + ': same status and color');
 }
 assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(admitted))), admitted, 'admission marks are idempotent');
+// The HUD's journal row names the source's admission after the source.
+const admittedRow = projectAtlasWorld({ input: admitted, frame: admitted.frames[6], selected: 'none', chrome: 'full', journalOpen: '0:purpose.set' })
+  .scene.representations.find(rep => rep.regionId === TIMELINE_ID_PREFIX + 'journal-line:0');
+assert.match(admittedRow.label.replace(/\n/gu, ''), /出所 adrs#647（未採択） comment 6230983530/u);
 const badAdmission = gapWorld({ admission: true });
 badAdmission.frames[0].journal[0].source.admission = '';
 assert.throws(() => parseAtlasWorldInput(badAdmission), /source.admission must be non-empty text/);
