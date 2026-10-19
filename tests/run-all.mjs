@@ -43,4 +43,5 @@ import "./check-atlas-world-plans.mjs";
 import "./check-atlas-world-gap.mjs";
 import "./check-serve-static.mjs";
 import "../capabilities/editable-sheet/tests/run.mjs";
+import "../capabilities/checklist/tests/run.mjs";
 console.log("ui-all-checks-pass");
