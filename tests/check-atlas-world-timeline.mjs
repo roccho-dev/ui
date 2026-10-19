@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { parseAtlasWorldInput, worldPair } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
 import { parseHeartbeat, snapshotSize } from '../packages/control/src/live-atlas.mjs';
-import { PLAN_UNDECLARED, RECEIVE_WINDOW_MS, TIMELINE_ID_PREFIX, UPDATE_INTERVAL_MS, formatViewHash, parseViewHash, stepIndex, timelinePosition, transportOf,
+import { PLAN_UNDECLARED, RECEIVE_WINDOW_MS, TIMELINE_ID_PREFIX, formatViewHash, parseViewHash, stepIndex, timelinePosition, transportOf,
   updateStalled } from '../packages/control/src/atlas-timeline.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
 
@@ -103,14 +103,15 @@ assert.equal(transportOf({ ...fresh, snapshotBytes: 10, heartbeatBytes: 10 }), '
 assert.equal(transportOf({ ...fresh, snapshotBytes: 10, heartbeatBytes: null }), 'live', 'a snapshot alone, recently');
 
 // Update stalled: a live page whose newest asOf is more than three update
-// periods (10 minutes by default) old, whatever the stream says; a sample
-// page claims no updates.
-const asOf = '2026-10-19T11:07:17.313Z', at = minutes => Date.parse(asOf) + minutes * 60_000;
-assert.equal(UPDATE_INTERVAL_MS, 600_000, 'HQ updates every 10 minutes');
-assert.equal(updateStalled({ mode: 'live', now: at(30), asOf }), false, 'exactly three periods: not yet');
-assert.equal(updateStalled({ mode: 'live', now: at(30) + 1, asOf }), true, 'past three periods: stalled');
-assert.equal(updateStalled({ mode: 'sample', now: at(60), asOf }), false, 'a sample page claims no updates');
-assert.equal(updateStalled({ mode: 'live', now: null, asOf }), false, 'no clock: no claim either way');
+// periods old, whatever the stream says; the period comes from the build
+// only, and without one no stall is claimed; a sample page claims no updates.
+const asOf = '2026-10-19T11:07:17.313Z', at = minutes => Date.parse(asOf) + minutes * 60_000, ten = 10 * 60_000;
+assert.equal(updateStalled({ mode: 'live', now: at(30), asOf, updateIntervalMs: ten }), false, 'exactly three periods: not yet');
+assert.equal(updateStalled({ mode: 'live', now: at(30) + 1, asOf, updateIntervalMs: ten }), true, 'past three periods: stalled');
+assert.equal(updateStalled({ mode: 'live', now: at(600), asOf }), false, 'no period named: no stall claimed');
+assert.equal(updateStalled({ mode: 'live', now: at(600), asOf, updateIntervalMs: null }), false, 'no period named: no stall claimed');
+assert.equal(updateStalled({ mode: 'sample', now: at(60), asOf, updateIntervalMs: ten }), false, 'a sample page claims no updates');
+assert.equal(updateStalled({ mode: 'live', now: null, asOf, updateIntervalMs: ten }), false, 'no clock: no claim either way');
 assert.equal(updateStalled({ mode: 'live', now: at(7), asOf, updateIntervalMs: 2 * 60_000 }), true, 'a 2-minute period: stalled after 6');
 assert.equal(updateStalled({ mode: 'live', now: at(5), asOf, updateIntervalMs: 2 * 60_000 }), false);
 

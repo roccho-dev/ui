@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { UPDATE_INTERVAL_MS, UPDATE_STALLED, hasBand, stepIndex, timelinePosition, transportOf, transportStatus, updateStalled } from './src/atlas-timeline.mjs';
+import { UPDATE_STALLED, hasBand, stepIndex, timelinePosition, transportOf, transportStatus, updateStalled } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -457,10 +457,10 @@ export const mountAtlasWorldUI = ({
   chrome = 'full',
   frameId: initialFrameId = '',
   onView = null,
-  updateIntervalMs = UPDATE_INTERVAL_MS,
+  updateIntervalMs = null,
 } = {}) => {
   if (!root?.append) throw new Error('atlas-world-ui: mount root required');
-  if (!(Number.isFinite(updateIntervalMs) && updateIntervalMs > 0)) throw new Error('atlas-world-ui: updateIntervalMs must be a positive number');
+  if (updateIntervalMs !== null && !(Number.isFinite(updateIntervalMs) && updateIntervalMs > 0)) throw new Error('atlas-world-ui: updateIntervalMs must be a positive number or null');
   if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world-ui: unsupported chrome ' + chrome);
   const worldInput = parseAtlasWorldInput(input);
   const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });

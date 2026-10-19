@@ -297,11 +297,12 @@ A live World page (opened with `?events=`) says **更新停止・最新か不明
 status line, and qualifies LATEST as **LATEST（最新か不明）**, once the browser's
 clock is more than three update periods past the newest frame's `asOf`. Heartbeats
 do not clear it: they show the stream is open, not that the World advanced. The
-period is HQ's 10 minutes unless the build names another
-(`--update-interval-minutes=<n>`); one timeout per accepted World wakes the page at
-that moment, with no periodic timer. A sample page (no `?events=`) claims no
-updates and never reads stalled. `tests/atlas-world-stall-browser-proof.mjs`
-checks this on the browser's clock.
+period is the World's actual update period, and the build is its only source
+(`--update-interval-minutes=<n>`, given by whoever runs the updates); there is no
+default, and a build that names none never claims a stall. One timeout per
+accepted World wakes the page at that moment, with no periodic timer. A sample
+page (no `?events=`) claims no updates and never reads stalled.
+`tests/atlas-world-stall-browser-proof.mjs` checks this on the browser's clock.
 
 Limit: the newest `asOf` is the time HQ read its current claims, so it advances on
 every update that passes them. An update that passes no current leaves `asOf` at

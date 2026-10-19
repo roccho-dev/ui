@@ -5,7 +5,7 @@
 //   node scripts/build-live-atlas.mjs --out=<new directory> [--input=tests/fixtures/live-atlas/history.json]
 //   node scripts/build-live-atlas.mjs --consumer=example --out=<new directory> [--input=examples/atlas/input/example.jsonl]
 //   node scripts/build-live-atlas.mjs --chrome=none --out=<new directory> --input=<World JSON>  (three areas only)
-//   [--update-interval-minutes=<n>]  the World's update period for the stall judgement (default 10, HQ's)
+//   [--update-interval-minutes=<n>]  the World's actual update period, for the stall judgement (none: no stall claimed)
 //
 // Open <out>/index.html directly (sample) or serve it and add
 // ?events=<SSE URL> to consume an external producer (live).
@@ -85,8 +85,8 @@ const PAGE = `<!doctype html>
 // `chrome` is a build argument rather than a URL query: the screen composition
 // becomes part of the built HTML and its receipt, so a reviewed page cannot be
 // re-composed by its link. The default build keeps its bootstrap and receipt shape.
-// `updateIntervalMinutes` is the World's update period the page judges a stall
-// by (the page's default, HQ's 10 minutes, when not given).
+// `updateIntervalMinutes` is the World's actual update period, the only input
+// the page judges a stall by; when not given, the page claims no stall.
 export const buildLiveAtlas = async ({ input, out, consumer = 'app', chrome = 'full', updateIntervalMinutes = null }) => {
   if (!['app', 'example'].includes(consumer)) throw new Error(`live-atlas build: unsupported consumer ${consumer}`);
   if (!['full', 'none'].includes(chrome)) throw new Error(`live-atlas build: unsupported chrome ${chrome}`);

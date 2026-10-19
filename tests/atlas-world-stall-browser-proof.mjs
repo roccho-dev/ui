@@ -3,12 +3,14 @@
 //   node tests/atlas-world-stall-browser-proof.mjs --out=<fresh absent directory>
 // A chrome-free build (as /hq/) opened over HTTP with `?events=` pointing at a
 // separate-origin SSE producer that sends its World on connect and then
-// heartbeats on demand. The browser clock is installed just before the newest
-// frame's asOf + 3 update intervals (10 minutes by default):
-// - before that moment the status line claims LATEST and no stall;
-// - past it, with heartbeats still arriving (the stream reads receiving), the
-//   status line reads 更新停止・最新か不明 and LATEST is qualified, with no input;
-// - a build with --update-interval-minutes=2 reads stalled 6 minutes after asOf;
+// heartbeats on demand. The update period comes only from the build
+// (--update-interval-minutes); a build that names none claims no stall:
+// - built with 10 minutes, the browser clock installed just before the newest
+//   frame's asOf + 3 periods: before that moment the status line claims LATEST
+//   and no stall; past it, with heartbeats still arriving (the stream reads
+//   receiving), it reads 更新停止・最新か不明 and LATEST is qualified, with no input;
+// - built with 2 minutes: stalled 7 minutes after asOf, plain LATEST at 5;
+// - built with no period: no stall, an hour after asOf, while receiving;
 // - a page opened without `?events=` (a sample) claims no update, so no stall.
 // Read from the drawn status line, not from page state.
 import fs from 'node:fs';
@@ -47,7 +49,7 @@ const build = async (name, options) => {
   await buildLiveAtlas({ input: path.join(scratch, 'world.json'), out: path.join(args.out, name), consumer: 'app', chrome: 'none', ...options });
   return fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
 };
-const pages = { default: await build('default', {}), short: await build('short', { updateIntervalMinutes: 2 }) };
+const pages = { unset: await build('unset', {}), ten: await build('ten', { updateIntervalMinutes: 10 }), short: await build('short', { updateIntervalMinutes: 2 }) };
 
 let current = null;
 const site = http.createServer((request, response) => {
@@ -89,8 +91,8 @@ try {
     return page;
   };
 
-  // Default interval (10 minutes): stalled after asOf + 30 minutes.
-  const page = await open('default', true, asOf + 29 * MINUTE);
+  // Built with 10 minutes: stalled after asOf + 30 minutes.
+  const page = await open('ten', true, asOf + 29 * MINUTE);
   heartbeat();
   await page.waitForFunction(() => window.liveAtlas.page.heartbeatBytes !== null, null, { timeout: 60000 });
   await settle(page);
@@ -115,11 +117,22 @@ try {
   await short.close();
   const shortFresh = await open('short', true, asOf + 5 * MINUTE);
   const freshStatus = await status(shortFresh);
-  check('--update-interval-minutes=2: not stalled 5 minutes after asOf', !freshStatus.text.includes(STALLED) && freshStatus.text.includes('LATEST'), freshStatus);
+  check('--update-interval-minutes=2: not stalled 5 minutes after asOf', !freshStatus.text.includes(STALLED) && /LATEST(?!（)/u.test(freshStatus.text), freshStatus);
   await shortFresh.close();
 
+  // Built with no period: the page does not know how often the World is
+  // updated, so it claims no stall, an hour after asOf, while receiving.
+  const unset = await open('unset', true, asOf + 60 * MINUTE);
+  heartbeat();
+  await unset.waitForFunction(() => window.liveAtlas.page.heartbeatBytes !== null, null, { timeout: 60000 });
+  await settle(unset);
+  const unsetStatus = await status(unset);
+  check('no --update-interval-minutes: no stall an hour after asOf, receiving, plain LATEST',
+    receiving(unsetStatus.text, asOf + 60 * MINUTE) && !unsetStatus.text.includes(STALLED) && /LATEST(?!（)/u.test(unsetStatus.text), unsetStatus);
+  await unset.close();
+
   // A sample page (no ?events=) is not an updated page: no stall claimed.
-  const sample = await open('default', false, asOf + 60 * MINUTE);
+  const sample = await open('ten', false, asOf + 60 * MINUTE);
   const sampleStatus = await status(sample);
   check('a sample page claims no update stall', !sampleStatus.text.includes(STALLED), sampleStatus);
   await sample.close();

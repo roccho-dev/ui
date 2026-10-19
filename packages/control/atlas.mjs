@@ -86,14 +86,15 @@ const startWorldAtlas = ({ input, eventsUrl, chrome, updateIntervalMs }) => {
     if (Number.isFinite(wait) && wait >= 0) freshness = setTimeout(() => { freshness = null; ui.tick(Date.now(), true); }, Math.min(wait + 1, 2 ** 31 - 1));
   };
   armFreshness();
-  // A live World stops reading as updating three update periods after its
-  // newest frame's asOf: one timeout for that moment (re-armed when the World
-  // changes), whatever arrives meanwhile.
+  // A live World whose build names its update period stops reading as
+  // updating three periods after its newest frame's asOf: one timeout for that
+  // moment (re-armed when the World changes), whatever arrives meanwhile.
   const armStall = () => {
     if (stall !== null) clearTimeout(stall);
     stall = null;
+    if (!eventsUrl || ui.page.updateIntervalMs === null) return;
     const wait = Date.parse(ui.input.frames.at(-1).asOf) + 3 * ui.page.updateIntervalMs - Date.now();
-    if (eventsUrl && Number.isFinite(wait) && wait >= 0) stall = setTimeout(() => { stall = null; ui.tick(Date.now(), true); }, Math.min(wait + 1, 2 ** 31 - 1));
+    if (Number.isFinite(wait) && wait >= 0) stall = setTimeout(() => { stall = null; ui.tick(Date.now(), true); }, Math.min(wait + 1, 2 ** 31 - 1));
   };
   armStall();
   // A background tab may not run the timers; judge again on coming back.
