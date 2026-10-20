@@ -342,7 +342,7 @@ for (const item of adequate.frames) {
   const [drawn] = ofKind(adequate, item.id, 'purpose-adequacy');
   const raw = suppliedAdequacy.frames.find(each => each.id === item.id).entities.find(entity => entity.ref.kind === 'purpose-adequacy');
   assert.deepEqual([drawn.label, drawn.flags, drawn.summary], [raw.label, raw.flags, raw.summary], item.id + ': GapA as supplied');
-  assert.deepEqual(purposeOrder(item), ['phase', 'purpose', 'ideal-state', 'purpose-adequacy', 'gap', 'current-state'], item.id + ': P, I, GapA, GapB, C');
+  assert.deepEqual(purposeOrder(item), ['phase', 'purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': declared as the chain P, GapA, I, GapB, C');
   const relations = gapRelations(item);
   assert.ok(relations.includes('ideal-state>purpose-adequacy 照らす') && relations.includes('purpose-adequacy>purpose 十分性')
     && !relations.some(relation => relation.endsWith(' 近似')), item.id + ': one path P–GapA–I: ' + relations.join(', '));
