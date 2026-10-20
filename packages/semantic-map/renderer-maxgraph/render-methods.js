@@ -5,6 +5,7 @@ import { edgeStyle, vertexStyle } from './styles.js';
 import { paletteFor, styleScaleFor } from './theme.js';
 import { parallelRoutePoints } from './parallel-routes.js';
 import { planLabelCallouts, calloutTextStyle } from './label-callouts.js';
+import { relationLabelOffset } from './relation-label-placement.js';
 import Point from '../vendor/maxgraph/view/geometry/Point.js';
 
 function geometryEquals(geometry, bounds) {
@@ -59,6 +60,41 @@ function applyLabelGeometry(cell, representation, placement, model) {
   const next = geometry.clone();
   next.offset = offset;
   model.setGeometry(cell, next);
+}
+
+function placeRelationLabels(graph, container, cells, edges) {
+  const view = graph.getView(), scale = view.scale;
+  if (!(scale > 0)) return;
+  const rectangle = box => box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null;
+  const obstacles = [];
+  for (const cell of cells.values()) {
+    const state = view.getState(cell);
+    if (!state) continue;
+    if (cell.semantic?.mode !== 'boundary') obstacles.push(rectangle(state));
+    if (state.text?.boundingBox) obstacles.push(rectangle(state.text.boundingBox));
+  }
+  const viewport = { x: container.scrollLeft, y: container.scrollTop, width: container.clientWidth, height: container.clientHeight };
+  const updates = [];
+  for (const edge of [...edges.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
+    if (!edge.value || !['graph', 'graph-control', 'graph-metrics'].includes(edge.semantic?.line)) continue;
+    const state = view.getState(edge), geometry = edge.getGeometry(), box = state?.text?.boundingBox;
+    if (!box || !geometry) continue;
+    const current = geometry.offset;
+    // Subtract the previous owned offset to reconsider the original position
+    // after every projection, so deletion and camera changes cannot accumulate it.
+    const label = { x: box.x - (current?.x ?? 0) * scale - 2,
+      y: box.y - (current?.y ?? 0) * scale - 2, width: box.width + 4, height: box.height + 4 };
+    const delta = relationLabelOffset(label, obstacles, viewport);
+    obstacles.push({ ...label, x: label.x + delta.x, y: label.y + delta.y });
+    const x = delta.x / scale, y = delta.y / scale;
+    if (Math.abs((current?.x ?? 0) - x) < 1e-7 && Math.abs((current?.y ?? 0) - y) < 1e-7) continue;
+    const next = geometry.clone(); next.offset = x || y ? new Point(x, y) : null;
+    updates.push([edge, next]);
+  }
+  if (updates.length) graph.batchUpdate(() => {
+    const model = graph.getDataModel();
+    for (const [edge, geometry] of updates) model.setGeometry(edge, geometry);
+  });
 }
 
 const MOTIONS = new Set(['none', 'pulse', 'flow']);
@@ -473,6 +509,7 @@ function render(scene) {
       if (zOrderedCells.length) graph.orderCells(false, zOrderedCells);
     });
 
+    placeRelationLabels(graph, this.container, cellsByRegionId, edgesByProjectionKey);
     this.cellsByRegionId = cellsByRegionId;
     this.edgesByProjectionKey = edgesByProjectionKey;
 
