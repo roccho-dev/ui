@@ -118,7 +118,39 @@ const UNBOUND = {
   t6: [unboundPlan('2026-10-17T05:20:00Z', 'roccho-dev', 'mieru#3:release', 1, 'roccho-dev/mieru#3', 4200, 'e'),
     unboundPlan('2026-10-17T05:25:00Z', 'roccho-dev', 'resources#71:tool-split', 2, 'roccho-dev/resources#71', 4300, 'f')],
 };
-export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false } = {}) => {
+// `adequacy: true` supplies GapA (目的↔理想の差) on each frame as apps#129's
+// producer does: a purpose-adequacy entity whose state the producer judged
+// (insufficient at t4 only; the ui reads it, never the journal).
+const adequacyEntity = id => ({ ref: ref('purpose-adequacy', 'hq'), label: '目的↔理想の差\n' + (id === 't4' ? '不十分（評価）' : '未評価（十分性は未判定）'),
+  area: 'purpose', order: 9, visible: true, activity: 'none', summary: 'GapA (producer)',
+  flags: ['purpose_adequacy=' + (id === 't4' ? 'insufficient' : 'unassessed'), 'role=whole-purpose-evaluation'] });
+// `physical: true` (with adequacy) adds, to each frame with open parts, the
+// physical Scope as apps#129 declares it: a repository containing a package,
+// the package linked to GapA and to the parts it is declared for. apps
+// packages/atlas addresses both gaps (c3, c1), ui packages/control GapB (c3);
+// c4 has no declaration.
+const PHYSICAL = [{ repo: 'roccho-dev/apps', package: 'packages/atlas', gapA: true, conditions: ['c3', 'c1'] },
+  { repo: 'roccho-dev/ui', package: 'packages/control', gapA: false, conditions: ['c3'] }];
+const physicalScopes = (frameId, parts) => {
+  const entities = [], relations = [];
+  const link = (id, from, to, context, containment = null) => relations.push({ ref: ref('declared-relation', frameId + ':' + id), from, to,
+    kind: 'declared-relation', label: containment ? '含む' : 'この差を埋める対象', context, path: false, containment });
+  for (const [index, item] of PHYSICAL.entries()) {
+    const repoRef = ref('repository', item.repo), packageRef = ref('package', item.repo + ':' + item.package);
+    const conditions = item.conditions.filter(condition => parts.some(each => each.condition === condition));
+    if (!item.gapA && !conditions.length) continue;
+    entities.push({ ref: repoRef, label: item.repo + '\nrepo', area: 'scopes', order: 20 + index, visible: true, activity: 'none', flags: ['physical-scope', 'repo=' + item.repo] },
+      { ref: packageRef, label: item.package + '\n' + item.repo, area: 'scopes', order: 30 + index, visible: true, activity: 'none',
+        source: { sourceRef: 'atlas.control-norms/1#phys.' + index, sourceDigest: null, kind: 'declared' },
+        flags: ['physical-scope', 'repo=' + item.repo, 'package=' + item.package, ...(item.gapA ? ['gap=purpose-ideal'] : []), ...(conditions.length ? ['gap=ideal-current'] : [])] });
+    link('contains:' + index, repoRef, packageRef, { declared_by: 'physical-scope' }, 'from-contains-to');
+    if (item.gapA) link('gapa:' + index, packageRef, ref('purpose-adequacy', 'hq'), { gap: 'purpose-ideal' });
+    for (const condition of conditions) link('gapb:' + index + ':' + condition, packageRef, ref('semantic-scope', condition), { gap: 'ideal-current', condition });
+  }
+  return { entities, relations };
+};
+export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
+  adequacy = false, physical = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
   const entries = current ? [...decided, ...CURRENT].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
@@ -155,8 +187,11 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
       if (newPurpose && index >= 3 && item.gap) item.gap.basis.purpose_id = 'hq.v2';
       const nested = groups && item.gap.parts?.length
         ? groupedScopes(item.id, item.gap.parts, frames.slice(0, index + 1).flatMap(each => each.gap.closed), groups === 'unplaced' ? 'c4' : null) : null;
+      const declared = physical && item.gap.parts?.length ? physicalScopes(item.id, item.gap.parts) : { entities: [], relations: [] };
+      const supplied = nested ?? { entities: [], relations: [] };
       return { ...item, journal: [...journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf), ...(unbound ? structuredClone(UNBOUND[item.id] ?? []) : [])],
-        ...(nested ? { entities: [...item.entities, ...nested.entities], relations: [...item.relations, ...nested.relations] } : {}) };
+        entities: [...item.entities, ...(adequacy || physical ? [adequacyEntity(item.id)] : []), ...supplied.entities, ...declared.entities],
+        relations: [...item.relations, ...supplied.relations, ...declared.relations] };
     }),
   };
 };

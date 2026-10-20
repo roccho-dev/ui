@@ -301,14 +301,17 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const time = Object.freeze({ acquiredAt: null, observedAt: null, effectiveAt: null });
   const entity = (entityRef, label, area, order, summary, flags = []) => Object.freeze({ ref: entityRef, label, area, order,
     visible: true, activity: 'none', summary, source: null, time, flags: Object.freeze(flags) });
-  const relation = (id, from, to, label, path = true) => Object.freeze({ ref: ref('gap-relation', frame.id + ':' + id), from, to,
-    kind: 'gap', label, context: Object.freeze({}), source: null, time, flags: Object.freeze(['authority=false']), path,
+  const relation = (id, from, to, label, context = {}) => Object.freeze({ ref: ref('gap-relation', frame.id + ':' + id), from, to,
+    kind: 'gap', label, context: Object.freeze(context), source: null, time, flags: Object.freeze(['authority=false']), path: true,
     visible: true, activity: 'none', containment: null });
 
   const phaseRef = ref('phase', purposeId);
   const idealRef = ref('ideal-state', purposeId);
   const currentRef = ref('current-state', purposeId);
   const deltaRef = ref('gap', purposeId);
+  // GapA (目的↔理想の差) is the producer's purpose-adequacy (apps#129), drawn
+  // as supplied: its state is never judged here. None supplied: no GapA.
+  const adequacy = frame.entities.find(item => item.ref.kind === 'purpose-adequacy' && item.ref.id === purposeId) ?? null;
   const unknownCount = '不明';
   // The newest decision of a kind, up to this frame, for the purpose drawn (and,
   // for an ideal.set, the version drawn): its source's admission marks it (A3).
@@ -356,27 +359,67 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // containment) is drawn as supplied; Scopes are derived from the parts only
   // when it supplies none. The kinds derived here are never counted as supplied.
   const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed'].includes(item.ref.kind))
-    .map(item => item.flags.includes('gap-view')
+    .map(item => item.flags.includes('gap-view') && item.ref.kind !== 'package'
       ? Object.freeze({ ...item, label: item.label.split('\n').slice(0, -1).join('\n'), summary: item.summary?.split('\n').slice(0, -1).join('\n') || null,
         flags: Object.freeze(item.flags.filter(flag => flag !== 'gap-view')) })
       : item);
+  // Physical Scope (apps#129): a package declared for GapA and/or GapB is the
+  // Scope card. Its repo/package heading, parts and owners are read from the
+  // supplied declaration and relations; the abstract semantic-scope cards are
+  // not shown as separate Scope cards. A part with no declaration is 未特定.
+  const physicalPackages = suppliedScopes.filter(item => item.ref.kind === 'package' && item.flags.includes('physical-scope'));
+  const physical = physicalPackages.length > 0;
+  const ownerByUnit = new Map();
+  for (const relation of frame.relations) {
+    if (!relation.containment || relation.from.kind !== 'scope-group' || !relation.from.id.startsWith('owner:')) continue;
+    const group = frame.entities.find(item => key(item.ref) === key(relation.from));
+    ownerByUnit.set(key(relation.to), group?.label.split('\n').at(-1) ?? relation.from.id.slice('owner:'.length));
+  }
+  const physicalRepo = item => item.flags.find(flag => flag.startsWith('repo='))?.slice('repo='.length) ?? null;
+  const physicalPath = item => item.flags.find(flag => flag.startsWith('package='))?.slice('package='.length) ?? null;
+  const physicalName = item => {
+    const repo = physicalRepo(item), path = physicalPath(item);
+    return repo && path ? repo + '/' + path : item.ref.id;
+  };
+  const targetsGapA = item => item.flags.includes('gap=purpose-ideal');
+  // A part is on a package only by the condition its declared relation names
+  // (the producer's one per condition, or the one drawn here with them all).
+  const physicalParts = item => {
+    const declared = frame.relations.filter(relation => key(relation.from) === key(item.ref) && relation.context?.gap === 'ideal-current')
+      .flatMap(relation => relation.context.conditions ?? [relation.context.condition]);
+    return (g?.parts ?? []).filter(part => declared.includes(part.condition));
+  };
+  const ownerOf = part => part.scope === null ? null
+    : ownerByUnit.get(key(Object.freeze({ space, kind: 'semantic-scope', id: part.scope }))) ?? part.scope;
+  const ownerLine = part => ownerOf(part) === null ? '担当なし' : '担当 ' + ownerOf(part);
+  const physicalTargets = part => physicalPackages.filter(item => physicalParts(item).includes(part));
   // Each open part is shown on the one supplied Scope whose id is its scope or
   // its condition; a part matching none or several, or sharing its Scope with
   // another part, is shown on none (never attached by guess). Those are
   // counted on 差 and listed in its record, never dropped in silence.
   const matches = new Map();
-  for (const part of suppliedScopes.length ? g?.parts ?? [] : []) {
-    const hits = suppliedScopes.filter(item => item.ref.id === part.scope || item.ref.id === part.condition);
-    if (hits.length === 1) matches.set(key(hits[0].ref), [...(matches.get(key(hits[0].ref)) ?? []), part]);
+  let unplaced = [];
+  if (!physical) {
+    for (const part of suppliedScopes.length ? g?.parts ?? [] : []) {
+      const hits = suppliedScopes.filter(item => item.ref.id === part.scope || item.ref.id === part.condition);
+      if (hits.length === 1) matches.set(key(hits[0].ref), [...(matches.get(key(hits[0].ref)) ?? []), part]);
+    }
+    const placed = new Set([...matches.values()].filter(list => list.length === 1).flat());
+    unplaced = suppliedScopes.length ? (g?.parts ?? []).filter(part => !placed.has(part)) : [];
   }
-  const placed = new Set([...matches.values()].filter(list => list.length === 1).flat());
-  const unplaced = suppliedScopes.length ? (g?.parts ?? []).filter(part => !placed.has(part)) : [];
+  const physicalMark = part => {
+    const hits = physicalTargets(part);
+    return hits.length ? ' · 物理Scope ' + hits.map(physicalName).join(' / ') : ' · 物理Scope 未特定';
+  };
   // 差 is the difference only: which conditions differ (! unmet, ? unknown)
   // and why. The ideal's and the current state's contents are in their nodes.
-  const deltaText = g === null ? (phase === 'ended' ? '差 対象外\n目的は終了した' : '差 不明\n照らし合わせる理想状態がまだ無い')
-    : '差 ' + counts.open + '（' + prevOpen + '）' + (counts.agrees ? '' : ' · 集計不一致')
-      + g.parts.map(part => '\n' + (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · ' + causeText(part)).join('')
-      + (unplaced.length ? '\nScope に付かない差 ' + unplaced.length + ' 件' : '');
+  // It is named 理想↔現在の差, apart from GapA. With physical Scope
+  // declarations each row names its repo/package, or 未特定 when none is declared.
+  const deltaText = g === null ? (phase === 'ended' ? '理想↔現在の差\n差 対象外\n目的は終了した' : '理想↔現在の差\n差 不明\n照らし合わせる理想状態がまだ無い')
+    : '理想↔現在の差\n差 ' + counts.open + '（' + prevOpen + '）' + (counts.agrees ? '' : ' · 集計不一致')
+      + g.parts.map(part => '\n' + (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · ' + causeText(part)
+        + (physical ? physicalMark(part) : '')).join('')
+      + (physical ? '' : unplaced.length ? '\nScope に付かない差 ' + unplaced.length + ' 件' : '');
   const deltaFlags = g === null ? ['scope_status=unknown'] : counts.open === 0 ? ['standing=completed-history'] : counts.unknown > 0 ? ['scope_status=unknown'] : ['scope_status=unmet'];
   // The current state: observations (journal entries of kind observation up
   // to this frame; none recorded reads so, never 0 observed), its contrast with
@@ -415,19 +458,22 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
       '目的は観測では判定しない（人が評価する）。purpose_id=' + purposeId + (gap ? ' · purpose_rev=' + gap.basis.purpose_rev : '')
         + (evaluation ? ' · ' + (evaluation.past ? '過去の評価' : '評価') + '=' + evaluation.verdict + ' (' + evaluation.recordedAt + ')' : ''),
       ['gap-view']),
-    entity(idealRef, '理想状態\n' + idealLine, areas.purpose, 2,
+    // Declared in the order of their chain: 目的–GapA–理想状態–差–現在状態.
+    ...(adequacy ? [Object.freeze({ ...adequacy, area: areas.purpose, order: 2 })] : []),
+    entity(idealRef, '理想状態\n' + idealLine, areas.purpose, 3,
       g === null ? '照らし合わせる理想状態が無い（parts=null: UNKNOWN）。'
         : '理想状態 ' + versionText(g.basis.ideal_version) + (moved ? '（直前 ' + versionText(prevVersion) + '）' : '') + '。追加・改訂は開いている差の原因の件数。'),
-    entity(deltaRef, deltaText, areas.purpose, 3, g === null ? '差は不明（0 ではない）。'
+    entity(deltaRef, deltaText, areas.purpose, 4, g === null ? '差は不明（0 ではない）。'
       : '現在状態と理想状態の差。原因ごとの件数は parts から数えた値（1 件が複数の原因を持てる）。'
         + (counts.agrees ? '' : ' 供給された summary は parts と一致しない: ' + JSON.stringify(g.summary))
         + unplaced.map(part => '\nScope に付かない差: ' + partRecord(part)).join(''), deltaFlags),
-    entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 4, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
+    entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 5, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
   ];
   const relations = [
     relation('current-delta', currentRef, deltaRef, '差'),
     relation('delta-ideal', deltaRef, idealRef, '理想状態との差'),
-    relation('ideal-purpose', idealRef, purposeRef, '近似'),
+    ...(adequacy ? [relation('ideal-adequacy', idealRef, adequacy.ref, '照らす'), relation('adequacy-purpose', adequacy.ref, purposeRef, '十分性')]
+      : [relation('ideal-purpose', idealRef, purposeRef, '近似')]),
   ];
   const sinceText = since => {
     const ago = order.length - 1 - order.indexOf(since);
@@ -437,14 +483,42 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // A part's line: its state, its causes and since when it is open.
   const partLine = part => (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + sinceText(part.since);
   const beforeIdealMark = part => part.observed_before_ideal ? ' · 理想状態の確定前の観測' : '';
-  const shownScopes = suppliedScopes.map(item => {
-    const parts = matches.get(key(item.ref));
-    if (parts?.length !== 1) return item;
-    const [part] = parts;
-    relations.push(relation('part-' + part.condition, item.ref, deltaRef, '差'));
-    return Object.freeze({ ...item, label: item.label + '\n' + partLine(part) + (part.scope === null ? ' · 担当なし' : '') + beforeIdealMark(part),
-      summary: (item.summary ?? '') + '\n' + partRecord(part), flags: Object.freeze([...item.flags, 'gap-view']) });
-  });
+  const packageLabel = item => {
+    const parts = physicalParts(item);
+    const targets = [targetsGapA(item) ? '目的↔理想の差' : null, parts.length ? '理想↔現在の差' : null].filter(Boolean);
+    return [physicalRepo(item) ?? item.ref.id, physicalPath(item) ?? '', '対象: ' + (targets.join('・') || '未特定'),
+      ...parts.map(part => (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · '
+        + (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + ownerLine(part))]
+      .filter((line, index) => index !== 1 || line.length).join('\n');
+  };
+  const packageSummary = item => {
+    const parts = physicalParts(item);
+    const targets = [targetsGapA(item) ? '目的↔理想の差' : null, parts.length ? '理想↔現在の差' : null].filter(Boolean);
+    return '物理Scope（変更対象のrepo/package）· repo=' + (physicalRepo(item) ?? '不明') + ' · package=' + (physicalPath(item) ?? '不明')
+      + ' · 対象=' + (targets.join('・') || '未特定')
+      + ' · 宣言=' + (item.source?.sourceRef ?? 'source unknown')
+      + '\n' + (parts.length ? parts.map(part => partRecord(part) + ' · ' + ownerLine(part)).join('\n') : '開いている理想↔現在の差なし')
+      + '\n抽象Scopeカードは複製しない。宣言の無い差は物理Scope未特定。';
+  };
+  const shownScopes = physical
+    ? [...physicalPackages.map(item => Object.freeze({ ...item, label: packageLabel(item), summary: packageSummary(item),
+        flags: Object.freeze([...item.flags.filter(flag => flag !== 'gap-view'), 'gap-view']) })),
+      ...suppliedScopes.filter(item => item.ref.kind === 'obligation' || item.ref.kind === 'closed-change'
+        || (item.ref.kind === 'scope-group' && item.ref.id === 'history'))]
+    : suppliedScopes.map(item => {
+      const parts = matches.get(key(item.ref));
+      if (parts?.length !== 1) return item;
+      const [part] = parts;
+      relations.push(relation('part-' + part.condition, item.ref, deltaRef, '差'));
+      return Object.freeze({ ...item, label: item.label + '\n' + partLine(part) + (part.scope === null ? ' · 担当なし' : '') + beforeIdealMark(part),
+        summary: (item.summary ?? '') + '\n' + partRecord(part), flags: Object.freeze([...item.flags, 'gap-view']) });
+    });
+  if (physical) for (const item of physicalPackages) {
+    const conditions = physicalParts(item).map(part => part.condition);
+    if (conditions.length) relations.push(relation('physical-gapb-' + item.ref.id, item.ref, deltaRef, 'この差を埋める対象',
+      { gap: 'ideal-current', conditions: Object.freeze(conditions) }));
+    if (adequacy && targetsGapA(item)) relations.push(relation('physical-gapa-' + item.ref.id, item.ref, adequacy.ref, 'この差を埋める対象'));
+  }
   (suppliedScopes.length ? [] : g?.parts ?? []).forEach((part, index) => {
     const partRef = ref('gap-part', part.condition);
     const flags = [part.state === 'unmet' ? 'scope_status=unmet' : 'scope_status=unknown', ...(part.scope === null ? ['unassigned'] : [])];
@@ -462,7 +536,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   }
 
   // Keep the other areas' entities, any supplied Scopes, and the relations among them.
-  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
+  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope && item !== adequacy)];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
   return Object.freeze({ entities: Object.freeze([...entities, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });

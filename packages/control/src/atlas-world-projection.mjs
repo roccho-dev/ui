@@ -234,8 +234,9 @@ const orderedKeys = (keys, entityByKey, rank = new Map()) => [...keys].sort((lef
 
 // The vertical order inside each area. It starts from the supplied `order`
 // and then moves each entity toward the mean position of the entities it is
-// related to in the other areas (a fixed number of barycenter sweeps over the
-// visible supplied relations), which removes avoidable relation crossings.
+// related to, in its own area and in the others (a fixed number of barycenter
+// sweeps over the visible supplied relations), which removes avoidable
+// relation crossings.
 // Only declared order and relations are read; ties keep the previous order,
 // so the result is deterministic. Names and labels are never compared.
 // An area with supplied containment keeps its supplied order: moving nested
@@ -250,7 +251,7 @@ const areaRanks = (frame, areas, containment) => {
   const neighbors = new Map([...areaOf.keys()].map(key => [key, []]));
   for (const relation of frame.relations) {
     const from = entityKey(relation.from), to = entityKey(relation.to);
-    if (!relation.visible || !areaOf.has(from) || !areaOf.has(to) || areaOf.get(from) === areaOf.get(to)) continue;
+    if (!relation.visible || !areaOf.has(from) || !areaOf.has(to) || from === to) continue;
     neighbors.get(from).push(to);
     neighbors.get(to).push(from);
   }
