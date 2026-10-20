@@ -50,6 +50,8 @@ export const DEFAULT_THEME = Object.freeze({
     directedArrow: 'classic',
     undirectedArrow: 'none',
     lines: Object.freeze({
+      'graph-metrics': Object.freeze({ stroke: '#697586', width: 1.35, dashed: true, rounded: true }),
+      'graph-control': Object.freeze({ stroke: '#8065bd', width: 1.35, dashed: false, rounded: true }),
       message: Object.freeze({ stroke: '#697586', width: 1.35, dashed: true, rounded: false }),
       'chart-line': Object.freeze({ stroke: '#334155', width: 2.6, dashed: false, rounded: true }),
       'map-road-major': Object.freeze({ stroke: '#d28a2e', width: 4.2, dashed: false, rounded: true }),

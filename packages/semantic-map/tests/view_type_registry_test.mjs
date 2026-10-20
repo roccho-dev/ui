@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   RESERVED_PATTERNS,
   SUPPORTED_PATTERNS,
@@ -8,7 +9,7 @@ import {
   viewTypeRegistryManifest,
 } from '../pattern/index.js';
 
-const root = resolve(new URL('..', import.meta.url).pathname);
+const root = fileURLToPath(new URL('..', import.meta.url));
 const directory = resolve(root, 'pattern/view-types');
 const modules = readdirSync(directory, { withFileTypes: true })
   .filter(entry => entry.isDirectory())

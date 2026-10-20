@@ -1,4 +1,4 @@
-function fontSizeForRepresentation(representation, theme) {
+export function fontSizeForRepresentation(representation, theme) {
   if (representation.isGuide) return theme.edge.fontSize;
   if (representation.shape === 'map-attribution') return theme.geo.attributionFontSize;
   if (representation.shape === 'boundary' || representation.shape === 'seq-lane') {
@@ -19,7 +19,7 @@ function estimatedLineWidth(label, fontSize) {
   return units * fontSize;
 }
 
-function estimatedLabelWidth(label, fontSize) {
+export function estimatedLabelWidth(label, fontSize) {
   return Math.max(0, ...String(label ?? '').split(/\r?\n/u).map(line => estimatedLineWidth(line, fontSize)));
 }
 
