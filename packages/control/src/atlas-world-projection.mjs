@@ -241,10 +241,12 @@ const orderedKeys = (keys, entityByKey, rank = new Map()) => [...keys].sort((lef
 // An area with supplied containment keeps its supplied order: moving nested
 // containers can hide relations behind them.
 const BARYCENTER_SWEEPS = 4;
-const areaRanks = (frame, areas, containment) => {
+const areaRanks = (frame, areas, containment, fixedAreaId = null) => {
   const areaOf = new Map(frame.entities.map(entity => [entityKey(entity.ref), entity.area]));
   const nested = new Set([...containment.parentByChild.keys()].map(key => areaOf.get(key)));
-  const movable = areas.filter(area => !nested.has(area.id));
+  // The purpose area keeps its declared P/I/A/B/C order. Cross-area Scope
+  // relations must not lift the second gap above the first one.
+  const movable = areas.filter(area => !nested.has(area.id) && area.id !== fixedAreaId);
   const lists = new Map(areas.map(area => [area.id, orderedKeys(frame.entities.filter(entity => entity.area === area.id)
     .map(entity => entityKey(entity.ref)), new Map(frame.entities.map(entity => [entityKey(entity.ref), entity])))]));
   const neighbors = new Map([...areaOf.keys()].map(key => [key, []]));
@@ -550,7 +552,7 @@ export const projectWorldScene = ({
   let contentRight = AREA_PAD;
   // `ordering: 'supplied'` keeps the supplied order alone; it exists so the
   // crossings removed by the relation ordering can be measured against it.
-  const rank = ordering === 'supplied' ? new Map() : areaRanks(frame, areas, containment);
+  const rank = ordering === 'supplied' ? new Map() : areaRanks(frame, areas, containment, input.presentation.purposeAreaId);
   // Live activity keeps its own glyph and color; otherwise the supplied status
   // flags choose them. Either way a symbol precedes the label.
   // A matched phase past its matched_until, on the ui's clock, for the frame

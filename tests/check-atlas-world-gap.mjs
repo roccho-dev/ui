@@ -38,6 +38,7 @@ const expected = {
     'ideal-state:hq': '理想状態\n照らし合わせる理想状態なし（目的は終了）', 'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z',
     'gap-closed:t7': '閉じた差 4（この時点 1）\nc4 現在が充足・c1 目的の終了' },
 };
+for (const item of Object.values(expected)) if (item['gap:hq']) item['gap:hq'] = '理想↔現在の差\n' + item['gap:hq'];
 for (const item of input.frames) {
   const drawn = byKind(item);
   for (const [key, label] of Object.entries(expected[item.id])) assert.equal(drawn[key], label, item.id + ' ' + key);
