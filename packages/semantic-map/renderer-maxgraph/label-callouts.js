@@ -22,19 +22,22 @@ export function planLabelCallouts(scene, theme) {
   for (const item of scene.representations) {
     if (!valid(item.bounds)) continue;
     const box = item.bounds, font = fontSizeForRepresentation(item, theme);
-    const width = (estimatedLabelWidth(item.label, font) * 1.25 + 8) / scene.scale;
+    // Callouts force the renderer's complete label, including data-pin markers.
+    // Reserve that same string rather than just the underlying region name.
+    const completeLabel = displayedRegionLabel(item, scene.scale, theme, true);
+    const width = (estimatedLabelWidth(completeLabel, font) * 1.25 + 8) / scene.scale;
     const height = font * 1.6 / scene.scale;
     if (item.mode === 'boundary') {
       titles.push({ item, box: { x: box.x + theme.vertex.boundarySpacingLeft / scene.scale,
         y: box.y + theme.vertex.boundarySpacingTop / scene.scale,
-        width: Math.min(box.width, width), height } });
+        width, height } });
       continue;
     }
     reserved.push(box);
     const label = displayedRegionLabel(item, scene.scale, theme, false);
     if (label) {
       reserved.push({ x: box.x + (box.width - width) / 2, y: box.y + (box.height - height) / 2, width, height });
-    } else if (item.label && !item.resource && !item.isGuide && ['graph-node', 'graph-data', 'graph-terminal', 'graph-decision'].includes(item.shape)) {
+    } else if (completeLabel && !item.resource && !item.isGuide && ['graph-node', 'graph-data', 'graph-terminal', 'graph-decision'].includes(item.shape)) {
       candidates.push({ item, width, height });
     }
   }
