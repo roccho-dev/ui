@@ -434,7 +434,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // names the supplied phase, when it began (the first received frame, going
   // back from this one, in the same phase), a matched phase's next stale time
   // and whether the phase disagrees with the gap. The phase itself is read
-  // here and on 理想状態; what was held is in the box of changes.
+  // here and on 理想状態; what was held is in the frame's changes (frameChangeLabel).
   const phase = frame.phase ?? null;
   const consistent = phase === null ? true : (phase === 'approximating' ? g !== null && g.parts.length > 0
     : phase === 'matched' ? g !== null && g.parts.length === 0 : g === null);
@@ -565,14 +565,6 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     + (plans ?? []).map(plan => '\n計画 ' + plan.label + ' · 寄与 ' + (plan.serves.length ? plan.serves.join('、') : 'なし')
       + ' · 内容 ' + (plan.nodes === null ? 'UNKNOWN' : 'ノード ' + plan.nodes.length + ' 件')
       + ' · 出所 ' + plan.source.repo + (plan.source.commentId === null || plan.source.commentId === undefined ? '' : ' comment ' + plan.source.commentId)).join('');
-  // S7: the box of changes: what entered at this frame (its journal entries,
-  // v6, and the declarations held at it, v12), every one, with when, by whom
-  // and from where; journal and held are reached nowhere else. Its heading
-  // counts them and what was held up to this frame (P(a): counting it needs
-  // the earlier frames).
-  const changes = [...(frame.journal ?? []).map(journalRow), ...(frame.held ?? []).map(heldRow)];
-  const heldSoFar = [...earlier, frame].flatMap(item => item.held ?? []).length;
-  const changeLabel = 'この時点の変化 ' + changes.length + ' 件' + (heldSoFar ? ' · 保持 累計 ' + heldSoFar : '') + changes.map(row => '\n' + row).join('');
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + beforeIdeal
     + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
 
@@ -602,7 +594,6 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
         + (counts.agrees ? '' : ' 供給された summary は parts と一致しない: ' + JSON.stringify(g.summary))
         + unplaced.map(part => '\nScope に付かない差: ' + partRecord(part)).join('')), deltaFlags),
     entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 5, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
-    entity(ref('frame-change', purposeId), changeLabel, areas.purpose, 6, 'この frame に入った仕訳と保持（全件）。'),
   ];
   const relations = [
     relation('current-delta', currentRef, deltaRef, '差'),
@@ -699,7 +690,18 @@ export const journalRow = entry => JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABE
   + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN');
 // One declaration held back (v12) as a row.
 const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref;
-// A step past the present (S7) in the box of changes: its minute, and each
+// S7c (adrs#647): the changes of a frame, shown in #atlas-world-change under
+// the time controls: what entered at it (its journal entries, v6, and the
+// declarations held at it, v12), every one, with when, by whom and from
+// where; journal and held are reached nowhere else. The heading counts them
+// and what was held up to the frame (P(a): counting it needs the earlier
+// frames). `earlier` are the frames before it.
+export const frameChangeLabel = (earlier, frame) => {
+  const changes = [...(frame.journal ?? []).map(journalRow), ...(frame.held ?? []).map(heldRow)];
+  const heldSoFar = [...earlier, frame].flatMap(item => item.held ?? []).length;
+  return 'この時点の変化 ' + changes.length + ' 件' + (heldSoFar ? ' · 保持 累計 ' + heldSoFar : '') + changes.map(row => '\n' + row).join('');
+};
+// A step past the present (S7) in #atlas-world-change: its minute, and each
 // condition that reads unknown then with no new observation.
 export const forecastChangeLabel = step => '予定 ' + step.at + '（観測が無ければ unknown）'
   + step.items.map(item => '\n鮮度切れの予定 ' + item.condition + ' · 観測 ' + dayClockText(item.observedAt)).join('');

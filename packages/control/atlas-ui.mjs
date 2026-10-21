@@ -15,6 +15,7 @@ import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.m
 import { UPDATE_STALLED, forecastSteps, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
   viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
+import { forecastChangeLabel, frameChangeLabel } from './src/atlas-gap.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}
@@ -448,6 +449,7 @@ body{margin:0;overflow:hidden}
 #atlas-world-search-results{width:30%;min-width:80px;font:inherit}
 #atlas-world-search-count{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #atlas-world-search-bar button{flex:none;font:inherit}
+#atlas-world-change{box-sizing:border-box;flex:none;height:116px;overflow:auto;padding:4px 8px;font:13px/18px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6;overflow-wrap:anywhere}
 `;
 
 // A supplied World input the page refused: the last accepted one stays drawn.
@@ -482,9 +484,15 @@ export const mountAtlasWorldUI = ({
   // steps of the present's upkeep.
   const back = el('button', { type: 'button', id: 'atlas-world-step-back', text: '◀ 前へ', onclick: () => stepFrame(-1) });
   const forward = el('button', { type: 'button', id: 'atlas-world-step-forward', text: '次へ ▶', onclick: () => stepFrame(1) });
-  const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => toPresentNow() });
+  const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => followLatest() });
   const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, back, forward, toPresent);
-  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, container);
+  // S7c: the changes of the time shown, right under the time controls: the
+  // frame's (atlas-gap.mjs frameChangeLabel) or, on a step past the present,
+  // the step's (forecastChangeLabel), one line each; six lines high whatever
+  // it holds, so the graph keeps its size, the rest scrolled inside it. The
+  // graph never moves for it.
+  const changes = el('div', { id: 'atlas-world-change', role: 'region', 'aria-label': 'この時点の変化' });
+  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, changes, container);
   root.append(style, screen);
 
   const page = {
@@ -544,6 +552,13 @@ export const mountAtlasWorldUI = ({
       page.latest ? (['sample', 'live'].includes(transportOf(page)) && !stalled() ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD',
       viewedText(page.input.frames, frame, currentStep(), steps().length), last].filter(Boolean).join(' · ');
     status.title = status.textContent;
+    const index = page.input.frames.findIndex(item => item.id === frame.id);
+    const text = currentStep() ? forecastChangeLabel(currentStep()) : frameChangeLabel(index < 0 ? [] : page.input.frames.slice(0, index), frame);
+    if (changes.dataset.text !== text) {
+      changes.dataset.text = text;
+      changes.replaceChildren(...text.split('\n').map(line => el('div', { text: line })));
+      changes.scrollTop = 0;
+    }
     // A control that would change nothing is shown disabled, never hidden.
     const position = timelinePosition(page.input.frames, frame.id);
     back.disabled = position.index < 0 || (page.step === null && stepIndex(position, -1) === position.index);
@@ -586,7 +601,6 @@ export const mountAtlasWorldUI = ({
       viewport: viewport(),
       admission: page.admission,
       now: page.now,
-      step: currentStep(),
     });
     let projection = project();
     if (clampCamera(projection.world)) projection = project();
@@ -722,34 +736,12 @@ export const mountAtlasWorldUI = ({
       if (next >= steps().length) return;
       page.step = next < 0 ? null : next;
       draw();
-      revealChanges();
       return;
     }
     const next = stepIndex(position, delta);
     if (next === position.index) return;
     showFrame(next);
-    revealChanges();
   };
-  // A move in time (◀ 前へ, 次へ ▶, 現在へ) shows what changed (S7, I2e-fix):
-  // when the box of changes lies below the graph view, the camera moves up by
-  // the least amount that shows it whole, but never so far that 理想状態 (what
-  // the changes are read against, with its plans) leaves the view: a taller
-  // box shows its heading and first rows. Nothing else moves; the layout is
-  // the frame's own.
-  const revealChanges = () => {
-    const at = kind => page.projection?.scene.representations.find(rep => rep.atlas?.ref?.kind === kind)?.bounds ?? null;
-    const box = at('frame-change');
-    if (!box) return;
-    const { scale, translateX, translateY } = adapter.camera();
-    const view = graphView(), pad = 8;
-    const screen = y => (y + translateY) * scale;
-    const anchor = at('ideal-state') ?? box;
-    const shift = Math.min(screen(box.y + box.height) - (view.y + view.height - pad), Math.min(screen(anchor.y), screen(box.y)) - (view.y + pad));
-    if (shift <= 0.5) return;
-    adapter.setCamera(scale, translateX, translateY - shift / scale);
-    draw();
-  };
-  const toPresentNow = () => { followLatest(); revealChanges(); };
   const rejectInput = reason => {
     if (page.destroyed) return;
     // No state supplied by the rejected payload is admitted. This receipt is UI
@@ -830,7 +822,7 @@ export const mountAtlasWorldUI = ({
   const onKeyDown = event => {
     if (event.key === '[') stepFrame(-1);
     else if (event.key === ']') stepFrame(1);
-    else if (event.key === 'l' || event.key === 'L') toPresentNow();
+    else if (event.key === 'l' || event.key === 'L') followLatest();
     else return;
     event.preventDefault();
   };

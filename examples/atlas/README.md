@@ -204,12 +204,14 @@ panel, timeline strip or band.
   control that would change nothing is disabled, never hidden. The keys `[`
   `]` `L` are their shortcuts; no key acts without a visible control.
 - One time axis (S7, adrs#647 comment 6308860425): every point of it is the
-  three areas and the **box of changes** (purpose area, under 現在状態). On a
+  three areas and **the changes** of that time, in a six-line panel right under
+  the time controls (S7c; the rest scrolls inside the panel, the graph never
+  moves for it). On a
   frame it lists, every one, the journal entries the frame carries (kind, time,
   author, source, sha256) and what was held at it, under **この時点の変化 n 件 ·
   保持 累計 m**. Past the present, 次へ ▶ walks the present's `upkeep` by
   stale_at minute (fresh up to stale_at itself): the three areas stay the
-  present's, the box reads **予定 <minute>（観測が無ければ unknown）** and the
+  present's, the panel reads **予定 <minute>（観測が無ければ unknown）** and the
   conditions that read unknown then, and LATEST stays. A step whose minute has
   passed is gone; a new World returns from a step to the present (a held past
   frame stays held). A step is never a frame: no difference or phase is made.
@@ -273,9 +275,11 @@ their scratch next to the tests, or, inside the Nix build, in its sandbox
   nesting, actual-click selection, the held frame across updates, admission,
   resize, transport state and a gate-local SSE stream, as drawn;
 - `tests/atlas-world-status-browser-proof.mjs`: the status rows, the time
-  controls, the box of changes and search, by visible rectangles at 1500 and 800 px;
+  controls, the changes and search, by visible rectangles at 1500 and 800 px;
 - `tests/atlas-world-time-axis-browser-proof.mjs [--input=<World>]`: the steps past
-  the present, back to it, the box of changes, the plans and the largest box;
+  the present, back to it, every past frame and the new World over SSE, read
+  right after each operation with no scroll: 目的, 理想状態 and 差 whole in the
+  graph and the changes' heading and first row in the panel;
 - `tests/atlas-world-follow-browser-proof.mjs`: a live page follows the present
   over SSE, a new World returns from a step, and a held past frame stays held,
   read on the status row;

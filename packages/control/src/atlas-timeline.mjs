@@ -3,7 +3,7 @@
 // latest supplied frame) and, past it, the steps of the present's upkeep:
 // each stale_at minute at which, with no new observation, its conditions read
 // unknown. A step is never a frame: the three areas stay the present's, and
-// only the box of changes says the step. Nothing here is drawn on the graph.
+// only the changes panel (#atlas-world-change) says the step. Nothing here is drawn on the graph.
 // Pure; no DOM.
 
 import { dayClockText } from './atlas-gap.mjs';
