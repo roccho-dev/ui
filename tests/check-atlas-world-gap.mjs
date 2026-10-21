@@ -6,6 +6,11 @@ import { readFileSync } from 'node:fs';
 import { entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
+import * as gapModule from '../packages/control/src/atlas-gap.mjs';
+// The rows of a frame's journal as the box of changes draws them.
+const journalRows = item => (item.journal ?? []).map(gapModule.journalRow);
+// Every box but the box of changes (S7), which draws the frame's journal and held.
+const noChange = entity => entity.ref.kind !== 'frame-change';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 import { knownPlan } from './fixtures/atlas-plan-worlds.mjs';
 
@@ -156,8 +161,8 @@ assert.equal(claimedState('t6'), '現在状態\n観測 8 件 · 最新 05:30Z\n�
   + 'b · 完了と報告（出所 current:P#L2） · 10-17 05:30Z\nc · 不明（最新の行が不正）（出所 current:P#L3） · 10-17 05:30Z\n'
   + 'a · 作成（出所 current:P#L1） · 証拠 roccho-dev/apps#124（出所 current:P#L4） · 10-17 05:30Z');
 for (const item of claimed.frames) {
-  const plainKinds = Object.entries(byKind(frame(item.id))).filter(([entityKey]) => !entityKey.startsWith('current-state:'));
-  assert.deepEqual(Object.entries(byKind(item)).filter(([entityKey]) => !entityKey.startsWith('current-state:')), plainKinds, item.id + ': claims change nothing but 現在状態');
+  const plainKinds = Object.entries(byKind(frame(item.id))).filter(([entityKey]) => !/^(current-state|frame-change):/u.test(entityKey));
+  assert.deepEqual(Object.entries(byKind(item)).filter(([entityKey]) => !/^(current-state|frame-change):/u.test(entityKey)), plainKinds, item.id + ': claims change nothing but 現在状態');
   const currentNode = item.entities.find(entity => entity.ref.kind === 'current-state');
   assert.deepEqual(currentNode.flags, [], item.id + ': 現在状態 has no status flag');
   assert.equal(projectWorldScene({ input: claimed, frame: item }).representations.find(rep => rep.atlas?.ref?.kind === 'current-state').atlas.status, null,
@@ -176,14 +181,14 @@ assert.equal(admittedKinds('t2')['ideal-state:hq'], '理想状態\nv1 · 条件 
 for (const item of admitted.frames) {
   const plain = frame(item.id);
   assert.deepEqual(item.entities.map(entity => [entity.ref.kind, entity.flags]), plain.entities.map(entity => [entity.ref.kind, entity.flags]), item.id + ': admission changes no flag');
-  assert.deepEqual(item.entities.filter(entity => !['purpose', 'ideal-state'].includes(entity.ref.kind)).map(entity => entity.label),
-    plain.entities.filter(entity => !['purpose', 'ideal-state'].includes(entity.ref.kind)).map(entity => entity.label), item.id + ': 差, 現在状態, Scopes as without admission');
+  assert.deepEqual(item.entities.filter(entity => !['purpose', 'ideal-state', 'frame-change'].includes(entity.ref.kind)).map(entity => entity.label),
+    plain.entities.filter(entity => !['purpose', 'ideal-state', 'frame-change'].includes(entity.ref.kind)).map(entity => entity.label), item.id + ': 差, 現在状態, Scopes as without admission');
   assert.deepEqual(projectWorldScene({ input: admitted, frame: item }).representations.map(rep => [rep.regionId, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]),
     projectWorldScene({ input, frame: plain }).representations.map(rep => [rep.regionId, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]), item.id + ': same status and color');
 }
 assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(admitted))), admitted, 'admission marks are idempotent');
-// 仕訳 ▸'s row names the source's admission after the source.
-assert.match(timeline.journalLines(admitted.frames[0])[0], /出所 adrs#647（未採択） comment 6230983530/u);
+// A journal row names the source's admission after the source.
+assert.match(journalRows(admitted.frames[0])[0], /出所 adrs#647（未採択） comment 6230983530/u);
 const badAdmission = gapWorld({ admission: true });
 badAdmission.frames[0].journal[0].source.admission = '';
 assert.throws(() => parseAtlasWorldInput(badAdmission), /source.admission must be non-empty text/);
@@ -204,11 +209,11 @@ for (const item of unboundWorld.frames) {
   assert.ok(count ? drawnText(unboundWorld, item).includes('未結合 ' + count + ' 件') : !drawnText(unboundWorld, item).includes('未結合'),
     item.id + ': the screen shows the unbound count');
   assert.equal(idealOf(item), idealOf(frame(item.id)) + (count ? '\n計画：未宣言（UNKNOWN） · 未結合 ' + count + ' 件' : ''), item.id + ': 理想状態 counts the unbound plans');
-  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'ideal-state'), frame(item.id).entities.filter(entity => entity.ref.kind !== 'ideal-state'),
+  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'ideal-state' && noChange(entity)), frame(item.id).entities.filter(entity => entity.ref.kind !== 'ideal-state' && noChange(entity)),
     item.id + ': every other entity as without them');
   assert.ok(!item.entities.find(entity => entity.ref.kind === 'current-state').label.includes('未結合'), item.id + ': not in 現在状態');
   const scene = world => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none' }).scene.representations
-    .filter(rep => rep.atlas?.ref?.kind !== 'ideal-state').map(rep => [rep.regionId, rep.label, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
+    .filter(rep => !['ideal-state', 'frame-change'].includes(rep.atlas?.ref?.kind)).map(rep => [rep.regionId, rep.label, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
   assert.deepEqual(scene(unboundWorld), scene(input), item.id + ': same drawing besides 理想状態');
   assert.equal(item.plans, undefined, item.id + ': unbound plans are not mixed into plans');
 }
@@ -217,15 +222,17 @@ for (const item of unboundWorld.frames) {
 const laterBound = gapWorld({ unbound: true });
 laterBound.frames[7].plans = [{ ...knownPlan, ref: 'mieru#3', plan: 'mieru#3:release', label: 'mieru release (mieru#3 v1)', version: 1 }];
 const laterBoundWorld = parseAtlasWorldInput(laterBound);
-assert.ok(idealOf(laterBoundWorld.frames[7]).endsWith('\n計画：1 件 · 未結合 2 件'), idealOf(laterBoundWorld.frames[7]));
+// S7: the plan's own line follows (label · serves · content · source).
+assert.ok(idealOf(laterBoundWorld.frames[7]).endsWith('\n計画：1 件 · 未結合 2 件\n計画 mieru release (mieru#3 v1) · 寄与 refactor-windows-retired · 内容 ノード 2 件 · 出所 resources#25 comment 4411'),
+  idealOf(laterBoundWorld.frames[7]));
 // Plans supplied with none unbound: the plans alone; neither: no line (no zero count).
 const onlyPlans = gapWorld();
 onlyPlans.frames[4].plans = [];
 assert.ok(idealOf(parseAtlasWorldInput(onlyPlans).frames[4]).endsWith('\n計画：有効な計画 0 件'), 'supplied plans are shown');
 assert.ok(!input.frames.some(item => idealOf(item).includes('計画：')), 'no plans and none unbound: no plan line');
-// 仕訳 ▸'s rows name each entry of the frame, the unbound ones marked, with
+// The journal rows name each entry of the frame, the unbound ones marked, with
 // time and author.
-const unboundRows = timeline.journalLines(unboundWorld.frames[4]);
+const unboundRows = journalRows(unboundWorld.frames[4]);
 assert.ok(unboundRows.includes('◇ 計画（宣言に未結合） resources#71:tool-split v1 · 2026-10-17T03:20:00Z · 作者 roccho-dev · 出所 roccho-dev/resources#71 · sha256 ' + 'c'.repeat(64))
   && unboundRows.includes('◇ 計画（宣言に未結合） nixos#12:fork-surface v2 · 2026-10-17T03:30:00Z · 作者 不明 · 出所 roccho-dev/nixos#12 comment 4100 · sha256 ' + 'd'.repeat(64))
   && unboundRows.some(row => row.startsWith('◇ 計画 resources#25:migration · ')), JSON.stringify(unboundRows));
@@ -255,9 +262,9 @@ assert.equal(deltaDrawn(matchedNow, 't5', Date.parse('2026-10-17T05:41:01Z')), f
 assert.ok(deltaDrawn(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')).endsWith(flat('理想↔現在の差（一致・維持・10-17 02:00Z から・次の鮮度切れ 10-17 02:41Z）\n前 不明')),
   'a past frame is not judged by today');
 
-// No band (contract 3, revised): 仕訳 ▸ lists each frame's own entries (v6: at
+// No band (contract 3, revised): the box of changes lists each frame's own entries (v6: at
 // the frame that carries them).
-assert.deepEqual(input.frames.map(item => timeline.journalLines(item).map(row => row.split(' ')[0])),
+assert.deepEqual(input.frames.map(item => journalRows(item).map(row => row.split(' ')[0])),
   [['◎'], ['△'], ['▲', '·'], ['▲', '★'], ['◇', '·'], ['★'], [], []], 'each frame lists the entries it carries');
 
 // A digest revision is shown short and named so; the whole value stays in the record.
@@ -273,7 +280,7 @@ named.frames[3].gap.basis.purpose_label = '人は目的を宣言するだけ';
 named.frames[0].journal[0].actor = null;
 const namedInput = parseAtlasWorldInput(named);
 assert.equal(byKind(namedInput.frames[3])['purpose:hq'], '目的\n人は目的を宣言するだけ\nrev 1 · 過去の評価：理想状態が不十分');
-assert.match(timeline.journalLines(namedInput.frames[0])[0], /作者 不明/u);
+assert.match(journalRows(namedInput.frames[0])[0], /作者 不明/u);
 // Without a label, a part's headline is its condition id.
 const unlabeled = gapWorld();
 delete unlabeled.frames[3].gap.parts[0].label;
@@ -362,7 +369,7 @@ for (const item of judged.frames) {
   assert.equal(drawn.label, '目的↔理想の差\n' + gapALabel[item.id], item.id + ': GapA state and reason');
   assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': GapA status from its state only');
   assert.ok(!/\d+ 件/u.test(drawn.label), item.id + ': GapA draws no count');
-  assert.deepEqual(purposeOrder(item), ['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': the chain P, GapA, I, GapB, C');
+  assert.deepEqual(purposeOrder(item), ['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'frame-change'], item.id + ': the chain P, GapA, I, GapB, C, then the changes');
   assert.ok(gapRelations(item).includes('ideal-state>purpose-adequacy 照らす') && gapRelations(item).includes('purpose-adequacy>purpose 十分性'), item.id);
   assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'purpose-adequacy').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
     frame(item.id).entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': adequacy changes no other entity');
@@ -395,8 +402,8 @@ for (const item of signed.frames) {
 // only, and never in a box (S6): every label and flag as without.
 const heldWorld = parseAtlasWorldInput(gapWorld({ held: true }));
 for (const item of heldWorld.frames) {
-  assert.deepEqual(item.entities.map(entity => [entity.ref.kind, entity.label, entity.flags]),
-    frame(item.id).entities.map(entity => [entity.ref.kind, entity.label, entity.flags]), item.id + ': held changes no box');
+  assert.deepEqual(item.entities.filter(noChange).map(entity => [entity.ref.kind, entity.label, entity.flags]),
+    frame(item.id).entities.filter(noChange).map(entity => [entity.ref.kind, entity.label, entity.flags]), item.id + ': held changes no box but the changes');
 }
 
 // I2b-1 (contract 3 revised, v12): each feature is checked on its own, so each
@@ -405,18 +412,18 @@ const missing = [];
 const feature = (name, body) => {
   try { body(); } catch (error) { missing.push(name + ': ' + String(error.message).split('\n')[0]); }
 };
-// Cases 15 and 29 (S6): what was held up to the frame shown is read in 仕訳 ▸,
-// one row per declaration (reason · kind · when · source) in the order they
-// entered, after the frame's entries; the button counts both.
-feature('held rows in 仕訳 ▸ (cases 15, 29)', () => {
-  assert.equal(typeof timeline.heldLines, 'function', 'heldLines is provided');
-  const t3 = ['保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647'];
-  const t5 = [...t3, '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552', '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647'];
-  const rows = { t0: [], t1: [], t2: [], t3, t4: t3, t5, t6: t5, t7: t5 };
-  for (const item of heldWorld.frames) assert.deepEqual(timeline.heldLines(heldWorld.frames, item), rows[item.id], item.id + ': held up to the frame, one row each');
-  assert.deepEqual(timeline.heldLines(input.frames, frame('t5')), [], 'none held: no row');
-  assert.equal(timeline.journalButtonText(timeline.journalLines(heldWorld.frames[5]).length, t5.length, false), '仕訳 1 · 保持 3（累計）▸');
-  assert.equal(timeline.journalButtonText(0, 0, true), '仕訳 0 · 保持 0（累計）▾');
+// S7: the box of changes of a frame draws, every one, the journal entries it
+// carries (v6) and what was held at it (v12), and its heading counts them
+// and what was held up to it (cases 15, 29).
+feature('the box of changes (S7, cases 15, 29)', () => {
+  const change = (world, id) => world.frames.find(item => item.id === id).entities.find(entity => entity.ref.kind === 'frame-change').label;
+  const t3Held = '保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647';
+  assert.equal(change(heldWorld, 't3'), 'この時点の変化 3 件 · 保持 累計 1\n' + [...journalRows(frame('t3')), t3Held].join('\n'));
+  assert.equal(change(heldWorld, 't4').split('\n')[0], 'この時点の変化 2 件 · 保持 累計 1', 't4: its own two entries, one held so far');
+  assert.equal(change(heldWorld, 't5'), 'この時点の変化 3 件 · 保持 累計 3\n' + [...journalRows(frame('t5')),
+    '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552', '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647'].join('\n'));
+  assert.equal(change(heldWorld, 't7'), 'この時点の変化 0 件 · 保持 累計 3', 't7: nothing entered, three held so far');
+  assert.equal(change(input, 't6'), 'この時点の変化 0 件', 'none held: no 保持 累計');
 });
 // Case 14: while an ideal is in force, a newer ideal.drafting with no ideal.set
 // of its version yet reads 改訂中 on 理想状態. Display only.
@@ -445,11 +452,12 @@ feature('最後の観測 (case 26)', () => {
   rejectPart(part => { part.last_observed.source = { ref: 'x', url: 'y' }; }, /last_observed.source: unknown field url/);
   rejectPart(part => { delete part.last_observed.actor; }, /last_observed.actor is required/);
 });
-// frames[i].upkeep is read exactly and kept; 予定 ▸ lists it.
+// frames[i].upkeep is read exactly and kept (S7: on any frame with a condition met).
 feature('upkeep', () => {
   const kept = parseAtlasWorldInput(gapWorld({ upkeep: true }));
   assert.deepEqual(kept.frames[5].upkeep.map(item => item.condition), ['c3', 'c1']);
   assert.equal(kept.frames[4].upkeep, undefined, 'only the frames that carry it');
+  assert.deepEqual(kept.frames[6].upkeep.map(item => item.condition), ['c3', 'c2'], 'an approximating frame with conditions met');
   const rejectT5 = (mutate, pattern) => { const raw = gapWorld({ upkeep: true }); mutate(raw.frames[5]); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
   rejectT5(item => { item.upkeep = {}; }, /upkeep must be an array/);
   rejectT5(item => { item.upkeep[0].maxAge = 'PT1H'; }, /upkeep\[0\]: unknown field maxAge/);
@@ -458,27 +466,22 @@ feature('upkeep', () => {
   const fullV12 = parseAtlasWorldInput(gapWorld({ judged: true, held: true, evaluator: true, physical: true, drafting: true, lastObserved: true, upkeep: true }));
   assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(fullV12))), fullV12, 'contract v12 fields are idempotent');
 });
-// 予定 ▸ (contract 3, revised): the latest frame's planned side, not a frame:
-// its plans, the plans bound to no ideal state, and the upkeep (per condition,
-// earliest first) or, without it, matched_until alone. Not matched: none.
-feature('予定 ▸', () => {
-  assert.equal(typeof timeline.forecastLines, 'function', 'forecastLines is provided');
-  const forecastOf = world => timeline.forecastLines(world.frames);
-  assert.deepEqual(forecastOf(parseAtlasWorldInput(gapWorld({ through: 't5', unbound: true }))), [
-    '予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）', '未結合 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2', '次の鮮度切れ 10-17 05:41Z']);
-  assert.deepEqual(forecastOf(input).slice(-1), ['維持の作業：なし（一致・維持ではない）'], 'the latest is not matched');
+// S7: the steps past the present are its upkeep by stale_at minute; on a step
+// the box of changes says its minute and the conditions read unknown then.
+feature('steps past the present (S7)', () => {
+  const present = parseAtlasWorldInput(gapWorld({ through: 't5', upkeep: true })).frames.at(-1);
+  const steps = timeline.forecastSteps(present, Date.parse('2026-10-17T05:00:00Z'));
+  assert.deepEqual(steps.map(step => gapModule.forecastChangeLabel(step)), [
+    '予定 10-17 05:41Z（観測が無ければ unknown）\n鮮度切れの予定 c1 · 観測 10-17 03:40Z', '予定 10-17 06:10Z（観測が無ければ unknown）\n鮮度切れの予定 c3 · 観測 10-17 03:40Z']);
+  assert.equal(timeline.viewedText([present], present, steps[1], steps.length), '表示中：予定 2/2 · 10-17 06:10Z（観測が無ければ）');
+  assert.deepEqual(timeline.forecastSteps(frame('t7'), null), [], 'no upkeep: no step');
 });
-feature('予定 ▸ with upkeep', () => {
-  assert.deepEqual(timeline.forecastLines(parseAtlasWorldInput(gapWorld({ through: 't5', upkeep: true })).frames).slice(-3), [
-    '維持の作業（鮮度切れの予定の早い順）', 'c1 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 05:41Z', 'c3 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 06:10Z']);
-});
-// 仕訳 n ▸: the entries the displayed frame carries, one row each.
-feature('仕訳 ▸', () => {
-  assert.equal(typeof timeline.journalLines, 'function', 'journalLines is provided');
-  assert.deepEqual(timeline.journalLines(frame('t3')), [
+// The journal rows: the entries the frame carries, one row each.
+feature('journal rows', () => {
+  assert.deepEqual(journalRows(frame('t3')), [
     '▲ 理想の確定 · 2026-10-17T02:30:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64),
     '★ 評価 · 2026-10-17T02:50:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
-  assert.deepEqual(timeline.journalLines(frame('t6')), [], 't6 carries none');
+  assert.deepEqual(journalRows(frame('t6')), [], 't6 carries none');
 });
 // Search: a selected relation brings the camera to a drawn end of it (the one
 // screen has no record panel), its from box first.

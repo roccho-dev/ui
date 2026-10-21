@@ -7,7 +7,7 @@
 //   kind in it, every kind in it is drawn by some World here, none of the
 //   removed P elements is drawn, and the relations carry no label.
 // - What the 30 divergence cases need is read where the User reads it: the
-//   text drawn in the boxes, or the rows of 仕訳 ▸.
+//   text drawn in the boxes (S7: what was held, in the box of changes).
 // Every check is reported; one failing does not hide the others.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -17,6 +17,10 @@ import { SCREEN_CONTROLS, SCREEN_LINES } from '../packages/control/src/atlas-scr
 import * as gapModule from '../packages/control/src/atlas-gap.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
+import { knownPlan, unknownPlan } from './fixtures/atlas-plan-worlds.mjs';
+
+// The gap story with two plans at t4 (one with unknown content).
+const plannedWorld = () => { const raw = gapWorld(); raw.frames[4].plans = [structuredClone(knownPlan), structuredClone(unknownPlan)]; return parseAtlasWorldInput(raw); };
 import { bundledWorld, worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
 
 const failures = [];
@@ -43,7 +47,7 @@ assert.deepEqual(worldViewport({ width: 800, height: 600 }), { graph: { x: 16, y
 // The table. A box is named by what gapView draws in it; any other box is the
 // producer's (supplied), and so is every box of a frame without a gap. Lines are read as gapView writes them, before the
 // layout wraps them; the stale present's heading as the projection writes it.
-const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed']);
+const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed', 'frame-change']);
 const boxOf = (entity, frame) => !Object.hasOwn(frame, 'gap') ? 'supplied' : GAP_BOXES.has(entity.ref.kind) && (entity.ref.kind !== 'purpose' || entity.flags.includes('gap-view')) ? entity.ref.kind
   : entity.flags.includes('gap-view') ? (entity.flags.includes('physical-scope') ? 'physical' : 'scope-card')
     : entity.ref.kind === 'phase' ? 'phase' : 'supplied';
@@ -60,7 +64,8 @@ const REMOVED = [
 const lineWorlds = [
   ...worlds,
   ...[{}, { groups: true }, { groups: 'unplaced' }, { current: true, admission: true }, { newPurpose: true }, { sides: false, v5: false },
-    { physical: true, lastObserved: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
+    { physical: true, lastObserved: true }, { held: true, upkeep: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
+  plannedWorld(),
 ];
 const seen = new Set();
 for (const world of lineWorlds) for (const frame of world.frames) {
@@ -72,6 +77,8 @@ for (const world of lineWorlds) for (const frame of world.frames) {
       check('the stale present is named on the 差 heading (staleDeltaLabel)', typeof staleDeltaLabel === 'function');
       if (typeof staleDeltaLabel === 'function') labels.push(staleDeltaLabel(entity.label, frame));
     }
+    // S7: on a step past this frame (were it the present), the box of changes says the step.
+    if (entity.ref.kind === 'frame-change') for (const step of timeline.forecastSteps?.(frame, null) ?? []) labels.push(gapModule.forecastChangeLabel(step));
     check(frame.id + ': ' + box + ' is a box of the table', boxes.has(box), entity.ref);
     for (const line of labels.flatMap(label => label.split('\n'))) {
       const kind = boxes.has(box) ? kindOf(box, line) : null;
@@ -129,21 +136,46 @@ for (const [number, name, options, id, words, extra = {}] of CASES) {
   const text = drawn(options, id, extra);
   for (const word of words) check('case ' + number + ' (' + name + ') at ' + id + ': ' + word + ' is drawn', text.includes(flat(word)));
 }
-// Cases 15 and 29 (S6): what was held is a row of 仕訳 ▸, one per declaration
-// held up to the frame shown, never drawn in a box.
-const heldWorld = parseAtlasWorldInput(gapWorld({ held: true }));
-const t5 = heldWorld.frames.find(item => item.id === 't5');
-const rows = timeline.heldLines?.(heldWorld.frames, t5) ?? [];
-for (const [number, row] of [[15, '保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647'], [29, '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552'],
-  [15, '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647']]) {
-  check('case ' + number + ' at t5: 仕訳 ▸ has the row ' + row, rows.includes(row), rows);
+// Cases 15 and 29 (S7): what was held is a row of the box of changes of the
+// frame it was held at, and its heading counts what was held up to there.
+const heldText = id => drawn({ held: true }, id);
+for (const [number, id, row] of [[15, 't3', '保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647'],
+  [29, 't5', '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552'], [15, 't5', '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647']]) {
+  check('case ' + number + ' at ' + id + ': the box of changes has the row ' + row, heldText(id).includes(flat(row)));
 }
-// The button says the two counts differ in kind (R, I2d): 仕訳 is the frame's,
-// 保持 is accumulated up to it; the table's row says the same.
-check('仕訳 n · 保持 m（累計）▸: the button reads both counts, 保持 as accumulated',
-  timeline.journalButtonText(1, rows.length, false) === '仕訳 1 · 保持 3（累計）▸' && timeline.journalButtonText(0, 0, true) === '仕訳 0 · 保持 0（累計）▾'
-    && SCREEN_CONTROLS.find(item => item.id === 'atlas-world-journal')?.carries.startsWith('仕訳 n · 保持 m（累計）▸'));
-check('cases 15 and 29: no box draws what was held', !drawn({ held: true }, 't5').includes(flat('保持')));
+check('cases 15 and 29: the heading counts what was held up to the frame', heldText('t4').includes(flat('この時点の変化 2 件 · 保持 累計 1'))
+  && heldText('t6').includes(flat('保持 累計 3')) && !drawn({}, 't6').includes(flat('保持 累計')));
+// S7: the time controls are three; 予定 ▸ and 仕訳 ▸ are gone.
+check('the controls are the status, the search and ◀ 前へ / 次へ ▶ / 現在へ', JSON.stringify(SCREEN_CONTROLS.map(item => item.id))
+  === JSON.stringify(['atlas-world-status', 'atlas-world-search', 'atlas-world-search-results', 'atlas-world-search-count', 'atlas-world-step-back', 'atlas-world-step-forward', 'atlas-world-present']));
+// The steps past the present: the present's upkeep by stale_at minute,
+// earliest first; fresh up to stale_at itself (≦); passed ones left out.
+const stepsOf = (options, now) => (timeline.forecastSteps?.(parseAtlasWorldInput(gapWorld(options)).frames.at(-1), now) ?? []).map(step => [step.at, step.items.map(item => item.condition)]);
+check('t5 present: two steps, c1 at 05:41 then c3 at 06:10', JSON.stringify(stepsOf({ through: 't5', upkeep: true }, Date.parse('2026-10-17T05:30:00Z')))
+  === JSON.stringify([['10-17 05:41Z', ['c1']], ['10-17 06:10Z', ['c3']]]));
+check('a stale_at is fresh up to itself, then its step is gone', stepsOf({ through: 't5', upkeep: true }, Date.parse('2026-10-17T05:41:00Z')).length === 2
+  && JSON.stringify(stepsOf({ through: 't5', upkeep: true }, Date.parse('2026-10-17T05:41:00.001Z'))) === JSON.stringify([['10-17 06:10Z', ['c3']]]));
+check('an approximating present with conditions met has its steps', JSON.stringify(stepsOf({ through: 't6', upkeep: true }, Date.parse('2026-10-17T06:30:00Z')))
+  === JSON.stringify([['10-17 07:10Z', ['c3']], ['10-17 07:40Z', ['c2']]]));
+// On a step the three areas are the present's; only the box of changes says the step.
+{
+  const world = parseAtlasWorldInput(gapWorld({ through: 't5', upkeep: true }));
+  const present = world.frames.at(-1);
+  const step = timeline.forecastSteps?.(present, Date.parse('2026-10-17T05:30:00Z'))[0] ?? null;
+  const labels = extra => Object.fromEntries(project(world, present, { now: Date.parse('2026-10-17T05:30:00Z'), ...extra }).scene.representations.map(rep => [rep.regionId, rep.label]));
+  const [at, on] = [labels({}), labels({ step })];
+  const changed = Object.keys(at).filter(id => at[id] !== on[id]);
+  check('a step changes the box of changes only, which says the step', changed.length === 1 && /frame-change/u.test(changed[0])
+    && flat(on[changed[0]]).includes(flat('予定 10-17 05:41Z（観測が無ければ unknown）鮮度切れの予定 c1 · 観測 10-17 03:40Z')), changed);
+}
+// S7: each plan of the frame is a line of 理想状態 (label, serves, content, source).
+{
+  const world = plannedWorld();
+  const text = flat(project(world, world.frames[4]).scene.representations.map(rep => rep.label).join('\n'));
+  check('理想状態 lists each plan of the frame (label, serves, content, source)', text.includes(flat('計画：2 件'
+    + '計画 windows repo 退役の閉包グラフ（resources#25 v3） · 寄与 refactor-windows-retired · 内容 ノード 2 件 · 出所 resources#25 comment 4411'
+    + '計画 Atlas 閉包グラフ（adrs#646 v1） · 寄与 atlas-hq-loop、input-semcmp · 内容 UNKNOWN · 出所 adrs#646')), text.slice(0, 300));
+}
 for (const failure of failures) console.error(JSON.stringify(failure));
 assert.equal(failures.length, 0, failures.length + ' screen checks fail');
 console.log(JSON.stringify({ status: 'atlas-world-screen-checks-pass', regions, kinds: seen.size, cases: new Set([...CASES.map(([number]) => number), 15, 29]).size }));

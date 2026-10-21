@@ -9,6 +9,8 @@
 // the row overflows), never by textContent alone, at 1500 and 800 px:
 // - following the present, each accepted World moves the row to its latest
 //   frame (LATEST · 表示中：現在 6/6 · t5, then 7/7 · t6), and 差 reads it;
+// - on a step past the present (S7: 予定 1/2, from t5's upkeep, on a page
+//   clock before its stale times), the next World returns to the present;
 // - a past frame held with ◀ 前へ stays held when a newer World arrives
 //   (HELD · 表示中：過去 6/8 · t5), and 現在へ reaches the new latest (8/8 · t7).
 // Every file it writes is under --out (fixtures/proof-scratch.mjs).
@@ -35,7 +37,7 @@ const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 const { scratch, done } = proofScratch(args.out);
 const input = path.join(scratch, 'world.json');
-fs.writeFileSync(input, JSON.stringify(gapWorld({ through: 't5' })), { flag: 'wx' });
+fs.writeFileSync(input, JSON.stringify(gapWorld({ through: 't5', upkeep: true })), { flag: 'wx' });
 await buildLiveAtlas({ input, out: path.join(args.out, 'page'), consumer: 'app' });
 const body = fs.readFileSync(path.join(path.resolve(args.out), 'page', 'index.html'));
 const site = http.createServer((request, response) => {
@@ -45,7 +47,7 @@ const site = http.createServer((request, response) => {
 await new Promise(resolve => site.listen(0, '127.0.0.1', resolve));
 // One scripted connection per page: t0..t5, t0..t6 after a while, then t0..t7
 // after long enough to step back in between.
-const script = () => [{ data: gapWorld({ through: 't5' }) }, { delayMs: 1500 }, { data: gapWorld({ through: 't6' }) }, { delayMs: 4000 }, { data: gapWorld() }];
+const script = () => [{ data: gapWorld({ through: 't5', upkeep: true }) }, { delayMs: 2500 }, { data: gapWorld({ through: 't6' }) }, { delayMs: 4000 }, { data: gapWorld() }];
 const producer = await startAtlasProducer({ connections: [script(), script()] });
 
 const checks = [];
@@ -88,14 +90,19 @@ try {
   browser = await chromium.launch({ headless: true });
   for (const width of [1500, 800]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
+    // Before t5's stale times, so its steps are ahead.
+    await page.clock.install({ time: new Date('2026-10-17T05:30:00Z') });
     await page.goto('http://127.0.0.1:' + site.address().port + '/?events=' + encodeURIComponent(producer.url), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
     // Synchronization only: the first snapshot was accepted.
     await page.waitForFunction(() => window.liveAtlas.page.snapshotBytes !== null, null, { timeout: 60000 });
     const first = await shown(page, ['LATEST', '表示中：現在 6/6 · t5']);
     check(width + 'px: the first World is followed: LATEST · 表示中：現在 6/6 · t5', allShown(first) && !first.text.includes('最新か不明'), first);
+    await page.getByRole('button', { name: '次へ ▶', exact: true }).click();
+    const step = await shown(page, ['LATEST', '表示中：予定 1/2 · 10-17 05:41Z（観測が無ければ）']);
+    check(width + 'px 次へ ▶: on the first step past the present, 予定 1/2', allShown(step), step);
     const second = await shown(page, ['LATEST', '表示中：現在 7/7 · t6']);
-    check(width + 'px: the next World moves the row to its latest: 表示中：現在 7/7 · t6', allShown(second), second);
+    check(width + 'px: the next World returns from the step and moves the row to its latest: 表示中：現在 7/7 · t6', allShown(second) && !second.text.includes('予定'), second);
     check(width + 'px: 差 reads the frame followed (t6)', (await delta(page))?.includes('理想↔現在の差（近似中・10-17 06:00Z から）'.replace(/\s/gu, '')), await delta(page));
     await page.getByRole('button', { name: '◀ 前へ', exact: true }).click();
     const back = await shown(page, ['HELD', '表示中：過去 6/7 · t5']);

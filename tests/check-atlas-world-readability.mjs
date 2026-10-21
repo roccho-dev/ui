@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
 import { ATLAS_STATUS, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
-import { forecastLines } from '../packages/control/src/atlas-timeline.mjs';
+import { forecastSteps } from '../packages/control/src/atlas-timeline.mjs';
+import { forecastChangeLabel } from '../packages/control/src/atlas-gap.mjs';
+import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 import { planWorld } from './fixtures/atlas-plan-worlds.mjs';
 import { countRelationCrossings } from './fixtures/atlas-crossings.mjs';
 import { STATUS_FLAGS, crossingWorld, statusWorld } from './fixtures/atlas-readability-worlds.mjs';
@@ -54,16 +56,18 @@ assert.deepEqual(crossings['bundled/before'], { before: 5, after: 5 }, 'nested a
 assert.ok(Object.values(crossings).reduce((sum, item) => sum + item.before - item.after, 0) > 0, 'total crossings decrease');
 assert.throws(() => projectWorldScene({ input: statusInput, frame: statusInput.frames[0], ordering: 'names' }), /unsupported ordering/);
 
-// The planned side (予定 ▸) says nothing has happened: no done/happened
-// words, and it names itself as plans, not facts.
+// The steps past the present (S7) say nothing has happened: no done/happened
+// words, and each names itself as what holds only with no new observation.
 const FUTURE_FACT_WORDS = /完了|起きた|済み|達成/u;
 let futureLines = 0;
-for (const world of [parseAtlasWorldInput(worldWithFrames(3)), parseAtlasWorldInput(planWorld())]) {
-  const lines = forecastLines(world.frames);
-  assert.ok(lines[0].includes('計画であって事実ではない'), 'the planned side names itself: ' + lines[0]);
-  for (const line of lines) {
-    assert.equal(FUTURE_FACT_WORDS.test(line), false, 'future side says nothing happened: ' + line);
-    futureLines += 1;
+for (const world of [parseAtlasWorldInput(gapWorld({ through: 't5', upkeep: true })), parseAtlasWorldInput(gapWorld({ through: 't6', upkeep: true }))]) {
+  for (const step of forecastSteps(world.frames.at(-1), null)) {
+    const lines = forecastChangeLabel(step).split('\n');
+    assert.ok(lines[0].includes('（観測が無ければ unknown）'), 'a step names its condition: ' + lines[0]);
+    for (const line of lines) {
+      assert.equal(FUTURE_FACT_WORDS.test(line), false, 'a step says nothing happened: ' + line);
+      futureLines += 1;
+    }
   }
 }
 console.log(JSON.stringify({ status: 'atlas-world-readability-checks-pass', statusCases, crossings, futureLines }));
