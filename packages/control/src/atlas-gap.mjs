@@ -54,6 +54,12 @@ export const JOURNAL_LABEL = Object.freeze({ 'purpose.set': '目的', 'ideal.dra
   'plan.set': '計画', 'purpose.evaluated': '評価', 'purpose.ended': '目的の終了', observation: '観測' });
 // L3: a plan.set bound to no ideal state's requires[].plans.
 export const UNBOUND_MARK = '（宣言に未結合）';
+// v12: such entries in `journal` (up to a frame), each plan id once, leaving
+// out an id the frame's plans carry. Counted only, never one of the plans.
+export const unboundPlanCount = (journal, plans) => {
+  const bound = new Set((plans ?? []).map(item => item.plan));
+  return new Set(journal.filter(entry => entry.unbound === true && !bound.has(entry.plan)).map(entry => entry.plan)).size;
+};
 // A3 (apps#120): a decision's source observed but not admitted is marked
 // where the decision is drawn. Display only: no judgment reads it. A value
 // this ui does not know is shown as it is.
@@ -519,7 +525,14 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const claims = currentClaims(journal);
   const contrast = g === null ? '' : '\n' + (g.summary.satisfied === null || g.summary.conditions === null ? '理想の条件との一致 未供給'
     : '理想の条件 ' + g.summary.conditions + ' 件のうち一致 ' + g.summary.satisfied + ' 件');
-  // Plans bound to no ideal state are counted in the plan cell (v12), not here.
+  // Plans are an attribute of the ideal state (v12): 理想状態 ends with the
+  // frame's plans and the plans bound to no ideal state, so every chrome shows
+  // them (the HUD's plan cell too). No line when neither is there (no zero
+  // count); never in 現在状態 and never a judgment.
+  const unbound = unboundPlanCount(journal, frame.plans);
+  const plans = frame.plans ?? null;
+  const planLine = plans === null && !unbound ? '' : '\n計画：' + (plans === null ? '未宣言（UNKNOWN）' : plans.length ? plans.length + ' 件' : '有効な計画 0 件')
+    + (unbound ? ' · 未結合 ' + unbound + ' 件' : '');
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + contrast
     + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
 
@@ -543,7 +556,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
       ['gap-view']),
     // Declared in the order of their chain: 目的–GapA–理想状態–差–現在状態.
     ...(adequacy ? [Object.freeze({ ...adequacy, area: areas.purpose, order: 2 })] : []),
-    entity(idealRef, '理想状態\n' + idealLine, areas.purpose, 3,
+    entity(idealRef, '理想状態\n' + idealLine + planLine, areas.purpose, 3,
       g === null ? '照らし合わせる理想状態が無い（parts=null: UNKNOWN）。'
         : '理想状態 ' + versionText(g.basis.ideal_version) + (moved ? '（直前 ' + versionText(prevVersion) + '）' : '') + '。追加・改訂は開いている差の原因の件数。'),
     entity(deltaRef, deltaText, areas.purpose, 4, g === null ? '差は不明（0 ではない）。'

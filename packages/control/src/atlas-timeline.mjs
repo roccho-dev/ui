@@ -4,7 +4,7 @@
 // undeclared (UNKNOWN), not as an empty future. Pure; no DOM.
 
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
-import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, UNBOUND_MARK, admissionMark } from './atlas-gap.mjs';
+import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, UNBOUND_MARK, admissionMark, unboundPlanCount } from './atlas-gap.mjs';
 
 // Whether a World carries phases or a journal, and so gets the band.
 export const hasBand = input => input.frames.some(frame => Object.hasOwn(frame, 'phase') || Object.hasOwn(frame, 'journal'));
@@ -159,12 +159,9 @@ export const projectTimeline = ({
       with_('表示中：' + step, wordLong), with_(step, wordShort),
       ['disconnected', 'silent', 'nodata', 'mismatch'].includes(transport) ? wordShort : step];
   const toggle = planOpen ? '閉じる' : '詳細';
-  // v12 (L3): plan.set entries bound to no ideal state, up to this frame, each
-  // plan id once, leaving out an id the frame's plans carry. Counted here only,
-  // never mixed into the frame's plans.
-  const bound = new Set((plans ?? []).map(item => item.plan));
-  const unbound = new Set([...frames.slice(0, Math.max(0, frames.findIndex(item => item.id === frame.id))), frame]
-    .flatMap(item => item.journal ?? []).filter(entry => entry.unbound === true && !bound.has(entry.plan)).map(entry => entry.plan)).size;
+  // v12 (L3): the plans bound to no ideal state up to this frame, as on 理想状態.
+  const unbound = unboundPlanCount([...frames.slice(0, Math.max(0, frames.findIndex(item => item.id === frame.id))), frame]
+    .flatMap(item => item.journal ?? []), plans);
   const unboundText = unbound ? ' · 未結合 ' + unbound + ' 件' : '';
   cell('back', ['◀ 前へ · [', '◀ 前へ', '◀'], 1, back !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: -1 } } : { look: 'idle' });
   cell('position', where, 3, { look: 'idle', atlas: { index, count, present, frameId: frame.id } });
