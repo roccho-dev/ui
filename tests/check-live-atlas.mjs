@@ -7,7 +7,6 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -21,6 +20,7 @@ import { displayedRegionLabel } from '../packages/semantic-map/renderer-maxgraph
 import { edgeStyle, vertexStyle } from '../packages/semantic-map/renderer-maxgraph/styles.js';
 import { DEFAULT_THEME, paletteFor } from '../packages/semantic-map/renderer-maxgraph/theme.js';
 import { ATLAS_ENTRY, ATLAS_EXAMPLE_ENTRY, ATLAS_MODULE_ROOTS, buildLiveAtlas, resolveHistory } from '../scripts/build-live-atlas.mjs';
+import { testScratch } from './fixtures/test-scratch.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -38,7 +38,8 @@ if (parityArg) {
   assert.equal(shown.status, 0, String(shown.stderr));
   // Same directory as the real builder so its import.meta.url resolves the same repository.
   const baseModule = path.join(repoRoot, 'packages', 'semantic-map', 'scripts', `.builder-parity-base-${process.pid}.mjs`);
-  const outRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'builder-parity-'));
+  const parityScratch = testScratch('builder-parity');
+  const outRoot = parityScratch.dir;
   const outputs = [];
   const topology = 'examples/render.semantic-map.set-topology/input/envelope.json';
   const cases = {
@@ -73,7 +74,7 @@ if (parityArg) {
       }
       try { fs.rmdirSync(out); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
-    fs.rmdirSync(outRoot);
+    parityScratch.done();
   }
   console.log(JSON.stringify({ status: 'builder-parity-pass', base, results }));
   process.exit(0);
@@ -403,7 +404,9 @@ for (const item of projectAtlas(sample.held, currentness(sample.held, { mode: 's
 }
 
 // --- single-file pack: closure parity, notices, escaping, no external code ---
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'check-live-atlas-'));
+// Next to the tests in a checkout; the Nix build's sandbox otherwise.
+const scratch = testScratch('check-live-atlas');
+const tmp = scratch.dir;
 const created = [];
 const own = file => { created.unshift(file); return file; };
 try {
@@ -543,7 +546,7 @@ try {
   for (const file of created) {
     try { if (fs.lstatSync(file).isDirectory()) fs.rmdirSync(file); else fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  fs.rmdirSync(tmp);
+  scratch.done();
 }
 
 console.log(JSON.stringify({ status: 'live-atlas-check-pass', snapshots: sample.history.map(item => item.rev), changes: changes.length }));

@@ -66,5 +66,5 @@ export const SCREEN_CONTROLS = Object.freeze([
   row('controls', 'atlas-world-step-forward', 't+1 の frame（過去を表示中）', 'P', null, '(a) 無いと O(n) 回の操作'),
   row('controls', 'atlas-world-present', '現在の frame', 'P', null, '(a) 無いと O(n) 回の操作'),
   row('controls', 'atlas-world-forecast', '予定 ▸：t+1（計画の中身と条件ごとの鮮度切れ）', 'U', null),
-  row('controls', 'atlas-world-journal', '仕訳 n · 保持 m ▸：決定・観測の作者・時刻・出所と、保持した宣言', 'U', null),
+  row('controls', 'atlas-world-journal', '仕訳 n · 保持 m（累計）▸：その frame の決定・観測の作者・時刻・出所と、その frame までに保持した宣言（累計）', 'U', null),
 ]);

@@ -3,16 +3,19 @@
 // network, a generated 300-scope depth-4 topology at desktop viewports, and the
 // served live mode against the finite fixture producer.
 //
-//   nix develop .#semantic-map-browser-proof --command node tests/live-atlas-browser-e2e.mjs
+//   nix develop .#semantic-map-browser-proof --command node tests/live-atlas-browser-e2e.mjs --out=<fresh absent directory>
+//
+// Every file it writes is under --out (fixtures/proof-scratch.mjs): the pages
+// it builds and the browser's temporary files, removed at the end.
 //
 // Supplementary to the Node checks; it does not replace a person using a browser.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas, resolveHistory } from '../scripts/build-live-atlas.mjs';
 import { restamp, startAtlasProducer } from './fixtures/live-atlas/sse-producer.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const driverRoot = process.env.PLAYWRIGHT_DRIVER_ROOT;
 const browsersRoot = process.env.PLAYWRIGHT_BROWSERS_PATH;
@@ -28,7 +31,9 @@ const { chromium } = createRequire(import.meta.url)(driverRoot);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = path.join(repoRoot, 'tests', 'fixtures', 'live-atlas', 'history.json');
 const exampleFixture = path.join(repoRoot, 'examples', 'atlas', 'input', 'example.jsonl');
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'live-atlas-e2e-'));
+const out = process.argv.slice(2).find(argument => argument.startsWith('--out='))?.slice('--out='.length);
+if (!out) throw new Error('--out=<fresh absent directory> is required');
+const { scratch: tmp, done } = proofScratch(out);
 const created = [];
 const own = file => { created.unshift(file); return file; };
 
@@ -679,7 +684,7 @@ try {
     for (const file of created) {
       try { if (fs.lstatSync(file).isDirectory()) fs.rmdirSync(file); else fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
-    fs.rmdirSync(tmp);
+    done();
   }
 }
 

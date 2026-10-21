@@ -13,7 +13,7 @@
 // - ◀ 前へ shows the previous frame: the time text and the three areas read
 //   that frame; 次へ ▶ steps back toward the present; 現在へ returns to the latest;
 // - 差's heading names when its phase began (S6: no phase box);
-// - 仕訳 n · 保持 m ▸ lists the frame's entries and what was held up to it;
+// - 仕訳 n · 保持 m（累計）▸ lists the frame's entries and what was held up to it;
 // - the status and search rows hold exactly the controls of the display
 //   section's table (packages/control/src/atlas-screen-table.mjs), and the
 //   search count names no frame id or rev.
@@ -222,12 +222,12 @@ try {
       // Cases 15 and 29 (S6): what was held is a row of 仕訳 ▸, never in a box;
       // the button counts it without opening.
       check(width + 'px: no box draws what was held', !Object.values(atPresent).some(text => text.includes('保持')), atPresent);
-      const journal = await press(page, '仕訳 1 · 保持 3 ▸');
+      const journal = await press(page, '仕訳 1 · 保持 3（累計）▸');
       await settle(page);
       const held = await listShown(page, ['保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647',
         '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552', '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647']);
-      check(width + 'px 仕訳 1 · 保持 3 ▸: each held declaration is a visible row (cases 15 and 29)', journal && held.visible && held.rows.every(row => row.inside), held);
-      await press(page, '仕訳 1 · 保持 3 ▾');
+      check(width + 'px 仕訳 1 · 保持 3（累計）▸: each held declaration is a visible row (cases 15 and 29)', journal && held.visible && held.rows.every(row => row.inside), held);
+      await press(page, '仕訳 1 · 保持 3（累計）▾');
       await settle(page);
       const opened = await press(page, '予定 ▸');
       await settle(page);
@@ -253,11 +253,11 @@ try {
       await settle(page);
       const t6 = await boxes(page);
       check(width + 'px t6: 理想状態 reads 改訂中 v3 while v2 is in force', t6['ideal-state']?.includes(flat('v2 · 条件 4 · 改訂中 v3')), t6['ideal-state']);
-      const opened = await press(page, '仕訳 1 · 保持 3 ▸');
+      const opened = await press(page, '仕訳 1 · 保持 3（累計）▸');
       await settle(page);
       const entries = await listShown(page, ['△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
-      check(width + 'px 仕訳 1 · 保持 3 ▸: the entry t6 carries is a visible row', opened && entries.visible && entries.rows.every(row => row.inside), entries);
-      await press(page, '仕訳 1 · 保持 3 ▾');
+      check(width + 'px 仕訳 1 · 保持 3（累計）▸: the entry t6 carries is a visible row', opened && entries.visible && entries.rows.every(row => row.inside), entries);
+      await press(page, '仕訳 1 · 保持 3（累計）▾');
       // Search: choosing a relation brings the camera to its from box, drawn
       // inside the graph.
       await press(page, '現在へ');

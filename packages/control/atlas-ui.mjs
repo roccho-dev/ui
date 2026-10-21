@@ -484,7 +484,7 @@ export const mountAtlasWorldUI = ({
   const forward = el('button', { type: 'button', id: 'atlas-world-step-forward', text: '次へ ▶', onclick: () => stepFrame(1) });
   const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => followLatest() });
   // 予定 ▸ (t+1: the latest frame's planned side, not a frame) and 仕訳 n ·
-  // 保持 m ▸ (the entries the displayed frame carries and what was held up to
+  // 保持 m（累計）▸ (the entries the displayed frame carries and what was held up to
   // it) open one list over the graph.
   const forecast = el('button', { type: 'button', id: 'atlas-world-forecast', onclick: () => toggleList('forecast') });
   const journalButton = el('button', { type: 'button', id: 'atlas-world-journal', onclick: () => toggleList('journal') });

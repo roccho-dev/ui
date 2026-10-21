@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
-import { SCREEN_LINES } from '../packages/control/src/atlas-screen-table.mjs';
+import { SCREEN_CONTROLS, SCREEN_LINES } from '../packages/control/src/atlas-screen-table.mjs';
 import * as gapModule from '../packages/control/src/atlas-gap.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
@@ -138,6 +138,11 @@ for (const [number, row] of [[15, '保持 actor-mismatch · ideal.set · 2026-10
   [15, '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647']]) {
   check('case ' + number + ' at t5: 仕訳 ▸ has the row ' + row, rows.includes(row), rows);
 }
+// The button says the two counts differ in kind (R, I2d): 仕訳 is the frame's,
+// 保持 is accumulated up to it; the table's row says the same.
+check('仕訳 n · 保持 m（累計）▸: the button reads both counts, 保持 as accumulated',
+  timeline.journalButtonText(1, rows.length, false) === '仕訳 1 · 保持 3（累計）▸' && timeline.journalButtonText(0, 0, true) === '仕訳 0 · 保持 0（累計）▾'
+    && SCREEN_CONTROLS.find(item => item.id === 'atlas-world-journal')?.carries.startsWith('仕訳 n · 保持 m（累計）▸'));
 check('cases 15 and 29: no box draws what was held', !drawn({ held: true }, 't5').includes(flat('保持')));
 for (const failure of failures) console.error(JSON.stringify(failure));
 assert.equal(failures.length, 0, failures.length + ' screen checks fail');

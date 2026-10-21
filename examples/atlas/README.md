@@ -206,9 +206,9 @@ panel, timeline strip or band.
   ideal state, and the upkeep — per condition, when its observation goes stale
   — or, without `upkeep`, the next stale time alone. The three areas stay as
   they are.
-- **仕訳 n · 保持 m ▸** opens the entries the frame shown carries (kind, time,
-  author and source) and then each declaration held up to it, one row each;
-  the button counts both.
+- **仕訳 n · 保持 m（累計）▸** opens the entries the frame shown carries (kind,
+  time, author and source) and then each declaration held up to it, one row
+  each; the button counts both, 保持 as accumulated.
 - There is no phase box (S6, adrs#647 comment 6306887827): 理想↔現在の差's
   heading names the phase, when it began, a matched phase's next stale time (or
   that it went stale) and a mismatch with the gap; 現在状態 names the matches
@@ -259,7 +259,9 @@ kinds of line drawn are the table's; the 30-case wording table read from the
 drawn text). Inside the
 `semantic-map-browser-proof` Nix shell, each browser proof takes
 `--out=<fresh absent directory>` and writes nothing outside it (its temporary
-files and the browser profile included):
+files and the browser profile included). The Node checks that write files keep
+their scratch next to the tests, or, inside the Nix build, in its sandbox
+(`tests/fixtures/test-scratch.mjs`):
 
 - `tests/atlas-a2-ui-composition-gate.mjs`: this example's composition,
   nesting, actual-click selection, the held frame across updates, admission,

@@ -107,8 +107,9 @@ export const heldLines = (frames, frame) => {
   return (index < 0 ? [frame] : frames.slice(0, index + 1)).flatMap(item => item.held ?? [])
     .map(item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref);
 };
-// The button counts both, so they are seen without opening the list.
-export const journalButtonText = (entries, held, open) => '仕訳 ' + entries + ' · 保持 ' + held + ' ' + (open ? '▾' : '▸');
+// The button counts both, so they are seen without opening the list, and
+// says they differ: 仕訳 is the frame's own, 保持 accumulated up to it.
+export const journalButtonText = (entries, held, open) => '仕訳 ' + entries + ' · 保持 ' + held + '（累計）' + (open ? '▾' : '▸');
 // 予定 ▸ (contract 3, revised): the planned side of the latest frame, never a
 // frame and never a fact: its plans, the plans bound to no ideal state (each
 // id at its newest version), and the upkeep — per condition, earliest first —
