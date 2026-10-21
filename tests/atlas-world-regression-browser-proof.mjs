@@ -5,8 +5,9 @@
 // and the build HQ serves); this checkout builds the other. Both are opened at
 // 1500 and 800 px, at the present and after ◀ 前へ, and compared by what is
 // visible (text rectangles inside the graph or the list), never page state.
-// The page built here must show the earlier one changed by S6 (adrs#647
-// comment 6306887827) and nothing else:
+// The page built here must show the earlier one as it was, or, when the
+// earlier build predates S6 (adrs#647 comment 6306887827: it still draws a
+// phase box), the earlier one changed by S6, and nothing else. Either way:
 // - the phase box is gone; its unique parts are where S6 put them, with the
 //   words computed here from the World itself: 差's heading names the phase,
 //   when it began, its next stale time or that it went stale, and a mismatch
@@ -149,13 +150,15 @@ try {
       const [before, after] = [views.before[step], views.after[step]];
       const s6 = moved(index, now);
       const where = width + 'px ' + step + ' (' + world.frames[index].id + ')';
-      // The layout moves once the phase box is gone: the boxes visible on both pages are compared.
+      // An earlier build drawing a phase box predates S6. The layout may move
+      // (a box gone): the boxes visible on both pages are compared.
+      const preS6 = Object.values(before.boxes).some(box => box.kind === 'phase');
+      const expected = box => preS6 ? expectedBox(box.kind, box.text, s6) : box.text;
       const both = Object.entries(before.boxes).filter(([id, box]) => box.kind !== 'phase' && after.boxes[id]);
-      const wrong = both.filter(([id, box]) => after.boxes[id].text !== expectedBox(box.kind, box.text, s6))
-        .map(([id, box]) => ({ id, expected: expectedBox(box.kind, box.text, s6), after: after.boxes[id].text }));
-      check(where + ': every box visible on both reads as before changed by S6', both.length >= 5 && wrong.length === 0, { compared: both.length, wrong: wrong.slice(0, 4) });
-      check(where + ': the phase box was visible before and is gone', Object.values(before.boxes).some(box => box.kind === 'phase')
-        && !Object.values(after.boxes).some(box => box.kind === 'phase'));
+      const wrong = both.filter(([id, box]) => after.boxes[id].text !== expected(box))
+        .map(([id, box]) => ({ id, expected: expected(box), after: after.boxes[id].text }));
+      check(where + ': every box visible on both reads as before' + (preS6 ? ' changed by S6' : ''), both.length >= 5 && wrong.length === 0, { compared: both.length, wrong: wrong.slice(0, 4) });
+      check(where + ': no phase box is drawn', !Object.values(after.boxes).some(box => box.kind === 'phase'));
       const gap = Object.values(after.boxes).find(box => box.kind === 'gap')?.text ?? '';
       check(where + ': 差\'s heading names the phase, when it began and its freshness', gap.includes(flat(s6.heading)), { heading: s6.heading, gap });
       if (s6.beforeIdeal) check(where + ': 現在状態 reads ' + s6.beforeIdeal, Object.values(after.boxes).some(box => box.kind === 'current-state' && box.text.includes(flat(s6.beforeIdeal))));
@@ -165,12 +168,12 @@ try {
       }
       check(where + ': no relation label is drawn', after.others.length === 0, after.others.slice(0, 4));
       check(where + ': the same status row', after.status === before.status && after.status.length > 0, { before: before.status, after: after.status });
-      check(where + ': the search count names no frame id or rev', !after.count.includes(world.frames[index].id) && !after.count.includes('rev') && before.count.includes(world.frames[index].id), after.count);
+      check(where + ': the search count names no frame id or rev', !after.count.includes(world.frames[index].id) && !after.count.includes('rev'), after.count);
       const journal = views.after[step === 'present' ? 'journal' : 'backJournal'], journalBefore = views.before[step === 'present' ? 'journal' : 'backJournal'];
-      const entries = journalBefore.rows.filter(row => row !== 'この時点の仕訳はない');
+      const entries = journalBefore.rows.filter(row => row !== 'この時点の仕訳はない' && !s6.held.includes(row));
       check(where + ': 仕訳 n · 保持 m（累計）▸ counts the frame\'s entries and what was held up to it', after.journalButton === '仕訳 ' + entries.length + ' · 保持 ' + s6.held.length + '（累計）▸', after.journalButton);
       check(where + ': 仕訳 ▸ lists the entries, then each declaration held up to the frame, visible',
-        JSON.stringify(journal.rows) === JSON.stringify(entries.length + s6.held.length ? [...entries, ...s6.held] : journalBefore.rows), { before: journalBefore.rows, after: journal.rows, held: s6.held });
+        JSON.stringify(journal.rows) === JSON.stringify(entries.length + s6.held.length ? [...entries, ...s6.held] : ['この時点の仕訳はない']), { before: journalBefore.rows, after: journal.rows, held: s6.held });
       check(where + ': no HUD, panel, strip or band region in this build', after.nonArea === 0, after.nonArea);
     }
     check(width + 'px: ◀ 前へ moves to a past frame', views.after.back.status.includes('HELD · 表示中：過去'), views.after.back.status);
