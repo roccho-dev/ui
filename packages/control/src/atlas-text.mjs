@@ -9,6 +9,10 @@ export const linePx = line => [...line].reduce((sum, character) => sum + charPx(
 
 // Break a label into lines no wider than `max`, at spaces when a line has
 // one, else between characters. Every supplied character is kept in order.
+// A word broken between characters (a digest, a long id) runs on one glyph
+// kind, where the estimate errs most (a run of `a` draws 4% wider), so its
+// pieces keep a margin.
+const WORD_BREAK_MARGIN = 0.92;
 export const wrapLabel = (label, max = LABEL_MAX_PX) => String(label).split(/\r?\n/u).flatMap(line => {
   if (linePx(line) <= max) return [line];
   const lines = [];
@@ -17,7 +21,7 @@ export const wrapLabel = (label, max = LABEL_MAX_PX) => String(label).split(/\r?
     if (current && linePx(current + word) > max) { lines.push(current.trimEnd()); current = ''; }
     if (linePx(word) <= max) { current += word; continue; }
     for (const character of word) {
-      if (current && linePx(current + character) > max) { lines.push(current); current = ''; }
+      if (current && linePx(current + character) > max * WORD_BREAK_MARGIN) { lines.push(current); current = ''; }
       current += character;
     }
   }

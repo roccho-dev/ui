@@ -7,7 +7,7 @@ import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 import { containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 import { timelinePosition } from './atlas-timeline.mjs';
-import { phaseStale, staleDeltaLabel } from './atlas-gap.mjs';
+import { forecastChangeLabel, phaseStale, staleDeltaLabel } from './atlas-gap.mjs';
 
 const AREA_GAP = 40;
 const AREA_TOP = 56;
@@ -333,6 +333,7 @@ export const projectWorldScene = ({
   ordering = 'relations',
   textScale = 1,
   staleAt = null,
+  step = null,
   fitNested = false,
 } = {}) => {
   if (!['relations', 'supplied'].includes(ordering)) throw new Error('atlas-world: unsupported ordering ' + ordering);
@@ -360,9 +361,11 @@ export const projectWorldScene = ({
   // known latest (S6), and its box reads unknown. The gap is not derived again.
   const stale = staleAt !== null && phaseStale(frame, staleAt);
   const look = supplied => {
+    // A step past the present (S7): the three areas stay the present's; only
+    // the box of changes says the step.
     const entity = stale && supplied.ref.kind === 'gap'
       ? { ...supplied, label: staleDeltaLabel(supplied.label, frame), flags: ['scope_status=unknown'] }
-      : supplied;
+      : step && supplied.ref.kind === 'frame-change' ? { ...supplied, label: forecastChangeLabel(step) } : supplied;
     const activity = displayedActivity(entity.activity);
     const status = activity === 'none' ? statusOf(entity.flags) : null;
     const symbol = status ? STATUS[status].symbol : token[activity];
@@ -506,7 +509,8 @@ const focusRegion = ({ scene, selected }) => {
 // sized for scale 1, whatever the viewport, so the World does not change size
 // with the window: `minScale` keeps Fit from shrinking their text, and a World
 // larger than the view is panned. The status and search rows, the time
-// controls and the 予定 / 仕訳 list are the page's own (atlas-ui.mjs).
+// controls are the page's own (atlas-ui.mjs). `step` is a step past the
+// present (atlas-timeline.mjs forecastSteps), drawn on the present only.
 export const projectAtlasWorld = ({
   input,
   receivedInput = input,
@@ -519,9 +523,10 @@ export const projectAtlasWorld = ({
   viewport = { width: 1500, height: 1000 },
   admission = null,
   now = null,
+  step = null,
 } = {}) => {
   const present = timelinePosition(receivedInput.frames, frame.id).present;
-  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission, staleAt: present ? now : null, fitNested: true });
+  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission, staleAt: present ? now : null, step: present ? step : null, fitNested: true });
   return Object.freeze({
     scene: Object.freeze({
       pattern: 'graph/1',

@@ -193,22 +193,28 @@ panel, timeline strip or band.
 - **Row 1, the status**: warnings first — **更新停止・最新か不明**, a refused
   input (**入力を拒否・前に受け付けた入力を表示中**), the stream state (SSE
   未接続 / 応答なし / …) — then **LATEST** or **HELD**, the frame shown
-  (**表示中：現在 n/n** or **過去 i/n**, with its id) and the last receipt. A
+  (**表示中：現在 n/n** or **過去 i/n**, with its id, or **予定 k/K** with its
+  minute) and the last receipt. A
   narrow window cuts only the tail of the row.
 - **Row 2**: the search and its results, then **◀ 前へ**, **次へ ▶** and
   **現在へ**. ◀ 前へ shows the previous received frame and holds it: the three
   areas are drawn from that frame, and new input does not move it. 次へ ▶ steps
-  toward the present; 現在へ returns to the latest and follows it again. A
+  toward the present and, from it, through the steps past it; 現在へ returns to
+  the latest and follows it again. A
   control that would change nothing is disabled, never hidden. The keys `[`
   `]` `L` are their shortcuts; no key acts without a visible control.
-- **予定 ▸** opens the planned side of the latest frame, which is never a frame
-  and never a fact: its plans (or 計画未宣言（UNKNOWN）), the plans bound to no
-  ideal state, and the upkeep — per condition, when its observation goes stale
-  — or, without `upkeep`, the next stale time alone. The three areas stay as
-  they are.
-- **仕訳 n · 保持 m（累計）▸** opens the entries the frame shown carries (kind,
-  time, author and source) and then each declaration held up to it, one row
-  each; the button counts both, 保持 as accumulated.
+- One time axis (S7, adrs#647 comment 6308860425): every point of it is the
+  three areas and the **box of changes** (purpose area, under 現在状態). On a
+  frame it lists, every one, the journal entries the frame carries (kind, time,
+  author, source, sha256) and what was held at it, under **この時点の変化 n 件 ·
+  保持 累計 m**. Past the present, 次へ ▶ walks the present's `upkeep` by
+  stale_at minute (fresh up to stale_at itself): the three areas stay the
+  present's, the box reads **予定 <minute>（観測が無ければ unknown）** and the
+  conditions that read unknown then, and LATEST stays. A step whose minute has
+  passed is gone; a new World returns from a step to the present (a held past
+  frame stays held). A step is never a frame: no difference or phase is made.
+- 理想状態 names, under 計画：n 件, each plan of the frame (label · serves ·
+  content · source).
 - There is no phase box (S6, adrs#647 comment 6306887827): 理想↔現在の差's
   heading names the phase, when it began, a matched phase's next stale time (or
   that it went stale) and a mismatch with the gap; 現在状態 names the matches
@@ -267,11 +273,14 @@ their scratch next to the tests, or, inside the Nix build, in its sandbox
   nesting, actual-click selection, the held frame across updates, admission,
   resize, transport state and a gate-local SSE stream, as drawn;
 - `tests/atlas-world-status-browser-proof.mjs`: the status rows, the time
-  controls, 予定 ▸ / 仕訳 ▸ and search, by visible rectangles at 1500 and 800 px;
+  controls, the box of changes and search, by visible rectangles at 1500 and 800 px;
+- `tests/atlas-world-time-axis-browser-proof.mjs [--input=<World>]`: the steps past
+  the present, back to it, the box of changes, the plans and the largest box;
 - `tests/atlas-world-follow-browser-proof.mjs`: a live page follows the present
-  over SSE, and a held past frame stays held, read on the status row;
+  over SSE, a new World returns from a step, and a held past frame stays held,
+  read on the status row;
 - `tests/atlas-world-regression-browser-proof.mjs --input=<World> --before=<page>`:
-  a World against an earlier build of it, as drawn, changed by S6 only.
+  a World against an earlier build of it, as drawn, changed by S7 only.
 
 A PASS is UI evidence for the input given only. It is not evidence of real
 acquisition, production SSE, observer coverage or Purpose achievement.

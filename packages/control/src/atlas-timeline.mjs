@@ -1,14 +1,13 @@
-// The World timeline: past frames stepped one at a time and one present
-// anchor (the latest supplied frame), the words of the status row, the planned
-// side of the latest frame (予定 ▸) and the entries of a frame (仕訳 ▸). A plan
-// is never a frame and never a fact; with no supplied plan it is shown as
-// undeclared (UNKNOWN), not as an empty future. Nothing here is drawn on the
-// graph (contract 3, revised: no strip or band). Pure; no DOM.
+// The World timeline (contract 3, re-revised: S7, adrs#647 comment
+// 6308860425): past frames stepped one at a time, one present anchor (the
+// latest supplied frame) and, past it, the steps of the present's upkeep:
+// each stale_at minute at which, with no new observation, its conditions read
+// unknown. A step is never a frame: the three areas stay the present's, and
+// only the box of changes says the step. Nothing here is drawn on the graph.
+// Pure; no DOM.
 
-import { JOURNAL_LABEL, JOURNAL_MARK, UNBOUND_MARK, admissionMark, dayClockText } from './atlas-gap.mjs';
+import { dayClockText } from './atlas-gap.mjs';
 
-export const PLAN_UNDECLARED = '予定：計画未宣言（UNKNOWN）';
-export const PLAN_NONE = '予定：有効な計画 0 件';
 // The live connection as the status row states it, from what arrived on the
 // current connection (an open connection alone is never receiving):
 // 'sample'       no `?events=`
@@ -53,80 +52,28 @@ export const transportParts = state => {
   return Object.freeze({ warning: TRANSPORT_WARNING[transport] ?? null,
     last: state.receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(state.receivedAt) });
 };
-// The frame shown, as the status row names it.
-export const viewedText = (frames, frame) => {
-  const { index, count, present } = timelinePosition(frames, frame.id);
+// The frame shown, as the status row names it; on a step, which step of how
+// many and its minute.
+export const viewedText = (frames, frame, step = null, count = 0) => {
+  const { index, count: frameCount, present } = timelinePosition(frames, frame.id);
+  if (step !== null) return '表示中：予定 ' + (step.index + 1) + '/' + count + ' · ' + step.at + '（観測が無ければ）';
   return index < 0 ? '表示中：保持中の frame ' + frame.id + '（最新入力に無い）'
-    : '表示中：' + (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count + ' · ' + frame.id;
-};
-const CONTENT_UNKNOWN = '内容 UNKNOWN';
-
-// The plan cell's line for the displayed frame's plans (frame.plans):
-// absent/null is undeclared, [] is declared with none in force, otherwise the
-// count and how many have unknown content. Each plan's source and version are
-// in the detail. A plan is never a fact and never changes any status.
-export const planSummary = plans => {
-  if (plans === null || plans === undefined) return PLAN_UNDECLARED;
-  if (plans.length === 0) return PLAN_NONE;
-  const unknown = plans.filter(plan => plan.nodes === null).length;
-  return '予定 ' + plans.length + ' 件' + (unknown ? '・' + CONTENT_UNKNOWN + ' ' + unknown : '');
-};
-// The opened plan detail: per plan, its label, what it serves, its content
-// or why that is unknown, and where it was read from. Supplied text only.
-export const planDetailLines = plans => {
-  if (plans === null || plans === undefined) return [PLAN_UNDECLARED];
-  if (plans.length === 0) return [PLAN_NONE];
-  return plans.flatMap((plan, index) => [
-    '計画 ' + (index + 1) + '/' + plans.length + '：' + plan.ref + ' v' + plan.version + ' · ' + plan.label,
-    '計画 id：' + plan.plan,
-    '寄与する requires：' + (plan.serves.length ? plan.serves.join('、') : 'なし（宣言なし）'),
-    plan.nodes === null
-      ? CONTENT_UNKNOWN + (plan.unknown.length ? '：' + plan.unknown.join('、') : '')
-      : '内容：ノード ' + plan.nodes.length + ' 件 · 辺 ' + (plan.edges === null ? 'UNKNOWN' : plan.edges.length + ' 件')
-        + (plan.unknown.length ? ' · 不明：' + plan.unknown.join('、') : ''),
-    '出所：' + plan.source.repo + ' · comment ' + (plan.source.commentId ?? 'UNKNOWN') + ' · 更新 ' + (plan.source.updatedAt ?? 'UNKNOWN')
-      + ' · sha256 ' + (plan.source.sha256 ?? 'UNKNOWN'),
-  ]);
+    : '表示中：' + (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + frameCount + ' · ' + frame.id;
 };
 
-// One journal entry as a row: its mark and kind, the plan it names, when it
-// was recorded, its author and its source.
-export const journalRow = entry => JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + (entry.unbound === true ? UNBOUND_MARK : '')
-  + (entry.kind === 'plan.set' && entry.plan ? ' ' + entry.plan + (entry.version === undefined ? '' : ' v' + entry.version) : '')
-  + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
-  + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
-  + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN');
-// 仕訳 n ▸ (contract 3, revised): the entries the displayed frame carries
-// (v6: only those new at it), one row each.
-export const journalLines = frame => (frame.journal ?? []).map(journalRow);
-// S6 (cases 15 and 29): the declarations held back (v12 frames[i].held) up to
-// the displayed frame, one row each in the order they entered, listed in
-// 仕訳 ▸ after the entries. A held frame no longer in the input has its own only.
-export const heldLines = (frames, frame) => {
-  const index = frames.findIndex(item => item.id === frame.id);
-  return (index < 0 ? [frame] : frames.slice(0, index + 1)).flatMap(item => item.held ?? [])
-    .map(item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref);
-};
-// The button counts both, so they are seen without opening the list, and
-// says they differ: 仕訳 is the frame's own, 保持 accumulated up to it.
-export const journalButtonText = (entries, held, open) => '仕訳 ' + entries + ' · 保持 ' + held + '（累計）' + (open ? '▾' : '▸');
-// 予定 ▸ (contract 3, revised): the planned side of the latest frame, never a
-// frame and never a fact: its plans, the plans bound to no ideal state (each
-// id at its newest version), and the upkeep — per condition, earliest first —
-// or, without it, matched_until alone. A latest frame not matched has none.
-export const forecastLines = frames => {
-  const latest = frames.at(-1);
-  const plans = latest.plans ?? null;
-  const bound = new Set((plans ?? []).map(item => item.plan));
-  const unbound = [...new Map(frames.flatMap(item => item.journal ?? []).filter(entry => entry.unbound === true && !bound.has(entry.plan))
-    .map(entry => [entry.plan, entry])).values()];
-  const upkeep = [...(latest.upkeep ?? [])].sort((a, b) => Date.parse(a.stale_at) - Date.parse(b.stale_at) || a.condition.localeCompare(b.condition));
-  return Object.freeze(['予定（最新 ' + latest.id + ' · 計画であって事実ではない）', ...planDetailLines(plans),
-    ...(unbound.length ? ['未結合 ' + unbound.length + ' 件：' + unbound.map(entry => entry.plan + (entry.version === undefined ? '' : ' v' + entry.version)).join(' · ')] : []),
-    ...(latest.phase !== 'matched' ? ['維持の作業：なし（一致・維持ではない）']
-      : upkeep.length ? ['維持の作業（鮮度切れの予定の早い順）',
-        ...upkeep.map(item => item.condition + ' · 観測 ' + dayClockText(item.observedAt) + ' · 鮮度切れの予定 ' + dayClockText(item.stale_at))]
-        : ['次の鮮度切れ ' + (latest.matched_until ? dayClockText(latest.matched_until) : '不明')])]);
+// The steps past the present (S7): the present frame's upkeep grouped by its
+// stale_at minute, earliest first, each with its conditions. A condition is
+// fresh up to its stale_at itself (≦), so only one whose stale_at is past
+// `now` is left out (the present then reads stale already). Nothing is
+// judged: no difference, phase or count is made.
+export const forecastSteps = (frame, now) => {
+  const steps = new Map();
+  for (const item of [...(frame.upkeep ?? [])].sort((a, b) => Date.parse(a.stale_at) - Date.parse(b.stale_at) || a.condition.localeCompare(b.condition))) {
+    if (Number.isFinite(now) && now > Date.parse(item.stale_at)) continue;
+    const at = dayClockText(item.stale_at);
+    steps.set(at, [...(steps.get(at) ?? []), item]);
+  }
+  return Object.freeze([...steps].map(([at, items], index) => Object.freeze({ index, at, items: Object.freeze(items) })));
 };
 
 // Where the displayed frame stands among the received frames. A held frame no
