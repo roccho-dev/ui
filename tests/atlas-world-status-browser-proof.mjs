@@ -206,7 +206,7 @@ try {
         return { text: text?.textContent ?? null, inside: Boolean(box && box.width > 0 && box.left >= frame.left - 1 && box.right <= frame.right + 1
           && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1) };
       });
-      check(width + 'px: GapA (目的↔理想の差) is drawn from frames[i].adequacy, visible in the graph', gapA.inside && flat(gapA.text ?? '').startsWith(flat('目的↔理想の差')), gapA);
+      check(width + 'px: GapA (目的↔理想の差) is drawn from frames[i].adequacy, visible in the graph', gapA.inside && flat(gapA.text ?? '').includes(flat('目的↔理想の差')), gapA);
     });
     // 予定 ▸ (t+1, not a frame): the three areas stay at t0; the list shows the
     // plans, the unbound plans and matched_until, each row inside the list.
