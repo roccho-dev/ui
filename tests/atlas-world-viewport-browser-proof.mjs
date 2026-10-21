@@ -1,4 +1,4 @@
-// The World as the User opens it: a chrome-free build served over HTTP with
+// The World as the User opens it: a build served over HTTP with
 // `?events=` pointing at an SSE producer, in a browser launched at a window
 // size (no viewport emulation), measured without calling Fit. Run inside the
 // semantic-map-browser-proof Nix shell:
@@ -40,7 +40,7 @@ const built = arg('input') ? JSON.parse(fs.readFileSync(arg('input'), 'utf8')) :
 const streamed = arg('events-input') ? JSON.parse(fs.readFileSync(arg('events-input'), 'utf8')) : built;
 const inputPath = path.join(scratch, 'world.json');
 fs.writeFileSync(inputPath, JSON.stringify(built), { flag: 'wx' });
-const receipt = await buildLiveAtlas({ input: inputPath, out: path.join(arg('out'), 'page'), consumer: 'app', chrome: 'none' });
+const receipt = await buildLiveAtlas({ input: inputPath, out: path.join(arg('out'), 'page'), consumer: 'app' });
 const body = fs.readFileSync(path.join(path.resolve(arg('out')), 'page', 'index.html'));
 const server = http.createServer((request, response) => {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
@@ -98,7 +98,7 @@ try {
       check(where + ': every node box holds its label at the fixed label size', small.length === 0,
         { scale: state.camera.scale, small: small.slice(0, 4).map(node => ({ id: node.id, label: node.label, width: node.shape && node.shape.right - node.shape.left })) });
       check(where + ': drawn node text stays inside its box', spill.length === 0, spill.slice(0, 4));
-      // The chrome-free view: Fit when the whole World fits at 1 or more,
+      // The one screen: Fit when the whole World fits at 1 or more,
       // otherwise exactly 1, never below.
       check(where + ': the drawing is at Fit and never below scale 1', state.camera.scale >= 1 - 1e-9
         && Math.abs(state.camera.scale - Math.max(1, fitScale)) < 1e-6, { scale: state.camera.scale, fitScale, world: state.world });

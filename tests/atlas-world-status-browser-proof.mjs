@@ -1,7 +1,7 @@
 // The one screen's status rows and time controls, as drawn and visible.
 // Run inside the semantic-map-browser-proof Nix shell:
 //   node tests/atlas-world-status-browser-proof.mjs --out=<fresh absent directory>
-// Contract 3 (revised, adrs#647 comment 6305441262). A chrome-free build (as
+// Contract 3 (revised, adrs#647 comment 6305441262). A build (as
 // /hq/) of the gap fixture, served over HTTP; the live case reads the repo's
 // SSE fixture producer (fixtures/live-atlas/sse-producer.mjs). A word counts as
 // shown only when its text Range lies inside the row's visible rectangle
@@ -45,12 +45,12 @@ const asOf = Date.parse(world.frames.at(-1).asOf);
 const { scratch, done } = proofScratch(args.out);
 // One build per story, so a field a build does not accept stops only the
 // checks that need it: the plain story (status rows, time controls);
-// `legacy`, GapA from the producer's purpose-adequacy entity as the HQ World
-// carries it (no `adequacy` yet); `forecast`, up to the matched t5 with held
-// declarations and unbound plans (予定 ▸, held lines); `upkeep`, the same with
-// frames[i].upkeep; `history`, the whole story with a drafting ideal (改訂中,
-// 仕訳 ▸, search); `observed`, with the parts' last observations.
-const worlds = { page: world, legacy: gapWorld({ adequacy: true }), forecast: gapWorld({ through: 't5', held: true, unbound: true }),
+// `judged`, GapA from frames[i].adequacy as the HQ World carries it; `forecast`,
+// up to the matched t5 with held declarations and unbound plans (予定 ▸, held
+// lines); `upkeep`, the same with frames[i].upkeep; `history`, the whole story
+// with a drafting ideal (改訂中, 仕訳 ▸, search); `observed`, with the parts'
+// last observations.
+const worlds = { page: world, judged: gapWorld({ judged: true }), forecast: gapWorld({ through: 't5', held: true, unbound: true }),
   upkeep: gapWorld({ through: 't5', upkeep: true }), history: gapWorld({ drafting: true, held: true }), observed: gapWorld({ lastObserved: true }) };
 const bodies = {};
 const buildFailures = {};
@@ -58,7 +58,7 @@ for (const [name, value] of Object.entries(worlds)) {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(value), { flag: 'wx' });
   try {
-    await buildLiveAtlas({ input, out: path.join(args.out, name), consumer: 'app', chrome: 'none', updateIntervalMinutes: 10 });
+    await buildLiveAtlas({ input, out: path.join(args.out, name), consumer: 'app', updateIntervalMinutes: 10 });
     bodies[name] = fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
   } catch (error) {
     buildFailures[name] = String(error.message).split('\n')[0];
@@ -195,9 +195,9 @@ try {
       const page = await open(width, false, null, name);
       try { await body(page); } finally { await page.close(); }
     };
-    // The HQ World has no `adequacy` yet: GapA comes from the producer's
-    // purpose-adequacy entity and its box is drawn, inside the graph.
-    await story('legacy', 'GapA from the purpose-adequacy entity', async page => {
+    // GapA comes from frames[i].adequacy (as in the HQ World) and its box is
+    // drawn, inside the graph.
+    await story('judged', 'GapA from frames[i].adequacy', async page => {
       const gapA = await page.evaluate(() => {
         const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
         const item = atlas.projection.scene.representations.find(rep => rep.atlas?.ref?.kind === 'purpose-adequacy');
@@ -206,7 +206,7 @@ try {
         return { text: text?.textContent ?? null, inside: Boolean(box && box.width > 0 && box.left >= frame.left - 1 && box.right <= frame.right + 1
           && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1) };
       });
-      check(width + 'px: GapA (目的↔理想の差) is drawn from the earlier entity, visible in the graph', gapA.inside && flat(gapA.text ?? '').startsWith(flat('目的↔理想の差')), gapA);
+      check(width + 'px: GapA (目的↔理想の差) is drawn from frames[i].adequacy, visible in the graph', gapA.inside && flat(gapA.text ?? '').includes(flat('目的↔理想の差')), gapA);
     });
     // 予定 ▸ (t+1, not a frame): the three areas stay at t0; the list shows the
     // plans, the unbound plans and matched_until, each row inside the list.

@@ -35,7 +35,7 @@ import "./check-pr-governance.mjs";
 import "./check-ci-workflows.mjs";
 import "./check-live-atlas.mjs";
 import "./check-atlas-world.mjs";
-import "./check-atlas-world-chrome.mjs";
+import "./check-atlas-world-screen.mjs";
 import "./check-atlas-world-timeline.mjs";
 import "./check-atlas-world-readability.mjs";
 import "./check-atlas-world-hidden-paths.mjs";

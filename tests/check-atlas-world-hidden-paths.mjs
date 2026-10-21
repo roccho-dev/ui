@@ -1,6 +1,6 @@
 // A supplied relation that is not drawn (`visible:false`) but is on a declared
-// path stays reachable: it is reported as omitted, found by search, readable
-// in the Record and walked by Direction to the Purpose. Pure; no browser.
+// path stays reachable: it is reported as omitted, found by search, and,
+// chosen there, brings a drawn end of it into view. Pure; no browser.
 import assert from 'node:assert/strict';
 import { entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld } from '../packages/control/src/atlas-world-projection.mjs';
@@ -30,21 +30,10 @@ const input = parseAtlasWorldInput(world);
 const frame = input.frames[0];
 const hidden = relationKey(ref('declared-relation', 'change'));
 
-for (const chrome of ['full', 'none']) {
-  const projection = projectAtlasWorld({ input, frame, selected: hidden, chrome });
-  assert.ok(!projection.scene.relations.some(item => item.relationIds.includes(hidden)), chrome + ': the hidden relation is not drawn');
-  assert.ok(projection.omittedRelationIds.includes(hidden), chrome + ': it is reported as omitted');
-  assert.equal(projection.selected.record?.ref.id, 'change', chrome + ': its Record is the supplied relation');
-  const route = projection.direction.routes[0];
-  assert.ok(route, chrome + ': Direction walks from it');
-  assert.deepEqual(route.relations, [hidden, relationKey(ref('declared-relation', 'take')), relationKey(ref('declared-relation', 'target'))],
-    chrome + ': through the drawn path to the Purpose');
-  assert.equal(route.entities.at(-1), entityKey(ref('purpose', 'Purpose')));
-  assert.equal(route.status, 'SUPPLIED path=true');
-}
-// The Current's Direction also leaves through the hidden relation, not the
-// drawn aggregate (path=false).
-const fromCurrent = projectAtlasWorld({ input, frame, selected: entityKey(ref('current', 'Current')), chrome: 'none' });
-assert.equal(fromCurrent.direction.routes[0]?.relations[0], hidden, 'Current reaches the Purpose through the hidden relation');
+const projection = projectAtlasWorld({ input, frame, selected: hidden });
+assert.ok(!projection.scene.relations.some(item => item.relationIds.includes(hidden)), 'the hidden relation is not drawn');
+assert.ok(projection.omittedRelationIds.includes(hidden), 'it is reported as omitted');
 assert.ok(searchAtlasWorld(frame, 'change').some(row => row.key === hidden), 'search finds the hidden relation');
+// Chosen from the search, it brings its drawn from box (Current) into view.
+assert.equal(projection.selectedRegionId, 'world:' + entityKey(ref('current', 'Current')), 'its from box is focused');
 console.log(JSON.stringify({ status: 'atlas-world-hidden-paths-checks-pass' }));

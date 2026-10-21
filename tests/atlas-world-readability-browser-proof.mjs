@@ -1,4 +1,4 @@
-// Rendered readability of the chrome-free World. Run inside the
+// Rendered readability of the one World screen. Run inside the
 // semantic-map-browser-proof Nix shell:
 //   node tests/atlas-world-readability-browser-proof.mjs --out=<fresh absent directory> [--input=<World JSON> ...]
 // For the bundled World, a status World and any given World, at 1280x720 and
@@ -43,7 +43,7 @@ for (const [name, world] of worlds) {
   const input = path.join(scratch, builds.length + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
   const dir = path.join(out, String(builds.length));
-  builds.push({ name, dir, receipt: await buildLiveAtlas({ input, out: dir, consumer: 'app', chrome: 'none' }) });
+  builds.push({ name, dir, receipt: await buildLiveAtlas({ input, out: dir, consumer: 'app' }) });
 }
 
 let current = null;
@@ -151,38 +151,9 @@ try {
         check(where + ': labels stay inside their node', outside.length === 0, outside.slice(0, 5));
         check(where + ': no overlapping entity text', overlaps.length === 0, overlaps.slice(0, 5));
         check(where + ': status nodes carry color and symbol', wrongLook.length === 0, wrongLook.slice(0, 5));
-        // Timeline cells, with the plan detail closed and then open: the drawn
-        // text rectangle must lie inside its cell and inside the screen, and be
-        // the whole label. textContent alone would pass text drawn off-cell.
-        const timelineTexts = () => page.evaluate(() => {
-          const atlas = window.liveAtlas, adapter = atlas.adapter;
-          const screen = document.getElementById('atlas-world').getBoundingClientRect();
-          return { screen: { left: screen.left, top: screen.top, right: screen.right, bottom: screen.bottom },
-            cells: atlas.projection.scene.representations.filter(item => item.regionId.startsWith('timeline:')).map(item => {
-              const state = adapter.graph.getView().getState(adapter.cellsByRegionId.get(item.regionId));
-              const box = state?.text?.node?.getBoundingClientRect?.() ?? null;
-              const shape = state?.shape?.node?.getBoundingClientRect?.() ?? null;
-              return { id: item.regionId, label: item.label, text: state?.text?.node?.textContent ?? '',
-                box: box && { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
-                shape: shape && { left: shape.left, top: shape.top, right: shape.right, bottom: shape.bottom } };
-            }) };
-        });
-        const timelineFailures = ({ screen, cells }) => cells.filter(item => !item.box || !item.shape
-          || flat(item.text) !== flat(item.label) || !item.text.trim()
-          || item.box.left < item.shape.left - LEADING || item.box.right > item.shape.right + LEADING
-          || item.box.top < item.shape.top - LEADING || item.box.bottom > item.shape.bottom + LEADING
-          || item.box.left < screen.left - 1 || item.box.right > screen.right + 1);
-        // The chrome-free view draws no strip or band, closed or with the plan
-        // opened (未設計のため。設計の合意後に戻す). The checks of their text are kept below.
-        const closedCells = await timelineTexts();
-        check(where + ': no strip or band is drawn', closedCells.cells.length === 0, closedCells.cells.slice(0, 5).map(item => item.id));
-        // check(where + ': timeline cell text inside its cell and the screen', timelineFailures(closedCells).length === 0, timelineFailures(closedCells).slice(0, 5));
-        await page.evaluate(() => { window.liveAtlas.page.planOpen = true; window.liveAtlas.setSession({}); });
-        const openCells = await timelineTexts();
-        check(where + ': with the plan opened, still no strip or rows', openCells.cells.length === 0, openCells.cells.slice(0, 5).map(item => item.id));
-        // check(where + ': open plan detail rows inside their row and the screen', openCells.cells.some(item => item.id.startsWith('timeline:plan-line:'))
-        //   && timelineFailures(openCells).length === 0, timelineFailures(openCells).slice(0, 5));
-        await page.evaluate(() => { window.liveAtlas.page.planOpen = false; window.liveAtlas.setSession({}); });
+        // No strip or band is drawn (contract 3, revised): no timeline region at all.
+        const timelineCells = await page.evaluate(() => window.liveAtlas.projection.scene.representations.filter(item => item.regionId.startsWith('timeline:')).length);
+        check(where + ': no strip or band is drawn', timelineCells === 0, timelineCells);
         measured.push({ where, entities: drawn.length, statuses: statusDrawn.length,
           suppliedEllipsis: drawn.filter(item => item.label.includes('…')).length });
       }

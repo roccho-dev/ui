@@ -4,7 +4,7 @@
 //
 //   node scripts/build-live-atlas.mjs --out=<new directory> [--input=tests/fixtures/live-atlas/history.json]
 //   node scripts/build-live-atlas.mjs --consumer=example --out=<new directory> [--input=examples/atlas/input/example.jsonl]
-//   node scripts/build-live-atlas.mjs --chrome=none --out=<new directory> --input=<World JSON>  (three areas only)
+//   node scripts/build-live-atlas.mjs --out=<new directory> --input=<World JSON>  (a World: the three areas and the status and search rows)
 //   [--update-interval-minutes=<n>]  the World's actual update period, for the stall judgement (none: no stall claimed)
 //
 // Open <out>/index.html directly (sample) or serve it and add
@@ -82,20 +82,17 @@ const PAGE = `<!doctype html>
 </html>
 `;
 
-// `chrome` is a build argument rather than a URL query: the screen composition
-// becomes part of the built HTML and its receipt, so a reviewed page cannot be
-// re-composed by its link. The default build keeps its bootstrap and receipt shape.
-// `updateIntervalMinutes` is the World's actual update period, the only input
-// the page judges a stall by; when not given, the page claims no stall.
-export const buildLiveAtlas = async ({ input, out, consumer = 'app', chrome = 'full', updateIntervalMinutes = null }) => {
+// A World page has one composition (contract 3, revised): the three areas and
+// the status and search rows. `updateIntervalMinutes` is the World's actual
+// update period, the only input the page judges a stall by; when not given,
+// the page claims no stall.
+export const buildLiveAtlas = async ({ input, out, consumer = 'app', updateIntervalMinutes = null }) => {
   if (!['app', 'example'].includes(consumer)) throw new Error(`live-atlas build: unsupported consumer ${consumer}`);
-  if (!['full', 'none'].includes(chrome)) throw new Error(`live-atlas build: unsupported chrome ${chrome}`);
-  if (chrome !== 'full' && consumer !== 'app') throw new Error('live-atlas build: chrome applies to the app consumer only');
   if (updateIntervalMinutes !== null && !(Number.isFinite(updateIntervalMinutes) && updateIntervalMinutes > 0)) {
     throw new Error('live-atlas build: update interval must be a positive number of minutes');
   }
   if (updateIntervalMinutes !== null && consumer !== 'app') throw new Error('live-atlas build: the update interval applies to the app consumer only');
-  const options = { ...(chrome === 'full' ? {} : { chrome }), ...(updateIntervalMinutes === null ? {} : { updateIntervalMs: updateIntervalMinutes * 60_000 }) };
+  const options = updateIntervalMinutes === null ? {} : { updateIntervalMs: updateIntervalMinutes * 60_000 };
   const inputPath = path.resolve(repoRoot, input);
   const outputRoot = path.resolve(repoRoot, out);
   const inputBytes = await fs.readFile(inputPath);
@@ -133,7 +130,6 @@ export const buildLiveAtlas = async ({ input, out, consumer = 'app', chrome = 'f
     inputKind: appInput?.kind ?? null,
     snapshots: appInput?.snapshots?.map(item => item.rev) ?? [],
     frames: appInput?.frames?.map(item => item.id) ?? [],
-    ...(chrome === 'full' ? {} : { chrome }),
     ...(updateIntervalMinutes === null ? {} : { updateIntervalMinutes }),
     authority: false,
   };
@@ -148,8 +144,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     return [argument.slice(2, index), argument.slice(index + 1)];
   }));
   if (!args.out) throw new Error('live-atlas build: --out=<new directory> is required');
+  // The one composition is what --chrome=none used to build; that flag is still
+  // read (existing HQ refresh scripts pass it), any other value is refused.
+  if (args.chrome !== undefined && args.chrome !== 'none') throw new Error(`live-atlas build: there is one composition; --chrome=${args.chrome} is not supported`);
   const consumer = args.consumer ?? 'app';
   const defaultInput = consumer === 'example' ? 'examples/atlas/input/example.jsonl' : 'tests/fixtures/live-atlas/history.json';
   const updateIntervalMinutes = args['update-interval-minutes'] === undefined ? null : Number(args['update-interval-minutes']);
-  console.log(JSON.stringify(await buildLiveAtlas({ input: args.input ?? defaultInput, out: args.out, consumer, chrome: args.chrome ?? 'full', updateIntervalMinutes })));
+  console.log(JSON.stringify(await buildLiveAtlas({ input: args.input ?? defaultInput, out: args.out, consumer, updateIntervalMinutes })));
 }

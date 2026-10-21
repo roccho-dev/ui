@@ -1,26 +1,22 @@
-// Timeline layer checks. Pure; no browser. The browser journey (keys, the
-// present control and reload) is tests/atlas-world-timeline-browser-proof.mjs.
+// Timeline checks: stepping, the position the status row names, the stream
+// state and the stall. Pure; no browser. The browser journey (the status row
+// and ◀ 前へ / 次へ ▶ / 現在へ) is tests/atlas-world-status-browser-proof.mjs.
 import assert from 'node:assert/strict';
 import { parseAtlasWorldInput, worldPair } from '../packages/control/src/atlas-world.mjs';
-import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
+import { projectAtlasWorld } from '../packages/control/src/atlas-world-projection.mjs';
 import { parseHeartbeat, snapshotSize } from '../packages/control/src/live-atlas.mjs';
-import { PLAN_UNDECLARED, RECEIVE_WINDOW_MS, TIMELINE_ID_PREFIX, formatViewHash, parseViewHash, stepIndex, timelinePosition, transportOf,
-  updateStalled } from '../packages/control/src/atlas-timeline.mjs';
+import { RECEIVE_WINDOW_MS, formatViewHash, parseViewHash, stepIndex, timelinePosition, transportOf,
+  updateStalled, viewedText } from '../packages/control/src/atlas-timeline.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
-
-const timelineOf = projection => new Map(projection.scene.representations
-  .filter(item => item.regionId.startsWith(TIMELINE_ID_PREFIX)).map(item => [item.regionId.slice(TIMELINE_ID_PREFIX.length), item]));
-const hudCount = projection => projection.scene.representations
-  .filter(item => !item.regionId.startsWith(TIMELINE_ID_PREFIX) && (item.isGuide || item.zIndex >= 10000)).length;
 
 let cases = 0;
 for (const count of [1, 2, 3, 5]) {
   const input = parseAtlasWorldInput(worldWithFrames(count));
   const selected = input.presentation.defaultSelection;
-  const project = (index, { chrome = 'none', latest = index === count - 1, viewport = { width: 1280, height: 720 } } = {}) => {
+  const project = (index, { latest = index === count - 1, viewport = { width: 1280, height: 720 } } = {}) => {
     const pair = index === 0 && count > 1 ? worldPair(input) : worldPair(input, index);
     const frame = index === 0 && count > 1 ? pair.before : pair.after;
-    return projectAtlasWorld({ input, frame, counterpart: frame === pair.after ? pair.before : pair.after, latest, viewport, chrome,
+    return projectAtlasWorld({ input, frame, latest, viewport,
       selected: 'entity:' + encodeURIComponent(selected.space) + ':' + selected.kind + ':' + selected.id });
   };
 
@@ -44,40 +40,21 @@ for (const count of [1, 2, 3, 5]) {
   }
   assert.equal(forward, 0, count + ' frames: 0 steps into the future');
 
+  // The projection names the displayed position (the status row reads it, as
+  // 表示中：現在 n/n or 過去 i/n); nothing of the timeline is drawn on the graph
+  // (contract 3, revised: no strip or band), and the graph takes the viewport.
   for (let index = 0; index < count; index += 1) {
-    for (const chrome of ['none', 'full']) for (const viewport of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }]) {
-      const projection = project(index, { chrome, viewport });
-      const cells = timelineOf(projection);
+    for (const viewport of [{ width: 1280, height: 720 }, { width: 1500, height: 1000 }]) {
+      const projection = project(index, { viewport });
       const present = index === count - 1;
       assert.deepEqual(projection.timeline, { index, count, present }, 'projection names the displayed position');
-      if (chrome === 'none') {
-        // The chrome-free view draws no strip (未設計のため。設計の合意後に戻す): no cell,
-        // no HUD, and the graph takes the whole height.
-        assert.equal(cells.size, 0, 'none: no strip');
-        assert.equal(hudCount(projection), 0, 'none: 0 HUD regions');
-        assert.equal(projection.viewport.timeline, null, 'none: no strip reserved');
-        assert.equal(projection.viewport.graph.y + projection.viewport.graph.height, viewport.height - 16, 'none: the graph reaches the bottom margin');
-        cases += 1;
-        continue;
-      }
-      assert.deepEqual([...cells.keys()], ['back', 'position', 'forward', 'present', 'plan'], 'the HUD keeps one strip');
-      assert.equal(cells.get('position').label.startsWith('表示中：' + (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count), true, 'position label');
-      assert.equal(Boolean(cells.get('back').activation), index > 0, 'back steps only while a past frame remains');
-      assert.equal(Boolean(cells.get('forward').activation), index < count - 1, 'forward never steps past the present');
-      assert.equal(cells.get('present').activation?.type ?? null, present ? null : 'atlas.world.latest', 'return to the present from the past');
-      assert.equal(cells.get('plan').label, PLAN_UNDECLARED + ' · 詳細', 'no plan is shown as undeclared, not empty');
-      assert.equal(cells.get('plan').activation.type, 'atlas.world.plan-toggle', 'the plan cell only opens its detail');
-      const { graph, timeline } = projection.viewport;
-      assert.ok(timeline.y >= graph.y + graph.height && timeline.y + timeline.height <= viewport.height, 'strip sits below the graph inside the viewport');
-      for (const item of cells.values()) {
-        assert.ok(item.bounds.x >= timeline.x - 1e-9 && item.bounds.x + item.bounds.width <= timeline.x + timeline.width + 1e-9, 'cells stay in the strip');
-      }
+      assert.equal(viewedText(input.frames, input.frames[index]), '表示中：' + (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count + ' · ' + input.frames[index].id);
+      assert.equal(projection.scene.representations.filter(item => !['area', 'entity'].includes(item.atlas?.kind)).length, 0, 'no strip, band or HUD region');
+      assert.equal(projection.viewport.graph.y + projection.viewport.graph.height, viewport.height - 16, 'the graph reaches the bottom margin');
       cases += 1;
     }
   }
-  // A held present (stepped onto, not followed) still offers the return.
-  assert.equal(timelineOf(project(count - 1, { latest: false, chrome: 'full' })).get('present').activation.type, 'atlas.world.latest');
-  assert.equal(worldViewport({ width: 1280, height: 720 }, { panel: false }).panel, null);
+  assert.equal(viewedText(input.frames, { id: 'gone' }), '表示中：保持中の frame gone（最新入力に無い）', 'a held frame no longer received');
 }
 
 // The URL fragment round trip used for reload.
