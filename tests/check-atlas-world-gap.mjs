@@ -182,31 +182,49 @@ const badAdmission = gapWorld({ admission: true });
 badAdmission.frames[0].journal[0].source.admission = '';
 assert.throws(() => parseAtlasWorldInput(badAdmission), /source.admission must be non-empty text/);
 // L3 (adrs#647, contract v12): a plan.set bound to no ideal state, with its
-// time and author like any journal entry, is counted in the plan cell as
-// 未結合 n 件: up to the frame, each such plan id once, leaving out an id the
-// frame's plans carry. It is not one of the frame's plans and not in any box:
-// every entity, flag, status and color is as without them, and the
-// chrome-free view (no strip) draws the same; the band has no mark of its own.
+// time and author like any journal entry, is counted as 未結合 n 件: up to the
+// frame, each such plan id once, leaving out an id the frame's plans carry. It
+// is never one of the frame's plans and never in 現在状態. Plans are an
+// attribute of the ideal state, so the count is the last line of 理想状態 —
+// drawn in every chrome, the chrome-free /hq/ view included — and the HUD's
+// plan cell. Every other entity, flag, status and color is as without them.
 const unboundWorld = parseAtlasWorldInput(gapWorld({ unbound: true }));
 const unboundCount = { t4: 2, t5: 2, t6: 3, t7: 3 };
 const planCell = (world, item, viewport) => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome: 'full', viewport })
   .scene.representations.find(rep => rep.regionId === TIMELINE_ID_PREFIX + 'plan');
+// What the chrome-free view draws as text: every representation's label.
+const drawnText = (world, item, chrome = 'none') => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome })
+  .scene.representations.map(rep => rep.label ?? '').join('\n');
+const idealOf = each => each.entities.find(entity => entity.ref.kind === 'ideal-state').label;
 for (const item of unboundWorld.frames) {
-  assert.deepEqual(item.entities, frame(item.id).entities, item.id + ': unbound plans change no entity');
+  const count = unboundCount[item.id];
+  assert.ok(count ? drawnText(unboundWorld, item).includes('未結合 ' + count + ' 件') : !drawnText(unboundWorld, item).includes('未結合'),
+    item.id + ': the chrome-free view shows the unbound count');
+  assert.equal(idealOf(item), idealOf(frame(item.id)) + (count ? '\n計画：未宣言（UNKNOWN） · 未結合 ' + count + ' 件' : ''), item.id + ': 理想状態 counts the unbound plans');
+  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'ideal-state'), frame(item.id).entities.filter(entity => entity.ref.kind !== 'ideal-state'),
+    item.id + ': every other entity as without them');
+  assert.ok(!item.entities.find(entity => entity.ref.kind === 'current-state').label.includes('未結合'), item.id + ': not in 現在状態');
   const scene = (world, chrome) => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome }).scene.representations
-    .filter(rep => !rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal') && rep.regionId !== TIMELINE_ID_PREFIX + 'plan')
+    .filter(rep => !rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal') && rep.regionId !== TIMELINE_ID_PREFIX + 'plan' && rep.atlas?.ref?.kind !== 'ideal-state')
     .map(rep => [rep.regionId, rep.label, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
-  for (const chrome of ['none', 'full']) assert.deepEqual(scene(unboundWorld, chrome), scene(input, chrome), item.id + ' ' + chrome + ': same drawing besides the plan cell');
+  for (const chrome of ['none', 'full']) assert.deepEqual(scene(unboundWorld, chrome), scene(input, chrome), item.id + ' ' + chrome + ': same drawing besides 理想状態 and the plan cell');
   const cell = planCell(unboundWorld, item, { width: 1920, height: 1080 });
-  assert.equal(cell.atlas.unbound, unboundCount[item.id] ?? 0, item.id + ': unbound count');
+  assert.equal(cell.atlas.unbound, count ?? 0, item.id + ': unbound count');
   assert.equal(cell.atlas.plan, 'undeclared', item.id + ': unbound plans are not mixed into plans');
-  assert.ok(unboundCount[item.id] ? cell.label.replace(/\n/gu, '').includes('未結合 ' + unboundCount[item.id] + ' 件') : !cell.label.includes('未結合'), item.id + ': ' + cell.label);
+  assert.ok(count ? cell.label.replace(/\n/gu, '').includes('未結合 ' + count + ' 件') : !cell.label.includes('未結合'), item.id + ': ' + cell.label);
 }
-// An id the frame's plans carry (bound later) is not counted as unbound.
+// An id the frame's plans carry (bound later) is not counted as unbound; the
+// frame's own plans are shown as supplied.
 const laterBound = gapWorld({ unbound: true });
 laterBound.frames[7].plans = [{ ...knownPlan, ref: 'mieru#3', plan: 'mieru#3:release', label: 'mieru release (mieru#3 v1)', version: 1 }];
 const laterBoundWorld = parseAtlasWorldInput(laterBound);
 assert.equal(planCell(laterBoundWorld, laterBoundWorld.frames[7], { width: 1920, height: 1080 }).atlas.unbound, 2, 'an id in the frame\'s plans is left out');
+assert.ok(idealOf(laterBoundWorld.frames[7]).endsWith('\n計画：1 件 · 未結合 2 件'), idealOf(laterBoundWorld.frames[7]));
+// Plans supplied with none unbound: the plans alone; neither: no line (no zero count).
+const onlyPlans = gapWorld();
+onlyPlans.frames[4].plans = [];
+assert.ok(idealOf(parseAtlasWorldInput(onlyPlans).frames[4]).endsWith('\n計画：有効な計画 0 件'), 'supplied plans are shown');
+assert.ok(!input.frames.some(item => idealOf(item).includes('計画：')), 'no plans and none unbound: no plan line');
 // The band keeps one plan mark per frame (no mark of its own for unbound
 // plans); its rows name each entry, the unbound ones marked, with time and author.
 const unboundBand = projectAtlasWorld({ input: unboundWorld, frame: unboundWorld.frames.at(-1), selected: 'none', chrome: 'full', journalOpen: '4:plan.set',
@@ -316,10 +334,11 @@ assert.equal(byKind(parseAtlasWorldInput(off).frames[4])['phase:hq'], '局面：
 const offSummary = gapWorld();
 offSummary.frames[4].gap.summary.open = 9;
 assert.match(byKind(parseAtlasWorldInput(offSummary).frames[4])['gap:hq'], /^理想↔現在の差\n差 3（前 1） · 集計不一致\n/u);
-// Plans never enter the gap view.
+// Plans never enter the gap: they are named on 理想状態 only (an attribute of the ideal).
 const planned = gapWorld();
 planned.frames[3].plans = [];
-assert.deepEqual(parseAtlasWorldInput(planned).frames[3].entities, frame('t3').entities, 'plans change no gap entity');
+assert.deepEqual(parseAtlasWorldInput(planned).frames[3].entities.filter(entity => entity.ref.kind !== 'ideal-state'),
+  frame('t3').entities.filter(entity => entity.ref.kind !== 'ideal-state'), 'plans change no gap entity');
 
 // GapA (目的↔理想の差) is the producer's purpose-adequacy (apps#129): drawn as
 // supplied between 理想状態 and 理想↔現在の差, never judged here from the
