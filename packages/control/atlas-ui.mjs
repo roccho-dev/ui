@@ -11,8 +11,8 @@ import {
 import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
-import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { UPDATE_STALLED, forecastLines, hasBand, journalLines, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
+import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
+import { UPDATE_STALLED, forecastLines, journalLines, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
   viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
@@ -452,6 +452,9 @@ body{margin:0;overflow:hidden}
 #atlas-world-search-bar button{flex:none;font:inherit}
 `;
 
+// A supplied World input the page refused: the last accepted one stays drawn.
+const INPUT_REFUSED = '入力を拒否・前に受け付けた入力を表示中';
+
 export const mountAtlasWorldUI = ({
   root = document.body,
   input,
@@ -460,14 +463,12 @@ export const mountAtlasWorldUI = ({
   now = 0,
   selected = null,
   onSelect = null,
-  chrome = 'full',
   frameId: initialFrameId = '',
   onView = null,
   updateIntervalMs = null,
 } = {}) => {
   if (!root?.append) throw new Error('atlas-world-ui: mount root required');
   if (updateIntervalMs !== null && !(Number.isFinite(updateIntervalMs) && updateIntervalMs > 0)) throw new Error('atlas-world-ui: updateIntervalMs must be a positive number or null');
-  if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world-ui: unsupported chrome ' + chrome);
   const worldInput = parseAtlasWorldInput(input);
   const style = el('style', { 'data-atlas-world-style': 'true', text: WORLD_STYLE });
   const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
@@ -500,9 +501,6 @@ export const mountAtlasWorldUI = ({
     latest: true,
     pair: worldPair(worldInput),
     side: 'after',
-    detailTab: 'record',
-    detailPage: 0,
-    detailPages: {},
     admission: null,
     selected: selected || entityKey(worldInput.presentation.defaultSelection),
     mode: initialMode,
@@ -512,8 +510,6 @@ export const mountAtlasWorldUI = ({
     snapshotBytes: null,
     heartbeatBytes: null,
     projection: null,
-    planOpen: false,
-    journalOpen: null,
     listOpen: null,
     updateIntervalMs,
     destroyed: false,
@@ -525,10 +521,11 @@ export const mountAtlasWorldUI = ({
   let suppressSelection = false;
   let cameraFrame = 0;
 
+  // The frame shown. A received pair keeps a held past frame (and the input it
+  // came from) while newer input arrives; the first frame is the pair's Before side.
   const currentFrame = () => page.side === 'before' && page.pair.before ? page.pair.before : page.pair.after;
-  const counterpartFrame = () => page.side === 'before' && page.pair.before ? page.pair.after : page.pair.before;
   const viewport = () => ({ width: container.clientWidth, height: container.clientHeight });
-  const graphView = () => worldViewport(viewport(), { panel: chrome === 'full', band: hasBand(page.input) }).graph;
+  const graphView = () => worldViewport(viewport()).graph;
   const stalled = () => updateStalled({ mode: page.mode, now: page.now, asOf: page.input.frames.at(-1).asOf, updateIntervalMs: page.updateIntervalMs });
   const renderSearch = () => {
     const frame = currentFrame();
@@ -538,14 +535,15 @@ export const mountAtlasWorldUI = ({
         value: key, text: (record.label || record.kind || key) + ' · ' + key,
       })));
     choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
-    searchCount.textContent = page.searchResults.length + ' results in supplied ' +
-      (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev;
+    searchCount.textContent = page.searchResults.length + ' results in ' + frame.id + ' rev ' + frame.rev;
     searchCount.title = searchCount.textContent;
-    // The status row: warnings first, then LATEST / HELD, the frame shown and
-    // the last receipt. LATEST is the newest supplied frame; while the live
+    // The status row: warnings first (the World stopped updating, a supplied
+    // input was refused, the stream state), then LATEST / HELD, the frame shown
+    // and the last receipt. LATEST is the newest supplied frame; while the live
     // stream cannot vouch for that supply, or the World stopped updating, it is qualified.
     const { warning, last } = transportParts(page);
-    status.textContent = [stalled() ? UPDATE_STALLED + '（最後の frame ' + page.input.frames.at(-1).asOf + '）' : null, warning,
+    status.textContent = [stalled() ? UPDATE_STALLED + '（最後の frame ' + page.input.frames.at(-1).asOf + '）' : null,
+      page.admission?.status === 'rejected' ? INPUT_REFUSED : null, warning,
       page.latest ? (['sample', 'live'].includes(transportOf(page)) && !stalled() ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD',
       viewedText(page.input.frames, frame), last].filter(Boolean).join(' · ');
     status.title = status.textContent;
@@ -568,9 +566,9 @@ export const mountAtlasWorldUI = ({
     draw();
   };
 
-  // Without the HUD there is no Fit control on screen, so the camera may not
-  // carry the World out of view: on each axis a World larger than the graph
-  // view must cover it, and a smaller one must stay inside it.
+  // There is no Fit control on screen, so the camera may not carry the World
+  // out of view: on each axis a World larger than the graph view must cover
+  // it, and a smaller one must stay inside it.
   const clampCamera = world => {
     const { scale, translateX, translateY } = adapter.camera();
     const view = graphView();
@@ -590,27 +588,18 @@ export const mountAtlasWorldUI = ({
       input: page.pair.input,
       receivedInput: page.input,
       frame: currentFrame(),
-      counterpart: counterpartFrame(),
       selected: page.selected,
       mode: page.mode,
       connected: page.connected,
       latest: page.latest,
       scale: adapter.camera().scale,
-      camera: adapter.camera(), viewport: viewport(),
-      detailTab: page.detailTab, detailPage: page.detailPage, admission: page.admission,
-      chrome,
-      planOpen: page.planOpen,
-      journalOpen: page.journalOpen,
-      receivedAt: page.receivedAt,
-      snapshotBytes: page.snapshotBytes,
-      heartbeatBytes: page.heartbeatBytes,
+      viewport: viewport(),
+      admission: page.admission,
       now: page.now,
     });
     let projection = project();
-    // Screen-placed layers follow the camera, so project again if it moved.
-    if (chrome === 'none' && clampCamera(projection.world)) projection = project();
+    if (clampCamera(projection.world)) projection = project();
     page.projection = projection;
-    page.detailPage = projection.detail.page;
     adapter.render(projection.scene);
     adapter.setFocusMarker(projection.selectedRegionId);
     renderSearch();
@@ -663,9 +652,8 @@ export const mountAtlasWorldUI = ({
     }
   };
 
-  const select = (key, { sync = true, inspect = false } = {}) => {
+  const select = (key, { sync = true } = {}) => {
     if (typeof key !== 'string' || !key) return;
-    if (page.selected !== key || inspect) { page.detailPages[page.detailTab] = page.detailPage; page.detailPage = 0; page.detailTab = 'record'; }
     page.selected = key;
     onSelect?.(key);
     draw();
@@ -682,7 +670,7 @@ export const mountAtlasWorldUI = ({
     if (page.destroyed) return;
     const key = choices.value;
     if (!page.searchResults.some(row => row.key === key)) return;
-    select(key, { inspect: true });
+    select(key);
     // Bring the chosen record's box (a relation: its drawn end) into view.
     focusSelected();
   };
@@ -692,35 +680,9 @@ export const mountAtlasWorldUI = ({
   const selectRef = ref => select(entityKey(ref));
   const selectRelationRef = ref => select(relationKey(ref));
 
-  const cycle = ids => {
-    if (!ids?.length) return;
-    const index = Math.max(-1, ids.indexOf(page.selected));
-    select(ids[(index + 1) % ids.length]);
-  };
-
+  // A box of the three areas is the only thing on the graph to activate.
   adapter.setActivationHandler(activation => {
-    if (activation?.type === 'atlas.world.select') select(activation.id, { inspect: true });
-    else if (activation?.type === 'atlas.world.next-aggregate') cycle(page.projection?.aggregateRelationIds);
-    else if (activation?.type === 'atlas.world.next-omitted') cycle(page.projection?.omittedRelationIds);
-    else if (activation?.type === 'atlas.world.next-omitted-entity') cycle(page.projection?.omittedEntityIds);
-    else if (activation?.type === 'atlas.world.frame-before') showSide('before');
-    else if (activation?.type === 'atlas.world.frame-after') showSide('after');
-    else if (activation?.type === 'atlas.world.latest') followLatest();
-    else if (activation?.type === 'atlas.world.timeline-step') stepFrame(activation.value);
-    else if (activation?.type === 'atlas.world.plan-toggle') { page.planOpen = !page.planOpen; page.journalOpen = null; draw(); }
-    else if (activation?.type === 'atlas.world.journal-toggle') {
-      page.journalOpen = page.journalOpen === activation.value ? null : activation.value;
-      page.planOpen = false;
-      draw();
-    }
-    else if (activation?.type === 'atlas.world.tab') { page.detailPages[page.detailTab] = page.detailPage; page.detailTab = activation.value; page.detailPage = page.detailPages[activation.value] ?? 0; draw(); }
-    else if (activation?.type === 'atlas.world.detail-next') turnPage(1);
-    else if (activation?.type === 'atlas.world.detail-previous') turnPage(-1);
-    else if (activation?.type === 'atlas.world.endpoint' && activation.value) select(activation.value, { inspect: true });
-    else if (activation?.type === 'atlas.world.fit') fit();
-    else if (activation?.type === 'atlas.world.focus') focusSelected();
-    else if (activation?.type === 'atlas.world.tool-select') adapter.setTool('select');
-    else if (activation?.type === 'atlas.world.tool-hand') adapter.setTool('hand');
+    if (activation?.type === 'atlas.world.select') select(activation.id);
   });
 
   adapter.onSelectionChange(selection => {
@@ -732,7 +694,6 @@ export const mountAtlasWorldUI = ({
   const showSide = side => {
     page.side = side === 'before' && page.pair.before ? 'before' : 'after';
     page.latest = false;
-    page.detailPage = 0;
     updateFrameIndex();
     draw();
     syncGraphSelection(page.selected);
@@ -741,7 +702,6 @@ export const mountAtlasWorldUI = ({
     page.pair = worldPair(page.input);
     page.side = 'after';
     page.latest = true;
-    page.detailPage = 0;
     updateFrameIndex();
     draw();
     syncGraphSelection(page.selected);
@@ -766,10 +726,6 @@ export const mountAtlasWorldUI = ({
     const next = stepIndex(position, delta);
     if (next === position.index) return;
     showFrame(next);
-  };
-  const turnPage = delta => {
-    page.detailPage = Math.max(0, Math.min(page.projection.detail.pageCount - 1, page.detailPage + delta));
-    draw();
   };
   const rejectInput = reason => {
     if (page.destroyed) return;
@@ -842,16 +798,11 @@ export const mountAtlasWorldUI = ({
     draw();
   };
 
+  // Keys are only shortcuts of visible controls: [ ◀ 前へ, ] 次へ ▶, L 現在へ.
   const onKeyDown = event => {
-    if (event.key === 's' || event.key === 'S') adapter.setTool('select');
-    else if (event.key === 'h' || event.key === 'H') adapter.setTool('hand');
-    else if (event.key === 'f' || event.key === 'F') focusSelected();
-    else if (event.key === '0' || event.key === 'Escape') fit();
-    else if (event.key === '[') stepFrame(-1);
+    if (event.key === '[') stepFrame(-1);
     else if (event.key === ']') stepFrame(1);
     else if (event.key === 'l' || event.key === 'L') followLatest();
-    else if (event.key === 'PageDown') turnPage(1);
-    else if (event.key === 'PageUp') turnPage(-1);
     else return;
     event.preventDefault();
   };
@@ -860,11 +811,9 @@ export const mountAtlasWorldUI = ({
   const onWheel = event => {
     event.preventDefault();
     const box = container.getBoundingClientRect();
-    const panel = page.projection.viewport.panel;
-    if (panel && event.clientY - box.top >= panel.y) turnPage(event.deltaY < 0 ? -1 : 1);
-    // Without the HUD the World may be larger than the view at its minimum
-    // scale: a plain wheel scrolls it, and Ctrl/⌘ + wheel zooms.
-    else if (chrome === 'none' && !event.ctrlKey && !event.metaKey) panBy(event.deltaX, event.deltaY);
+    // The World may be larger than the view at its minimum scale: a plain
+    // wheel scrolls it, and Ctrl/⌘ + wheel zooms.
+    if (!event.ctrlKey && !event.metaKey) panBy(event.deltaX, event.deltaY);
     else zoomBy(event.deltaY < 0 ? 1.2 : 1 / 1.2, { x: event.clientX - box.left, y: event.clientY - box.top });
   };
   const panBy = (dx, dy) => {

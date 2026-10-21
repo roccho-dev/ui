@@ -108,7 +108,7 @@ The fixture exists only to prove:
 - one Work node with many-to-many explicit relations;
 - Now / Recent / UNKNOWN, source/time/coverage and before/after differences;
 - recoverable aggregate and omitted relation identities;
-- SVG-visible routine judgement without relying on the legacy Inspector/audit/catalog surface.
+- the one World screen (three areas, status and search rows) without relying on the legacy Inspector/audit/catalog surface.
 
 Pure World input/containment/fixture contracts run without browser dependencies through `node tests/check-atlas-world.mjs`, also included by `tests/run-all.mjs`. The browser gate below owns public-HTML rendering and interaction checks; it does not duplicate those pure assertions.
 
@@ -116,7 +116,7 @@ For the executable product proof, run:
 
 ```sh
 nix develop .#semantic-map-browser-proof --command \
-  node tests/atlas-a2-ui-composition-gate.mjs
+  node tests/atlas-a2-ui-composition-gate.mjs --out=<fresh absent directory>
 ```
 
 A PASS is UI composition evidence for this synthetic input only. It is not evidence of real Codex acquisition, apps admission, production SSE, observer coverage, or Purpose achievement.
@@ -152,27 +152,19 @@ The new records have unknown observed/acquired/effective time. Coverage remains 
 
 ### Read the supplied meaning
 
-Start in **After**. Actual node selection shows its qualified identity and flags. Use **Focus** (F) to read a short label, then focus the SVG and use **Fit** (0) to return. Fit can compact leaf labels; a hidden label or an internal record count is not proof of readability.
-
-| Meaning | Select in the SVG | Read |
-| --- | --- | --- |
-| Separate Issue identities | Issue A, then Issue B | `example-issues-a/issue/7` and `example-issues-b/issue/7`. A has two supplied Work links; B has none in this partial fixture. This does not prove real Work absence. |
-| Package A requirement | A→A relation, then its aggregate member `pkg-a.issue-a.req` | role=plan, input=Request, output=Plan, basis=req-a, source fixture:req-a@1 |
-| Independent A→A evidence | Same aggregate's `pkg-a.issue-a.alt` member | basis=alt-a, source fixture:alt-a@1. Recover both refs; drawing one aggregate does not adopt or merge their evidence. |
-| Package B requirement | B→A relation `pkg-b.issue-a.req` | role=render, input=Plan, output=SVG, basis=req-b |
-| Implementation evidence | Package A or Package B itself | `implementation-unknown` in Flags. Package selection does not display a related record's context; requirements above are read on the specified relations. |
-| Proposed relation to Issue B | A→B relation `pkg-a.issue-b` | from=Package A, to=Issue B, basis=scope-b, synthetic/proposal |
-| Proposed placement | Placement relation `example-relations/placement/pkg-a.repo-proposal`, Before / After | repo=Repo A / Repo B, basis=move-a-v1 / move-a-v2, source fixture:place-a@1 / @2 |
-
-Context values, sourceDigest and the full selected record are recoverable through the SVG Record pages without a 32-character truncation. Short basis/sourceRef values remain useful entry points to the complete evidence. Relation label A→A/A→B/B→A abbreviates the named Package→Issue pair; all three are ordinary graph relations.
+Each box shows its supplied label (and, for a Gap World, the state, causes
+and provenance lines the gap view draws). A record's other fields are not
+drawn on the one screen; the search row finds every qualified entity and
+relation of the frame shown, including hidden or over-budget ones, and
+choosing a result brings its box into view (for a relation, a drawn end of
+it). Relation labels are drawn when their line is long enough; the meaning of
+every Gap relation is also in a box's own text.
 
 ### Relations and Purpose paths
 
-Relation selection's **Direction starts with the exact selected RelationRef**. Selecting A→B shows Package A → Issue B → Purpose A → Company purpose. Its proposal status and each edge's reference/evidence remain explicit; another Issue's route is not substituted.
-
-To follow B, click the exposed A→B line and read its selected ref, endpoints and Direction. **Inspect to endpoint** or clicking Issue B explicitly changes the selection to B and shows B's own route. Package A's Direction pages expose the separate req/alt references through Issue A and the route through Issue B, without adopting their proposal evidence.
-
-The two new Work→Issue relations explicitly have `path=false`. They do not replace the existing seven-entity Agent 1 → Work X → Fill X → Gap A → Ideal A → Purpose A → Company purpose path. No ordinary relation implies containment.
+The two new Work→Issue relations explicitly have `path=false`. They do not
+replace the existing seven-entity Agent 1 → Work X → Fill X → Gap A → Ideal A →
+Purpose A → Company purpose path. No ordinary relation implies containment.
 
 ### One placement proposal, two versions
 
@@ -181,120 +173,61 @@ Package A keeps `example-packages/package/pkg-a` in both frames. The synthetic s
 - Before: Repo A, move-a-v1, fixture:place-a@1.
 - After: Repo B, move-a-v2, fixture:place-a@2.
 
-The supplier also explicitly declares **display containment for this proposal**, so Package A is nested inside the supplied Repo in each frame. Package B stays inside Repo A. This is not a general rule deriving containment, implementation existence or identity from repository placement.
+The supplier also explicitly declares **display containment for this proposal**, so Package A is nested inside the supplied Repo in each frame. Package B stays inside Repo A. This is not a general rule deriving containment, implementation existence or identity from repository placement. Step between the two frames with **◀ 前へ** / **次へ ▶** to see Package A move.
 
-Select Package A and use Before / After: the selected ref survives and Diff shows changed containment. Read the named Repo by clicking its boundary and using Focus, then return with Fit. Selecting the same placement relation across frames shows the concrete Repo/version context and changed from, context, source rather than a missing counterpart.
-
-### Reproduce and assess
-
-Use the a2 public build and existing Nix composition-gate commands above from the exact implementation head, with a fresh output directory. The builder writes `index.html` and `receipt.json`; retain the input SHA256 and HTML SHA256/bytes with the head. No generated output is source authority.
-
-The existing browser gate retains its rendering and interaction assertions, while pure input/fixture assertions live in the Node check. It covers actual node/edge clicks, the three M:N routes, both independent A→A evidence members, readable context/flags and Focus labels, and Package identity/nesting across frames. It requires an exposed rendered edge click point; DOM text or a covered midpoint is insufficient. Its placement-relation diff probe uses programmatic selection and is distinct from its actual Package/Repo/frame clicks.
-
-P independently obtains the published head and owns the existing Nix gate, HTML generation/hosting, shared HTML or PNG, localhost clicks, and the existing Git-untracked finite SSE simulator. Feed that simulator this exact input through the same full-snapshot consumer; check updates, Before/After pair hold / explicit Latest following, selection, disconnect UNKNOWN and reconnect. Gate `setSession` probes are not actual EventSource transport evidence. R judges the exact head and its corresponding results independently.
-
-The three real-data unknown groups remain: source/identity mapping; requirement/implementation evidence; and relation owner/meaning/evidence/adoption/coverage. The synthetic Issue/Package vocabulary introduces no required relation taxonomy, owner codec, acquisition mechanism, dependency, CI workflow or second screen. The prepared-data completion below adds navigation to the same SVG judgement panel. Published source and executable proof, P's real-screen/SSE readback and R's verdict are separate evidence; prior #336 results do not establish this example's completion.
-
-## Prepared comparison and held pairs (#342)
+## Prepared comparison input (#342)
 
 `input/prepared-comparison.json` is an additional **synthetic, authority=false**
-four-entity/two-relation input for the same World application. It supplies example owner receipts; it does
-not adopt an owner business schema or acquire real Agent observations.
+input whose optional root `comparisons` array carries owner receipts (`id`,
+`ownerRef`, explicit `before`/`after` endpoints, `axes`, `gaps`, `source`,
+`time`, `flags`). The World contract reads them exactly and keeps them with a
+held pair; the one screen does not draw them (contract 3, revised: no record
+or comparison panel).
 
-```sh
-node scripts/build-live-atlas.mjs \
-  --consumer=app \
-  --input=examples/atlas/input/prepared-comparison.json \
-  --out=examples/atlas/dist-prepared
-```
+## The one World screen
 
-The optional root `comparisons` array contains receipts with `id`, `ownerRef`,
-explicit `before`/`after` endpoints (`frameId`, `rev`, `asOf`, or null for an unknown
-endpoint), `axes`, `gaps`, `source`, `time` and `flags`. An axis claim is supplied
-as `status: changed|unchanged|unknown`, `summary`, JSON `basis`, qualified `refs`
-(`type: entity|relation` plus `ref`), `reason`, `source`, `time` and `flags`.
-Omitted/null claims stay **NOT SUPPLIED / UNKNOWN**. The display never fills them
-from field equality, order, geometry, a Work/Receipt status or transport liveness.
+A World page has one composition (adrs#647 comment 6305441262, contract 3
+revised): the three areas, with two rows above them. There is no HUD, detail
+panel, timeline strip or band.
 
-| Display | Meaning and evidence |
-| --- | --- |
-| N / M / R / E / S / T | Owner-supplied presence / meaning / reference / relation / evidence / time claims, each with its own basis and provenance |
-| business / frame / observation gaps | Three separate owner claims; one does not establish the others |
-| Factual world delta | Qualified records added/removed or carrying supplied field differences; it is explicitly separate from owner M and Business Gap |
-| Record Diff | Exact Before/After supplied values for the selected qualified record; a missing record retains unknown reason/time |
-| Evidence side | Current or counterpart frame with id/rev/asOf. Missing current relations recover their old context, endpoints and provenance as Before evidence |
+- **Row 1, the status**: warnings first — **更新停止・最新か不明**, a refused
+  input (**入力を拒否・前に受け付けた入力を表示中**), the stream state (SSE
+  未接続 / 応答なし / …) — then **LATEST** or **HELD**, the frame shown
+  (**表示中：現在 n/n** or **過去 i/n**, with its id) and the last receipt. A
+  narrow window cuts only the tail of the row.
+- **Row 2**: the search and its results, then **◀ 前へ**, **次へ ▶** and
+  **現在へ**. ◀ 前へ shows the previous received frame and holds it: the three
+  areas are drawn from that frame, and new input does not move it. 次へ ▶ steps
+  toward the present; 現在へ returns to the latest and follows it again. A
+  control that would change nothing is disabled, never hidden. The keys `[`
+  `]` `L` are their shortcuts; no key acts without a visible control.
+- **予定 ▸** opens the planned side of the latest frame, which is never a frame
+  and never a fact: its plans (or 計画未宣言（UNKNOWN）), the plans bound to no
+  ideal state, and the upkeep — per condition, when its observation goes stale
+  — or, without `upkeep`, the next stale time alone. The three areas stay as
+  they are.
+- **仕訳 n ▸** opens the entries the frame shown carries: kind, time, author and
+  source, one row each.
+- The phase line names when its phase began; 理想状態 names the plans and the
+  unbound plans; the phase box lists what was held.
 
-Receipts apply only when **both endpoint identities** match the displayed pair.
-Other-pair receipts are named as not applied. Both frame contents, the input
-presentation and the owner receipts are retained together while a pair is held.
-A later payload reusing either frame ID does not rewrite that held evidence.
+Mouse drag and wheel pan the World; Ctrl/⌘ + wheel zooms. A World larger than
+the view at scale 1 is panned, never shrunk until its text no longer fits; a
+resize refits it without changing the frame or the selection.
 
-### One SVG, explicit navigation
-
-- **Before `[` / After `]`** switch between the two held endpoints. Both actions
-  hold the pair. **Latest `L`** explicitly adopts the newest accepted input and
-  resumes following updates. The pair defaults to the first and last supplied
-  frames; a single-frame input has an unknown Before.
-- **Record / World comparison / Direction / All records** select pages in the
-  same SVG judgement panel. **Previous / Next page**, PageUp/PageDown, or wheel
-  over the panel recover every value. Long text and JSON are split into physical
-  lines without ellipsis or discarded characters. Each row is displayed as a
-  **JSON string fragment**: its outer quotes and escape sequences are display
-  notation, not additional source characters. Interior spaces stay visible as
-  spacing; supplied newlines, tabs, quotes and literal backslashes are encoded.
-  Decode each displayed string and concatenate its fragments to recover the
-  original logical line, including consecutive/leading/trailing spaces. The
-  encoded width is bounded and the page number is explicit.
-- **All records** includes every qualified entity and relation in the viewed
-  frame, including hidden/over-budget members. Click a row to inspect its full
-  record, even when that row is already selected. The explicit click opens
-  Record page 1 while keeping the pair, qualified identity and camera. Returning
-  to All records restores its page. The existing aggregate,
-  omitted-entity and omitted-relation controls also cycle their complete sets.
-- **Inspect from/to endpoint** is an explicit selection change. A selected
-  relation's Direction must start with that exact RelationRef. A `path:false`
-  relation has no route through itself. Same-endpoint req/alt refs remain
-  distinct; every displayed route names its entity and relation sequence and
-  complete edge evidence. Proposal edges remain **PROPOSAL / not accepted**.
-- **Fit `0` / Focus `F` / Select `S` / Hand `H`**, wheel zoom and pan operate on
-  the world. Judgement and controls remain anchored in the same SVG viewport,
-  independently of the graph camera. Resize refits the graph without changing
-  the pair or qualified selection.
-
-The representative viewport checks are **1500×1000 and 1200×900**, for both the
-Before and After containment. The graph keeps its 13px base node font. The
-judgement panel reserves 30% of viewport height, bounded to 280–400px; the graph
-uses the remaining height after the top controls and margins. Paging retains all
-detail values while giving the taller Before world room for full names. The
-derived nested layout widens its horizontal coordinates and node widths by 1.5
-before arranging the three areas; containment and supplied record values stay
-the same. Representative label checks require the entire name inside both the
-graph viewport and its actual SVG ancestor clips. A full DOM textContent alone
-does not establish visibility. The checked-in
-world has 25 entities and 39/40 relations; its nested boundaries, Work identity,
-parallel evidence and Issue/Package routes remain the representative visual
-case. The budget cases exercise **40/41 entities per area and 64/65 relation
-groups**. At a dense overview some graph labels shorten; Focus and the visible
-All records/omission controls recover exact identities and evidence. These limits
-are declared UI display limits, not an unlimited-scale claim. Direction enumerates
-up to 64 simple paths within 4096 traversals and explicitly marks a limit; all
-input relations remain in All records even when not enumerated as a route.
-
-### Rejected updates and reproducible checks
+### Rejected updates
 
 The public app accepts the same input as real `snapshot` SSE events at `?events=`.
-Malformed JSON or a World-contract violation produces a visible **REJECTED / last
-accepted input retained** receipt. It does not change the held pair, received
-input, selection, camera or observation timestamps. Connection changes retain
-rejection until a valid snapshot arrives. Disconnection exposes UNKNOWN for live
-activity; reconnecting does not manufacture a new observation. Quiet World input
-has no periodic clock timer (only the one-shot deadlines below). Rendering failures are not classified as input
-rejection.
+Malformed JSON or a World-contract violation is said first on the status row
+while the last accepted input stays drawn; the held frame, selection, camera and
+observation timestamps do not change, and the next valid snapshot clears it.
+Disconnection exposes UNKNOWN for live activity; reconnecting does not
+manufacture a new observation. Quiet World input has no periodic clock timer.
 
 ### Update stalled
 
 A live World page (opened with `?events=`) says **更新停止・最新か不明** in its
-status line, and qualifies LATEST as **LATEST（最新か不明）**, once the browser's
+status row, and qualifies LATEST as **LATEST（最新か不明）**, once the browser's
 clock is more than three update periods past the newest frame's `asOf`. Heartbeats
 do not clear it: they show the stream is open, not that the World advanced. The
 period is the World's actual update period, and the build is its only source
@@ -302,34 +235,28 @@ period is the World's actual update period, and the build is its only source
 default, and a build that names none never claims a stall. One timeout per
 accepted World wakes the page at that moment, with no periodic timer. A sample
 page (no `?events=`) claims no updates and never reads stalled.
-`tests/atlas-world-stall-browser-proof.mjs` checks this on the browser's clock.
 
 Limit: the newest `asOf` is the time HQ read its current claims, so it advances on
 every update that passes them. An update that passes no current leaves `asOf` at
 the last ledger time, and such a World reads stalled after three periods even
 while its updates still run.
 
-The existing `tests/atlas-a2-ui-composition-gate.mjs` builds the public HTML and
-uses the existing HTTP/Node/Chromium environment. It keeps the positive SVG bbox,
-viewport and actual-click checks, traverses visible page controls and decodes
-only the actual SVG text to reconstruct all values. Expected input, labels and
-offsets cannot fill missing characters. It drives a small gate-local SSE stream through append, invalid JSON,
-invalid kind, last accepted, disconnect/reconnect and recovery. It also covers
-same-ID content replacement, missing held endpoints, owner M independent of field
-equality, relation S/T, alternative RelationRefs and the declared display budgets.
-For the prepared Agent1, observed time stays **06:00Z**, acquired time stays
-**06:10Z** (both on 2026-10-07), and effective time stays unknown through
-disconnection and reconnection. Transport time does not replace either value.
-The gate models a network interruption by closing the active stream and dropping
-unavailable connections before HTTP headers. A [non-200 EventSource response](https://html.spec.whatwg.org/multipage/server-sent-events.html#the-eventsource-interface)
-is a terminal connection failure, so an HTTP 503 response is not a substitute for this
-reconnect case. Live navigation waits for DOM content, then the public app's ready,
-connected and accepted-input conditions, rather than full-page load as readiness.
-The existing navigation deadline remains 30 seconds. An interruption during browser
-checks returns a FAIL receipt with `completed: false`, the last check and phase, actual
-document/EventSource request responses or failures, and the readable public UI
-state. A one-second bound applies only to that diagnostic read. Completed checks
-are partial evidence until the full run finishes; missing checks are not PASS.
-Run the existing Node contract and Nix browser commands above; source/build success
-alone is not a browser or User-entry result. Final acceptance additionally needs
-the same published head's independent P screen/entry receipt and R review.
+### Checks
+
+`node tests/run-all.mjs` runs the pure checks, among them
+`tests/check-atlas-world-screen.mjs` (no HUD, panel, strip or band region; the
+30-case wording table read from the drawn text). Inside the
+`semantic-map-browser-proof` Nix shell, each browser proof takes
+`--out=<fresh absent directory>` and writes nothing outside it (its temporary
+files and the browser profile included):
+
+- `tests/atlas-a2-ui-composition-gate.mjs`: this example's composition,
+  nesting, actual-click selection, the held frame across updates, admission,
+  resize, transport state and a gate-local SSE stream, as drawn;
+- `tests/atlas-world-status-browser-proof.mjs`: the status rows, the time
+  controls, 予定 ▸ / 仕訳 ▸ and search, by visible rectangles at 1500 and 800 px;
+- `tests/atlas-world-regression-browser-proof.mjs --input=<World> --before=<page>`:
+  a World against an earlier build of it, as drawn.
+
+A PASS is UI evidence for the input given only. It is not evidence of real
+acquisition, production SSE, observer coverage or Purpose achievement.

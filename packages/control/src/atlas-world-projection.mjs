@@ -5,8 +5,8 @@
 import { createGraphLayout } from '../../semantic-map/layout/graph.js';
 import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
-import { ATLAS_COMPARISON_AXES, ATLAS_COMPARISON_GAPS, comparisonsForPair, containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
-import { hasBand, projectTimeline, timelinePosition, transportOf } from './atlas-timeline.mjs';
+import { containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
+import { timelinePosition } from './atlas-timeline.mjs';
 import { STALE_PHASE_LABEL, phaseStale } from './atlas-gap.mjs';
 
 const AREA_GAP = 40;
@@ -47,180 +47,11 @@ export const ATLAS_STATUS = Object.freeze({
 });
 const STATUS = ATLAS_STATUS;
 const statusOf = flags => Object.keys(STATUS).find(status => STATUS[status].flags.some(flag => flags?.includes(flag))) ?? null;
-const stable = value => {
-  if (Array.isArray(value)) return value.map(stable);
-  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])]));
-  return value;
-};
-const same = (a, b) => JSON.stringify(stable(a)) === JSON.stringify(stable(b));
-const sourceText = source => source ? source.sourceRef + (source.kind ? ' [' + source.kind + ']' : '') : 'source unknown';
-const timeText = time => [
-  'observed=' + (time?.observedAt ?? 'unknown'),
-  'acquired=' + (time?.acquiredAt ?? 'unknown'),
-  'effective=' + (time?.effectiveAt ?? 'unknown'),
-].join(' · ');
-const flagsText = flags => flags?.length ? flags.join(',') : 'none';
-const contextText = context => Object.keys(context ?? {}).length ? Object.entries(context).map(([key, value]) => key + '=' + (typeof value === 'string' ? value : JSON.stringify(stable(value)))).join(' · ') : 'none';
-
-const recordFor = (index, selected) => index.entityByKey.get(selected) ?? index.relationByKey.get(selected) ?? null;
-const recordKind = (index, selected) => index.entityByKey.has(selected) ? 'entity' : index.relationByKey.has(selected) ? 'relation' : 'missing';
-
-const changedFields = (current, other) => {
-  if (!current || !other) return [];
-  const fields = [...new Set([...Object.keys(current), ...Object.keys(other)])].sort();
-  return fields.filter(field => !same(current[field], other[field]));
-};
-
-// Preserve every reference in a bounded set of simple supplied paths. A relation
-// selection must traverse that exact relation first, never another Issue's edge.
-const directionPaths = (frame, index, selected, targets) => {
-  const relation = index.relationByKey.get(selected);
-  const start = index.entityByKey.has(selected) ? selected : relation ? entityKey(relation.from) : null;
-  const to = relation ? entityKey(relation.to) : null;
-  const outgoing = new Map();
-  for (const edge of frame.relations) {
-    if (!edge.path) continue;
-    const from = entityKey(edge.from), target = entityKey(edge.to);
-    if (!index.entityByKey.has(from) || !index.entityByKey.has(target)) continue;
-    if (!outgoing.has(from)) outgoing.set(from, []);
-    outgoing.get(from).push(edge);
-  }
-  if (!start || !index.entityByKey.has(start) || (relation && (!relation.path || !index.entityByKey.has(to)))) {
-    return Object.freeze({ routes: Object.freeze([]), limited: false,
-      reason: relation && !relation.path ? 'selected relation path=false' : 'endpoint missing / unknown' });
-  }
-  const queue = [{ entities: relation ? [start, to] : [start], relations: relation ? [relation] : [] }];
-  const routes = [];
-  let examined = 0, truncated = false;
-  while (queue.length && routes.length < 64 && examined < 4096) {
-    const trail = queue.shift();
-    examined += 1;
-    const last = trail.entities.at(-1);
-    if (targets.has(last)) {
-      const flags = [...new Set(trail.relations.flatMap(edge => edge.flags))];
-      routes.push(Object.freeze({ entities: Object.freeze(trail.entities),
-        relations: Object.freeze(trail.relations.map(edge => relationKey(edge.ref))),
-        status: flags.includes('proposal') ? 'PROPOSAL / not accepted' : flags.includes('unknown') ? 'UNKNOWN' : 'SUPPLIED path=true',
-        flags: Object.freeze(flags) }));
-      continue;
-    }
-    for (const edge of outgoing.get(last) ?? []) {
-      const next = entityKey(edge.to);
-      if (trail.entities.includes(next)) continue;
-      if (queue.length + examined >= 4096) { truncated = true; continue; }
-      queue.push({ entities: [...trail.entities, next], relations: [...trail.relations, edge] });
-    }
-  }
-  return Object.freeze({ routes: Object.freeze(routes), limited: truncated || queue.length > 0,
-    reason: routes.length ? null : 'no supplied path to a declared Purpose target' });
-};
-
-const frameText = frame => frame ? frame.id + ' · rev ' + frame.rev + ' · asOf ' + frame.asOf : 'UNKNOWN · no comparison frame';
-const full = value => JSON.stringify(stable(value));
-
-const worldComparisonLines = (input, before, after) => {
-  const owners = comparisonsForPair(input, before, after);
-  const lines = ['World Before: ' + frameText(before), 'World After: ' + frameText(after),
-    'Owner comparison: ' + (owners.length ? owners.length + ' supplied receipt(s) for this exact pair' : 'NOT SUPPLIED for this pair'),
-    'N=presence · M=meaning · R=reference · E=relation · S=evidence · T=time',
-    'Business Gap / Frame delta / observation gap are separate owner claims.',
-    'Work/Receipt completion does not establish Purpose achievement. UI authority=false.'];
-  for (const owner of owners) {
-    lines.push('Owner receipt: ' + owner.id + ' · ownerRef=' + owner.ownerRef,
-      'Owner provenance: ' + full(owner.source) + ' · flags=' + flagsText(owner.flags),
-      'Owner time: ' + timeText(owner.time));
-    for (const [kind, keys, claims] of [['axis', ATLAS_COMPARISON_AXES, owner.axes], ['gap', ATLAS_COMPARISON_GAPS, owner.gaps]]) {
-      for (const key of keys) {
-        const claim = claims[key];
-        lines.push('Owner ' + kind + ' ' + key + ': ' + (claim ? claim.status.toUpperCase() + ' · ' + claim.summary : 'NOT SUPPLIED / UNKNOWN'));
-        if (claim) lines.push('Basis ' + key + ': ' + full(claim.basis), 'Refs ' + key + ': ' + full(claim.refs),
-          'Reason ' + key + ': ' + (claim.reason ?? 'UNKNOWN'), 'Source ' + key + ': ' + full(claim.source),
-          'Time ' + key + ': ' + timeText(claim.time), 'Flags ' + key + ': ' + flagsText(claim.flags));
-      }
-    }
-  }
-  if (!owners.length) {
-    for (const key of ATLAS_COMPARISON_AXES) lines.push('Owner axis ' + key + ': NOT SUPPLIED / UNKNOWN');
-    for (const key of ATLAS_COMPARISON_GAPS) lines.push('Owner gap ' + key + ': NOT SUPPLIED / UNKNOWN');
-  }
-  for (const item of input.comparisons ?? []) if (!owners.includes(item)) {
-    lines.push('Other-pair receipt (not applied): ' + item.id + ' · Before=' + full(item.before) + ' · After=' + full(item.after));
-  }
-  lines.push('Factual world field delta: supplied records only; this is not owner M or Business Gap.');
-  if (!before || !after) lines.push('Factual comparison UNKNOWN: both frames are required; reason/time UNKNOWN.');
-  else {
-    const records = frame => new Map([...frame.entities.map(item => [entityKey(item.ref), item]),
-      ...frame.relations.map(item => [relationKey(item.ref), item])]);
-    const left = records(before), right = records(after);
-    let changes = 0;
-    for (const key of [...new Set([...left.keys(), ...right.keys()])].sort()) {
-      const a = left.get(key), b = right.get(key);
-      const fields = changedFields(a, b);
-      if (!a || !b || fields.length) {
-        changes += 1;
-        lines.push('Record delta ' + key + ': ' + (!a ? 'Before missing; reason/time UNKNOWN' : !b ? 'After missing; reason/time UNKNOWN' : 'fields=' + fields.join(', ')));
-      }
-    }
-    lines.push('Factual records with supplied field/presence difference: ' + changes + '. Owner meaning remains separate.');
-  }
-  return Object.freeze(lines);
-};
-
-// SVG's plain-text renderer trims each line. Quoted JSON fragments keep line
-// edges inside visible delimiters, and encode supplied newlines/tabs instead
-// of sending them through that trimming path. The UI preserves interior spaces.
-// Size the encoded label, not the original fragment; decoding never needs input
-// metadata to restore a character. Unicode code points stay together.
-const wrapLines = (lines, width) => {
-  const capacity = Math.max(8, Math.floor(width / 18));
-  return lines.flatMap((text, lineIndex) => {
-    const parts = [];
-    let encoded = '', length = 0, offset = 0, characters = 0;
-    const emit = () => {
-      parts.push(Object.freeze({ text: '"' + encoded + '"', lineIndex, offset }));
-      offset += characters;
-      encoded = ''; length = 0; characters = 0;
-    };
-    for (const character of text) {
-      const literal = JSON.stringify(character).slice(1, -1)
-        .replace(/[\u0085\u2028\u2029]/gu, value => '\\u' + value.charCodeAt(0).toString(16).padStart(4, '0'));
-      const size = Array.from(literal).length;
-      if (characters && length + size + 2 > capacity) emit();
-      encoded += literal; length += size; characters += 1;
-    }
-    if (characters || parts.length === 0) emit();
-    return parts;
-  });
-};
-
-export const ATLAS_CHROMES = Object.freeze(['full', 'none']);
-const TIMELINE_STRIP = 44;
-const BAND_HEIGHT = 64;
-
-// Every layout keeps one timeline strip directly below the graph, whatever
-// the chrome. `panel: false` is the chrome-free layout: no control row or
-// detail panel is reserved, so the graph takes the rest of the viewport.
-// `band: true` (a World with phases or a journal) adds the phase/journal band
-// just above the strip, taking its height from the graph (chrome-free) or
-// the panel (HUD), as the strip does.
-export const worldViewport = ({ width = 1500, height = 1000 } = {}, { panel: withPanel = true, band: withBand = false } = {}) => {
-  const strip = top => Object.freeze({ x: 8, y: top, width: Math.max(1, width - 16), height: TIMELINE_STRIP - 8 });
-  const extra = withBand ? BAND_HEIGHT : 0;
-  const band = top => withBand ? Object.freeze({ x: 8, y: top, width: Math.max(1, width - 16), height: BAND_HEIGHT - 6 }) : null;
-  if (!withPanel) {
-    // The strip and band are not drawn in the chrome-free view (未設計のため。設計の合意後に戻す): the graph takes the whole height.
-    return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32) }), panel: null, band: null, timeline: null });
-    // return Object.freeze({ graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32 - TIMELINE_STRIP - extra) }),
-    //   panel: null, band: band(height - TIMELINE_STRIP - extra), timeline: strip(height - TIMELINE_STRIP) });
-  }
-  // Keep the representative nested Before world readable at 1200x900: the
-  // graph keeps its size, and the strip takes its height from the detail
-  // panel, which pages rather than shrinking node names to status glyphs.
-  const panelHeight = Math.min(400, Math.max(280, Math.floor(height * 0.3)));
-  return Object.freeze({ graph: Object.freeze({ x: 16, y: 52, width: Math.max(1, width - 32), height: Math.max(1, height - panelHeight - 68) }),
-    panel: Object.freeze({ x: 8, y: height - panelHeight + TIMELINE_STRIP + extra, width: Math.max(1, width - 16), height: panelHeight - 8 - TIMELINE_STRIP - extra }),
-    band: band(height - panelHeight), timeline: strip(height - panelHeight + extra) });
-};
+// The one layout (contract 3, revised): the graph takes the viewport the page
+// leaves below its status and search rows; no panel, strip or band.
+export const worldViewport = ({ width = 1500, height = 1000 } = {}) => Object.freeze({
+  graph: Object.freeze({ x: 16, y: 16, width: Math.max(1, width - 32), height: Math.max(1, height - 32) }),
+});
 
 const regionId = key => 'world:' + key;
 const areaRegionId = id => 'area:' + encodeURIComponent(id);
@@ -477,45 +308,6 @@ const groupRelations = (frame, index, visibleEntityKeys) => {
   return { drawn, omitted };
 };
 
-const selectedDiff = ({
-  frame, counterpart, index, counterpartIndex, containment, counterpartContainment, selected,
-}) => {
-  const current = recordFor(index, selected);
-  const other = counterpartIndex ? recordFor(counterpartIndex, selected) : null;
-  const side = (sourceFrame, record) => sourceFrame ? Object.freeze({
-    frameId: sourceFrame.id, rev: sourceFrame.rev, asOf: sourceFrame.asOf, record,
-  }) : null;
-  // Frame rev orders supplied snapshots, not the time or reason of a business change.
-  const currentIsBefore = counterpart && frame.rev < counterpart.rev;
-  const before = currentIsBefore ? side(frame, current) : side(counterpart, other);
-  const after = currentIsBefore ? side(counterpart, other) : side(frame, current);
-  const changes = changedFields(before?.record, after?.record).map(field => Object.freeze({
-    field, before: before.record[field], after: after.record[field], basis: 'supplied record field',
-  }));
-  if (index.entityByKey.has(selected) && counterpartIndex?.entityByKey.has(selected)) {
-    const currentParent = containment.parentByChild.get(selected) ?? null;
-    const otherParent = counterpartContainment?.parentByChild.get(selected) ?? null;
-    if (currentParent !== otherParent) changes.push(Object.freeze({
-      field: 'containment',
-      before: currentIsBefore ? currentParent : otherParent,
-      after: currentIsBefore ? otherParent : currentParent,
-      basis: 'supplied containment endpoints',
-    }));
-  }
-  const summary = !counterpart ? 'no comparison frame'
-    : !current && !other ? 'not present in either compared frame'
-      : !current ? 'missing in ' + frame.id + ' · counterpart exists in ' + counterpart.id
-        : !other ? 'present in ' + frame.id + ' · counterpart missing in ' + counterpart.id
-          : changes.length ? 'changed ' + changes.map(change => change.field).join(', ')
-            : 'no supplied selected-record field change';
-  return Object.freeze({ before, after, changes: Object.freeze(changes), summary });
-};
-
-const comparisonSideText = side => side
-  ? side.frameId + ' · rev ' + side.rev + ' · asOf ' + side.asOf
-    + (side.record ? ' · record present' : ' · record missing · reason/time UNKNOWN')
-  : 'UNKNOWN · no comparison frame';
-
 const activityDisplay = ({ mode, connected, latest, admission }) => {
   const liveLatest = mode === 'live' && latest;
   const currentUnavailable = !connected || admission?.status === 'rejected';
@@ -528,9 +320,9 @@ const activityDisplay = ({ mode, connected, latest, admission }) => {
 
 // The three-area World alone: areas, nested entities and drawn relation groups
 // in world coordinates. It knows nothing of the camera, panel or controls.
-// `fitNested: true` fits nested areas to their content too (the chrome-free
-// view, which never shrinks the World); otherwise a nested area keeps the
-// graph layout, whose larger boxes hold their text in a shrunk overview.
+// `fitNested: true` fits nested areas to their content too (the one screen,
+// which never shrinks the World); otherwise a nested area keeps the graph
+// layout, whose larger boxes hold their text in a shrunk overview.
 export const projectWorldScene = ({
   input,
   frame,
@@ -691,224 +483,13 @@ export const projectWorldScene = ({
 
 // The judgement panel's text: every tab's logical lines for the selected
 // record, wrapped to the panel width and paged. Pure text; no regions.
-export const projectDetail = ({
-  input,
-  receivedInput = input,
-  frame,
-  counterpart = null,
-  selected,
-  mode = 'sample',
-  connected = false,
-  latest = true,
-  admission = null,
-  scene = projectWorldScene({ input, frame, mode, connected, latest, admission }),
-  panel = worldViewport().panel,
-  detailTab = 'record',
-  detailPage = 0,
-} = {}) => {
-  const { index, containment, groupByRelationId } = scene;
-  const counterpartIndex = counterpart ? indexWorldFrame(counterpart) : null;
-  const counterpartContainment = counterpart ? containmentIndex(counterpart) : null;
-  const { liveLatest, currentUnavailable, displayed: displayedActivity } = activityDisplay({ mode, connected, latest, admission });
-  const currentRecord = recordFor(index, selected);
-  const counterpartRecord = counterpartIndex ? recordFor(counterpartIndex, selected) : null;
-  const currentKind = recordKind(index, selected);
-  const record = currentRecord ?? counterpartRecord;
-  const recordFrame = currentRecord ? frame : counterpartRecord ? counterpart : null;
-  const directionTargets = new Set(input.presentation.directionTargets.map(entityKey));
-  const evidenceIndex = currentRecord ? index : counterpartIndex;
-  const direction = recordFrame && evidenceIndex ? directionPaths(recordFrame, evidenceIndex, selected, directionTargets)
-    : { routes: [], limited: false, reason: 'selected record missing in both frames' };
-  const pathLabels = (direction.routes[0]?.entities ?? []).map(key => evidenceIndex.entityByKey.get(key)?.label ?? key);
-  const aggregateIds = groupByRelationId.get(selected)?.relationIds ?? Object.freeze([]);
-  const omittedIds = scene.omittedRelationIds;
-  const omittedEntities = scene.omittedEntityIds;
-  const computedCoverage = 'entities ' + frame.entities.length
-    + ' · omitted entities ' + omittedEntities.length
-    + ' · relations ' + frame.relations.length
-    + ' · omitted relations ' + omittedIds.length;
-  const transport = mode === 'live'
-    ? (latest ? (connected ? 'SSE connected' : 'SSE disconnected') : 'HISTORY snapshot')
-    : 'SAMPLE';
-  const selectedIdentity = record ? (record.ref.space + '/' + record.ref.kind + '/' + record.ref.id) : selected || 'none';
-  const declaredActivity = record?.activity ?? 'unknown';
-  const activity = displayedActivity(declaredActivity);
-  const activityClaim = liveLatest && currentUnavailable && declaredActivity !== 'none'
-    ? 'Activity: UNKNOWN · lastDeclared=' + String(declaredActivity).toUpperCase() + ' · transport=' + transport
-    : 'Activity: ' + String(activity).toUpperCase() + ' · declared=' + String(declaredActivity).toUpperCase() + ' · transport=' + transport;
-  const directionLines = pathLabels.length === 0
-    ? Object.freeze(['Direction: UNCONNECTED / UNKNOWN'])
-    : Object.freeze([
-      'Direction: ' + pathLabels.slice(0, 4).join(' → '),
-      ...(pathLabels.length > 4 ? ['Direction cont.: ' + pathLabels.slice(4).join(' → ')] : []),
-    ]);
-  const recordLabel = currentRecord
-    ? (currentRecord.label || currentRecord.kind || currentRecord.ref.id)
-    : 'Selected record missing in this frame' + (recordFrame ? ' · evidence from counterpart ' + recordFrame.id : '');
-  const context = record?.context ? contextText(record.context) : 'none';
-  const evidenceSide = recordFrame ? (recordFrame === (frame.rev < (counterpart?.rev ?? -1) ? frame : counterpart) ? 'Before' : 'After') : 'UNKNOWN';
-  const comparison = selectedDiff({
-    frame, counterpart, index, counterpartIndex, containment, counterpartContainment, selected,
-  });
-  const beforeFrame = comparison.before ? (frame.rev < counterpart?.rev ? frame : counterpart) : null;
-  const afterFrame = frame.rev < counterpart?.rev ? counterpart : frame;
-  const owners = comparisonsForPair(input, beforeFrame, afterFrame);
-  const detailLines = Object.freeze([
-    'Frame ' + frame.id + ' · rev ' + frame.rev + ' · asOf ' + frame.asOf,
-    'Selected ' + currentKind + ' · ' + selectedIdentity,
-    'Record: ' + recordLabel,
-    'Context: ' + context,
-    'Evidence side: ' + evidenceSide + ' · ' + frameText(recordFrame) + (currentRecord ? ' · current record' : ' · counterpart only; current record missing'),
-    ...(record?.from ? ['Endpoints: from=' + entityKey(record.from) + ' · to=' + entityKey(record.to)] : []),
-    ...directionLines,
-    'Direction basis: ' + (record?.from ? 'selected RelationRef must be the first edge' : 'selected EntityRef') + ' · ' + evidenceSide,
-    'Direction status: ' + (direction.routes[0]?.status ?? 'UNCONNECTED / UNKNOWN · ' + direction.reason) + ' · alternatives=' + direction.routes.length + (direction.limited ? ' · LIMIT; additional supplied relations remain in member/omitted recovery' : ''),
-    activityClaim,
-    'Source state: ' + frame.sourceState,
-    'Source: ' + sourceText(record?.source),
-    'Source digest: ' + (record?.source?.sourceDigest ?? 'UNKNOWN'),
-    'Time: ' + timeText(record?.time),
-    'Coverage: ' + frame.coverage.state + ' · ' + frame.coverage.label,
-    'Coverage counts: ' + computedCoverage,
-    'Flags: ' + flagsText(record?.flags),
-    'Before: ' + comparisonSideText(comparison.before),
-    'After: ' + comparisonSideText(comparison.after),
-    'Diff: ' + comparison.summary,
-    'Diff basis: supplied record fields / explicit containment · owner comparison ' + (owners.length ? 'SUPPLIED separately in World comparison' : 'NOT SUPPLIED'),
-    ...comparison.changes.map(change => 'Field ' + change.field + ' [' + change.basis + ']: Before='
-      + JSON.stringify(stable(change.before)) + ' → After=' + JSON.stringify(stable(change.after))),
-    'Full record: ' + full(record ?? null),
-  ]);
-
-  const worldLines = worldComparisonLines(input, beforeFrame, afterFrame);
-  const routeLines = ['Direction selected: ' + selected + ' · evidence ' + evidenceSide + ' · ' + frameText(recordFrame),
-    'Selected context: ' + context, 'Basis: only supplied path=true edges; proposal remains PROPOSAL / not accepted.',
-    'Route alternatives: ' + direction.routes.length + (direction.limited ? ' · LIMIT 64 paths / 4096 traversals; all input relations remain inspectable' : ' · complete within supplied acyclic trails'),
-    ...(direction.reason ? ['Direction: UNCONNECTED / UNKNOWN · ' + direction.reason] : [])];
-  if (record?.from) for (const [side, ref] of [['from', record.from], ['to', record.to]]) {
-    routeLines.push('Endpoint ' + side + ': ' + entityKey(ref) + ' · ' + (evidenceIndex?.entityByKey.get(entityKey(ref))?.label ?? 'MISSING / UNKNOWN'));
-  }
-  for (const [number, route] of direction.routes.entries()) {
-    routeLines.push('Route ' + (number + 1) + ': ' + route.status + ' · ' + route.entities.map(key => evidenceIndex.entityByKey.get(key)?.label ?? key).join(' → '),
-      'EntityRefs ' + (number + 1) + ': ' + route.entities.join(' → '), 'RelationRefs ' + (number + 1) + ': ' + route.relations.join(' → '));
-  }
-  for (const key of new Set(direction.routes.flatMap(route => route.relations))) {
-    routeLines.push('Route evidence ' + key + ': ' + full(evidenceIndex.relationByKey.get(key)));
-  }
-  const acceptanceLines = [
-    'Text: JSON string fragments; outer quotes and escapes are display notation.',
-    'View: Focus / All records recover shortened overview labels.',
-    'Comparison: ' + (latest ? 'LATEST FOLLOW' : 'HELD pair; both contents retained') + ' · incoming frames=' + receivedInput.frames.length,
-    'Admission: ' + (admission?.status === 'rejected' ? 'REJECTED · last accepted input retained · ' + admission.reason : 'accepted prepared input'),
-    'Transport: ' + transport + (mode === 'live' && !connected ? ' · UNKNOWN; no fresh observation' : '')];
-  const catalog = [...frame.entities.map(item => ({ key: entityKey(item.ref), label: item.label })),
-    ...frame.relations.map(item => ({ key: relationKey(item.ref), label: item.label || item.kind }))];
-  const tabs = { record: [...acceptanceLines, ...detailLines], world: [...acceptanceLines, 'Latest received: ' + frameText(receivedInput.frames.at(-1)), ...worldLines], direction: [...acceptanceLines, ...routeLines],
-    records: catalog.map(item => item.key + ' · ' + item.label) };
-  const tab = Object.hasOwn(tabs, detailTab) ? detailTab : 'record';
-  const physical = wrapLines(tabs[tab], panel.width - 32);
-  const pageSize = Math.max(1, Math.floor((panel.height - 114) / 24));
-  const pageCount = Math.max(1, Math.ceil(physical.length / pageSize));
-  const pageIndex = Math.max(0, Math.min(pageCount - 1, detailPage));
-  const pageRows = physical.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
-  return Object.freeze({
-    view: Object.freeze({ tab, page: pageIndex, pageCount, pageSize, logicalLines: Object.freeze(tabs[tab]), physicalLines: Object.freeze(physical), rows: Object.freeze(pageRows) }),
-    lines: detailLines,
-    catalog: Object.freeze(catalog),
-    record,
-    currentRecord,
-    counterpartRecord,
-    comparison,
-    direction,
-    evidenceSide,
-    beforeFrame,
-    afterFrame,
-    owners,
-    worldLines,
-    aggregateRelationIds: aggregateIds,
-  });
-};
-
-// The operating HUD: frame/tool controls, the judgement panel and its rows,
-// placed in screen space through the camera. It owns no World meaning.
-export const projectChrome = ({
-  frame,
-  selected,
-  latest = true,
-  scene,
-  detail,
-  camera = { scale: 1, translateX: 0, translateY: 0 },
-  viewport = { width: 1500, height: 1000 },
-  panel = worldViewport(viewport).panel,
-} = {}) => {
-  const representations = [];
-  const { tab, page: pageIndex, pageCount, rows: pageRows } = detail.view;
-  const { record, catalog, evidenceSide, beforeFrame, aggregateRelationIds: aggregateIds } = detail;
-  const screenBounds = ({ x, y, width, height }) => ({
-    x: x / camera.scale - camera.translateX, y: y / camera.scale - camera.translateY,
-    width: width / camera.scale, height: height / camera.scale,
-  });
-  const hud = ({ id, label, bounds, activation = null, kind = 'control', atlas = {}, zIndex = 10002 }) => {
-    representations.push(Object.freeze({ regionId: id, label, bounds: screenBounds(bounds), kind, depth: 2,
-      shape: 'graph-node', isGuide: true, readOnly: true, geometryEditable: false, labelEditable: false,
-      zIndex, ...(activation ? { activation: Object.freeze(activation) } : {}),
-      visual: Object.freeze({ appearance: Object.freeze({ fillColor: '#ffffff', strokeColor: '#adb5bd', strokeWidth: 1, dashed: false }) }),
-      atlas: Object.freeze({ kind, ...atlas }) }));
-  };
-  const controls = [
-    ['before', '◀ Before · [', 'frame-before'], ['after', 'After · ] ▶', 'frame-after'],
-    ['latest', 'Latest · L', 'latest'], ['fit', 'Fit · 0', 'fit'], ['focus', 'Focus · F', 'focus'],
-    ['select', 'Select · S', 'tool-select'], ['hand', 'Hand · H', 'tool-hand'],
-  ];
-  const controlWidth = (viewport.width - 16) / controls.length;
-  controls.forEach(([id, label, action], position) => hud({ id: 'world:control:' + id, label,
-    bounds: { x: 8 + position * controlWidth, y: 8, width: controlWidth - 6, height: 32 },
-    activation: { type: 'atlas.world.' + action }, atlas: { control: id } }));
-  hud({ id: 'world:judgement', label: '', bounds: panel, kind: 'judgement', zIndex: 10000,
-    activation: { type: 'atlas.world.noop' }, atlas: { selected, lines: detail.lines } });
-  hud({ id: 'world:judgement-title', label: 'Judgement · ' + tab + ' · ' + (latest ? 'LATEST' : 'HELD') + ' · viewing ' + (frame === beforeFrame ? 'Before' : 'After') + (tab === 'record' ? ' · evidence ' + evidenceSide : '') + ' · page ' + (pageIndex + 1) + '/' + pageCount + ' · JSON strings',
-    bounds: { x: panel.x + 8, y: panel.y + 6, width: panel.width - 16, height: 26 }, kind: 'judgement-title' });
-  const detailControls = [
-    ['record', 'Record', 'tab', 'record'], ['world', 'World comparison', 'tab', 'world'], ['direction', 'Direction', 'tab', 'direction'],
-    ['records', 'All records', 'tab', 'records'],
-    ['previous', 'Previous page · PgUp', 'detail-previous'], ['next', 'Next page · PgDn', 'detail-next'],
-  ];
-  detailControls.forEach(([id, label, action, value], position) => hud({ id: 'world:detail:' + id, label,
-    bounds: { x: panel.x + 8 + position * (panel.width - 16) / detailControls.length, y: panel.y + 36, width: (panel.width - 16) / detailControls.length - 6, height: 28 },
-    activation: { type: 'atlas.world.' + action, value }, kind: 'detail-control' }));
-  const memberControls = [
-    ['aggregate-cycle', 'Members ' + aggregateIds.length + ' · next', 'next-aggregate'],
-    ['omitted-entity-cycle', 'Omitted entities ' + scene.omittedEntityIds.length + ' · next', 'next-omitted-entity'],
-    ['omitted-cycle', 'Omitted relations ' + scene.omittedRelationIds.length + ' · next', 'next-omitted'],
-    ['endpoint-from', 'Inspect from endpoint', 'endpoint', record?.from ? entityKey(record.from) : null],
-    ['endpoint-to', 'Inspect to endpoint', 'endpoint', record?.to ? entityKey(record.to) : null],
-  ];
-  memberControls.forEach(([id, label, action, value], position) => hud({ id: 'world:' + id, label,
-    bounds: { x: panel.x + 8 + position * (panel.width - 16) / 5, y: panel.y + 70, width: (panel.width - 16) / 5 - 6, height: 28 },
-    activation: { type: 'atlas.world.' + action, value }, kind: 'member-control' }));
-  pageRows.forEach((row, position) => hud({ id: 'world:judgement-line:' + position, label: row.text,
-    bounds: { x: panel.x + 16, y: panel.y + 108 + position * 24, width: panel.width - 32, height: 22 },
-    kind: 'judgement-line', atlas: { ...row, selected },
-    activation: tab === 'records' ? { type: 'atlas.world.select', id: catalog[row.lineIndex].key } : null }));
-  return Object.freeze(representations);
-};
-
-// Where the focus marker goes. With the HUD, records that are not drawn point
-// at the HUD control or judgement line that recovers them. Without it, only
-// drawn regions qualify: an omitted entity marks its nearest drawn container
-// (else its area); a relation or a record missing from this frame marks none.
-const focusRegion = ({ chrome, scene, detail, selected }) => {
+// Where the focus marker goes. A drawn entity marks itself; an omitted entity
+// marks its nearest drawn container (else its area); a chosen relation (from
+// the search) brings a drawn end of it into view, its from box first; a record
+// missing from this frame marks none.
+const focusRegion = ({ scene, selected }) => {
   const { index, visibleEntityKeys, containment } = scene;
   if (index.entityByKey.has(selected) && visibleEntityKeys.has(selected)) return regionId(selected);
-  if (chrome === 'full') {
-    if (index.entityByKey.has(selected) && scene.omittedEntityIds.includes(selected)) return 'world:omitted-entity-cycle';
-    if (!detail.currentRecord) return 'world:judgement-line:1';
-    if (index.relationByKey.has(selected) && scene.omittedRelationIds.includes(selected)) return 'world:omitted-cycle';
-    if (index.relationByKey.has(selected)) return 'world:judgement-line:1';
-    return null;
-  }
-  // A chosen relation (from the search) brings a drawn end of it into view,
-  // its from box first: there is no record panel to read it in.
   const relation = index.relationByKey.get(selected);
   if (relation) {
     const end = [relation.from, relation.to].map(entityKey).find(key => visibleEntityKeys.has(key));
@@ -922,81 +503,44 @@ const focusRegion = ({ chrome, scene, detail, selected }) => {
   return scene.areaBounds.has(entity.area) ? areaRegionId(entity.area) : null;
 };
 
-// One World projection composed from separate layers: the scene, the chrome
-// (`'full'` is the established HUD screen; `'none'` draws no HUD) and the
-// timeline strip, which every chrome keeps.
+// One World projection (contract 3, revised: one screen, no HUD, panel, strip
+// or band): the three areas, fitted to their content. Content-fitted boxes are
+// sized for scale 1, whatever the viewport, so the World does not change size
+// with the window: `minScale` keeps Fit from shrinking their text, and a World
+// larger than the view is panned. The status and search rows, the time
+// controls and the 予定 / 仕訳 list are the page's own (atlas-ui.mjs).
 export const projectAtlasWorld = ({
   input,
   receivedInput = input,
   frame,
-  counterpart = null,
   selected,
   mode = 'sample',
   connected = false,
   latest = true,
   scale = 1,
-  camera = { scale, translateX: 0, translateY: 0 },
   viewport = { width: 1500, height: 1000 },
-  detailTab = 'record',
-  detailPage = 0,
   admission = null,
-  chrome = 'full',
-  planOpen = false,
-  journalOpen = null,
-  receivedAt = null,
   now = null,
-  snapshotBytes = null,
-  heartbeatBytes = null,
 } = {}) => {
-  if (!ATLAS_CHROMES.includes(chrome)) throw new Error('atlas-world: unsupported chrome ' + chrome);
-  const band = hasBand(receivedInput);
-  const fullLayout = worldViewport(viewport, { band });
-  const layout = chrome === 'full' ? fullLayout : worldViewport(viewport, { panel: false, band });
-  // Content-fitted boxes are sized for scale 1, whatever the viewport, so the
-  // World does not change size with the window. `minScale` tells Fit not to
-  // go below 1 when such boxes are drawn, and always in the chrome-free view,
-  // whose node text is the whole screen: a World larger than the view is
-  // panned, never shrunk until its text no longer fits. The HUD view keeps
-  // its whole-World overview for nested Worlds.
   const present = timelinePosition(receivedInput.frames, frame.id).present;
-  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission, staleAt: present ? now : null, fitNested: chrome === 'none' });
-  const minScale = scene.contentFitted || chrome === 'none' ? 1 : null;
-  // The detail is paged against the full layout's panel in both chromes, so the
-  // selected record's text and pages do not depend on what is drawn.
-  const detail = projectDetail({ input, receivedInput, frame, counterpart, selected, mode, connected, latest, admission,
-    scene, panel: fullLayout.panel, detailTab, detailPage });
-  const hud = chrome === 'full'
-    ? projectChrome({ frame, selected, latest, scene, detail, camera, viewport, panel: fullLayout.panel })
-    : Object.freeze([]);
-  // The timeline is its own layer, drawn where the layout keeps a strip (the
-  // HUD; not the chrome-free view, see worldViewport). Its planned part reads
-  // the displayed frame's supplied plans and nothing else.
-  const timeline = layout.timeline === null ? [] : projectTimeline({ frames: receivedInput.frames, frame, latest, planOpen,
-    transport: transportOf({ mode, connected, receivedAt, now, snapshotBytes, heartbeatBytes }), receivedAt, strip: layout.timeline,
-    band: layout.band, journalOpen, camera });
-
+  const scene = projectWorldScene({ input, frame, mode, connected, latest, admission, staleAt: present ? now : null, fitNested: true });
   return Object.freeze({
     scene: Object.freeze({
       pattern: 'graph/1',
       scale,
       resourceComposition: null,
-      representations: Object.freeze([...scene.representations, ...hud, ...timeline]),
+      representations: scene.representations,
       relations: scene.relations,
       selectionProxies: Object.freeze({}),
     }),
     world: scene.world,
-    minScale,
-    selected: Object.freeze({ key: selected, record: detail.currentRecord ?? null, counterpart: detail.counterpartRecord ?? null, comparison: detail.comparison }),
-    selectedRegionId: focusRegion({ chrome, scene, detail, selected }),
-    aggregateRelationIds: detail.aggregateRelationIds,
+    minScale: 1,
+    selectedRegionId: focusRegion({ scene, selected }),
     omittedRelationIds: scene.omittedRelationIds,
     omittedEntityIds: scene.omittedEntityIds,
     areaBounds: scene.areaBounds,
-    direction: detail.direction,
-    detail: detail.view,
-    viewport: layout,
+    viewport: worldViewport(viewport),
     timeline: timelinePosition(receivedInput.frames, frame.id),
-    worldComparison: Object.freeze({ before: detail.beforeFrame, after: detail.afterFrame, owners: detail.owners, lines: detail.worldLines }),
     coverage: Object.freeze({
       omittedRelations: scene.omittedRelationIds.length,
       omittedEntities: scene.omittedEntityIds.length,

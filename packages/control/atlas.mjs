@@ -47,12 +47,11 @@ const publishApi = (ui, cleanup) => {
 // The World keeps its viewed state in the URL fragment (`#sel=…&t=…`), so a
 // reload restores the selection and a held past frame; `t` is absent while
 // following the present.
-const startWorldAtlas = ({ input, eventsUrl, chrome, updateIntervalMs }) => {
+const startWorldAtlas = ({ input, eventsUrl, updateIntervalMs }) => {
   const view = parseViewHash(location.hash);
   const ui = mountAtlasWorldUI({
     root: document.body,
     input,
-    chrome,
     ...(updateIntervalMs === undefined ? {} : { updateIntervalMs }),
     mode: eventsUrl ? 'live' : 'sample',
     connected: false,
@@ -166,14 +165,14 @@ const startLegacyAtlas = ({ input, eventsUrl, selected }) => {
   });
 };
 
-// `chrome` and the update interval are fixed by the build (see
-// scripts/build-live-atlas.mjs), not by the URL.
-export const startLiveAtlas = ({ chrome = 'full', updateIntervalMs } = {}) => {
+// The update interval is fixed by the build (see scripts/build-live-atlas.mjs),
+// not by the URL.
+export const startLiveAtlas = ({ updateIntervalMs } = {}) => {
   const params = new URLSearchParams(location.search);
   const eventsUrl = params.get('events');
   const input = readInput();
   const selected = hashSelection();
   return input?.kind === ATLAS_WORLD_KIND
-    ? startWorldAtlas({ input, eventsUrl, chrome, updateIntervalMs })
+    ? startWorldAtlas({ input, eventsUrl, updateIntervalMs })
     : startLegacyAtlas({ input, eventsUrl, selected });
 };
