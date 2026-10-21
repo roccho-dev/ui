@@ -165,7 +165,7 @@ try {
           const part = owners.get(keyOf(scope.ref));
           const sinceShown = /時点(前)?から/u.test(drawn.text);
           if (part) {
-            const words = [...causeList(part.cause).map(cause => CAUSE_LABEL[cause]), ...(part.scope === null ? ['担当なし'] : [])];
+            const words = [...causeList(part.cause).map(cause => CAUSE_LABEL[cause]), ...(part.scope === null ? ['担当未確定'] : [])];
             if (!sinceShown || !words.every(word => flat(drawn.text).includes(flat(word)))) noCause.push({ id: drawn.id, words, text: drawn.text });
           } else if (sinceShown) guessed.push({ id: drawn.id, text: drawn.text });
         }

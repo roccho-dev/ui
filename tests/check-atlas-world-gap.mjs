@@ -29,7 +29,7 @@ const expected = {
   t4: { 'phase:hq': '局面：近似中 · 差 3 · v2', 'ideal-state:hq': '理想状態\nv2 · 条件 4', 'gap:hq': '差 3（前 1）\n! c3 · 継続\n! c1 · 現在の後退\n? c4 · 未観測',
     'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z\n理想の条件 4 件のうち一致 1 件',
     'gap-part:c3': 'windows repo を退役する\n未達 · 継続 · 1 時点前から（03:00Z） · scope:atlas',
-    'gap-part:c1': '端末で直接入力できる\n未達 · 現在の後退 · この時点から（04:00Z） · 担当なし' },
+    'gap-part:c1': '端末で直接入力できる\n未達 · 現在の後退 · この時点から（04:00Z） · 担当未確定' },
   t5: { 'phase:hq': '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件', 'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 評価：到達',
     'gap:hq': '差 0（前 3）', 'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z\n理想の条件 4 件のうち一致 4 件', 'gap-closed:t5': '閉じた差 3（この時点 3）\nc1 現在が充足・c4 現在が充足' },
   t6: { 'phase:hq': '局面：近似中 · 差 2 · v2', 'gap:hq': '差 2（前 0）\n! c1 · 鮮度切れ\n? c4 · 照合不能',
@@ -113,7 +113,7 @@ assert.ok(grouped.frames.some(item => item.relations.some(relation => relation.c
 const groupedLabel = (id, entityKind, entityId) => grouped.frames.find(item => item.id === id).entities
   .find(entity => entity.ref.kind === entityKind && entity.ref.id === entityId).label;
 assert.equal(groupedLabel('t4', 'semantic-scope', 'c3'), 'windows repo を退役する\n未達\n未達 · 継続 · 1 時点前から（03:00Z）');
-assert.equal(groupedLabel('t4', 'unassigned-change', 'c1'), '端末で直接入力できる\n未達\n未達 · 現在の後退 · この時点から（04:00Z） · 担当なし');
+assert.equal(groupedLabel('t4', 'unassigned-change', 'c1'), '端末で直接入力できる\n未達\n未達 · 現在の後退 · この時点から（04:00Z） · 担当未確定');
 assert.equal(groupedLabel('t6', 'closed-change', 'c3@t5'), 'c3\ncurrent-satisfied', 'no open part: nothing attached');
 assert.equal(groupedLabel('t6', 'scope-group', 'owner:none'), '担当なし', 'a container is not a part');
 // An open part on no supplied Scope is counted on 差 (not when there is none)
@@ -181,36 +181,32 @@ assert.match(admittedRow.label.replace(/\n/gu, ''), /出所 adrs#647（未採択
 const badAdmission = gapWorld({ admission: true });
 badAdmission.frames[0].journal[0].source.admission = '';
 assert.throws(() => parseAtlasWorldInput(badAdmission), /source.admission must be non-empty text/);
-// L3 (adrs#647, CLAIM v3): a plan.set bound to no ideal state, with its time
-// and author like any journal entry, is a current-side fact: 現在状態 lists,
-// up to the frame, each such plan id at its newest version, leaving out an id
-// the frame's plans carry. Display only: 差, 理想状態, the Scopes, the Agents,
-// the match count n/m, every flag, status, color and the plan cell are as
-// without them; the band has no mark of its own for them.
+// L3 (adrs#647, contract v12): a plan.set bound to no ideal state, with its
+// time and author like any journal entry, is counted in the plan cell as
+// 未結合 n 件: up to the frame, each such plan id once, leaving out an id the
+// frame's plans carry. It is not one of the frame's plans and not in any box:
+// every entity, flag, status and color is as without them, and the
+// chrome-free view (no strip) draws the same; the band has no mark of its own.
 const unboundWorld = parseAtlasWorldInput(gapWorld({ unbound: true }));
-const unboundLine = { t4: '宣言に未結合の計画 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2',
-  t6: '宣言に未結合の計画 3 件：resources#71:tool-split v2 · nixos#12:fork-surface v2 · mieru#3:release v1' };
-unboundLine.t5 = unboundLine.t4;
-unboundLine.t7 = unboundLine.t6;
+const unboundCount = { t4: 2, t5: 2, t6: 3, t7: 3 };
+const planCell = (world, item, viewport) => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome: 'full', viewport })
+  .scene.representations.find(rep => rep.regionId === TIMELINE_ID_PREFIX + 'plan');
 for (const item of unboundWorld.frames) {
-  const plain = frame(item.id);
-  const currentOf = each => each.entities.find(entity => entity.ref.kind === 'current-state').label;
-  assert.equal(currentOf(item), currentOf(plain) + (unboundLine[item.id] ? '\n' + unboundLine[item.id] : ''), item.id + ': 現在状態 lists the unbound plans');
-  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'current-state').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
-    plain.entities.filter(entity => entity.ref.kind !== 'current-state').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': every other entity as without them');
-  assert.deepEqual(item.entities.map(entity => entity.flags), plain.entities.map(entity => entity.flags), item.id + ': no flag changes');
-  for (const chrome of ['none', 'full']) {
-    const scene = world => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome }).scene.representations
-      .filter(rep => !rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal')).map(rep => [rep.regionId, rep.atlas?.ref?.kind === 'current-state' ? null : rep.label,
-        rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
-    assert.deepEqual(scene(unboundWorld), scene(input), item.id + ' ' + chrome + ': same drawing, status, color and plan cell besides 現在状態\'s text');
-  }
+  assert.deepEqual(item.entities, frame(item.id).entities, item.id + ': unbound plans change no entity');
+  const scene = (world, chrome) => projectAtlasWorld({ input: world, frame: world.frames.find(each => each.id === item.id), selected: 'none', chrome }).scene.representations
+    .filter(rep => !rep.regionId.startsWith(TIMELINE_ID_PREFIX + 'journal') && rep.regionId !== TIMELINE_ID_PREFIX + 'plan')
+    .map(rep => [rep.regionId, rep.label, rep.atlas?.status ?? null, rep.visual?.appearance ?? null]);
+  for (const chrome of ['none', 'full']) assert.deepEqual(scene(unboundWorld, chrome), scene(input, chrome), item.id + ' ' + chrome + ': same drawing besides the plan cell');
+  const cell = planCell(unboundWorld, item, { width: 1920, height: 1080 });
+  assert.equal(cell.atlas.unbound, unboundCount[item.id] ?? 0, item.id + ': unbound count');
+  assert.equal(cell.atlas.plan, 'undeclared', item.id + ': unbound plans are not mixed into plans');
+  assert.ok(unboundCount[item.id] ? cell.label.replace(/\n/gu, '').includes('未結合 ' + unboundCount[item.id] + ' 件') : !cell.label.includes('未結合'), item.id + ': ' + cell.label);
 }
-// An id the frame's plans carry (bound later) is not listed as unbound.
+// An id the frame's plans carry (bound later) is not counted as unbound.
 const laterBound = gapWorld({ unbound: true });
 laterBound.frames[7].plans = [{ ...knownPlan, ref: 'mieru#3', plan: 'mieru#3:release', label: 'mieru release (mieru#3 v1)', version: 1 }];
-assert.ok(parseAtlasWorldInput(laterBound).frames[7].entities.find(entity => entity.ref.kind === 'current-state').label
-  .endsWith('\n宣言に未結合の計画 2 件：resources#71:tool-split v2 · nixos#12:fork-surface v2'), 'an id in the frame\'s plans is left out');
+const laterBoundWorld = parseAtlasWorldInput(laterBound);
+assert.equal(planCell(laterBoundWorld, laterBoundWorld.frames[7], { width: 1920, height: 1080 }).atlas.unbound, 2, 'an id in the frame\'s plans is left out');
 // The band keeps one plan mark per frame (no mark of its own for unbound
 // plans); its rows name each entry, the unbound ones marked, with time and author.
 const unboundBand = projectAtlasWorld({ input: unboundWorld, frame: unboundWorld.frames.at(-1), selected: 'none', chrome: 'full', journalOpen: '4:plan.set',
@@ -362,20 +358,114 @@ const markedWorld = parseAtlasWorldInput(gapWorld({ adequacy: true, admission: t
 for (const item of markedWorld.frames) assert.deepEqual(ofKind(markedWorld, item.id, 'purpose-adequacy'), ofKind(adequate, item.id, 'purpose-adequacy'), item.id + ': admission leaves GapA as supplied');
 assert.equal(byKind(markedWorld.frames[3])['purpose:hq'], '目的\n宣言だけで回る組織\nrev 1（未採択） · 過去の評価：理想状態が不十分（pending-review）');
 
-// Physical Scope (apps#129): each declared repo/package is a Scope card naming
-// the gaps and the parts it is declared for; a part without a declaration reads
-// 未特定 on 理想↔現在の差. Nothing is matched by name, owner or scope.
-const physicalWorld = parseAtlasWorldInput(gapWorld({ physical: true }));
+// Contract v12 (adrs#647): a frame's `adequacy` is GapA as the producer judged
+// it. The ui draws its state and reason only (no count) and judges nothing;
+// it wins over a supplied purpose-adequacy entity (the earlier path).
+const judgedRaw = gapWorld({ judged: true });
+const judged = parseAtlasWorldInput(judgedRaw);
+const gapALabel = { t0: '不明 · 照らす理想状態が無い', t1: '不明 · 照らす理想状態が無い', t2: '不明 · 人の評価なし', t3: '不明 · 過去の評価（版が違う）',
+  t4: '不明 · 過去の評価（版が違う）', t5: '不明 · 十分性の評価なし', t6: '不明 · 差が開いたまま到達と評価', t7: '不明 · 目的は終了した' };
+for (const item of judged.frames) {
+  const [drawn, ...others] = ofKind(judged, item.id, 'purpose-adequacy');
+  assert.equal(others.length, 0, item.id + ': one GapA');
+  assert.equal(drawn.label, '目的↔理想の差\n' + gapALabel[item.id], item.id + ': GapA state and reason');
+  assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': GapA status from its state only');
+  assert.ok(!/\d+ 件/u.test(drawn.label), item.id + ': GapA draws no count');
+  assert.deepEqual(purposeOrder(item), ['phase', 'purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': the chain P, GapA, I, GapB, C');
+  assert.ok(gapRelations(item).includes('ideal-state>purpose-adequacy 照らす') && gapRelations(item).includes('purpose-adequacy>purpose 十分性'), item.id);
+  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'purpose-adequacy').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
+    frame(item.id).entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': adequacy changes no other entity');
+}
+const evaluatedRaw = gapWorld({ judged: true });
+Object.assign(evaluatedRaw.frames[4].adequacy, { state: 'unmet', reason: 'evaluated' });
+const evaluatedGapA = ofKind(parseAtlasWorldInput(evaluatedRaw), 't4', 'purpose-adequacy')[0];
+assert.deepEqual([evaluatedGapA.label, evaluatedGapA.flags], ['目的↔理想の差\n不十分 · 人の評価：理想状態が不十分', ['scope_status=unmet']], 'evaluated: unmet');
+const bothRaw = gapWorld({ judged: true, adequacy: true });
+assert.deepEqual(parseAtlasWorldInput(bothRaw).frames.map(item => ofKind({ frames: [item] }, item.id, 'purpose-adequacy').map(entity => entity.label)),
+  judged.frames.map(item => ['目的↔理想の差\n' + gapALabel[item.id]]), 'frame.adequacy wins over the earlier entity');
+// The evaluation's admission is a mark only, in GapA's reason line.
+const admittedGapA = gapWorld({ judged: true });
+admittedGapA.frames[3].adequacy.evidence.source.admission = 'observed_not_admitted';
+const markedGapA = ofKind(parseAtlasWorldInput(admittedGapA), 't3', 'purpose-adequacy')[0];
+assert.deepEqual([markedGapA.label, markedGapA.flags], ['目的↔理想の差\n不明 · 過去の評価（版が違う）（未採択）', ['scope_status=unknown']], 'admission is a mark only');
+// S4: an evaluator's `evaluation:` observation (Jev) is a sign in GapA's box,
+// as reported and unverified, the latest per question up to the frame. It
+// changes no state, flag or other box.
+const signed = parseAtlasWorldInput(gapWorld({ judged: true, evaluator: true }));
+const signLine = { t3: '評価者の評価（未検証） adequacy=problem（出所 jev:ops#573 · jev · 10-17 02:45Z）',
+  t6: '評価者の評価（未検証） adequacy=ok（出所 jev:ops#573 · jev · 10-17 05:10Z）' };
+signLine.t4 = signLine.t3;
+signLine.t5 = signLine.t3;
+signLine.t7 = signLine.t6;
+for (const item of signed.frames) {
+  const drawn = ofKind(signed, item.id, 'purpose-adequacy')[0];
+  assert.equal(drawn.label, '目的↔理想の差\n' + gapALabel[item.id] + (signLine[item.id] ? '\n' + signLine[item.id] : ''), item.id + ': evaluator sign');
+  assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': a sign changes no state');
+  assert.equal(byKind(item)['gap:hq'], byKind(frame(item.id))['gap:hq'], item.id + ': a sign changes no GapB');
+}
+// held (contract v12): the declarations held back up to the frame, counted by
+// reason on the phase line. Display only: every other label and flag as without.
+const heldWorld = parseAtlasWorldInput(gapWorld({ held: true }));
+const heldText = { t3: ' · 保持 1 件（actor-mismatch 1）', t4: ' · 保持 1 件（actor-mismatch 1）' };
+for (const id of ['t5', 't6', 't7']) heldText[id] = ' · 保持 3 件（actor-mismatch 1 · author-unknown 1 · proposal 1）';
+for (const item of heldWorld.frames) {
+  assert.equal(byKind(item)['phase:hq'], byKind(frame(item.id))['phase:hq'] + (heldText[item.id] ?? ''), item.id + ': held by reason, accumulated');
+  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'phase').map(entity => [entity.ref.kind, entity.label, entity.flags]),
+    frame(item.id).entities.filter(entity => entity.ref.kind !== 'phase').map(entity => [entity.ref.kind, entity.label, entity.flags]), item.id + ': held changes nothing else');
+}
+assert.match(heldWorld.frames[5].entities.find(entity => entity.ref.kind === 'phase').summary, /保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552/u);
+const fullV12 = parseAtlasWorldInput(gapWorld({ judged: true, held: true, evaluator: true, physical: true }));
+assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(fullV12))), fullV12, 'contract v12 fields are idempotent');
+// A World without them is drawn as before (apps ② ships later): checked above on `input`.
+// The fields are read exactly; anything else is rejected.
+const rejectV12 = (mutate, pattern) => { const raw = gapWorld({ judged: true, held: true }); mutate(raw.frames[3]); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
+rejectV12(item => { item.adequacy.guess = 1; }, /adequacy: unknown field guess/);
+rejectV12(item => { delete item.adequacy.evidence; }, /adequacy.evidence is required/);
+rejectV12(item => { item.adequacy.reason = 'guessed'; }, /adequacy.reason must be/);
+rejectV12(item => { item.adequacy.state = 'satisfied'; }, /adequacy.state must be unmet\|unknown/);
+rejectV12(item => { item.adequacy.state = 'unmet'; }, /adequacy.state is unmet exactly when reason is evaluated/);
+rejectV12(item => { item.adequacy.basis.ideal_version = 'v9'; }, /adequacy.basis must be the gap's basis/);
+rejectV12(item => { item.adequacy.basis.label = 'x'; }, /adequacy.basis: unknown field label/);
+rejectV12(item => { item.adequacy.evidence = null; }, /adequacy.evidence is required for reason past/);
+rejectV12(item => { item.adequacy.evidence.kind = 'purpose.evaluated'; }, /adequacy.evidence: unknown field kind/);
+rejectV12(item => { delete item.adequacy.evidence.verdict; }, /adequacy.evidence.verdict is required/);
+rejectV12(item => { item.adequacy.evidence.source.url = 'x'; }, /adequacy.evidence.source: unknown field url/);
+rejectV12(item => { item.held = {}; }, /held must be an array/);
+rejectV12(item => { delete item.held[0].source; }, /held\[0\].source is required/);
+rejectV12(item => { item.held[0].plan = 'x'; }, /held\[0\]: unknown field plan/);
+rejectV12(item => { item.held[0].recordedAt = 'later'; }, /held\[0\].recordedAt must be a parseable instant/);
+const noEvaluation = gapWorld({ judged: true });
+noEvaluation.frames[2].adequacy.evidence = noEvaluation.frames[3].adequacy.evidence;
+assert.throws(() => parseAtlasWorldInput(noEvaluation), /adequacy.evidence must be null for reason no-evaluation/);
+
+// Physical Scope (contract v12, S4): one relation from the physical thing to a
+// condition id. development is drawn while its part is open (この差を埋める対象);
+// operation keeps a condition of the ideal (この条件を保つもの, drawn on 理想状態
+// for as long as the producer relates it to the purpose-state-target, and on
+// 理想↔現在の差 too while the part is open). A part without a declaration reads
+// 未特定. Nothing is matched by name, owner or scope; nothing points at GapA.
+const physicalWorld = parseAtlasWorldInput(gapWorld({ judged: true, physical: true }));
 const physicalT4 = physicalWorld.frames[4];
 assert.deepEqual(physicalT4.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id),
-  ['package:roccho-dev/apps:packages/atlas', 'package:roccho-dev/ui:packages/control'], 't4: the declared packages are the Scopes');
+  ['package:roccho-dev/apps:packages/atlas', 'package:roccho-dev/ui:packages/control', 'service:native:serve-static'], 't4: the declared physical things are the Scopes');
 assert.equal(byKind(physicalT4)['package:roccho-dev/apps:packages/atlas'],
-  'roccho-dev/apps\npackages/atlas\n対象: 目的↔理想の差・理想↔現在の差\n! c3 · 未達 · 継続 · 担当 scope:atlas\n! c1 · 未達 · 現在の後退 · 担当なし');
+  'roccho-dev/apps\npackages/atlas\n対象: 理想↔現在の差\n! c3 · 未達 · 継続 · 担当 scope:atlas\n! c1 · 未達 · 現在の後退 · 担当未確定');
 assert.equal(byKind(physicalT4)['package:roccho-dev/ui:packages/control'], 'roccho-dev/ui\npackages/control\n対象: 理想↔現在の差\n! c3 · 未達 · 継続 · 担当 scope:atlas');
+assert.equal(byKind(physicalT4)['service:native:serve-static'], 'native:serve-static\n保つ: c1\n対象: 理想↔現在の差\n! c1 · 未達 · 現在の後退 · 担当未確定');
 assert.equal(byKind(physicalT4)['gap:hq'], '理想↔現在の差\n差 3（前 1）\n! c3 · 継続 · 物理Scope roccho-dev/apps/packages/atlas / roccho-dev/ui/packages/control'
-  + '\n! c1 · 現在の後退 · 物理Scope roccho-dev/apps/packages/atlas\n? c4 · 未観測 · 物理Scope 未特定');
-assert.deepEqual(gapRelations(physicalT4).filter(relation => relation.startsWith('package>')),
-  ['package>gap この差を埋める対象', 'package>purpose-adequacy この差を埋める対象', 'package>gap この差を埋める対象']);
+  + '\n! c1 · 現在の後退 · 物理Scope roccho-dev/apps/packages/atlas / native:serve-static\n? c4 · 未観測 · 物理Scope 未特定');
+const physicalRelations = item => gapRelations(item).filter(relation => /^(package|service)>/u.test(relation));
+assert.deepEqual(physicalRelations(physicalT4), ['package>gap この差を埋める対象', 'package>gap この差を埋める対象', 'service>gap この条件を保つもの', 'service>ideal-state この条件を保つもの']);
+// Operation while the condition is kept (t2, t3: c1 not open): only 理想状態.
+for (const id of ['t2', 't3', 't5']) {
+  const item = physicalWorld.frames.find(each => each.id === id);
+  assert.equal(byKind(item)['service:native:serve-static'], 'native:serve-static\n保つ: c1', id + ': the service keeps c1');
+  assert.ok(physicalRelations(item).includes('service>ideal-state この条件を保つもの') && !physicalRelations(item).includes('service>gap この条件を保つもの'), id);
+}
+for (const item of physicalWorld.frames) {
+  assert.ok(!item.relations.some(relation => relation.to.kind === 'purpose-adequacy' && relation.from.kind !== 'ideal-state'), item.id + ': no relation from a physical thing to GapA');
+  assert.ok(!Object.values(byKind(item)).some(label => label.includes('目的↔理想の差') && !label.startsWith('目的↔理想の差')), item.id + ': no physical card names GapA');
+}
 assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(physicalWorld))), physicalWorld, 'physical Scope is idempotent');
 
 // Position is computed from the relations alone (no order fixed per area, kind
@@ -383,7 +473,7 @@ assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(physicalWorld)))
 // area runs through GapB's box.
 const through = (box, a, b) => Array.from({ length: 99 }, (_, n) => (n + 1) / 100)
   .some(t => { const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t; return x > box.x && x < box.x + box.width && y > box.y && y < box.y + box.height; });
-for (const world of [adequate, physicalWorld]) for (const item of world.frames) {
+for (const world of [adequate, judged, physicalWorld]) for (const item of world.frames) {
   const scene = projectWorldScene({ input: world, frame: item });
   const bounds = new Map(scene.representations.map(rep => [rep.regionId, rep.bounds]));
   const regionOf = kind => scene.representations.find(rep => rep.atlas?.ref?.kind === kind).regionId;

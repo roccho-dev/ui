@@ -119,40 +119,84 @@ const UNBOUND = {
     unboundPlan('2026-10-17T05:25:00Z', 'roccho-dev', 'resources#71:tool-split', 2, 'roccho-dev/resources#71', 4300, 'f')],
 };
 // `adequacy: true` supplies GapA (目的↔理想の差) on each frame as apps#129's
-// producer does: a purpose-adequacy entity whose state the producer judged
-// (insufficient at t4 only; the ui reads it, never the journal).
+// producer did: a purpose-adequacy entity whose state the producer judged
+// (insufficient at t4 only; the ui reads it, never the journal). The earlier
+// path, read only when a frame has no `adequacy` (contract v12).
 const adequacyEntity = id => ({ ref: ref('purpose-adequacy', 'hq'), label: '目的↔理想の差\n' + (id === 't4' ? '不十分（評価）' : '未評価（十分性は未判定）'),
   area: 'purpose', order: 9, visible: true, activity: 'none', summary: 'GapA (producer)',
   flags: ['purpose_adequacy=' + (id === 't4' ? 'insufficient' : 'unassessed'), 'role=whole-purpose-evaluation'] });
-// `physical: true` (with adequacy) adds, to each frame with open parts, the
-// physical Scope as apps#129 declares it: a repository containing a package,
-// the package linked to GapA and to the parts it is declared for. apps
-// packages/atlas addresses both gaps (c3, c1), ui packages/control GapB (c3);
-// c4 has no declaration.
-const PHYSICAL = [{ repo: 'roccho-dev/apps', package: 'packages/atlas', gapA: true, conditions: ['c3', 'c1'] },
-  { repo: 'roccho-dev/ui', package: 'packages/control', gapA: false, conditions: ['c3'] }];
-const physicalScopes = (frameId, parts) => {
+// `judged: true` gives each frame contract v12's `adequacy` (adrs#647) as the
+// producer judges this story: no ideal at t0/t1, no evaluation at t2, the v1
+// evaluation past at t3/t4 (versions compare as written: 1 is not 'v2'),
+// achieved with nothing open at t5, achieved while open at t6 and the
+// purpose ended at t7.
+const evidenceOf = recordedAt => {
+  const item = JOURNAL.find(each => each.kind === 'purpose.evaluated' && each.recordedAt === recordedAt);
+  return { recordedAt, actor: item.actor, source: { ...item.source }, purpose_id: item.purpose_id, purpose_rev: item.purpose_rev,
+    ideal_version: item.ideal_version, verdict: item.verdict, note: item.note };
+};
+const ADEQUACY = { t0: ['no-ideal', null], t1: ['no-ideal', null], t2: ['no-evaluation', null], t3: ['past', '2026-10-17T02:50:00Z'],
+  t4: ['past', '2026-10-17T02:50:00Z'], t5: ['no-adequacy-verdict', '2026-10-17T04:50:00Z'], t6: ['achieved-while-open', '2026-10-17T04:50:00Z'],
+  t7: ['purpose-ended', '2026-10-17T04:50:00Z'] };
+const adequacyOf = (id, basis) => {
+  const [reason, at] = ADEQUACY[id];
+  return { basis: { purpose_id: basis.purpose_id, purpose_rev: basis.purpose_rev, ideal_version: basis.ideal_version },
+    state: reason === 'evaluated' ? 'unmet' : 'unknown', reason, evidence: at === null ? null : evidenceOf(at) };
+};
+// `held: true` gives each frame contract v12's `held`: the declarations held
+// back that entered at it (an actor mismatch at t3, a machine proposal and an
+// unknown author at t5), `[]` elsewhere.
+const heldEntry = (reason, kind, recordedAt, sourceRef, commentId = null, sha256 = null) => ({ reason, kind, recordedAt, source: { ref: sourceRef, commentId, sha256 } });
+const HELD = {
+  t3: [heldEntry('actor-mismatch', 'ideal.set', '2026-10-17T02:40:00Z', 'adrs#647', 6230983531, sha('9'))],
+  t5: [heldEntry('proposal', 'ideal.set', '2026-10-17T04:20:00Z', 'ops#552'), heldEntry('author-unknown', null, '2026-10-17T04:30:00Z', 'adrs#647', 6230983532)],
+};
+// `evaluator: true` adds an evaluator's (Jev's) unverified evaluations of the
+// purpose as `evaluation:` observations (S4): problem at t3, ok at t6.
+const evaluation = (recordedAt, value) => ({ kind: 'observation', recordedAt, observedAt: recordedAt, actor: 'jev',
+  source: { ref: 'jev:ops#573', commentId: null, sha256: null }, target: { kind: 'state', id: 'evaluation:hq:adequacy' }, value });
+const EVALUATIONS = [evaluation('2026-10-17T02:45:00Z', 'problem'), evaluation('2026-10-17T05:10:00Z', 'ok')];
+// `physical: true` adds the physical Scope as contract v12 (S4) declares it:
+// one relation from the physical thing to a condition id, in the producer's
+// shape. development: apps packages/atlas (c3, c1) and ui packages/control
+// (c3), while a part is open. operation: the native serve-static service
+// keeps c1, related to the producer's purpose-state-target while the ideal
+// has c1, and to the part too while c1 is open. c4 has no declaration.
+const PHYSICAL = [
+  { ref: ref('package', 'roccho-dev/apps:packages/atlas'), label: 'packages/atlas\nroccho-dev/apps', flags: ['repo=roccho-dev/apps', 'package=packages/atlas'],
+    lifetime: 'development', conditions: ['c3', 'c1'], repo: 'roccho-dev/apps' },
+  { ref: ref('package', 'roccho-dev/ui:packages/control'), label: 'packages/control\nroccho-dev/ui', flags: ['repo=roccho-dev/ui', 'package=packages/control'],
+    lifetime: 'development', conditions: ['c3'], repo: 'roccho-dev/ui' },
+  { ref: ref('service', 'native:serve-static'), label: 'serve-static\nnative', flags: ['host=native', 'service=serve-static'],
+    lifetime: 'operation', conditions: ['c1'], repo: null },
+];
+const physicalScopes = (frameId, gap) => {
   const entities = [], relations = [];
   const link = (id, from, to, context, containment = null) => relations.push({ ref: ref('declared-relation', frameId + ':' + id), from, to,
-    kind: 'declared-relation', label: containment ? '含む' : 'この差を埋める対象', context, path: false, containment });
+    kind: 'declared-relation', label: containment ? '含む' : context.lifetime === 'operation' ? 'この条件を保つもの' : 'この差を埋める対象', context, path: false, containment });
+  const target = ref('purpose-state-target', gap.basis.purpose_id + ':target');
+  if (gap.parts !== null) entities.push({ ref: target, label: '理想状態', area: 'purpose', order: 8, visible: true, activity: 'none' });
   for (const [index, item] of PHYSICAL.entries()) {
-    const repoRef = ref('repository', item.repo), packageRef = ref('package', item.repo + ':' + item.package);
-    const conditions = item.conditions.filter(condition => parts.some(each => each.condition === condition));
-    if (!item.gapA && !conditions.length) continue;
-    entities.push({ ref: repoRef, label: item.repo + '\nrepo', area: 'scopes', order: 20 + index, visible: true, activity: 'none', flags: ['physical-scope', 'repo=' + item.repo] },
-      { ref: packageRef, label: item.package + '\n' + item.repo, area: 'scopes', order: 30 + index, visible: true, activity: 'none',
-        source: { sourceRef: 'atlas.control-norms/1#phys.' + index, sourceDigest: null, kind: 'declared' },
-        flags: ['physical-scope', 'repo=' + item.repo, 'package=' + item.package, ...(item.gapA ? ['gap=purpose-ideal'] : []), ...(conditions.length ? ['gap=ideal-current'] : [])] });
-    link('contains:' + index, repoRef, packageRef, { declared_by: 'physical-scope' }, 'from-contains-to');
-    if (item.gapA) link('gapa:' + index, packageRef, ref('purpose-adequacy', 'hq'), { gap: 'purpose-ideal' });
-    for (const condition of conditions) link('gapb:' + index + ':' + condition, packageRef, ref('semantic-scope', condition), { gap: 'ideal-current', condition });
+    const open = item.conditions.filter(condition => (gap.parts ?? []).some(each => each.condition === condition));
+    const keeps = item.lifetime === 'operation' && gap.parts !== null ? item.conditions : [];
+    if (!open.length && !keeps.length) continue;
+    entities.push({ ref: item.ref, label: item.label, area: 'scopes', order: 30 + index, visible: true, activity: 'none',
+      source: { sourceRef: 'atlas.control-norms/1#phys.' + index, sourceDigest: null, kind: 'declared' }, flags: ['physical-scope', ...item.flags] });
+    if (item.repo) {
+      const repoRef = ref('repository', item.repo);
+      entities.push({ ref: repoRef, label: item.repo + '\nrepo', area: 'scopes', order: 20 + index, visible: true, activity: 'none', flags: ['physical-scope', 'repo=' + item.repo] });
+      link('contains:' + index, repoRef, item.ref, { declared_by: 'physical-scope' }, 'from-contains-to');
+    }
+    for (const condition of keeps) link('keep:' + index + ':' + condition, item.ref, target, { condition, lifetime: 'operation' });
+    for (const condition of open) link('part:' + index + ':' + condition, item.ref, ref('semantic-scope', condition), { condition, lifetime: item.lifetime });
   }
   return { entities, relations };
 };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
-  adequacy = false, physical = false } = {}) => {
+  adequacy = false, judged = false, held = false, evaluator = false, physical = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
-  const entries = current ? [...decided, ...CURRENT].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
+  const extra = [...(current ? CURRENT : []), ...(evaluator ? EVALUATIONS : [])];
+  const entries = extra.length ? [...decided, ...extra].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
   const c1 = (current, since) => part('c1', '端末で直接入力できる', 'unmet', cause(null, current), since, null);
   const c4 = (current, since) => part('c4', 'envs のスコープ主張', 'unknown', cause(null, current), since, 'scope:envs');
@@ -187,11 +231,12 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
       if (newPurpose && index >= 3 && item.gap) item.gap.basis.purpose_id = 'hq.v2';
       const nested = groups && item.gap.parts?.length
         ? groupedScopes(item.id, item.gap.parts, frames.slice(0, index + 1).flatMap(each => each.gap.closed), groups === 'unplaced' ? 'c4' : null) : null;
-      const declared = physical && item.gap.parts?.length ? physicalScopes(item.id, item.gap.parts) : { entities: [], relations: [] };
+      const declared = physical ? physicalScopes(item.id, item.gap) : { entities: [], relations: [] };
       const supplied = nested ?? { entities: [], relations: [] };
       return { ...item, journal: [...journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf), ...(unbound ? structuredClone(UNBOUND[item.id] ?? []) : [])],
-        entities: [...item.entities, ...(adequacy || physical ? [adequacyEntity(item.id)] : []), ...supplied.entities, ...declared.entities],
-        relations: [...item.relations, ...supplied.relations, ...declared.relations] };
+        entities: [...item.entities, ...(adequacy ? [adequacyEntity(item.id)] : []), ...supplied.entities, ...declared.entities],
+        relations: [...item.relations, ...supplied.relations, ...declared.relations],
+        ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}) };
     }),
   };
 };
