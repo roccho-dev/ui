@@ -418,15 +418,18 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const idealRef = ref('ideal-state', purposeId);
   const currentRef = ref('current-state', purposeId);
   const deltaRef = ref('gap', purposeId);
-  // GapA (目的↔理想の差) is never judged here: the frame's `adequacy` (v12),
+  // GapA (目的↔理想の差) is never judged here. v12: the frame's `adequacy`,
   // drawn as its state and reason (no count) with the evaluators' unverified
-  // signs. Without it, no GapA.
+  // signs. The earlier path, which the HQ World still carries until apps ②
+  // ships `adequacy` (removed at ④): the producer's purpose-adequacy entity,
+  // drawn as supplied. Neither: no GapA.
+  const suppliedAdequacy = frame.entities.find(item => item.ref.kind === 'purpose-adequacy' && item.ref.id === purposeId) ?? null;
   const adequacy = frame.adequacy
     ? entity(ref('purpose-adequacy', purposeId), '目的↔理想の差\n' + ADEQUACY_STATE_LABEL[frame.adequacy.state] + ' · '
       + ADEQUACY_REASON_LABEL[frame.adequacy.reason] + admissionMark(frame.adequacy.evidence)
       + evaluationSigns(journal, purposeId).map(line => '\n' + line).join(''), areas.purpose, 2, adequacySummary(frame.adequacy),
       ['scope_status=' + frame.adequacy.state])
-    : null;
+    : suppliedAdequacy;
   const unknownCount = '不明';
   // The newest decision of a kind, up to this frame, for the purpose drawn (and,
   // for an ideal.set, the version drawn): its source's admission marks it (A3).
@@ -685,7 +688,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   }
 
   // Keep the other areas' entities, any supplied Scopes, and the relations among them.
-  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
+  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope && item !== suppliedAdequacy)];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
   return Object.freeze({ entities: Object.freeze([...entities, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });
