@@ -296,7 +296,7 @@ try {
         state.frameId === 't6' && node && lines.every(line => flat(node.text).includes(flat(line))) && flat(node.text) === flat(node.label) && inside(node), node?.text);
       check(where + ': 現在状態 has no status look and no ✓', look.status === null && !/[✓]/u.test(node?.text ?? ''), look);
       const delta = state.nodes.find(item => item.kind === 'gap');
-      check(where + ': 差 reads as without claims', flat(delta?.text) === flat('? · 差 2（前 0）! c1 · 鮮度切れ? c4 · 照合不能'), delta?.text);
+      check(where + ': 差 reads as without claims', flat(delta?.text) === flat('? · 理想↔現在の差差 2（前 0）! c1 · 鮮度切れ? c4 · 照合不能'), delta?.text);
     } finally {
       await browser.close();
     }

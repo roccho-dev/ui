@@ -1,7 +1,7 @@
 // Generic bounded Atlas world input for the a2 presentation.
 // This is a display/read-model seam, never a business authority or owner codec.
 
-import { checkJournalDeltas, gapView, hasGapView, normalizeGap, normalizeJournal, normalizePhase } from './atlas-gap.mjs';
+import { checkJournalDeltas, gapView, hasGapView, normalizeAdequacy, normalizeGap, normalizeHeld, normalizeJournal, normalizePhase } from './atlas-gap.mjs';
 
 export const ATLAS_WORLD_KIND = 'ui.atlasWorldInput.v1';
 
@@ -242,7 +242,8 @@ const normalizePlans = (value, at) => {
 };
 
 const normalizeFrame = (value, at, areaIds) => {
-  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans', 'gap', 'phase', 'journal', 'matched_until'], at);
+  exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans', 'gap', 'phase', 'journal', 'matched_until',
+    'adequacy', 'held'], at);
   check(Array.isArray(value.entities) && value.entities.length > 0, at + '.entities must be non-empty');
   check(Array.isArray(value.relations), at + '.relations must be an array');
   const entities = value.entities.map((item, index) => normalizeEntity(item, at + '.entities[' + index + ']', areaIds));
@@ -252,6 +253,7 @@ const normalizeFrame = (value, at, areaIds) => {
   check(new Set(entityIds).size === entityIds.length, at + ': duplicate qualified entity ref');
   check(new Set(relationIds).size === relationIds.length, at + ': duplicate qualified relation ref');
   deriveContainmentIndex(entities, relations, at);
+  const gap = value.gap === undefined ? undefined : normalizeGap(value.gap, at + '.gap');
   return Object.freeze({
     id: text(value.id, at + '.id'),
     rev: integer(value.rev, at + '.rev'),
@@ -262,10 +264,13 @@ const normalizeFrame = (value, at, areaIds) => {
     relations: Object.freeze(relations),
     // Kept only when supplied, so a frame without plans normalizes as before.
     ...(value.plans === undefined ? {} : { plans: normalizePlans(value.plans, at + '.plans') }),
-    ...(value.gap === undefined ? {} : { gap: normalizeGap(value.gap, at + '.gap') }),
+    ...(gap === undefined ? {} : { gap }),
     ...(value.phase === undefined ? {} : { phase: normalizePhase(value.phase, at + '.phase') }),
     ...(value.journal === undefined ? {} : { journal: normalizeJournal(value.journal, at + '.journal') }),
     ...(value.matched_until === undefined ? {} : { matched_until: value.matched_until === null ? null : timeValue(value.matched_until, at + '.matched_until') }),
+    // Contract v12, kept only when supplied: a World without them draws as before.
+    ...(value.adequacy === undefined ? {} : { adequacy: normalizeAdequacy(value.adequacy, at + '.adequacy', gap ?? null) }),
+    ...(value.held === undefined ? {} : { held: normalizeHeld(value.held, at + '.held') }),
   });
 };
 

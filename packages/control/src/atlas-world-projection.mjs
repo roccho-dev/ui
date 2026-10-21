@@ -232,11 +232,12 @@ const orderedKeys = (keys, entityByKey, rank = new Map()) => [...keys].sort((lef
     || left.localeCompare(right);
 });
 
-// The vertical order inside each area. It starts from the supplied `order`
-// and then moves each entity toward the mean position of the entities it is
-// related to, in its own area and in the others (a fixed number of barycenter
-// sweeps over the visible supplied relations), which removes avoidable
-// relation crossings.
+// The vertical order inside each area. It starts from the supplied `order`.
+// Entities joined by visible relations inside one area form a block that keeps
+// its supplied order (a chain stays a chain); each block then moves toward the
+// mean position of the entities its members are related to in the other areas
+// (a fixed number of barycenter sweeps over the visible supplied relations),
+// which removes avoidable relation crossings.
 // Only declared order and relations are read; ties keep the previous order,
 // so the result is deterministic. Names and labels are never compared.
 // An area with supplied containment keeps its supplied order: moving nested
@@ -249,9 +250,12 @@ const areaRanks = (frame, areas, containment) => {
   const lists = new Map(areas.map(area => [area.id, orderedKeys(frame.entities.filter(entity => entity.area === area.id)
     .map(entity => entityKey(entity.ref)), new Map(frame.entities.map(entity => [entityKey(entity.ref), entity])))]));
   const neighbors = new Map([...areaOf.keys()].map(key => [key, []]));
+  const blockOf = new Map([...areaOf.keys()].map(key => [key, key]));
+  const root = key => blockOf.get(key) === key ? key : root(blockOf.get(key));
   for (const relation of frame.relations) {
     const from = entityKey(relation.from), to = entityKey(relation.to);
     if (!relation.visible || !areaOf.has(from) || !areaOf.has(to) || from === to) continue;
+    if (areaOf.get(from) === areaOf.get(to)) { blockOf.set(root(from), root(to)); continue; }
     neighbors.get(from).push(to);
     neighbors.get(to).push(from);
   }
@@ -260,15 +264,20 @@ const areaRanks = (frame, areas, containment) => {
     for (const list of lists.values()) list.forEach((key, index) => position.set(key, list.length > 1 ? index / (list.length - 1) : 0.5));
   };
   place();
+  // A block's members in supplied order, the blocks in their first member's order.
+  const blocksOf = list => [...list.reduce((blocks, key) => blocks.set(root(key), [...(blocks.get(root(key)) ?? []), key]), new Map()).values()];
+  const blocks = new Map(movable.map(area => [area.id, blocksOf(lists.get(area.id))]));
+  const mean = values => values.reduce((sum, value) => sum + value, 0) / values.length;
   for (let sweep = 0; sweep < BARYCENTER_SWEEPS; sweep += 1) {
     for (const area of movable) {
-      const list = lists.get(area.id);
-      const barycenter = new Map(list.map(key => {
-        const near = neighbors.get(key);
-        return [key, near.length ? near.reduce((sum, other) => sum + position.get(other), 0) / near.length : position.get(key)];
+      const list = blocks.get(area.id);
+      const barycenter = new Map(list.map(block => {
+        const near = block.flatMap(key => neighbors.get(key));
+        return [block, mean(near.length ? near.map(other => position.get(other)) : block.map(key => position.get(key)))];
       }));
-      const previous = new Map(list.map((key, index) => [key, index]));
+      const previous = new Map(list.map((block, index) => [block, index]));
       list.sort((left, right) => barycenter.get(left) - barycenter.get(right) || previous.get(left) - previous.get(right));
+      lists.set(area.id, list.flat());
       place();
     }
   }

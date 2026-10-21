@@ -159,13 +159,21 @@ export const projectTimeline = ({
       with_('表示中：' + step, wordLong), with_(step, wordShort),
       ['disconnected', 'silent', 'nodata', 'mismatch'].includes(transport) ? wordShort : step];
   const toggle = planOpen ? '閉じる' : '詳細';
+  // v12 (L3): plan.set entries bound to no ideal state, up to this frame, each
+  // plan id once, leaving out an id the frame's plans carry. Counted here only,
+  // never mixed into the frame's plans.
+  const bound = new Set((plans ?? []).map(item => item.plan));
+  const unbound = new Set([...frames.slice(0, Math.max(0, frames.findIndex(item => item.id === frame.id))), frame]
+    .flatMap(item => item.journal ?? []).filter(entry => entry.unbound === true && !bound.has(entry.plan)).map(entry => entry.plan)).size;
+  const unboundText = unbound ? ' · 未結合 ' + unbound + ' 件' : '';
   cell('back', ['◀ 前へ · [', '◀ 前へ', '◀'], 1, back !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: -1 } } : { look: 'idle' });
   cell('position', where, 3, { look: 'idle', atlas: { index, count, present, frameId: frame.id } });
   cell('forward', ['次へ ▶ · ]', '次へ ▶', '▶'], 1, forward !== index && index >= 0 ? { activation: { type: 'atlas.world.timeline-step', value: 1 } } : { look: 'idle' });
   cell('present', ['現在へ戻る · L', '現在へ戻る', '現在'], 1, present && latest ? { look: 'idle' } : { activation: { type: 'atlas.world.latest' } });
-  cell('plan', [planSummary(plans) + ' · ' + toggle, planSummary(plans), planShort(plans) + ' · ' + toggle, planShort(plans)], 3, { look: 'plan',
+  cell('plan', [planSummary(plans) + unboundText + ' · ' + toggle, planSummary(plans) + unboundText, planShort(plans) + unboundText + ' · ' + toggle,
+    planShort(plans) + unboundText], 3, { look: 'plan',
     activation: { type: 'atlas.world.plan-toggle' },
-    atlas: { plan: plans === null ? 'undeclared' : plans.length ? 'supplied' : 'none', count: plans?.length ?? null, open: planOpen } });
+    atlas: { plan: plans === null ? 'undeclared' : plans.length ? 'supplied' : 'none', count: plans?.length ?? null, unbound, open: planOpen } });
 
   const region = (id, label, bounds, look, activation, atlas) => Object.freeze({
     regionId: TIMELINE_ID_PREFIX + id, label, bounds: screen(bounds),
