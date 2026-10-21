@@ -506,7 +506,7 @@ const focusRegion = ({ scene, selected }) => {
 // sized for scale 1, whatever the viewport, so the World does not change size
 // with the window: `minScale` keeps Fit from shrinking their text, and a World
 // larger than the view is panned. The status and search rows, the time
-// controls and the 予定 / 仕訳 list are the page's own (atlas-ui.mjs).
+// controls and the changes of the time shown are the page's own (atlas-ui.mjs).
 export const projectAtlasWorld = ({
   input,
   receivedInput = input,

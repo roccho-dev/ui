@@ -315,7 +315,7 @@ try {
             const atlas = window.liveAtlas, view = atlas.adapter.graph.getView();
             return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
               const drawn = view.getState(atlas.adapter.cellsByRegionId.get(item.regionId));
-              return [item.regionId, ['current-state', 'ideal-state'].includes(item.atlas.ref.kind) ? null : drawn?.text?.node?.textContent ?? '',
+              return [item.regionId, ['current-state', 'ideal-state', 'frame-change'].includes(item.atlas.ref.kind) ? null : drawn?.text?.node?.textContent ?? '',
                 drawn?.style?.fillColor ?? null, drawn?.style?.strokeColor ?? null];
             });
           });
@@ -324,7 +324,7 @@ try {
         return out;
       };
       const [withUnbound, without] = [await drawnFrames(unbound.none), await drawnFrames(all)];
-      check('unbound plans: every frame draws 差, 理想状態, Scopes and Agents (texts and colors) and 現在状態\'s colors as without them',
+      check('unbound plans: every frame draws 差, Scopes and Agents (texts and colors) and the colors of 現在状態, 理想状態 and the changes (whose rows name the plan.set) as without them',
         Object.keys(without).length === 8 && JSON.stringify(withUnbound) === JSON.stringify(without), Object.keys(withUnbound));
       // The one screen shows the count on 理想状態 (#373), read as drawn.
       const idealText = async (server, steps) => {

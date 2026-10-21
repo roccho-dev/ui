@@ -286,8 +286,8 @@ try {
   });
   check('same endpoint participation relations aggregate without identity loss', Boolean(aggregate) && aggregate.ids.length === 2, aggregate);
 
-  // The one screen: only the native status and search rows (and the 予定 /
-  // 仕訳 list) sit outside the SVG, and the SVG holds the three areas only —
+  // The one screen: only the native status and search rows and the changes
+  // of the time shown (S7c) sit outside the SVG, and the SVG holds the three areas only —
   // no HUD, panel, strip or band region.
   const htmlSurface = await page.evaluate(() => {
     const screen = document.getElementById('atlas-world-screen');
@@ -307,10 +307,10 @@ try {
   });
   check('only the exact native status and search rows are visible HTML control surfaces',
     JSON.stringify(htmlSurface.bodyChildren) === JSON.stringify(['atlas-world-screen'])
-      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world-list', 'atlas-world'])
+      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world-change', 'atlas-world'])
       && JSON.stringify(htmlSurface.statusChildren) === JSON.stringify(['span#atlas-world-status'])
       && JSON.stringify(htmlSurface.barChildren) === JSON.stringify(['input#atlas-world-search', 'select#atlas-world-search-results', 'span#atlas-world-search-count',
-        'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present', 'button#atlas-world-forecast', 'button#atlas-world-journal'])
+        'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present'])
       && htmlSurface.statusHeight === 24 && htmlSurface.barHeight === 36, htmlSurface);
   check('the SVG draws the three areas only: no HUD, panel, strip or band region',
     JSON.stringify(htmlSurface.regionKinds) === JSON.stringify(['area', 'entity']) && htmlSurface.guides === 0
@@ -480,7 +480,8 @@ try {
       const result = {
         events: before.events, width: container.clientWidth, height: container.clientHeight,
         screenHeight: document.getElementById('atlas-world-screen').clientHeight,
-        barHeight: (document.getElementById('atlas-world-status-bar')?.offsetHeight ?? 0) + (document.getElementById('atlas-world-search-bar')?.offsetHeight ?? 0),
+        barHeight: (document.getElementById('atlas-world-status-bar')?.offsetHeight ?? 0) + (document.getElementById('atlas-world-search-bar')?.offsetHeight ?? 0)
+          + (document.getElementById('atlas-world-change')?.offsetHeight ?? 0),
         beforeCamera: before.camera, camera: atlas.adapter.camera(),
         inputReused: atlas.input === before.input,
         selected: atlas.page.selected, beforeSelected: before.selected,
@@ -492,7 +493,7 @@ try {
     const label = 'World resize ' + viewport.width + 'x' + viewport.height;
     check(label + ' refits camera after a real resize event',
       resized.events > 0 && resized.width === viewport.width && resized.screenHeight === viewport.height
-        && resized.barHeight === 24 + 36 && resized.height === viewport.height - resized.barHeight
+        && resized.barHeight === 24 + 36 + 116 && resized.height === viewport.height - resized.barHeight
         && JSON.stringify(resized.camera) !== JSON.stringify(resized.beforeCamera), resized);
     check(label + ' retains normalized input, qualified selection and viewed frame',
       resized.inputReused && resized.selected === resized.beforeSelected && resized.frameId === resized.beforeFrameId, resized);

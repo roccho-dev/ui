@@ -237,7 +237,8 @@ export const normalizeAdequacy = (value, at, gap) => {
 };
 // Contract 3, revised: `upkeep` lists, on a matched frame, each condition met
 // with the time of the observation the judge chose and when it goes stale.
-// Read exactly; 予定 ▸ lists it. Display only.
+// Read exactly; the present's upkeep gives the steps past it (S7,
+// atlas-timeline.mjs forecastSteps). Display only.
 export const normalizeUpkeep = (value, at) => {
   check(Array.isArray(value), at + ' must be an array');
   return Object.freeze(value.map((item, index) => {
@@ -433,7 +434,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // names the supplied phase, when it began (the first received frame, going
   // back from this one, in the same phase), a matched phase's next stale time
   // and whether the phase disagrees with the gap. The phase itself is read
-  // here and on 理想状態; what was held is in 仕訳 ▸ (atlas-timeline.mjs).
+  // here and on 理想状態; what was held is in the frame's changes (frameChangeLabel).
   const phase = frame.phase ?? null;
   const consistent = phase === null ? true : (phase === 'approximating' ? g !== null && g.parts.length > 0
     : phase === 'matched' ? g !== null && g.parts.length === 0 : g === null);
@@ -558,7 +559,12 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const unbound = unboundPlanCount(journal, frame.plans);
   const plans = frame.plans ?? null;
   const planLine = plans === null && !unbound ? '' : '\n計画：' + (plans === null ? '未宣言（UNKNOWN）' : plans.length ? plans.length + ' 件' : '有効な計画 0 件')
-    + (unbound ? ' · 未結合 ' + unbound + ' 件' : '');
+    + (unbound ? ' · 未結合 ' + unbound + ' 件' : '')
+    // S7: each plan of the frame, one line: what it is, what it serves, its
+    // content as supplied and where it was read from (the only place it is read).
+    + (plans ?? []).map(plan => '\n計画 ' + plan.label + ' · 寄与 ' + (plan.serves.length ? plan.serves.join('、') : 'なし')
+      + ' · 内容 ' + (plan.nodes === null ? 'UNKNOWN' : 'ノード ' + plan.nodes.length + ' 件')
+      + ' · 出所 ' + plan.source.repo + (plan.source.commentId === null || plan.source.commentId === undefined ? '' : ' comment ' + plan.source.commentId)).join('');
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + beforeIdeal
     + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
 
@@ -675,6 +681,30 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
 export const phaseStale = (frame, now) => frame.phase === 'matched' && typeof frame.matched_until === 'string'
   && Number.isFinite(now) && now > Date.parse(frame.matched_until);
 export const STALE_PHASE_LABEL = '鮮度切れ・最新か不明';
+// One journal entry as a row: its mark and kind, the plan it names, when it
+// was recorded, its author and its source (sha256 whole).
+export const journalRow = entry => JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + (entry.unbound === true ? UNBOUND_MARK : '')
+  + (entry.kind === 'plan.set' && entry.plan ? ' ' + entry.plan + (entry.version === undefined ? '' : ' v' + entry.version) : '')
+  + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
+  + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
+  + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN');
+// One declaration held back (v12) as a row.
+const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref;
+// S7c (adrs#647): the changes of a frame, shown in #atlas-world-change under
+// the time controls: what entered at it (its journal entries, v6, and the
+// declarations held at it, v12), every one, with when, by whom and from
+// where; journal and held are reached nowhere else. The heading counts them
+// and what was held up to the frame (P(a): counting it needs the earlier
+// frames). `earlier` are the frames before it.
+export const frameChangeLabel = (earlier, frame) => {
+  const changes = [...(frame.journal ?? []).map(journalRow), ...(frame.held ?? []).map(heldRow)];
+  const heldSoFar = [...earlier, frame].flatMap(item => item.held ?? []).length;
+  return 'この時点の変化 ' + changes.length + ' 件' + (heldSoFar ? ' · 保持 累計 ' + heldSoFar : '') + changes.map(row => '\n' + row).join('');
+};
+// A step past the present (S7) in #atlas-world-change: its minute, and each
+// condition that reads unknown then with no new observation.
+export const forecastChangeLabel = step => '予定 ' + step.at + '（観測が無ければ unknown）'
+  + step.items.map(item => '\n鮮度切れの予定 ' + item.condition + ' · 観測 ' + dayClockText(item.observedAt)).join('');
 // The stale present's 理想↔現在の差 label (S6): its heading says it went stale
 // in place of its next stale time; the lines below it stay.
 export const staleDeltaLabel = (label, frame) => label.replace('・次の鮮度切れ ' + dayClockText(frame.matched_until) + '）',

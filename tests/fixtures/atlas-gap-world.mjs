@@ -125,14 +125,17 @@ const DRAFTING = [entry('ideal.drafting', '2026-10-17T05:20:00Z', { purpose_id: 
 // judge last matched for it (parts[i].last_observed): c1's 03:40Z line, by
 // atlas.events; c3 and c4 were never observed (null).
 const LAST_OBSERVED = { c1: { observedAt: '2026-10-17T03:40:00Z', source: { ref: 'hq:observations.jsonl' }, actor: 'atlas.events' } };
-// `upkeep: true` gives each matched frame frames[i].upkeep: per condition met,
-// the observation's time and when it goes stale (observedAt + maxAge, as the
-// judge chose it); the earliest is the frame's matched_until.
+// `upkeep: true` gives frames[i].upkeep to each frame with a condition met
+// (S7: matched or not): per condition met, the observation's time and when it
+// goes stale (observedAt + maxAge, as the judge chose it); on a matched frame
+// the earliest is its matched_until. t6 is approximating with c2, c3 met.
 const UPKEEP = {
   t2: [{ condition: 'c2', observedAt: '2026-10-17T01:40:00Z', stale_at: '2026-10-17T03:40:00Z' },
     { condition: 'c1', observedAt: '2026-10-17T01:40:00Z', stale_at: '2026-10-17T02:41:00Z' }],
   t5: [{ condition: 'c3', observedAt: '2026-10-17T03:40:00Z', stale_at: '2026-10-17T06:10:00Z' },
     { condition: 'c1', observedAt: '2026-10-17T03:40:00Z', stale_at: '2026-10-17T05:41:00Z' }],
+  t6: [{ condition: 'c3', observedAt: '2026-10-17T03:40:00Z', stale_at: '2026-10-17T07:10:00Z' },
+    { condition: 'c2', observedAt: '2026-10-17T03:40:00Z', stale_at: '2026-10-17T07:40:00Z' }],
 };
 // `judged: true` gives each frame contract v12's `adequacy` (adrs#647) as the
 // producer judges this story: no ideal at t0/t1, no evaluation at t2, the v1
@@ -245,7 +248,7 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
       const supplied = nested ?? { entities: [], relations: [] };
       return { ...item, journal: [...journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf), ...(unbound ? structuredClone(UNBOUND[item.id] ?? []) : [])],
         entities: [...item.entities, ...supplied.entities, ...declared.entities],
-        ...(upkeep && item.phase === 'matched' ? { upkeep: structuredClone(UPKEEP[item.id]) } : {}),
+        ...(upkeep && UPKEEP[item.id] ? { upkeep: structuredClone(UPKEEP[item.id]) } : {}),
         relations: [...item.relations, ...supplied.relations, ...declared.relations],
         ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}) };
     }),

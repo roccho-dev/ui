@@ -13,7 +13,8 @@
 // - ◀ 前へ shows the previous frame: the time text and the three areas read
 //   that frame; 次へ ▶ steps back toward the present; 現在へ returns to the latest;
 // - 差's heading names when its phase began (S6: no phase box);
-// - 仕訳 n · 保持 m（累計）▸ lists the frame's entries and what was held up to it;
+// - the changes under the time controls name the entries the frame carries (S7, S7c; the steps
+//   past the present are tests/atlas-world-time-axis-browser-proof.mjs);
 // - the status and search rows hold exactly the controls of the display
 //   section's table (packages/control/src/atlas-screen-table.mjs), and the
 //   search count names no frame id or rev.
@@ -50,13 +51,10 @@ const asOf = Date.parse(world.frames.at(-1).asOf);
 const { scratch, done } = proofScratch(args.out);
 // One build per story, so a field a build does not accept stops only the
 // checks that need it: the plain story (status rows, time controls);
-// `judged`, GapA from frames[i].adequacy as the HQ World carries it; `forecast`,
-// up to the matched t5 with held declarations and unbound plans (予定 ▸, held
-// lines); `upkeep`, the same with frames[i].upkeep; `history`, the whole story
-// with a drafting ideal (改訂中, 仕訳 ▸, search); `observed`, with the parts'
-// last observations.
-const worlds = { page: world, judged: gapWorld({ judged: true }), forecast: gapWorld({ through: 't5', held: true, unbound: true }),
-  upkeep: gapWorld({ through: 't5', upkeep: true }), history: gapWorld({ drafting: true, held: true }), observed: gapWorld({ lastObserved: true }) };
+// `judged`, GapA from frames[i].adequacy as the HQ World carries it; `history`,
+// the whole story with a drafting ideal (改訂中, the changes, search);
+// `observed`, with the parts' last observations.
+const worlds = { page: world, judged: gapWorld({ judged: true }), history: gapWorld({ drafting: true, held: true }), observed: gapWorld({ lastObserved: true }) };
 const bodies = {};
 const buildFailures = {};
 for (const [name, value] of Object.entries(worlds)) {
@@ -104,20 +102,6 @@ const shown = (page, words) => page.evaluate(words => {
 const allShown = result => result.words.every(item => item.inside);
 // A visible button pressed, or false when the page has none by that name.
 const press = (page, name) => page.getByRole('button', { name, exact: true }).click({ timeout: 2000 }).then(() => true, () => false);
-// The rows of the 予定 / 仕訳 list: whether the list is shown and each row,
-// matched by its whole text, lies inside it.
-const listShown = (page, lines) => page.evaluate(lines => {
-  const node = document.getElementById('atlas-world-list');
-  const box = node?.getBoundingClientRect();
-  const visible = Boolean(node && box.width > 0 && box.height > 0 && getComputedStyle(node).display !== 'none');
-  const rows = node ? [...node.children] : [];
-  return { visible, rows: lines.map(line => {
-    const row = rows.find(item => item.textContent === line);
-    const rect = row?.getBoundingClientRect();
-    return { line, inside: Boolean(visible && rect && rect.width > 0 && rect.left >= box.left - 0.5 && rect.right <= box.right + 0.5
-      && rect.top >= box.top - 0.5 && rect.bottom <= box.bottom + 0.5) };
-  }) };
-}, lines);
 // The text each drawn three-area box shows, by entity kind.
 const boxes = page => page.evaluate(() => {
   const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
@@ -152,7 +136,7 @@ try {
       return { name, visible: Boolean(box && box.width > 0 && box.right <= window.innerWidth + 0.5) };
     }));
     check(width + 'px: ◀ 前へ, 次へ ▶ and 現在へ are visible buttons on the search row', controls.every(item => item.visible), controls);
-    const rowIds = await page.evaluate(() => [...document.querySelectorAll('#atlas-world-status-bar > *, #atlas-world-search-bar > *')].map(item => item.id).sort());
+    const rowIds = await page.evaluate(() => [...document.querySelectorAll('#atlas-world-status-bar > *, #atlas-world-search-bar > *, #atlas-world-screen > #atlas-world-change')].map(item => item.id).sort());
     check(width + 'px: the status and search rows hold the table\'s controls, no more', JSON.stringify(rowIds) === JSON.stringify(SCREEN_CONTROLS.map(item => item.id).sort()), rowIds);
     // Back: the previous frame, in the time text and the three areas.
     await page.getByRole('button', { name: '◀ 前へ' }).click();
@@ -215,49 +199,15 @@ try {
       });
       check(width + 'px: GapA (目的↔理想の差) is drawn from frames[i].adequacy, visible in the graph', gapA.inside && flat(gapA.text ?? '').includes(flat('目的↔理想の差')), gapA);
     });
-    // 予定 ▸ (t+1, not a frame): the three areas stay at t0; the list shows the
-    // plans, the unbound plans and matched_until, each row inside the list.
-    await story('forecast', '予定 ▸ and held rows', async page => {
-      const atPresent = await boxes(page);
-      // Cases 15 and 29 (S6): what was held is a row of 仕訳 ▸, never in a box;
-      // the button counts it without opening.
-      check(width + 'px: no box draws what was held', !Object.values(atPresent).some(text => text.includes('保持')), atPresent);
-      const journal = await press(page, '仕訳 1 · 保持 3（累計）▸');
-      await settle(page);
-      const held = await listShown(page, ['保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647',
-        '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552', '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647']);
-      check(width + 'px 仕訳 1 · 保持 3（累計）▸: each held declaration is a visible row (cases 15 and 29)', journal && held.visible && held.rows.every(row => row.inside), held);
-      await press(page, '仕訳 1 · 保持 3（累計）▾');
-      await settle(page);
-      const opened = await press(page, '予定 ▸');
-      await settle(page);
-      const planned = await listShown(page, ['予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）',
-        '未結合 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2', '次の鮮度切れ 10-17 05:41Z']);
-      check(width + 'px 予定 ▸: plans, unbound plans and matched_until are visible rows', opened && planned.visible && planned.rows.every(row => row.inside), planned);
-      check(width + 'px 予定 ▸: the three areas stay at t0', opened && JSON.stringify(await boxes(page)) === JSON.stringify(atPresent)
-        && allShown(await shown(page, ['表示中：現在 6/6 · t5'])));
-      const closed = await press(page, '予定 ▾');
-      await settle(page);
-      check(width + 'px 予定 ▾ closes the list', closed && !(await listShown(page, [])).visible);
-    });
-    await story('upkeep', '予定 ▸ with upkeep', async page => {
-      const opened = await press(page, '予定 ▸');
-      await settle(page);
-      const planned = await listShown(page, ['維持の作業（鮮度切れの予定の早い順）', 'c1 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 05:41Z',
-        'c3 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 06:10Z']);
-      check(width + 'px 予定 ▸: the upkeep, per condition, earliest first, is visible', opened && planned.visible && planned.rows.every(row => row.inside), planned);
-    });
-    // The past: 改訂中 (case 14) and 仕訳 ▸; then search.
-    await story('history', '改訂中, 仕訳 ▸ and search', async page => {
+    // The past: 改訂中 (case 14) and the changes; then search.
+    await story('history', '改訂中, the changes and search', async page => {
       await press(page, '◀ 前へ');
       await settle(page);
       const t6 = await boxes(page);
       check(width + 'px t6: 理想状態 reads 改訂中 v3 while v2 is in force', t6['ideal-state']?.includes(flat('v2 · 条件 4 · 改訂中 v3')), t6['ideal-state']);
-      const opened = await press(page, '仕訳 1 · 保持 3（累計）▸');
-      await settle(page);
-      const entries = await listShown(page, ['△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
-      check(width + 'px 仕訳 1 · 保持 3（累計）▸: the entry t6 carries is a visible row', opened && entries.visible && entries.rows.every(row => row.inside), entries);
-      await press(page, '仕訳 1 · 保持 3（累計）▾');
+      const panel = flat(await page.evaluate(() => document.getElementById('atlas-world-change')?.textContent ?? ''));
+      check(width + 'px t6: the changes under the time controls name the entry t6 carries, and what was held so far', panel === flat('この時点の変化 1 件 · 保持 累計 3'
+        + '△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)), panel);
       // Search: choosing a relation brings the camera to its from box, drawn
       // inside the graph.
       await press(page, '現在へ');

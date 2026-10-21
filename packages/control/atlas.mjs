@@ -74,15 +74,20 @@ const startWorldAtlas = ({ input, eventsUrl, updateIntervalMs }) => {
     if (expiry !== null) clearTimeout(expiry);
     expiry = setTimeout(() => { expiry = null; ui.tick(Date.now()); }, RECEIVE_WINDOW_MS + 1);
   };
-  // A matched present frame goes stale at its matched_until: one timeout for
-  // that moment (re-armed when the World changes), never a periodic tick.
+  // A matched present frame goes stale at its matched_until, and each step past
+  // the present (S7) is gone once its stale_at has passed: one timeout for the
+  // next such moment (re-armed after it and when the World changes), never a
+  // periodic tick.
   const armFreshness = () => {
     if (freshness !== null) clearTimeout(freshness);
     freshness = null;
     const present = ui.input.frames.at(-1);
-    const until = present.phase === 'matched' && typeof present.matched_until === 'string' ? Date.parse(present.matched_until) : NaN;
-    const wait = until - Date.now();
-    if (Number.isFinite(wait) && wait >= 0) freshness = setTimeout(() => { freshness = null; ui.tick(Date.now(), true); }, Math.min(wait + 1, 2 ** 31 - 1));
+    const now = Date.now();
+    const until = [present.phase === 'matched' ? present.matched_until : null, ...(present.upkeep ?? []).map(item => item.stale_at)]
+      .map(at => typeof at === 'string' ? Date.parse(at) : NaN).filter(at => Number.isFinite(at) && at >= now);
+    if (!until.length) return;
+    const wait = Math.min(...until) - now;
+    freshness = setTimeout(() => { freshness = null; ui.tick(Date.now(), true); armFreshness(); }, Math.min(wait + 1, 2 ** 31 - 1));
   };
   armFreshness();
   // A live World whose build names its update period stops reading as

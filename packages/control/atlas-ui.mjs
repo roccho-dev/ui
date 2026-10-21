@@ -12,9 +12,10 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { UPDATE_STALLED, forecastLines, heldLines, journalButtonText, journalLines, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
+import { UPDATE_STALLED, forecastSteps, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
   viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
+import { forecastChangeLabel, frameChangeLabel } from './src/atlas-gap.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}
@@ -439,8 +440,6 @@ export const mountAtlasUI = ({
 const WORLD_STYLE = `
 body{margin:0;overflow:hidden}
 #atlas-world-screen{position:relative;display:flex;flex-direction:column;height:100vh;background:#fff}
-#atlas-world-list{position:absolute;z-index:2;top:64px;left:8px;right:8px;max-height:45%;overflow:auto;box-sizing:border-box;padding:4px 8px;font:13px system-ui,sans-serif;background:#fff;border:1px solid #adb5bd;overflow-wrap:anywhere}
-#atlas-world-list[hidden]{display:none}
 #atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
 #atlas-world svg text{white-space:pre}
 #atlas-world-status-bar{box-sizing:border-box;flex:none;display:flex;align-items:center;height:24px;padding:2px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
@@ -450,6 +449,7 @@ body{margin:0;overflow:hidden}
 #atlas-world-search-results{width:30%;min-width:80px;font:inherit}
 #atlas-world-search-count{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #atlas-world-search-bar button{flex:none;font:inherit}
+#atlas-world-change{box-sizing:border-box;flex:none;height:116px;overflow:auto;padding:4px 8px;font:13px/18px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6;overflow-wrap:anywhere}
 `;
 
 // A supplied World input the page refused: the last accepted one stays drawn.
@@ -480,17 +480,19 @@ export const mountAtlasWorldUI = ({
   // the visible form of [ ] L.
   const status = el('span', { id: 'atlas-world-status', role: 'status' });
   const statusBar = el('div', { id: 'atlas-world-status-bar' }, status);
+  // The three time controls (S7): past frames, the present and, past it, the
+  // steps of the present's upkeep.
   const back = el('button', { type: 'button', id: 'atlas-world-step-back', text: '◀ 前へ', onclick: () => stepFrame(-1) });
   const forward = el('button', { type: 'button', id: 'atlas-world-step-forward', text: '次へ ▶', onclick: () => stepFrame(1) });
   const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => followLatest() });
-  // 予定 ▸ (t+1: the latest frame's planned side, not a frame) and 仕訳 n ·
-  // 保持 m（累計）▸ (the entries the displayed frame carries and what was held up to
-  // it) open one list over the graph.
-  const forecast = el('button', { type: 'button', id: 'atlas-world-forecast', onclick: () => toggleList('forecast') });
-  const journalButton = el('button', { type: 'button', id: 'atlas-world-journal', onclick: () => toggleList('journal') });
-  const list = el('div', { id: 'atlas-world-list', role: 'region', 'aria-label': '予定・仕訳', hidden: 'hidden' });
-  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, back, forward, toPresent, forecast, journalButton);
-  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, list, container);
+  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, back, forward, toPresent);
+  // S7c: the changes of the time shown, right under the time controls: the
+  // frame's (atlas-gap.mjs frameChangeLabel) or, on a step past the present,
+  // the step's (forecastChangeLabel), one line each; six lines high whatever
+  // it holds, so the graph keeps its size, the rest scrolled inside it. The
+  // graph never moves for it.
+  const changes = el('div', { id: 'atlas-world-change', role: 'region', 'aria-label': 'この時点の変化' });
+  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, changes, container);
   root.append(style, screen);
 
   const page = {
@@ -511,7 +513,8 @@ export const mountAtlasWorldUI = ({
     snapshotBytes: null,
     heartbeatBytes: null,
     projection: null,
-    listOpen: null,
+    // The step past the present shown (0-based), or null on a frame.
+    step: null,
     updateIntervalMs,
     destroyed: false,
   };
@@ -547,26 +550,26 @@ export const mountAtlasWorldUI = ({
     status.textContent = [stalled() ? UPDATE_STALLED + '（最後の frame ' + page.input.frames.at(-1).asOf + '）' : null,
       page.admission?.status === 'rejected' ? INPUT_REFUSED : null, warning,
       page.latest ? (['sample', 'live'].includes(transportOf(page)) && !stalled() ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD',
-      viewedText(page.input.frames, frame), last].filter(Boolean).join(' · ');
+      viewedText(page.input.frames, frame, currentStep(), steps().length), last].filter(Boolean).join(' · ');
     status.title = status.textContent;
+    const index = page.input.frames.findIndex(item => item.id === frame.id);
+    const text = currentStep() ? forecastChangeLabel(currentStep()) : frameChangeLabel(index < 0 ? [] : page.input.frames.slice(0, index), frame);
+    if (changes.dataset.text !== text) {
+      changes.dataset.text = text;
+      changes.replaceChildren(...text.split('\n').map(line => el('div', { text: line })));
+      changes.scrollTop = 0;
+    }
     // A control that would change nothing is shown disabled, never hidden.
     const position = timelinePosition(page.input.frames, frame.id);
-    back.disabled = position.index < 0 || stepIndex(position, -1) === position.index;
-    forward.disabled = position.index < 0 || stepIndex(position, 1) === position.index;
-    toPresent.disabled = position.present && page.latest;
-    // The open list, drawn again with the frame shown (仕訳) or the latest (予定).
-    const entries = journalLines(frame), held = heldLines(page.input.frames, frame);
-    forecast.textContent = '予定 ' + (page.listOpen === 'forecast' ? '▾' : '▸');
-    journalButton.textContent = journalButtonText(entries.length, held.length, page.listOpen === 'journal');
-    const lines = page.listOpen === 'forecast' ? forecastLines(page.input.frames)
-      : page.listOpen === 'journal' ? (entries.length + held.length ? [...entries, ...held] : ['この時点の仕訳はない']) : [];
-    list.replaceChildren(...lines.map(line => el('div', { text: line })));
-    list.hidden = page.listOpen === null;
+    back.disabled = position.index < 0 || (page.step === null && stepIndex(position, -1) === position.index);
+    forward.disabled = position.index < 0 || (position.present && page.latest ? (page.step ?? -1) >= steps().length - 1
+      : stepIndex(position, 1) === position.index);
+    toPresent.disabled = position.present && page.latest && page.step === null;
   };
-  const toggleList = which => {
-    page.listOpen = page.listOpen === which ? null : which;
-    draw();
-  };
+  // The steps past the present (S7): from the present frame's upkeep, at the
+  // page's clock. Only while the present is followed.
+  const steps = () => forecastSteps(page.input.frames.at(-1), page.now);
+  const currentStep = () => page.step === null ? null : steps()[page.step] ?? null;
 
   // There is no Fit control on screen, so the camera may not carry the World
   // out of view: on each axis a World larger than the graph view must cover
@@ -701,6 +704,7 @@ export const mountAtlasWorldUI = ({
     syncGraphSelection(page.selected);
   };
   const followLatest = () => {
+    page.step = null;
     page.pair = worldPair(page.input);
     page.side = 'after';
     page.latest = true;
@@ -722,9 +726,18 @@ export const mountAtlasWorldUI = ({
     if (index === 0 && page.input.frames.length > 1) { page.pair = worldPair(page.input); showSide('before'); }
     else { page.pair = worldPair(page.input, index); showSide('after'); }
   };
-  // One step through the past. A forward step at the present changes nothing.
+  // One step on the time axis: through the past frames and, from the
+  // followed present, through the steps past it; back from the first step is
+  // the present again.
   const stepFrame = delta => {
     const position = timelinePosition(page.input.frames, currentFrame().id);
+    if (position.present && page.latest && (page.step !== null || delta > 0)) {
+      const next = (page.step ?? -1) + Math.sign(delta);
+      if (next >= steps().length) return;
+      page.step = next < 0 ? null : next;
+      draw();
+      return;
+    }
     const next = stepIndex(position, delta);
     if (next === position.index) return;
     showFrame(next);
@@ -768,6 +781,9 @@ export const mountAtlasWorldUI = ({
     page.snapshotBytes = snapshotBytes;
     page.heartbeatBytes = heartbeatBytes;
     page.latest = latest;
+    // A step is the present's: a new World returns to the present (S7); a
+    // past frame held stays held.
+    if (supplied) page.step = null;
     if (latest) { page.pair = worldPair(accepted); page.side = 'after'; }
     // Held input, both frame contents, presentation and owner receipts stay
     // referenced as one immutable pair, even when absent in the next payload.
@@ -785,6 +801,8 @@ export const mountAtlasWorldUI = ({
     if (page.destroyed) return;
     const before = transportOf(page);
     page.now = nextNow;
+    // A step whose minute has passed is gone; the shown one moves down with them.
+    if (page.step !== null) page.step = Math.min(page.step, steps().length - 1) < 0 ? null : Math.min(page.step, steps().length - 1);
     if (force || transportOf(page) !== before) draw();
   };
 
