@@ -74,5 +74,5 @@ export const SCREEN_CONTROLS = Object.freeze([
   row('controls', 'atlas-world-step-back', 't-1', 'U', null),
   row('controls', 'atlas-world-step-forward', '次の frame と、現在の先の予定の歩み（stale_at に届く唯一の道、S7）', 'U', null),
   row('controls', 'atlas-world-present', '現在の frame', 'P', null, '(a) 無いと O(n) 回の操作'),
-  row('controls', 'atlas-world-change', '表示中の時点の変化（S7c：時間の操作の直下、6 行まで、欄の中でスクロール）：行は box atlas-world-change の種類', 'U', null),
+  row('controls', 'atlas-world-change', '表示中の時点の変化（S7c：時間の操作の直下、6 行（固定）、溢れた分は欄の中でスクロール）：行は box atlas-world-change の種類', 'U', null),
 ]);

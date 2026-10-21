@@ -14,8 +14,8 @@
 //   first row, and the status row names the time;
 // and, at those times: 次へ ▶ stops at the last step; a step changes nothing
 // in the graph; a past frame with what was held names it; a frame with plans
-// names them on 理想状態; the longest changes scroll inside the panel (at most
-// six lines high); a step whose minute has passed is gone; an approximating
+// names them on 理想状態; the longest changes scroll inside the panel (six
+// lines high, fixed); a step whose minute has passed is gone; an approximating
 // present has its steps. The words are computed here from the World.
 // Every file it writes is under --out (fixtures/proof-scratch.mjs).
 import fs from 'node:fs';
