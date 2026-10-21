@@ -11,8 +11,9 @@
 // - every box visible on both reads as before (理想状態 may add the lines of
 //   the frame's plans); the status row is as before;
 // - 予定 ▸ and 仕訳 ▸ are gone: the time controls are ◀ 前へ / 次へ ▶ / 現在へ;
-//   the rows 仕訳 ▸ listed, and what was held at the frame, are the box of
-//   changes, under its heading counted from the World; 次へ ▶ from the present
+//   the rows 仕訳 ▸ listed, and what was held at the frame, are the changes
+//   under the time controls (#atlas-world-change, S7c), under their heading
+//   counted from the World, the first two lines visible right away; 次へ ▶ from the present
 //   enters 予定 1/K with K the present's upkeep minutes;
 // - S6 stays: 差's heading names the phase, when it began and its freshness,
 //   no removed projection and no relation label is drawn, and no HUD, panel,
@@ -68,7 +69,7 @@ const heading = (index, now) => {
     + (frame.phase !== 'matched' ? '' : until === null ? '・次の鮮度切れ 不明' : stale ? '・鮮度切れ・最新か不明（' + dayClock(until) + ' を過ぎた）' : '・次の鮮度切れ ' + dayClock(until)) + '）' : '')
     + (consistent ? '' : ' · gap と不整合');
 };
-// The box of changes of frame `index` (S7): heading, then the rows the earlier 仕訳 ▸ listed for it, then what was held at it.
+// The changes of frame `index` (S7): heading, then the rows the earlier 仕訳 ▸ listed for it, then what was held at it.
 const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref;
 const changeText = (index, journalRows) => {
   const frame = frames[index], held = frames.slice(0, index + 1).flatMap(item => item.held ?? []).length;
@@ -99,7 +100,6 @@ const seen = page => page.evaluate(() => {
     if (text) textNodes.add(text);
     if (item.atlas?.kind === 'entity' && inside(text?.getBoundingClientRect(), graph)) boxes[item.regionId] = { kind: item.atlas.ref.kind, text: text.textContent.replace(/\s/gu, ''),
       top: text.getBoundingClientRect().top - graph.top };
-    else if (item.atlas?.kind === 'entity' && item.atlas.ref.kind === 'frame-change') boxes.offscreen = { top: (text?.getBoundingClientRect().top ?? 0) - graph.top };
   }
   const others = [...container.querySelectorAll('svg text, svg foreignObject')].filter(node => node.textContent.trim()
     && ![...textNodes].some(own => own === node || own.contains(node) || node.contains(own)) && inside(node.getBoundingClientRect(), graph)).map(node => node.textContent);
@@ -110,19 +110,15 @@ const seen = page => page.evaluate(() => {
     buttons: [...document.querySelectorAll('#atlas-world-search-bar button')].map(button => button.textContent), list: Boolean(list), rows,
     nonArea: atlas.projection.scene.representations.filter(item => !['area', 'entity'].includes(item.atlas?.kind)).length };
 });
-// The box of changes as seen once the wheel has panned it inside the graph.
-const changeSeen = async page => {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const view = await seen(page);
-    const box = Object.values(view.boxes).find(item => item.kind === 'frame-change');
-    if (box) return box.text;
-    const graph = await page.locator('#atlas-world').boundingBox();
-    await page.mouse.move(graph.x + graph.width / 2, graph.y + graph.height / 2);
-    await page.mouse.wheel(0, Math.max(-600, Math.min(600, (view.boxes.offscreen?.top ?? 0) - 24)));
-    await settle(page);
-  }
-  return null;
-};
+// The changes under the time controls: their whole text, and whether their
+// first two lines lie inside the panel right away (no scroll).
+const changeSeen = page => page.evaluate(() => {
+  const panel = document.getElementById('atlas-world-change');
+  if (!panel) return null;
+  const box = panel.getBoundingClientRect();
+  const shown = [...panel.children].slice(0, 2).every(row => { const rect = row.getBoundingClientRect(); return rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1; });
+  return shown ? panel.textContent.replace(/\s/gu, '') : 'not shown: ' + panel.textContent.slice(0, 40);
+});
 
 let browser, interruption = null;
 try {
@@ -149,7 +145,7 @@ try {
       before.backRows = (await seen(page)).rows;
       await page.close();
     }
-    // This build: the present, its box of changes, the past frame and its box, and the first step.
+    // This build: the present, its changes, the past frame and its changes, and the first step.
     const after = {};
     {
       const page = await open('after');
@@ -186,7 +182,7 @@ try {
         && was.buttons.some(text => text.startsWith('仕訳')), { before: was.buttons, after: is.buttons });
       const rows = before[step + 'Rows'].filter(row => row.startsWith('保持 ') === false && row !== 'この時点の仕訳はない');
       const change = after[step + 'Change'];
-      check(where + ': the box of changes holds the rows 仕訳 ▸ listed and what was held at the frame, under its heading, visible',
+      check(where + ': the changes hold the rows 仕訳 ▸ listed and what was held at the frame, under their heading, the first lines visible',
         change === changeText(index, rows), { expected: changeText(index, rows).slice(0, 200), after: change?.slice(0, 200) });
       check(where + ': no HUD, panel, strip or band region in this build', is.nonArea === 0, is.nonArea);
     }

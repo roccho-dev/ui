@@ -49,13 +49,13 @@ export const SCREEN_LINES = Object.freeze([
   row('physical', 'physical-target', 'この差を埋める対象であること（development、27）', 'U', /^対象: 理想↔現在の差$/u),
   row('physical', 'physical-part', '担う条件・担当（担当未確定）・最後の観測', 'U', /^[!?] \S+ · .+$/u),
   row('physical', 'physical-name', 'repo・package（または id）', 'U', ANY),
-  row('frame-change', 'change-heading', 'この時点の変化の件数、保持 累計 m', 'U', /^この時点の変化 \d+ 件( · 保持 累計 \d+)?$/u,
+  row('atlas-world-change', 'change-heading', 'この時点の変化の件数、保持 累計 m', 'U', /^この時点の変化 \d+ 件( · 保持 累計 \d+)?$/u,
     '保持 累計 m だけは P (a)：前の frame へ移らないと数えられない'),
-  row('frame-change', 'change-entry', 'その frame に入った仕訳：種類・時刻・作者・出所・sha256（S7、模型 4 行目）', 'U',
+  row('atlas-world-change', 'change-entry', 'その frame に入った仕訳：種類・時刻・作者・出所・sha256（S7、模型 4 行目）', 'U',
     /^\S+ .+ · \d{4}-\d\d-\d\dT\S+ · 作者 .+ · 出所 .+ · sha256 \S+$/u),
-  row('frame-change', 'change-held', 'その frame で保持した宣言：reason・種類・時刻・出所（15・28・29）', 'U', /^保持 \S+ · \S+ · \S+ · 出所 .+$/u),
-  row('frame-change', 'step-heading', '予定の歩みの時刻（現在の upkeep の stale_at、分刻み）', 'U', /^予定 \d\d-\d\d \d\d:\d\dZ（観測が無ければ unknown）$/u),
-  row('frame-change', 'step-row', 'その時刻に観測が無ければ unknown になる条件と、その観測の時刻（21）', 'U', /^鮮度切れの予定 \S+ · 観測 .+$/u),
+  row('atlas-world-change', 'change-held', 'その frame で保持した宣言：reason・種類・時刻・出所（15・28・29）', 'U', /^保持 \S+ · \S+ · \S+ · 出所 .+$/u),
+  row('atlas-world-change', 'step-heading', '予定の歩みの時刻（現在の upkeep の stale_at、分刻み）', 'U', /^予定 \d\d-\d\d \d\d:\d\dZ（観測が無ければ unknown）$/u),
+  row('atlas-world-change', 'step-row', 'その時刻に観測が無ければ unknown になる条件と、その観測の時刻（21）', 'U', /^鮮度切れの予定 \S+ · 観測 .+$/u),
   row('supplied', 'supplied-label', '供給された箱の文（Agent の activity、入れ子の owner の名を含む）', 'U', ANY),
 ]);
 
@@ -74,4 +74,5 @@ export const SCREEN_CONTROLS = Object.freeze([
   row('controls', 'atlas-world-step-back', 't-1', 'U', null),
   row('controls', 'atlas-world-step-forward', '次の frame と、現在の先の予定の歩み（stale_at に届く唯一の道、S7）', 'U', null),
   row('controls', 'atlas-world-present', '現在の frame', 'P', null, '(a) 無いと O(n) 回の操作'),
+  row('controls', 'atlas-world-change', '表示中の時点の変化（S7c：時間の操作の直下、6 行まで、欄の中でスクロール）：行は box atlas-world-change の種類', 'U', null),
 ]);

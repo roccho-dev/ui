@@ -13,7 +13,7 @@
 // - ◀ 前へ shows the previous frame: the time text and the three areas read
 //   that frame; 次へ ▶ steps back toward the present; 現在へ returns to the latest;
 // - 差's heading names when its phase began (S6: no phase box);
-// - the box of changes names the entries the frame carries (S7; the steps
+// - the changes under the time controls name the entries the frame carries (S7, S7c; the steps
 //   past the present are tests/atlas-world-time-axis-browser-proof.mjs);
 // - the status and search rows hold exactly the controls of the display
 //   section's table (packages/control/src/atlas-screen-table.mjs), and the
@@ -52,7 +52,7 @@ const { scratch, done } = proofScratch(args.out);
 // One build per story, so a field a build does not accept stops only the
 // checks that need it: the plain story (status rows, time controls);
 // `judged`, GapA from frames[i].adequacy as the HQ World carries it; `history`,
-// the whole story with a drafting ideal (改訂中, the box of changes, search);
+// the whole story with a drafting ideal (改訂中, the changes, search);
 // `observed`, with the parts' last observations.
 const worlds = { page: world, judged: gapWorld({ judged: true }), history: gapWorld({ drafting: true, held: true }), observed: gapWorld({ lastObserved: true }) };
 const bodies = {};
@@ -136,7 +136,7 @@ try {
       return { name, visible: Boolean(box && box.width > 0 && box.right <= window.innerWidth + 0.5) };
     }));
     check(width + 'px: ◀ 前へ, 次へ ▶ and 現在へ are visible buttons on the search row', controls.every(item => item.visible), controls);
-    const rowIds = await page.evaluate(() => [...document.querySelectorAll('#atlas-world-status-bar > *, #atlas-world-search-bar > *')].map(item => item.id).sort());
+    const rowIds = await page.evaluate(() => [...document.querySelectorAll('#atlas-world-status-bar > *, #atlas-world-search-bar > *, #atlas-world-screen > #atlas-world-change')].map(item => item.id).sort());
     check(width + 'px: the status and search rows hold the table\'s controls, no more', JSON.stringify(rowIds) === JSON.stringify(SCREEN_CONTROLS.map(item => item.id).sort()), rowIds);
     // Back: the previous frame, in the time text and the three areas.
     await page.getByRole('button', { name: '◀ 前へ' }).click();
@@ -199,14 +199,15 @@ try {
       });
       check(width + 'px: GapA (目的↔理想の差) is drawn from frames[i].adequacy, visible in the graph', gapA.inside && flat(gapA.text ?? '').includes(flat('目的↔理想の差')), gapA);
     });
-    // The past: 改訂中 (case 14) and the box of changes; then search.
-    await story('history', '改訂中, the box of changes and search', async page => {
+    // The past: 改訂中 (case 14) and the changes; then search.
+    await story('history', '改訂中, the changes and search', async page => {
       await press(page, '◀ 前へ');
       await settle(page);
       const t6 = await boxes(page);
       check(width + 'px t6: 理想状態 reads 改訂中 v3 while v2 is in force', t6['ideal-state']?.includes(flat('v2 · 条件 4 · 改訂中 v3')), t6['ideal-state']);
-      check(width + 'px t6: the box of changes names the entry t6 carries, and what was held so far', t6['frame-change'] === flat('この時点の変化 1 件 · 保持 累計 3'
-        + '△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)), t6['frame-change']);
+      const panel = flat(await page.evaluate(() => document.getElementById('atlas-world-change')?.textContent ?? ''));
+      check(width + 'px t6: the changes under the time controls name the entry t6 carries, and what was held so far', panel === flat('この時点の変化 1 件 · 保持 累計 3'
+        + '△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)), panel);
       // Search: choosing a relation brings the camera to its from box, drawn
       // inside the graph.
       await press(page, '現在へ');

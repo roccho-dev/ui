@@ -1,23 +1,22 @@
-// The one time axis (S7, adrs#647 comment 6308860425), as drawn and visible.
+// The one time axis (S7, S7c: adrs#647), as drawn and visible.
 // Run inside the semantic-map-browser-proof Nix shell:
 //   node tests/atlas-world-time-axis-browser-proof.mjs --out=<fresh absent directory> [--input=<World JSON>]
-// Builds of the gap fixture (and, with --input, of that World too), served
-// over HTTP. A word counts as shown only when its text Range lies inside the
-// status row's visible rectangle; a box's text only as far as its drawn lines
-// lie inside the graph right after the operation (no scroll, no wheel: I2e-fix),
-// never by textContent alone. At 1500x900 and 800x900:
-// 1. at the present, 次へ ▶ enters the first step: the status row reads
-//    予定 1/K · <minute>（観測が無ければ）, the box of changes reads that step,
-//    and every other box reads as at the present;
-// 2. 次へ ▶ stops at the last step (disabled); ◀ 前へ goes back step by step
-//    to the present; 現在へ returns from a step to the present;
-// 3. on a past frame with what was held, the box of changes names it with
-//    when and from where, and its heading counts what was held so far;
-// 4. on a frame with plans, 理想状態 names each plan (label and serves);
-// 5. an approximating present with conditions met has its steps;
-// 6. a step whose minute has passed is gone, on the page's clock;
-// 7. the largest box of changes is drawn whole inside its box.
-// The words are computed here from the World, not by the module under test.
+// A live page (?events=) of a World without its last frame, served over HTTP
+// with an SSE stream this proof writes to when it chooses: the fixture on a
+// page clock before its stale times, and, with --input, that World (e.g. the
+// HQ World) on the real clock. At 1500x900 and 800x900, right after every
+// operation — open, 次へ ▶ through every step past the present, ◀ 前へ back,
+// 次へ ▶ then 現在へ, ◀ 前へ through every past frame, 現在へ, the new World
+// over SSE — with no scroll and no wheel, it reads what lies inside the
+// visible rectangles and checks that:
+// - the boxes 目的, 理想状態 and 差 are drawn whole inside the graph;
+// - #atlas-world-change (under the time controls) shows the time's heading and
+//   first row, and the status row names the time;
+// and, at those times: 次へ ▶ stops at the last step; a step changes nothing
+// in the graph; a past frame with what was held names it; a frame with plans
+// names them on 理想状態; the longest changes scroll inside the panel (at most
+// six lines high); a step whose minute has passed is gone; an approximating
+// present has its steps. The words are computed here from the World.
 // Every file it writes is under --out (fixtures/proof-scratch.mjs).
 import fs from 'node:fs';
 import http from 'node:http';
@@ -40,26 +39,33 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 }
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
-// The fixture: up to the matched t5 with upkeep, held declarations and two
-// plans at t4; the approximating story up to t6 with its conditions met.
-const story = gapWorld({ through: 't5', upkeep: true, held: true });
-story.frames[4].plans = [structuredClone(knownPlan), structuredClone(unknownPlan)];
-const worlds = { story: { world: story, clock: '2026-10-17T05:30:00Z' }, approx: { world: gapWorld({ through: 't6', upkeep: true }), clock: '2026-10-17T06:30:00Z' } };
-if (args.input) worlds.input = { world: JSON.parse(fs.readFileSync(args.input, 'utf8')), clock: null };
+// The fixture: up to the approximating t6 (upkeep on t5 and t6, held at t3
+// and t5, two plans at t4), opened without t6 at 05:30, before t5's stale times.
+const fixture = gapWorld({ through: 't6', upkeep: true, held: true });
+fixture.frames[4].plans = [structuredClone(knownPlan), structuredClone(unknownPlan)];
+const world = args.input ? JSON.parse(fs.readFileSync(args.input, 'utf8')) : fixture;
+const clock = args.input ? null : '2026-10-17T05:30:00Z';
+const opened = { ...world, frames: world.frames.slice(0, -1) };
 const { scratch, done } = proofScratch(args.out);
-const bodies = {};
-for (const [name, { world }] of Object.entries(worlds)) {
-  const input = path.join(scratch, name + '.json');
-  fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
-  await buildLiveAtlas({ input, out: path.join(args.out, name), consumer: 'app' });
-  bodies[name] = fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
-}
+const input = path.join(scratch, 'opened.json');
+fs.writeFileSync(input, JSON.stringify(opened), { flag: 'wx' });
+await buildLiveAtlas({ input, out: path.join(args.out, 'page'), consumer: 'app' });
+const body = fs.readFileSync(path.join(path.resolve(args.out), 'page', 'index.html'));
+// The SSE stream: the opened World on connection, the whole World on send.
+let stream = null;
+const event = data => 'event: snapshot\n' + JSON.stringify(data).split('\n').map(line => 'data: ' + line).join('\n') + '\n\n';
 const site = http.createServer((request, response) => {
-  const body = bodies[new URL(request.url, 'http://localhost').pathname.split('/')[1]];
-  response.writeHead(body ? 200 : 404, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-  response.end(body ?? '');
+  if (new URL(request.url, 'http://localhost').pathname === '/events') {
+    response.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store' });
+    response.write('retry: 100000\n\n' + event(opened));
+    stream = response;
+    return;
+  }
+  response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+  response.end(body);
 });
 await new Promise(resolve => site.listen(0, '127.0.0.1', resolve));
+const origin = 'http://127.0.0.1:' + site.address().port;
 
 // Fixed words from the World.
 const flat = text => String(text ?? '').replace(/\s/gu, '');
@@ -70,164 +76,145 @@ const stepsOf = (frame, now) => {
     if (now > Date.parse(item.stale_at)) continue;
     steps.set(minute(item.stale_at), [...(steps.get(minute(item.stale_at)) ?? []), item]);
   }
-  return [...steps].map(([at, items]) => ({ at, items }));
+  return [...steps].map(([at, items]) => ({ at, heading: '予定 ' + at + '（観測が無ければ unknown）',
+    rows: items.map(item => '鮮度切れの予定 ' + item.condition + ' · 観測 ' + minute(item.observedAt)) }));
 };
 const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref;
-const changeHeading = (frames, index) => {
+// A frame's changes: its heading, and the words its first row must show.
+const frameChanges = (frames, index) => {
   const frame = frames[index], held = frames.slice(0, index + 1).flatMap(item => item.held ?? []).length;
-  return 'この時点の変化 ' + ((frame.journal ?? []).length + (frame.held ?? []).length) + ' 件' + (held ? ' · 保持 累計 ' + held : '');
+  const entry = (frame.journal ?? [])[0];
+  return { heading: 'この時点の変化 ' + ((frame.journal ?? []).length + (frame.held ?? []).length) + ' 件' + (held ? ' · 保持 累計 ' + held : ''),
+    first: entry ? [entry.recordedAt, '作者 ' + (entry.actor ?? '不明'), '出所 ' + entry.source.ref] : (frame.held ?? []).slice(0, 1).map(heldRow),
+    rows: (frame.journal ?? []).length + (frame.held ?? []).length };
 };
 
 const checks = [];
 const check = (name, pass, detail = null) => checks.push({ name, pass: Boolean(pass), ...(pass ? {} : { detail }) });
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-const press = async (page, name) => { const ok = await page.getByRole('button', { name, exact: true }).click({ timeout: 2000 }).then(() => true, () => false); await settle(page); return ok; };
-const disabled = (page, name) => page.getByRole('button', { name, exact: true }).isDisabled();
-// Whether each word's Range lies inside the status row's visible rectangle.
-const shown = (page, words) => page.evaluate(words => {
-  const node = document.getElementById('atlas-world-status');
-  const row = node.getBoundingClientRect();
-  const right = node.scrollWidth > node.clientWidth + 0.5 ? row.right - 16 : row.right;
-  const text = [...node.childNodes].find(child => child.nodeType === Node.TEXT_NODE);
-  return { text: node.textContent, words: words.map(word => {
-    const at = text ? text.data.indexOf(word) : -1;
-    if (at < 0) return { word, inside: false };
-    const range = document.createRange();
-    range.setStart(text, at);
-    range.setEnd(text, at + word.length);
-    const box = range.getBoundingClientRect();
-    return { word, inside: box.width > 0 && box.left >= row.left - 0.5 && box.right <= right + 0.5 && box.top >= row.top - 0.5 && box.bottom <= row.bottom + 0.5 };
-  }) };
-}, words);
-const allShown = result => result.words.every(item => item.inside);
-// Each box: its kind, its text, the text of its drawn lines that lie inside
-// the graph (`seen`), whether all of it does, and whether it lies inside its own box.
-const boxes = page => page.evaluate(() => {
+// What is visible right after the last operation: the status row, each box's
+// lines inside the graph, the panel's lines inside the panel (and the window).
+const state = page => page.evaluate(() => {
   const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
   const graph = document.getElementById('atlas-world').getBoundingClientRect();
-  const within = (box, frame, slack = 1) => Boolean(box && box.width > 0 && box.left >= frame.left - slack && box.right <= frame.right + slack && box.top >= frame.top - slack && box.bottom <= frame.bottom + slack);
-  return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
-    const state = view.getState(adapter.cellsByRegionId.get(item.regionId));
-    const text = state?.text?.node?.getBoundingClientRect(), shape = state?.shape?.node?.getBoundingClientRect();
-    const lines = [...(state?.text?.node?.querySelectorAll('text') ?? [])];
-    return { id: item.regionId, kind: item.atlas.ref.kind, text: (state?.text?.node?.textContent ?? '').replace(/\s/gu, ''),
-      seen: lines.filter(line => within(line.getBoundingClientRect(), graph)).map(line => line.textContent).join('').replace(/\s/gu, ''),
-      visible: within(text, graph), whole: within(text, shape, 2) };
-  });
+  const within = (box, frame) => box.width > 0 && box.left >= frame.left - 1 && box.right <= frame.right + 1 && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1;
+  const boxes = {};
+  for (const rep of atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity')) {
+    const lines = [...(view.getState(adapter.cellsByRegionId.get(rep.regionId))?.text?.node?.querySelectorAll('text') ?? [])];
+    boxes[rep.atlas.ref.kind] = { text: lines.map(line => line.textContent).join('').replace(/\s/gu, ''), whole: lines.length > 0 && lines.every(line => within(line.getBoundingClientRect(), graph)) };
+  }
+  const panel = document.getElementById('atlas-world-change');
+  const frame = panel?.getBoundingClientRect();
+  const screen = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+  const rows = panel ? [...panel.children].map(row => ({ text: row.textContent, shown: within(row.getBoundingClientRect(), frame) && within(row.getBoundingClientRect(), screen) })) : [];
+  return { status: document.getElementById('atlas-world-status').textContent, boxes, rows, panelHeight: frame?.height ?? 0,
+    scrolls: panel ? panel.scrollHeight > panel.clientHeight + 1 : false, forward: document.getElementById('atlas-world-step-forward').disabled };
 });
-// A box as drawn right after the last operation.
-const boxOf = async (page, kind) => (await boxes(page)).find(item => item.kind === kind) ?? null;
-const textOf = (list, kind) => list.filter(item => item.kind === kind).map(item => item.text).join('');
 
-let browser, interruption = null;
+let browser, interruption = null, states = 0;
+const failed = [];
 try {
   browser = await chromium.launch({ headless: true });
-  const open = async (width, name) => {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
-    if (worlds[name].clock) await page.clock.install({ time: new Date(worlds[name].clock) });
-    await page.goto('http://127.0.0.1:' + site.address().port + '/' + name + '/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
-    await settle(page);
-    return page;
-  };
-  for (const width of [1500, 800]) for (const name of Object.keys(worlds).filter(item => item !== 'approx')) {
-    const world = worlds[name].world, frames = world.frames, count = frames.length;
-    const now = worlds[name].clock ? Date.parse(worlds[name].clock) : Date.now();
-    const steps = stepsOf(frames.at(-1), now);
-    const where = width + 'px ' + name;
-    const page = await open(width, name);
-    const present = await boxes(page);
-    // 1. The first step: the status row, the box of changes, and the rest as at the present.
-    check(where + ': the World has steps past the present', steps.length > 0, frames.at(-1).upkeep);
-    await press(page, '次へ ▶');
-    const first = await shown(page, ['LATEST', '表示中：予定 1/' + steps.length + ' · ' + steps[0]?.at + '（観測が無ければ）']);
-    check(where + ' 次へ ▶ at the present: 予定 1/' + steps.length + ' and its minute are visible on the status row', allShown(first), first);
-    const onStep = await boxOf(page, 'frame-change');
-    check(where + ' 次へ ▶: the box of changes reads the first step, all of it visible right away', onStep?.visible && onStep.seen === flat('予定 ' + steps[0]?.at + '（観測が無ければ unknown）'
-      + (steps[0]?.items ?? []).map(item => '鮮度切れの予定 ' + item.condition + ' · 観測 ' + minute(item.observedAt)).join('')), onStep);
-    const others = list => Object.fromEntries(list.filter(item => item.kind !== 'frame-change').map(item => [item.id, item.text]));
-    check(where + ' 次へ ▶: every other box reads as at the present', JSON.stringify(others(await boxes(page))) === JSON.stringify(others(present)));
-    // 2. To the last step and back.
-    for (let index = 1; index < steps.length; index += 1) await press(page, '次へ ▶');
-    const last = await shown(page, ['表示中：予定 ' + steps.length + '/' + steps.length + ' · ' + steps.at(-1)?.at]);
-    check(where + ': 次へ ▶ reaches the last step and is then disabled', allShown(last) && await disabled(page, '次へ ▶'), last);
-    for (let index = 0; index < steps.length; index += 1) await press(page, '◀ 前へ');
-    const back = await shown(page, ['LATEST', '表示中：現在 ' + count + '/' + count]);
-    check(where + ': ◀ 前へ goes back step by step to the present', allShown(back), back);
-    await press(page, '次へ ▶');
-    await press(page, '現在へ');
-    const home = await shown(page, ['表示中：現在 ' + count + '/' + count]);
-    check(where + ': 現在へ returns from a step to the present', allShown(home) && textOf(await boxes(page), 'frame-change') === textOf(present, 'frame-change'), home);
-    // 3. A past frame with what was held: its rows and the count so far.
-    const heldAt = frames.findIndex((item, index) => index < count - 1 && (item.held ?? []).length);
-    check(where + ': the World has a past frame where something was held', heldAt >= 0);
-    if (heldAt >= 0) {
-      await page.focus('#atlas-world');
-      for (let index = count - 1; index > heldAt; index -= 1) await page.keyboard.press('[');
-      await settle(page);
-      const change = await boxOf(page, 'frame-change');
-      const words = [changeHeading(frames, heldAt), ...frames[heldAt].held.map(heldRow),
-        ...(frames[heldAt].journal ?? []).map(entry => entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明') + ' · 出所 ' + entry.source.ref)];
-      check(where + ' ' + frames[heldAt].id + ': right after ◀ 前へ / [, the box of changes shows what was held and each entry with when, by whom and from where',
-        change && words.every(word => change.seen.includes(flat(word))), { words: words.slice(0, 3), seen: change?.seen.slice(0, 300) });
-      await press(page, '現在へ');
-    }
-    // 4. A frame with plans: 理想状態 names each plan.
-    const planAt = frames.findIndex(item => (item.plans ?? []).length);
-    check(where + ': the World has a frame with plans', planAt >= 0);
-    if (planAt >= 0) {
-      await page.focus('#atlas-world');
-      for (let index = count - 1; index > planAt; index -= 1) await page.keyboard.press('[');
-      await settle(page);
-      const ideal = await boxOf(page, 'ideal-state');
-      const words = frames[planAt].plans.flatMap(plan => ['計画 ' + plan.label, '寄与 ' + (plan.serves.length ? plan.serves.join('、') : 'なし')]);
-      const change = await boxOf(page, 'frame-change');
-      check(where + ' ' + frames[planAt].id + ': right after the move, 理想状態 shows each plan, its label and what it serves, and the heading of the changes',
-        ideal && words.every(word => ideal.seen.includes(flat(word))) && change?.seen.startsWith(flat(changeHeading(frames, planAt))), { words, seen: ideal?.seen.slice(0, 300), change: change?.seen.slice(0, 80) });
-      await press(page, '現在へ');
-    }
-    // 7. The largest box of changes, drawn whole inside its box.
-    const sizes = frames.map(item => (item.journal ?? []).length + (item.held ?? []).length);
-    const largest = sizes.indexOf(Math.max(...sizes));
-    await page.focus('#atlas-world');
-    for (let index = count - 1; index > largest; index -= 1) await page.keyboard.press('[');
-    await settle(page);
-    const big = (await boxes(page)).find(item => item.kind === 'frame-change');
-    check(where + ' ' + frames[largest].id + ': the largest box of changes (' + sizes[largest] + ' rows) is drawn whole inside its box',
-      big?.whole && big.text.startsWith(flat(changeHeading(frames, largest))), big && { whole: big.whole, text: big.text.slice(0, 120) });
-    // 6. A step whose minute passes is gone (the fixture's clock only).
-    if (worlds[name].clock) {
-      await press(page, '現在へ');
-      await press(page, '次へ ▶');
-      await page.clock.fastForward(Date.parse(steps[0].items.at(-1).stale_at) - now + 1000);
-      await settle(page);
-      const after = stepsOf(frames.at(-1), Date.parse(steps[0].items.at(-1).stale_at) + 1000);
-      const gone = await shown(page, ['表示中：予定 1/' + after.length + ' · ' + after[0]?.at]);
-      check(where + ': once the first step\'s minute has passed it is gone, and the next is 予定 1/' + after.length, after.length === steps.length - 1 && allShown(gone), gone);
-    }
-    await page.close();
-  }
-  // 5. An approximating present with conditions met has its steps (S7, I4a).
   for (const width of [1500, 800]) {
-    const page = await open(width, 'approx');
-    const frames = worlds.approx.world.frames;
-    const steps = stepsOf(frames.at(-1), Date.parse(worlds.approx.clock));
-    await press(page, '次へ ▶');
-    const first = await shown(page, ['表示中：予定 1/' + steps.length + ' · ' + steps[0]?.at]);
-    const change = await boxOf(page, 'frame-change');
-    check(width + 'px approx: an approximating present (' + frames.at(-1).phase + ') steps into 予定 1/' + steps.length + ' and its conditions, visible right away',
-      frames.at(-1).phase === 'approximating' && steps.length > 0 && allShown(first) && change?.visible && change.seen.includes(flat('鮮度切れの予定 ' + steps[0].items[0].condition)), { first, change });
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    if (clock) await page.clock.install({ time: new Date(clock) });
+    stream = null;
+    await page.goto(origin + '/?events=' + encodeURIComponent(origin + '/events'), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+    await page.waitForFunction(() => window.liveAtlas.page.snapshotBytes !== null, null, { timeout: 60000 });
+    await settle(page);
+    const now = clock ? Date.parse(clock) : Date.now();
+    const press = async name => { await page.getByRole('button', { name, exact: true }).click({ timeout: 2000 }); await settle(page); };
+    // One state: the three boxes whole in the graph, the time named, and the panel's heading and first row shown.
+    const look = async (name, frames, at, step = null) => {
+      const seen = await state(page);
+      const expected = step ? { heading: step.heading, first: step.rows.slice(0, 1) } : frameChanges(frames, at);
+      const time = step ? '表示中：予定 ' + (step.index + 1) + '/' + step.count + ' · ' + step.at : '表示中：' + (at === frames.length - 1 ? '現在' : '過去') + ' ' + (at + 1) + '/' + frames.length;
+      const problems = [
+        ...['purpose', 'ideal-state', 'gap'].filter(kind => !seen.boxes[kind]?.whole).map(kind => kind + ' not whole in the graph'),
+        ...(seen.boxes['frame-change'] ? ['a box of changes is drawn in the graph'] : []),
+        ...(seen.status.includes(time) ? [] : ['status does not name ' + time]),
+        ...(seen.rows[0]?.shown && seen.rows[0].text === expected.heading ? [] : ['heading not shown: ' + expected.heading]),
+        ...(expected.first.length && !(seen.rows[1]?.shown && expected.first.every(word => flat(seen.rows[1].text).includes(flat(word)))) ? ['first row not shown'] : []),
+      ];
+      states += 1;
+      if (problems.length) failed.push({ name: width + 'px ' + name, problems, status: seen.status.slice(0, 90), rows: seen.rows.slice(0, 2) });
+      return seen;
+    };
+    const frames = opened.frames, count = frames.length;
+    await look('open', frames, count - 1);
+    // The steps past the present, then back, then 現在へ from a step.
+    const steps = stepsOf(frames.at(-1), now).map((step, index, list) => ({ ...step, index, count: list.length }));
+    check(width + 'px: the opened present has steps past it', steps.length > 0, frames.at(-1).upkeep);
+    const graphAt = async () => JSON.stringify(Object.entries((await state(page)).boxes).map(([kind, box]) => [kind, box.text]));
+    const atPresent = await graphAt();
+    for (const step of steps) {
+      await press('次へ ▶');
+      await look('次へ ▶ → 予定 ' + (step.index + 1), frames, count - 1, step);
+      check(width + 'px 予定 ' + (step.index + 1) + ': the graph reads as at the present', await graphAt() === atPresent);
+    }
+    check(width + 'px: 次へ ▶ is disabled on the last step', (await state(page)).forward);
+    for (let index = steps.length - 2; index >= -1; index -= 1) {
+      await press('◀ 前へ');
+      await look('◀ 前へ → ' + (index < 0 ? 'present' : '予定 ' + (index + 1)), frames, count - 1, index < 0 ? null : steps[index]);
+    }
+    await press('次へ ▶');
+    await press('現在へ');
+    await look('次へ ▶, 現在へ', frames, count - 1);
+    // Every past frame; the longest changes scroll inside the panel.
+    const sizes = frames.map(item => (item.journal ?? []).length + (item.held ?? []).length);
+    const longest = sizes.indexOf(Math.max(...sizes));
+    for (let index = count - 2; index >= 0; index -= 1) {
+      await press('◀ 前へ');
+      const seen = await look('◀ 前へ → ' + frames[index].id, frames, index);
+      const held = frames[index].held ?? [];
+      if (held.length) check(width + 'px ' + frames[index].id + ': the panel names what was held (cases 15, 29)',
+        held.map(heldRow).every(row => seen.rows.some(item => item.text === row)));
+      if ((frames[index].plans ?? []).length) check(width + 'px ' + frames[index].id + ': 理想状態 names each plan, its label and what it serves',
+        frames[index].plans.every(plan => seen.boxes['ideal-state'].text.includes(flat('計画 ' + plan.label)) && seen.boxes['ideal-state'].text.includes(flat('寄与 ' + plan.serves.join('、')))), seen.boxes['ideal-state'].text.slice(0, 200));
+      if (index === longest) {
+        check(width + 'px ' + frames[index].id + ': the panel is six lines high and the longest changes (' + sizes[index] + ' rows) scroll inside it',
+          Math.abs(seen.panelHeight - 116) < 0.5 && (sizes[index] <= 3 || seen.scrolls), { height: seen.panelHeight, scrolls: seen.scrolls });
+        const last = await page.evaluate(() => { const panel = document.getElementById('atlas-world-change'); panel.scrollTop = panel.scrollHeight;
+          const row = panel.lastElementChild.getBoundingClientRect(), box = panel.getBoundingClientRect(); return row.bottom <= box.bottom + 1 && row.top >= box.top - 1; });
+        check(width + 'px ' + frames[index].id + ': scrolled inside the panel, its last row is shown', last);
+      }
+    }
+    check(width + 'px: the World has a past frame with what was held, and one with plans', frames.slice(0, -1).some(item => (item.held ?? []).length) && frames.slice(0, -1).some(item => (item.plans ?? []).length));
+    await press('現在へ');
+    await look('現在へ (again)', frames, count - 1);
+    // The new World over SSE: the followed present moves to it.
+    stream.write(event(world));
+    await page.waitForFunction(total => window.liveAtlas.input.frames.length === total, world.frames.length, { timeout: 60000 });
+    await settle(page);
+    await look('SSE → ' + world.frames.at(-1).id, world.frames, world.frames.length - 1);
+    const after = stepsOf(world.frames.at(-1), now).map((step, index, list) => ({ ...step, index, count: list.length }));
+    if (after.length) {
+      await press('次へ ▶');
+      await look('SSE, 次へ ▶ → 予定 1 (' + world.frames.at(-1).phase + ')', world.frames, world.frames.length - 1, after[0]);
+    }
+    if (!args.input) check(width + 'px: the approximating present that arrived has its steps', world.frames.at(-1).phase === 'approximating' && after.length > 0);
+    // A step whose minute has passed is gone (the fixture's clock only).
+    if (clock && after.length > 1) {
+      await page.clock.fastForward(Date.parse(after[0].at.replace(/^(\d\d-\d\d) (\d\d:\d\d)Z$/u, '2026-$1T$2:59Z')) - now + 1000);
+      await settle(page);
+      const rest = stepsOf(world.frames.at(-1), Date.parse(after[0].at.replace(/^(\d\d-\d\d) (\d\d:\d\d)Z$/u, '2026-$1T$2:59Z')) + 1000);
+      check(width + 'px: once the first step\'s minute has passed it is gone, and the next is 予定 1/' + rest.length,
+        rest.length === after.length - 1 && (await state(page)).status.includes('表示中：予定 1/' + rest.length + ' · ' + rest[0].at));
+    }
     await page.close();
   }
 } catch (error) {
   interruption = String(error?.stack ?? error);
 } finally {
   await browser?.close();
+  stream?.end();
+  site.closeAllConnections?.();
   await new Promise(resolve => site.close(resolve));
   done();
 }
-const failed = checks.filter(item => !item.pass);
-const result = { schema: 'atlas-world-time-axis-browser-proof/1', status: !interruption && failed.length === 0 && checks.length > 0 ? 'PASS' : 'FAIL',
-  checks: checks.length, failed, interruption };
+const failedChecks = checks.filter(item => !item.pass);
+const result = { schema: 'atlas-world-time-axis-browser-proof/2', status: !interruption && failed.length === 0 && failedChecks.length === 0 && states > 0 ? 'PASS' : 'FAIL',
+  states, statesFailed: failed.length, checks: checks.length, failed: [...failed.slice(0, 8), ...failedChecks.slice(0, 8)], interruption };
 console.log(JSON.stringify(result));
 if (result.status !== 'PASS') process.exitCode = 1;

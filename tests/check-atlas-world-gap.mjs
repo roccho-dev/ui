@@ -7,9 +7,9 @@ import { entityKey, parseAtlasWorldInput, relationKey } from '../packages/contro
 import { projectAtlasWorld, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
 import * as gapModule from '../packages/control/src/atlas-gap.mjs';
-// The rows of a frame's journal as the box of changes draws them.
+// The rows of a frame's journal as the changes draws them.
 const journalRows = item => (item.journal ?? []).map(gapModule.journalRow);
-// Every box but the box of changes (S7), which draws the frame's journal and held.
+// Every box but the changes (S7), which draws the frame's journal and held.
 const noChange = entity => entity.ref.kind !== 'frame-change';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 import { knownPlan } from './fixtures/atlas-plan-worlds.mjs';
@@ -262,7 +262,7 @@ assert.equal(deltaDrawn(matchedNow, 't5', Date.parse('2026-10-17T05:41:01Z')), f
 assert.ok(deltaDrawn(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')).endsWith(flat('理想↔現在の差（一致・維持・10-17 02:00Z から・次の鮮度切れ 10-17 02:41Z）\n前 不明')),
   'a past frame is not judged by today');
 
-// No band (contract 3, revised): the box of changes lists each frame's own entries (v6: at
+// No band (contract 3, revised): the changes lists each frame's own entries (v6: at
 // the frame that carries them).
 assert.deepEqual(input.frames.map(item => journalRows(item).map(row => row.split(' ')[0])),
   [['◎'], ['△'], ['▲', '·'], ['▲', '★'], ['◇', '·'], ['★'], [], []], 'each frame lists the entries it carries');
@@ -369,7 +369,7 @@ for (const item of judged.frames) {
   assert.equal(drawn.label, '目的↔理想の差\n' + gapALabel[item.id], item.id + ': GapA state and reason');
   assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': GapA status from its state only');
   assert.ok(!/\d+ 件/u.test(drawn.label), item.id + ': GapA draws no count');
-  assert.deepEqual(purposeOrder(item), ['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'frame-change'], item.id + ': the chain P, GapA, I, GapB, C, then the changes');
+  assert.deepEqual(purposeOrder(item), ['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': the chain P, GapA, I, GapB, C (S7c: the changes are not a box)');
   assert.ok(gapRelations(item).includes('ideal-state>purpose-adequacy 照らす') && gapRelations(item).includes('purpose-adequacy>purpose 十分性'), item.id);
   assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'purpose-adequacy').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
     frame(item.id).entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': adequacy changes no other entity');
@@ -412,11 +412,11 @@ const missing = [];
 const feature = (name, body) => {
   try { body(); } catch (error) { missing.push(name + ': ' + String(error.message).split('\n')[0]); }
 };
-// S7: the box of changes of a frame draws, every one, the journal entries it
+// S7, S7c: the changes of a frame (#atlas-world-change) are, every one, the journal entries it
 // carries (v6) and what was held at it (v12), and its heading counts them
 // and what was held up to it (cases 15, 29).
-feature('the box of changes (S7, cases 15, 29)', () => {
-  const change = (world, id) => world.frames.find(item => item.id === id).entities.find(entity => entity.ref.kind === 'frame-change').label;
+feature('the changes (S7, cases 15, 29)', () => {
+  const change = (world, id) => { const index = world.frames.findIndex(item => item.id === id); return gapModule.frameChangeLabel(world.frames.slice(0, index), world.frames[index]); };
   const t3Held = '保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647';
   assert.equal(change(heldWorld, 't3'), 'この時点の変化 3 件 · 保持 累計 1\n' + [...journalRows(frame('t3')), t3Held].join('\n'));
   assert.equal(change(heldWorld, 't4').split('\n')[0], 'この時点の変化 2 件 · 保持 累計 1', 't4: its own two entries, one held so far');
@@ -467,7 +467,7 @@ feature('upkeep', () => {
   assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(fullV12))), fullV12, 'contract v12 fields are idempotent');
 });
 // S7: the steps past the present are its upkeep by stale_at minute; on a step
-// the box of changes says its minute and the conditions read unknown then.
+// the changes says its minute and the conditions read unknown then.
 feature('steps past the present (S7)', () => {
   const present = parseAtlasWorldInput(gapWorld({ through: 't5', upkeep: true })).frames.at(-1);
   const steps = timeline.forecastSteps(present, Date.parse('2026-10-17T05:00:00Z'));
