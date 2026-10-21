@@ -296,7 +296,7 @@ try {
         state.frameId === 't6' && node && lines.every(line => flat(node.text).includes(flat(line))) && flat(node.text) === flat(node.label) && inside(node), node?.text);
       check(where + ': 現在状態 has no status look and no ✓', look.status === null && !/[✓]/u.test(node?.text ?? ''), look);
       const delta = state.nodes.find(item => item.kind === 'gap');
-      check(where + ': 差 reads as without claims', flat(delta?.text) === flat('? · 差 2（前 0）! c1 · 鮮度切れ? c4 · 照合不能'), delta?.text);
+      check(where + ': 差 reads as without claims', flat(delta?.text) === flat('? · 理想↔現在の差差 2（前 0）! c1 · 鮮度切れ? c4 · 照合不能'), delta?.text);
     } finally {
       await browser.close();
     }
@@ -304,16 +304,16 @@ try {
   if (unbound) {
     const browser = await chromium.launch({ headless: true });
     try {
-      // At the present, 現在状態 lists each unbound plan at its newest version,
-      // drawn whole inside its box.
+      // At the present, 現在状態 does not list the unbound plans (contract v12:
+      // they are counted in the plan cell), and its box is drawn whole.
       const present = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
       await present.goto(urlOf(unbound.none), { waitUntil: 'domcontentloaded', timeout: 60000 });
       await present.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
       await present.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const presentState = await read(present);
       const currentNode = presentState.nodes.find(node => node.kind === 'current-state');
-      check('unbound plans: 現在状態 at the present lists them at their newest versions, whole inside its box',
-        presentState.frameId === 't7' && flat(currentNode?.text).includes(flat('宣言に未結合の計画 3 件：resources#71:tool-split v2 · nixos#12:fork-surface v2 · mieru#3:release v1'))
+      check('unbound plans: 現在状態 at the present does not list them, whole inside its box',
+        presentState.frameId === 't7' && currentNode && !flat(currentNode.text).includes('未結合')
           && flat(currentNode.text) === flat(currentNode.label) && inside(currentNode), currentNode?.text);
       await present.close();
       // Every frame draws every other node's text, and every node's colors, as
