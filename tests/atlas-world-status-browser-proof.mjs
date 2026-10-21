@@ -43,18 +43,28 @@ const MINUTE = 60_000;
 const world = gapWorld();
 const asOf = Date.parse(world.frames.at(-1).asOf);
 const { scratch, done } = proofScratch(args.out);
-const input = path.join(scratch, 'world.json');
-fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
-await buildLiveAtlas({ input, out: path.join(args.out, 'page'), consumer: 'app', chrome: 'none', updateIntervalMinutes: 10 });
-const body = fs.readFileSync(path.join(path.resolve(args.out), 'page', 'index.html'));
+// Three builds: the plain story (status rows, time controls); `forecast`, the
+// story up to the matched t5 with upkeep, held declarations and unbound plans
+// (予定 ▸, the held lines); `history`, the whole story with a drafting ideal
+// and the parts' last observations (改訂中, last_observed, 仕訳 ▸, search).
+const worlds = { page: world, forecast: gapWorld({ through: 't5', upkeep: true, held: true, unbound: true }),
+  history: gapWorld({ drafting: true, lastObserved: true, held: true }) };
+const bodies = {};
+for (const [name, value] of Object.entries(worlds)) {
+  const input = path.join(scratch, name + '.json');
+  fs.writeFileSync(input, JSON.stringify(value), { flag: 'wx' });
+  await buildLiveAtlas({ input, out: path.join(args.out, name), consumer: 'app', chrome: 'none', updateIntervalMinutes: 10 });
+  bodies[name] = fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
+}
 const site = http.createServer((request, response) => {
+  const body = bodies[new URL(request.url, 'http://localhost').pathname.split('/')[1] || 'page'] ?? bodies.page;
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
   response.end(body);
 });
 await new Promise(resolve => site.listen(0, '127.0.0.1', resolve));
 // One scripted connection per live page: the World once, then silence.
 const producer = await startAtlasProducer({ connections: Array.from({ length: 4 }, () => [{ data: world }]) });
-const urlOf = live => 'http://127.0.0.1:' + site.address().port + '/' + (live ? '?events=' + encodeURIComponent(producer.url) : '');
+const urlOf = (live, name = '') => 'http://127.0.0.1:' + site.address().port + '/' + (name ? name + '/' : '') + (live ? '?events=' + encodeURIComponent(producer.url) : '');
 
 const checks = [];
 const check = (name, pass, detail = null) => checks.push({ name, pass: Boolean(pass), ...(pass ? {} : { detail }) });
@@ -79,21 +89,38 @@ const shown = (page, words) => page.evaluate(words => {
     }) };
 }, words);
 const allShown = result => result.words.every(item => item.inside);
+// The rows of the 予定 / 仕訳 list: whether the list is shown and each row,
+// matched by its whole text, lies inside it.
+const listShown = (page, lines) => page.evaluate(lines => {
+  const node = document.getElementById('atlas-world-list');
+  const box = node?.getBoundingClientRect();
+  const visible = Boolean(node && box.width > 0 && box.height > 0 && getComputedStyle(node).display !== 'none');
+  const rows = node ? [...node.children] : [];
+  return { visible, rows: lines.map(line => {
+    const row = rows.find(item => item.textContent === line);
+    const rect = row?.getBoundingClientRect();
+    return { line, inside: Boolean(visible && rect && rect.width > 0 && rect.left >= box.left - 0.5 && rect.right <= box.right + 0.5
+      && rect.top >= box.top - 0.5 && rect.bottom <= box.bottom + 0.5) };
+  }) };
+}, lines);
 // The text each drawn three-area box shows, by entity kind.
 const boxes = page => page.evaluate(() => {
   const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
-  return Object.fromEntries(atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity')
-    .map(item => [item.atlas.ref.kind, (view.getState(adapter.cellsByRegionId.get(item.regionId))?.text?.node?.textContent ?? '').replace(/\s/gu, '')]));
+  const out = {};
+  for (const item of atlas.projection.scene.representations.filter(each => each.atlas?.kind === 'entity')) {
+    out[item.atlas.ref.kind] = (out[item.atlas.ref.kind] ?? '') + (view.getState(adapter.cellsByRegionId.get(item.regionId))?.text?.node?.textContent ?? '').replace(/\s/gu, '');
+  }
+  return out;
 });
 const flat = text => text.replace(/\s/gu, '');
 
 let browser, interruption = null;
 try {
   browser = await chromium.launch({ headless: true });
-  const open = async (width, live, time = null) => {
+  const open = async (width, live, time = null, name = '') => {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     if (time !== null) await page.clock.install({ time: new Date(time) });
-    await page.goto(urlOf(live), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto(urlOf(live, name), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
     if (live) await page.waitForFunction(() => window.liveAtlas.page.snapshotBytes !== null, null, { timeout: 60000 });
     await settle(page);
@@ -150,6 +177,55 @@ try {
     check(width + 'px live, stalled and silent: 更新停止・最新か不明, SSE 応答なし and LATEST（最新か不明） are visible, warnings first',
       allShown(stalled) && stalled.row.text.indexOf(STALLED) < stalled.row.text.indexOf('LATEST'), stalled);
     await live.close();
+
+    // 予定 ▸ (t+1, not a frame): the three areas stay at t0; the list shows
+    // the plans, the unbound plans and the upkeep, each row inside the list.
+    const forecast = await open(width, false, null, 'forecast');
+    const atPresent = await boxes(forecast);
+    check(width + 'px: the phase box lists each held declaration (cases 15 and 29)',
+      atPresent.phase?.includes(flat('保持 actor-mismatch · ideal.set · adrs#647保持 proposal · ideal.set · ops#552保持 author-unknown · 種類不明 · adrs#647')), atPresent.phase);
+    await forecast.getByRole('button', { name: '予定 ▸' }).click();
+    await settle(forecast);
+    const planned = await listShown(forecast, ['予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）',
+      '未結合 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2', '維持の作業（鮮度切れの予定の早い順）',
+      'c1 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 05:41Z', 'c3 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 06:10Z']);
+    check(width + 'px 予定 ▸: plans, unbound plans and upkeep are visible rows', planned.visible && planned.rows.every(row => row.inside), planned);
+    check(width + 'px 予定 ▸: the three areas stay at t0', JSON.stringify(await boxes(forecast)) === JSON.stringify(atPresent)
+      && allShown(await shown(forecast, ['表示中：現在 6/6 · t5'])));
+    await forecast.getByRole('button', { name: '予定 ▾' }).click();
+    await settle(forecast);
+    check(width + 'px 予定 ▾ closes the list', !(await listShown(forecast, [])).visible);
+    await forecast.close();
+
+    // The past: 改訂中 (case 14), the last observation (case 26), 仕訳 ▸.
+    const history = await open(width, false, null, 'history');
+    await history.getByRole('button', { name: '◀ 前へ' }).click();
+    await settle(history);
+    const t6 = await boxes(history);
+    check(width + 'px t6: 理想状態 reads 改訂中 v3 while v2 is in force', t6['ideal-state']?.includes(flat('v2 · 条件 4 · 改訂中 v3')), t6['ideal-state']);
+    check(width + 'px t6: the stale part names its last observation', t6['gap-part']?.includes(flat('最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）')), t6['gap-part']);
+    await history.getByRole('button', { name: '仕訳 1 ▸' }).click();
+    await settle(history);
+    const entries = await listShown(history, ['△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
+    check(width + 'px 仕訳 1 ▸: the entry t6 carries is a visible row', entries.visible && entries.rows.every(row => row.inside), entries);
+    await history.getByRole('button', { name: '仕訳 1 ▾' }).click();
+    // Search: choosing a relation brings the camera to its from box, drawn
+    // inside the graph and with the relation's label shown.
+    await history.getByRole('button', { name: '現在へ' }).click();
+    await history.fill('#atlas-world-search', 'current-delta');
+    await settle(history);
+    const relationKey = await history.evaluate(() => window.liveAtlas.page.searchResults.find(row => row.kind === 'relation')?.key ?? null);
+    await history.selectOption('#atlas-world-search-results', relationKey);
+    await settle(history);
+    const focused = await history.evaluate(() => {
+      const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
+      const id = atlas.projection.selectedRegionId;
+      const box = view.getState(adapter.cellsByRegionId.get(id))?.shape?.node?.getBoundingClientRect();
+      const frame = document.getElementById('atlas-world').getBoundingClientRect();
+      return { id, inside: Boolean(box && box.width > 0 && box.left >= frame.left - 1 && box.right <= frame.right + 1 && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1) };
+    });
+    check(width + 'px search: a chosen relation focuses its from box (現在状態)', relationKey && /current-state/u.test(focused.id ?? '') && focused.inside, { relationKey, focused });
+    await history.close();
   }
 } catch (error) {
   interruption = String(error?.stack ?? error);
