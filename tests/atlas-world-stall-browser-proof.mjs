@@ -15,11 +15,11 @@
 // Read from the drawn status line, not from page state.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -42,9 +42,10 @@ const receiving = (text, at) => text.includes('最終受信 ' + new Date(at).toI
 const world = worldWithFrames(3);
 const asOf = Date.parse(world.frames.at(-1).asOf);
 const data = JSON.stringify(world);
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-stall-'));
+// Its scratch (the World it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory, and is removed at the end.
+const { scratch, done } = proofScratch(args.out);
 fs.writeFileSync(path.join(scratch, 'world.json'), data, { flag: 'wx' });
-fs.mkdirSync(args.out);
 const build = async (name, options) => {
   await buildLiveAtlas({ input: path.join(scratch, 'world.json'), out: path.join(args.out, name), consumer: 'app', chrome: 'none', ...options });
   return fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
@@ -73,7 +74,7 @@ const checks = [];
 const check = (name, pass, detail = null) => checks.push({ name, pass: Boolean(pass), ...(pass ? {} : { detail }) });
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 const status = page => page.evaluate(() => {
-  const node = document.getElementById('atlas-world-search-count');
+  const node = document.getElementById('atlas-world-status');
   const box = node?.getBoundingClientRect();
   return { text: node?.textContent ?? '', visible: Boolean(box && box.width > 0 && box.height > 0) };
 });
@@ -144,6 +145,7 @@ try {
   await new Promise(resolve => producer.close(resolve));
   producer.closeAllConnections?.();
   await new Promise(resolve => site.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-stall-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL', checks: checks.length, failed, interruption };

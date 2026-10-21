@@ -41,6 +41,7 @@ import "./check-atlas-world-readability.mjs";
 import "./check-atlas-world-hidden-paths.mjs";
 import "./check-atlas-world-plans.mjs";
 import "./check-atlas-world-gap.mjs";
+import "./check-atlas-proof-scratch.mjs";
 import "./check-serve-static.mjs";
 import "../capabilities/editable-sheet/tests/run.mjs";
 console.log("ui-all-checks-pass");

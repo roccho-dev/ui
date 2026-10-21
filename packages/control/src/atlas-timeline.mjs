@@ -48,13 +48,20 @@ export const transportOf = ({ mode, connected, receivedAt = null, now = null, sn
 };
 const clockText = at => new Date(at).toISOString().slice(11, 19) + 'Z';
 const TRANSPORT_WARNING = Object.freeze({ disconnected: TRANSPORT_DISCONNECTED, silent: TRANSPORT_SILENT, nodata: TRANSPORT_NO_DATA, mismatch: TRANSPORT_MISMATCH });
-// The status line's account of the live stream: when it last received, and
-// any reason not to trust that the World shown is the latest.
-export const transportStatus = state => {
+// The status line's account of the live stream: any reason not to trust that
+// the World shown is the latest (a warning, or null), and when it last
+// received (null on a sample).
+export const transportParts = state => {
   const transport = transportOf(state);
-  if (transport === 'sample') return '';
-  const last = state.receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(state.receivedAt);
-  return ' · ' + last + (TRANSPORT_WARNING[transport] ? ' · ' + TRANSPORT_WARNING[transport] : '');
+  if (transport === 'sample') return Object.freeze({ warning: null, last: null });
+  return Object.freeze({ warning: TRANSPORT_WARNING[transport] ?? null,
+    last: state.receivedAt === null ? '最終受信なし' : '最終受信 ' + clockText(state.receivedAt) });
+};
+// The frame shown, as the status row names it.
+export const viewedText = (frames, frame) => {
+  const { index, count, present } = timelinePosition(frames, frame.id);
+  return index < 0 ? '表示中：保持中の frame ' + frame.id + '（最新入力に無い）'
+    : '表示中：' + (present ? '現在' : '過去') + ' ' + (index + 1) + '/' + count + ' · ' + frame.id;
 };
 const CONTENT_UNKNOWN = '内容 UNKNOWN';
 

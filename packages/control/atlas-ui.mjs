@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { UPDATE_STALLED, hasBand, stepIndex, timelinePosition, transportOf, transportStatus, updateStalled } from './src/atlas-timeline.mjs';
+import { UPDATE_STALLED, hasBand, stepIndex, timelinePosition, transportOf, transportParts, updateStalled, viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -440,10 +440,13 @@ body{margin:0;overflow:hidden}
 #atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
 #atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
 #atlas-world svg text{white-space:pre}
+#atlas-world-status-bar{box-sizing:border-box;flex:none;display:flex;align-items:center;height:24px;padding:2px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
+#atlas-world-status{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #atlas-world-search-bar{box-sizing:border-box;flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:4px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
 #atlas-world-search{width:20%;min-width:80px;font:inherit}
-#atlas-world-search-results{width:42%;min-width:80px;font:inherit}
+#atlas-world-search-results{width:30%;min-width:80px;font:inherit}
 #atlas-world-search-count{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#atlas-world-search-bar button{flex:none;font:inherit}
 `;
 
 export const mountAtlasWorldUI = ({
@@ -467,9 +470,17 @@ export const mountAtlasWorldUI = ({
   const container = el('div', { id: 'atlas-world', tabindex: 0, 'aria-label': 'Atlas a2 three-area world' });
   const search = el('input', { type: 'search', id: 'atlas-world-search', placeholder: 'Search supplied records', 'aria-label': 'Search displayed World records' });
   const choices = el('select', { id: 'atlas-world-search-results', 'aria-label': 'World search results' });
-  const searchCount = el('span', { id: 'atlas-world-search-count', role: 'status' });
-  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount);
-  const screen = el('div', { id: 'atlas-world-screen' }, searchBar, container);
+  const searchCount = el('span', { id: 'atlas-world-search-count' });
+  // Contract 3 (revised): row 1 is the status, warnings first so a narrow
+  // window cuts only its tail; row 2 holds the search and the time controls,
+  // the visible form of [ ] L.
+  const status = el('span', { id: 'atlas-world-status', role: 'status' });
+  const statusBar = el('div', { id: 'atlas-world-status-bar' }, status);
+  const back = el('button', { type: 'button', id: 'atlas-world-step-back', text: '◀ 前へ', onclick: () => stepFrame(-1) });
+  const forward = el('button', { type: 'button', id: 'atlas-world-step-forward', text: '次へ ▶', onclick: () => stepFrame(1) });
+  const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => followLatest() });
+  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, back, forward, toPresent);
+  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, container);
   root.append(style, screen);
 
   const page = {
@@ -519,12 +530,21 @@ export const mountAtlasWorldUI = ({
       })));
     choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
     searchCount.textContent = page.searchResults.length + ' results in supplied ' +
-      (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev +
-      // LATEST is the newest supplied frame; while the live stream cannot
-      // vouch for that supply, or the World stopped updating, it is qualified.
-      ' · ' + (page.latest ? (['sample', 'live'].includes(transportOf(page)) && !stalled() ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD') +
-      transportStatus(page) + (stalled() ? ' · ' + UPDATE_STALLED + '（最後の frame ' + page.input.frames.at(-1).asOf + '）' : '');
+      (page.side === 'before' ? 'Before' : 'After') + ' · ' + frame.id + ' rev ' + frame.rev;
     searchCount.title = searchCount.textContent;
+    // The status row: warnings first, then LATEST / HELD, the frame shown and
+    // the last receipt. LATEST is the newest supplied frame; while the live
+    // stream cannot vouch for that supply, or the World stopped updating, it is qualified.
+    const { warning, last } = transportParts(page);
+    status.textContent = [stalled() ? UPDATE_STALLED + '（最後の frame ' + page.input.frames.at(-1).asOf + '）' : null, warning,
+      page.latest ? (['sample', 'live'].includes(transportOf(page)) && !stalled() ? 'LATEST' : 'LATEST（最新か不明）') : 'HELD',
+      viewedText(page.input.frames, frame), last].filter(Boolean).join(' · ');
+    status.title = status.textContent;
+    // A control that would change nothing is shown disabled, never hidden.
+    const position = timelinePosition(page.input.frames, frame.id);
+    back.disabled = position.index < 0 || stepIndex(position, -1) === position.index;
+    forward.disabled = position.index < 0 || stepIndex(position, 1) === position.index;
+    toPresent.disabled = position.present && page.latest;
   };
 
   // Without the HUD there is no Fit control on screen, so the camera may not

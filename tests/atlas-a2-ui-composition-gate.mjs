@@ -5,11 +5,11 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 import { startAtlasProducer } from './fixtures/live-atlas/sse-producer.mjs';
 import { containmentIndex, entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 
@@ -25,7 +25,11 @@ if (!fontConfig || !path.isAbsolute(fontConfig) || !fs.existsSync(fontConfig)) {
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 if (!fs.existsSync(chromium.executablePath())) throw new Error('provided Chromium is unavailable');
 
-const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'atlas-a2-ui-'));
+// --out=<fresh absent directory>: its scratch (the build, the browser's
+// temporary files) sits there, never the system temp directory, and is removed at the end.
+const out = process.argv.slice(2).find(argument => argument.startsWith('--out='))?.slice('--out='.length);
+if (!out) throw new Error('--out=<fresh absent directory> is required');
+const { scratch: tempRoot, done } = proofScratch(out);
 const output = path.join(tempRoot, 'dist');
 const receipt = await buildLiveAtlas({
   input: 'examples/atlas/input/a2-world.json',
@@ -633,23 +637,29 @@ try {
 
   check('routine judgement has no second visible HTML information/control surface',
     await page.locator('#atlas-detail,#atlas-inspector,#atlas-audit,#atlas-search,#atlas-world-toolbar').count() === 0);
-  // PR344-local exception: only the declared native search bar may sit
-  // outside the SVG. Judgement, record detail and controls stay in the SVG.
+  // PR344-local exception: only the declared native status and search rows
+  // may sit outside the SVG (contract 3, revised: the status row, then search
+  // and the time controls). Judgement, record detail and other controls stay in the SVG.
   const htmlSurface = await page.evaluate(() => {
     const screen = document.getElementById('atlas-world-screen');
+    const status = document.getElementById('atlas-world-status-bar');
     const bar = document.getElementById('atlas-world-search-bar');
     return {
       bodyChildren: [...document.body.children].filter(node => !['SCRIPT', 'STYLE'].includes(node.tagName)).map(node => node.id),
       screenChildren: screen ? [...screen.children].map(node => node.id) : null,
+      statusChildren: status ? [...status.children].map(node => node.tagName.toLowerCase() + '#' + node.id) : null,
       barChildren: bar ? [...bar.children].map(node => node.tagName.toLowerCase() + '#' + node.id) : null,
+      statusHeight: status?.offsetHeight ?? null,
       barHeight: bar?.offsetHeight ?? null,
     };
   });
-  check('only the exact native search bar is a visible HTML control surface',
+  check('only the exact native status and search rows are visible HTML control surfaces',
     JSON.stringify(htmlSurface.bodyChildren) === JSON.stringify(['atlas-world-screen'])
-      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-search-bar', 'atlas-world'])
-      && JSON.stringify(htmlSurface.barChildren) === JSON.stringify(['input#atlas-world-search', 'select#atlas-world-search-results', 'span#atlas-world-search-count'])
-      && htmlSurface.barHeight === 36, htmlSurface);
+      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world'])
+      && JSON.stringify(htmlSurface.statusChildren) === JSON.stringify(['span#atlas-world-status'])
+      && JSON.stringify(htmlSurface.barChildren) === JSON.stringify(['input#atlas-world-search', 'select#atlas-world-search-results', 'span#atlas-world-search-count',
+        'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present'])
+      && htmlSurface.statusHeight === 24 && htmlSurface.barHeight === 36, htmlSurface);
   const svgControls = await page.evaluate(() => window.liveAtlas.projection.scene.representations
     .filter(item => item.atlas?.kind === 'control').map(item => item.atlas.control).sort());
   check('Before/After/Fit/Focus/Select/Hand are projected into the SVG surface',
@@ -728,7 +738,12 @@ try {
   await clickCell('world:control:fit');
 
   const renderedNodeLabels = async () => page.evaluate(() => {
-    const atlas = window.liveAtlas, adapter = atlas.adapter, viewport = atlas.projection.viewport.graph;
+    const atlas = window.liveAtlas, adapter = atlas.adapter;
+    // The graph viewport is in the container's coordinates; the text boxes are
+    // in the page's, below the status and search rows. Compare them in one space.
+    const origin = document.getElementById('atlas-world').getBoundingClientRect();
+    const graph = atlas.projection.viewport.graph;
+    const viewport = { x: graph.x + origin.left, y: graph.y + origin.top, width: graph.width, height: graph.height };
     const svg = document.querySelector('#atlas-world svg');
     // defs rectangles have no useful screen bbox. Map the actual clip rect
     // through the clipped owner's CTM, then test the real text box in that
@@ -811,7 +826,7 @@ try {
       const result = {
         events: before.events, width: container.clientWidth, height: container.clientHeight,
         screenHeight: document.getElementById('atlas-world-screen').clientHeight,
-        barHeight: document.getElementById('atlas-world-search-bar')?.offsetHeight ?? null,
+        barHeight: (document.getElementById('atlas-world-status-bar')?.offsetHeight ?? 0) + (document.getElementById('atlas-world-search-bar')?.offsetHeight ?? 0),
         beforeCamera: before.camera, camera,
         inputReused: atlas.input === before.input,
         selected: atlas.page.selected, beforeSelected: before.selected,
@@ -825,7 +840,7 @@ try {
     const label = 'World resize ' + viewport.width + 'x' + viewport.height;
     check(label + ' refits camera after a real resize event',
       resized.events > 0 && resized.width === viewport.width && resized.screenHeight === viewport.height
-        && resized.barHeight === 36 && resized.height === viewport.height - resized.barHeight
+        && resized.barHeight === 24 + 36 && resized.height === viewport.height - resized.barHeight
         && JSON.stringify(resized.camera) !== JSON.stringify(resized.beforeCamera), resized);
     check(label + ' retains normalized input, qualified selection and viewed frame',
       resized.inputReused && resized.selected === resized.beforeSelected
@@ -1506,7 +1521,7 @@ try {
       server.close(resolve);
       server.closeAllConnections?.();
     })],
-    ['temporary files', () => fsp.rm(tempRoot, { recursive: true, force: true })],
+    ['temporary files', () => done()],
   ]) {
     try { await close(); } catch (error) { cleanupErrors.push({ name, error: String(error) }); }
   }

@@ -17,11 +17,11 @@
 //   matched_until without any input.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -37,8 +37,9 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 const fixture = !arg('input');
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-gap-'));
-fs.mkdirSync(arg('out'));
+// Its scratch (the Worlds it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory, and is removed at the end.
+const { scratch, done } = proofScratch(arg('out'));
 const serve = async (name, world, chrome = 'none') => {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
@@ -104,6 +105,10 @@ if (!compat) {
   expected.t5.phase += ' · 理想状態の確定前の観測で一致 1 件';
   Object.assign(expected.t6, { phase: '局面：近似中 · 差 2 · v2', gap: '! c1 · 鮮度切れ? c4 · 照合不能' });
 }
+// Contract 3 (revised): the phase line names when its phase began.
+const PHASE_SINCE = { t0: '10-17 00:00Z', t1: '10-17 01:00Z', t2: '10-17 02:00Z', t3: '10-17 03:00Z', t4: '10-17 03:00Z', t5: '10-17 05:00Z',
+  t6: '10-17 06:00Z', t7: '10-17 07:00Z' };
+for (const [id, item] of Object.entries(expected)) if (item.phase) item.phase = item.phase.replace(/^(局面：[^ ]+)/u, '$1（' + PHASE_SINCE[id] + ' から）');
 const flat = value => String(value ?? '').replace(/\s/gu, '');
 // Fixed words, so the check does not depend on the module under test.
 const ADMISSION_WORDS = { observed_not_admitted: '未採択' };
@@ -317,7 +322,8 @@ try {
           && flat(currentNode.text) === flat(currentNode.label) && inside(currentNode), currentNode?.text);
       await present.close();
       // Every frame draws every other node's text, and every node's colors, as
-      // the World without the unbound plans.
+      // the World without the unbound plans; 理想状態's text adds only its plan
+      // line (#373), checked on its own below.
       const drawnFrames = async server => {
         const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
         await page.goto(urlOf(server), { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -332,7 +338,8 @@ try {
             const atlas = window.liveAtlas, view = atlas.adapter.graph.getView();
             return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
               const drawn = view.getState(atlas.adapter.cellsByRegionId.get(item.regionId));
-              return [item.regionId, item.atlas.ref.kind === 'current-state' ? null : drawn?.text?.node?.textContent ?? '', drawn?.style?.fillColor ?? null, drawn?.style?.strokeColor ?? null];
+              return [item.regionId, ['current-state', 'ideal-state'].includes(item.atlas.ref.kind) ? null : drawn?.text?.node?.textContent ?? '',
+                drawn?.style?.fillColor ?? null, drawn?.style?.strokeColor ?? null];
             });
           });
         }
@@ -342,6 +349,20 @@ try {
       const [withUnbound, without] = [await drawnFrames(unbound.none), await drawnFrames(all)];
       check('unbound plans: every frame draws 差, 理想状態, Scopes and Agents (texts and colors) and 現在状態\'s colors as without them',
         Object.keys(without).length === 8 && JSON.stringify(withUnbound) === JSON.stringify(without), Object.keys(withUnbound));
+      // The chrome-free view shows the count on 理想状態 (#373), read as drawn.
+      const idealText = async (server, steps) => {
+        const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
+        await page.goto(urlOf(server), { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+        for (let step = 0; step < steps; step += 1) { await page.focus('#atlas-world'); await page.keyboard.press('['); }
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const text = (await read(page)).nodes.find(node => node.kind === 'ideal-state')?.text ?? '';
+        await page.close();
+        return flat(text);
+      };
+      const [presentIdeal, t3Ideal] = [await idealText(unbound.none, 0), await idealText(unbound.none, 4)];
+      check('unbound plans: 理想状態 draws 未結合 3 件 at t7 and no plan line at t3, before any is unbound',
+        presentIdeal.includes(flat('計画：未宣言（UNKNOWN） · 未結合 3 件')) && !t3Ideal.includes('未結合'), [presentIdeal, t3Ideal]);
     } finally {
       await browser.close();
     }
@@ -355,7 +376,7 @@ try {
       await page.goto(urlOf(matched), { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
       const phaseText = async () => flat((await read(page)).nodes.find(node => node.kind === 'phase')?.text);
-      check('before matched_until the present reads matched with its freshness', (await phaseText()).includes(flat('一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z')), await phaseText());
+      check('before matched_until the present reads matched with its freshness', (await phaseText()).includes(flat('一致・維持（10-17 05:00Z から） · 新規 0 · 次の鮮度切れ 05:41Z')), await phaseText());
       await page.clock.fastForward(12 * 60 * 1000);
       await page.waitForTimeout(300);
       const stale = await read(page);
@@ -374,6 +395,7 @@ try {
   for (const [, server] of wording) await new Promise(resolve => server.close(resolve));
   if (claims) await new Promise(resolve => claims.close(resolve));
   if (unbound) for (const server of Object.values(unbound)) await new Promise(resolve => server.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-gap-browser-proof/2', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

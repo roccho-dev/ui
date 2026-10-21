@@ -423,7 +423,16 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const held = [...earlier, frame].flatMap(item => item.held ?? []);
   const heldText = held.length ? ' · 保持 ' + held.length + ' 件（' + [...new Set(held.map(item => item.reason))].sort()
     .map(reason => reason + ' ' + held.filter(item => item.reason === reason).length).join(' · ') + '）' : '';
-  const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + admissionMark(phaseDecision) + ' · ' + phaseDetail + beforeIdeal
+  // Contract 3 (revised): with no band on screen, the phase line names when
+  // its phase began: the first received frame, going back from this one, in
+  // the same phase.
+  let phaseStart = frame;
+  for (const item of [...earlier].reverse()) {
+    if (item.phase !== phase) break;
+    phaseStart = item;
+  }
+  const phaseSince = phase === null ? '' : '（' + dayClockText(phaseStart.asOf) + ' から）';
+  const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + admissionMark(phaseDecision) + phaseSince + ' · ' + phaseDetail + beforeIdeal
     + (consistent ? '' : ' · gap と不整合') + heldText;
 
   const prevVersion = prevGap?.basis.ideal_version ?? null;

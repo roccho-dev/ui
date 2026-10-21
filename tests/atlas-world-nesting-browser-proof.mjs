@@ -16,13 +16,13 @@
 // with an open part, fails: the proof would be empty.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { ATLAS_STATUS } from '../packages/control/src/atlas-world-projection.mjs';
 import { CAUSE_LABEL } from '../packages/control/src/atlas-gap.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -43,8 +43,9 @@ const prebuilt = argv.find(([name]) => name === 'page')?.[1] ?? null;
 const inputs = argv.filter(([name]) => name === 'input').map(([, file]) => [path.basename(file), JSON.parse(fs.readFileSync(file, 'utf8'))]);
 const worlds = prebuilt ? inputs : [['gap-grouped', gapWorld({ groups: true })], ['gap-grouped-unplaced', gapWorld({ groups: 'unplaced' })], ...inputs];
 if (prebuilt && worlds.length !== 1) throw new Error('--page needs exactly one --input');
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-nesting-'));
-fs.mkdirSync(out);
+// Its scratch (the Worlds it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory, and is removed at the end.
+const { scratch, done } = proofScratch(out);
 const builds = [];
 for (const [name, world] of worlds) {
   if (prebuilt) { builds.push({ name, world, file: path.resolve(prebuilt) }); continue; }
@@ -209,6 +210,7 @@ try {
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-nesting-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',
