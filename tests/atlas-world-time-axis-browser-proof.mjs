@@ -3,9 +3,9 @@
 //   node tests/atlas-world-time-axis-browser-proof.mjs --out=<fresh absent directory> [--input=<World JSON>]
 // Builds of the gap fixture (and, with --input, of that World too), served
 // over HTTP. A word counts as shown only when its text Range lies inside the
-// status row's visible rectangle; a box's text only when its rectangle lies
-// inside the graph (the graph is panned with the wheel to bring it there),
-// never by textContent alone. At 1500 and 800 px:
+// status row's visible rectangle; a box's text only as far as its drawn lines
+// lie inside the graph right after the operation (no scroll, no wheel: I2e-fix),
+// never by textContent alone. At 1500x900 and 800x900:
 // 1. at the present, 次へ ▶ enters the first step: the status row reads
 //    予定 1/K · <minute>（観測が無ければ）, the box of changes reads that step,
 //    and every other box reads as at the present;
@@ -100,7 +100,8 @@ const shown = (page, words) => page.evaluate(words => {
   }) };
 }, words);
 const allShown = result => result.words.every(item => item.inside);
-// Each box: its kind, its text, whether the text lies inside the graph and inside its own box.
+// Each box: its kind, its text, the text of its drawn lines that lie inside
+// the graph (`seen`), whether all of it does, and whether it lies inside its own box.
 const boxes = page => page.evaluate(() => {
   const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
   const graph = document.getElementById('atlas-world').getBoundingClientRect();
@@ -108,22 +109,14 @@ const boxes = page => page.evaluate(() => {
   return atlas.projection.scene.representations.filter(item => item.atlas?.kind === 'entity').map(item => {
     const state = view.getState(adapter.cellsByRegionId.get(item.regionId));
     const text = state?.text?.node?.getBoundingClientRect(), shape = state?.shape?.node?.getBoundingClientRect();
+    const lines = [...(state?.text?.node?.querySelectorAll('text') ?? [])];
     return { id: item.regionId, kind: item.atlas.ref.kind, text: (state?.text?.node?.textContent ?? '').replace(/\s/gu, ''),
-      top: text?.top ?? 0, graphTop: graph.top, visible: within(text, graph), whole: within(text, shape, 2) };
+      seen: lines.filter(line => within(line.getBoundingClientRect(), graph)).map(line => line.textContent).join('').replace(/\s/gu, ''),
+      visible: within(text, graph), whole: within(text, shape, 2) };
   });
 });
-// Pans the graph with the wheel until the box of `kind` lies inside it; its state then.
-const reveal = async (page, kind) => {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const box = (await boxes(page)).find(item => item.kind === kind);
-    if (!box || box.visible) return box ?? null;
-    const graph = await page.locator('#atlas-world').boundingBox();
-    await page.mouse.move(graph.x + graph.width / 2, graph.y + graph.height / 2);
-    await page.mouse.wheel(0, Math.max(-600, Math.min(600, box.top - box.graphTop - 24)));
-    await settle(page);
-  }
-  return (await boxes(page)).find(item => item.kind === kind) ?? null;
-};
+// A box as drawn right after the last operation.
+const boxOf = async (page, kind) => (await boxes(page)).find(item => item.kind === kind) ?? null;
 const textOf = (list, kind) => list.filter(item => item.kind === kind).map(item => item.text).join('');
 
 let browser, interruption = null;
@@ -149,8 +142,8 @@ try {
     await press(page, '次へ ▶');
     const first = await shown(page, ['LATEST', '表示中：予定 1/' + steps.length + ' · ' + steps[0]?.at + '（観測が無ければ）']);
     check(where + ' 次へ ▶ at the present: 予定 1/' + steps.length + ' and its minute are visible on the status row', allShown(first), first);
-    const onStep = await reveal(page, 'frame-change');
-    check(where + ' 次へ ▶: the box of changes reads the first step, visible', onStep?.visible && onStep.text === flat('予定 ' + steps[0]?.at + '（観測が無ければ unknown）'
+    const onStep = await boxOf(page, 'frame-change');
+    check(where + ' 次へ ▶: the box of changes reads the first step, all of it visible right away', onStep?.visible && onStep.seen === flat('予定 ' + steps[0]?.at + '（観測が無ければ unknown）'
       + (steps[0]?.items ?? []).map(item => '鮮度切れの予定 ' + item.condition + ' · 観測 ' + minute(item.observedAt)).join('')), onStep);
     const others = list => Object.fromEntries(list.filter(item => item.kind !== 'frame-change').map(item => [item.id, item.text]));
     check(where + ' 次へ ▶: every other box reads as at the present', JSON.stringify(others(await boxes(page))) === JSON.stringify(others(present)));
@@ -172,11 +165,11 @@ try {
       await page.focus('#atlas-world');
       for (let index = count - 1; index > heldAt; index -= 1) await page.keyboard.press('[');
       await settle(page);
-      const change = await reveal(page, 'frame-change');
+      const change = await boxOf(page, 'frame-change');
       const words = [changeHeading(frames, heldAt), ...frames[heldAt].held.map(heldRow),
         ...(frames[heldAt].journal ?? []).map(entry => entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明') + ' · 出所 ' + entry.source.ref)];
-      check(where + ' ' + frames[heldAt].id + ': the box of changes names what was held, and each entry with when, by whom and from where, visible',
-        change?.visible && words.every(word => change.text.includes(flat(word))), { words: words.slice(0, 3), text: change?.text.slice(0, 300) });
+      check(where + ' ' + frames[heldAt].id + ': right after ◀ 前へ / [, the box of changes shows what was held and each entry with when, by whom and from where',
+        change && words.every(word => change.seen.includes(flat(word))), { words: words.slice(0, 3), seen: change?.seen.slice(0, 300) });
       await press(page, '現在へ');
     }
     // 4. A frame with plans: 理想状態 names each plan.
@@ -186,10 +179,11 @@ try {
       await page.focus('#atlas-world');
       for (let index = count - 1; index > planAt; index -= 1) await page.keyboard.press('[');
       await settle(page);
-      const ideal = await reveal(page, 'ideal-state');
+      const ideal = await boxOf(page, 'ideal-state');
       const words = frames[planAt].plans.flatMap(plan => ['計画 ' + plan.label, '寄与 ' + (plan.serves.length ? plan.serves.join('、') : 'なし')]);
-      check(where + ' ' + frames[planAt].id + ': 理想状態 names each plan, its label and what it serves, visible', ideal?.visible && words.every(word => ideal.text.includes(flat(word))),
-        { words, text: ideal?.text.slice(0, 300) });
+      const change = await boxOf(page, 'frame-change');
+      check(where + ' ' + frames[planAt].id + ': right after the move, 理想状態 shows each plan, its label and what it serves, and the heading of the changes',
+        ideal && words.every(word => ideal.seen.includes(flat(word))) && change?.seen.startsWith(flat(changeHeading(frames, planAt))), { words, seen: ideal?.seen.slice(0, 300), change: change?.seen.slice(0, 80) });
       await press(page, '現在へ');
     }
     // 7. The largest box of changes, drawn whole inside its box.
@@ -220,9 +214,9 @@ try {
     const steps = stepsOf(frames.at(-1), Date.parse(worlds.approx.clock));
     await press(page, '次へ ▶');
     const first = await shown(page, ['表示中：予定 1/' + steps.length + ' · ' + steps[0]?.at]);
-    const change = await reveal(page, 'frame-change');
-    check(width + 'px approx: an approximating present (' + frames.at(-1).phase + ') steps into 予定 1/' + steps.length + ' and its conditions',
-      frames.at(-1).phase === 'approximating' && steps.length > 0 && allShown(first) && change?.visible && change.text.includes(flat('鮮度切れの予定 ' + steps[0].items[0].condition)), { first, change });
+    const change = await boxOf(page, 'frame-change');
+    check(width + 'px approx: an approximating present (' + frames.at(-1).phase + ') steps into 予定 1/' + steps.length + ' and its conditions, visible right away',
+      frames.at(-1).phase === 'approximating' && steps.length > 0 && allShown(first) && change?.visible && change.seen.includes(flat('鮮度切れの予定 ' + steps[0].items[0].condition)), { first, change });
     await page.close();
   }
 } catch (error) {
