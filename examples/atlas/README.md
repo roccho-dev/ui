@@ -206,10 +206,20 @@ panel, timeline strip or band.
   ideal state, and the upkeep — per condition, when its observation goes stale
   — or, without `upkeep`, the next stale time alone. The three areas stay as
   they are.
-- **仕訳 n ▸** opens the entries the frame shown carries: kind, time, author and
-  source, one row each.
-- The phase line names when its phase began; 理想状態 names the plans and the
-  unbound plans; the phase box lists what was held.
+- **仕訳 n · 保持 m ▸** opens the entries the frame shown carries (kind, time,
+  author and source) and then each declaration held up to it, one row each;
+  the button counts both.
+- There is no phase box (S6, adrs#647 comment 6306887827): 理想↔現在の差's
+  heading names the phase, when it began, a matched phase's next stale time (or
+  that it went stale) and a mismatch with the gap; 現在状態 names the matches
+  resting on observations older than the ideal; 理想状態 names the plans and
+  the unbound plans. Relations are drawn as lines without labels.
+
+Every kind of box, line and control the screen shows is a row of
+`packages/control/src/atlas-screen-table.mjs`, the display section's table:
+what it carries and whether it is unique (U) or projected (P, kept only when a
+User operation is needed to reach it or the User decided it). Adding or
+removing an element is a row there.
 
 Mouse drag and wheel pan the World; Ctrl/⌘ + wheel zooms. A World larger than
 the view at scale 1 is panned, never shrunk until its text no longer fits; a
@@ -245,7 +255,8 @@ while its updates still run.
 
 `node tests/run-all.mjs` runs the pure checks, among them
 `tests/check-atlas-world-screen.mjs` (no HUD, panel, strip or band region; the
-30-case wording table read from the drawn text). Inside the
+kinds of line drawn are the table's; the 30-case wording table read from the
+drawn text). Inside the
 `semantic-map-browser-proof` Nix shell, each browser proof takes
 `--out=<fresh absent directory>` and writes nothing outside it (its temporary
 files and the browser profile included):
@@ -255,8 +266,10 @@ files and the browser profile included):
   resize, transport state and a gate-local SSE stream, as drawn;
 - `tests/atlas-world-status-browser-proof.mjs`: the status rows, the time
   controls, 予定 ▸ / 仕訳 ▸ and search, by visible rectangles at 1500 and 800 px;
+- `tests/atlas-world-follow-browser-proof.mjs`: a live page follows the present
+  over SSE, and a held past frame stays held, read on the status row;
 - `tests/atlas-world-regression-browser-proof.mjs --input=<World> --before=<page>`:
-  a World against an earlier build of it, as drawn.
+  a World against an earlier build of it, as drawn, changed by S6 only.
 
 A PASS is UI evidence for the input given only. It is not evidence of real
 acquisition, production SSE, observer coverage or Purpose achievement.
