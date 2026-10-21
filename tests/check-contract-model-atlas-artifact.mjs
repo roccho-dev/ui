@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import { buildContractModelAtlasArtifact } from "../scripts/build-contract-model-atlas-artifact.mjs";
+import { testScratch } from "./fixtures/test-scratch.mjs";
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "contract-model-atlas-artifact-"));
+// Next to the tests in a checkout; the Nix build's sandbox otherwise. Removed at the end.
+const scratch = testScratch("contract-model-atlas-artifact");
+const tmp = scratch.dir;
+process.on("exit", scratch.done);
 const built = buildContractModelAtlasArtifact({ outDir: tmp });
 
 const htmlPath = path.join(tmp, "preview", "index.html");
