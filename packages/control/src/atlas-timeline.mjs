@@ -99,6 +99,16 @@ export const journalRow = entry => JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABE
 // 仕訳 n ▸ (contract 3, revised): the entries the displayed frame carries
 // (v6: only those new at it), one row each.
 export const journalLines = frame => (frame.journal ?? []).map(journalRow);
+// S6 (cases 15 and 29): the declarations held back (v12 frames[i].held) up to
+// the displayed frame, one row each in the order they entered, listed in
+// 仕訳 ▸ after the entries. A held frame no longer in the input has its own only.
+export const heldLines = (frames, frame) => {
+  const index = frames.findIndex(item => item.id === frame.id);
+  return (index < 0 ? [frame] : frames.slice(0, index + 1)).flatMap(item => item.held ?? [])
+    .map(item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref);
+};
+// The button counts both, so they are seen without opening the list.
+export const journalButtonText = (entries, held, open) => '仕訳 ' + entries + ' · 保持 ' + held + ' ' + (open ? '▾' : '▸');
 // 予定 ▸ (contract 3, revised): the planned side of the latest frame, never a
 // frame and never a fact: its plans, the plans bound to no ideal state (each
 // id at its newest version), and the upkeep — per condition, earliest first —

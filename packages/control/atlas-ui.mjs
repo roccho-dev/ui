@@ -12,7 +12,7 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { UPDATE_STALLED, forecastLines, journalLines, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
+import { UPDATE_STALLED, forecastLines, heldLines, journalButtonText, journalLines, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
   viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
@@ -483,8 +483,9 @@ export const mountAtlasWorldUI = ({
   const back = el('button', { type: 'button', id: 'atlas-world-step-back', text: '◀ 前へ', onclick: () => stepFrame(-1) });
   const forward = el('button', { type: 'button', id: 'atlas-world-step-forward', text: '次へ ▶', onclick: () => stepFrame(1) });
   const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => followLatest() });
-  // 予定 ▸ (t+1: the latest frame's planned side, not a frame) and 仕訳 n ▸
-  // (the entries the displayed frame carries) open one list over the graph.
+  // 予定 ▸ (t+1: the latest frame's planned side, not a frame) and 仕訳 n ·
+  // 保持 m ▸ (the entries the displayed frame carries and what was held up to
+  // it) open one list over the graph.
   const forecast = el('button', { type: 'button', id: 'atlas-world-forecast', onclick: () => toggleList('forecast') });
   const journalButton = el('button', { type: 'button', id: 'atlas-world-journal', onclick: () => toggleList('journal') });
   const list = el('div', { id: 'atlas-world-list', role: 'region', 'aria-label': '予定・仕訳', hidden: 'hidden' });
@@ -535,7 +536,8 @@ export const mountAtlasWorldUI = ({
         value: key, text: (record.label || record.kind || key) + ' · ' + key,
       })));
     choices.value = page.searchResults.some(row => row.key === page.selected) ? page.selected : '';
-    searchCount.textContent = page.searchResults.length + ' results in ' + frame.id + ' rev ' + frame.rev;
+    // The frame searched is the one the status row names (S6).
+    searchCount.textContent = page.searchResults.length + ' results';
     searchCount.title = searchCount.textContent;
     // The status row: warnings first (the World stopped updating, a supplied
     // input was refused, the stream state), then LATEST / HELD, the frame shown
@@ -553,11 +555,11 @@ export const mountAtlasWorldUI = ({
     forward.disabled = position.index < 0 || stepIndex(position, 1) === position.index;
     toPresent.disabled = position.present && page.latest;
     // The open list, drawn again with the frame shown (仕訳) or the latest (予定).
-    const entries = journalLines(frame);
+    const entries = journalLines(frame), held = heldLines(page.input.frames, frame);
     forecast.textContent = '予定 ' + (page.listOpen === 'forecast' ? '▾' : '▸');
-    journalButton.textContent = '仕訳 ' + entries.length + ' ' + (page.listOpen === 'journal' ? '▾' : '▸');
+    journalButton.textContent = journalButtonText(entries.length, held.length, page.listOpen === 'journal');
     const lines = page.listOpen === 'forecast' ? forecastLines(page.input.frames)
-      : page.listOpen === 'journal' ? (entries.length ? entries : ['この時点の仕訳はない']) : [];
+      : page.listOpen === 'journal' ? (entries.length + held.length ? [...entries, ...held] : ['この時点の仕訳はない']) : [];
     list.replaceChildren(...lines.map(line => el('div', { text: line })));
     list.hidden = page.listOpen === null;
   };

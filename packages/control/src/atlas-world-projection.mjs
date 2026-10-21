@@ -7,7 +7,7 @@ import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 import { containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 import { timelinePosition } from './atlas-timeline.mjs';
-import { STALE_PHASE_LABEL, phaseStale } from './atlas-gap.mjs';
+import { phaseStale, staleDeltaLabel } from './atlas-gap.mjs';
 
 const AREA_GAP = 40;
 const AREA_TOP = 56;
@@ -356,14 +356,12 @@ export const projectWorldScene = ({
   // Live activity keeps its own glyph and color; otherwise the supplied status
   // flags choose them. Either way a symbol precedes the label.
   // A matched phase past its matched_until, on the ui's clock, for the frame
-  // shown as the present: say it is stale and not known latest. The gap is
-  // not derived again. Only the phase line is replaced; the lines below it
-  // (what was held) stay.
+  // shown as the present: 理想↔現在の差's heading says it is stale and not
+  // known latest (S6), and its box reads unknown. The gap is not derived again.
   const stale = staleAt !== null && phaseStale(frame, staleAt);
   const look = supplied => {
-    const entity = stale && supplied.ref.kind === 'phase'
-      ? { ...supplied, label: STALE_PHASE_LABEL + '（' + frame.matched_until.slice(11, 16) + 'Z を過ぎた）'
-        + supplied.label.split('\n').slice(1).map(line => '\n' + line).join(''), flags: ['scope_status=unknown'] }
+    const entity = stale && supplied.ref.kind === 'gap'
+      ? { ...supplied, label: staleDeltaLabel(supplied.label, frame), flags: ['scope_status=unknown'] }
       : supplied;
     const activity = displayedActivity(entity.activity);
     const status = activity === 'none' ? statusOf(entity.flags) : null;
@@ -446,14 +444,14 @@ export const projectWorldScene = ({
   const groupByRelationId = new Map();
   for (const [, members] of grouped.drawn) {
     const ids = members.map(member => relationKey(member.ref)).sort();
-    const labels = [...new Set(members.map(member => member.label || member.kind).filter(Boolean))];
     const first = members[0];
     const sceneRelation = Object.freeze({
       relationIds: Object.freeze(ids),
       from: regionId(entityKey(first.from)),
       to: regionId(entityKey(first.to)),
       kind: first.kind,
-      label: labels.length === 1 ? labels[0] : labels.join(' / '),
+      // S6: a relation is drawn as its line; its label is in the record (search).
+      label: '',
       directed: true,
       readOnly: true,
       foreground: true,

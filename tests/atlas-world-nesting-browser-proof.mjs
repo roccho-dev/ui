@@ -9,8 +9,9 @@
 // children of one parent do not overlap each other or the parent's title;
 // every nested text is drawn whole inside its box; and a nested status node
 // carries its symbol. Each supplied Scope with an open part (the one whose id
-// is the part's scope or condition, read from the input) shows the part's
-// causes and since; one without shows none. As first shown, at 1500x1000 the
+// is the part's scope or condition, read from the input) shows since when the
+// part is open, and 担当未確定 when it has no scope, never its causes (S6:
+// they are 差's row); one without shows none. As first shown, at 1500x1000 the
 // areas stand side by side within the screen, and at 1280x720 the last area
 // is at least partly on it. A World supplying no containment, or no Scope
 // with an open part, fails: the proof would be empty.
@@ -150,8 +151,8 @@ try {
           }) };
         });
         const where = build.name + ' ' + state.frameId + ' at ' + viewport.width + 'x' + viewport.height;
-        // Each supplied Scope with an open part shows that part's causes and
-        // since; one without shows no such line (nothing is attached by guess).
+        // Each supplied Scope with an open part shows since when (and 担当未確定),
+        // never its causes; one without shows no such line (nothing is attached by guess).
         const { scopes, owners, unplaced } = ownersByFrame.get(state.frameId);
         // An open part on no Scope is counted on 差, never dropped in silence.
         const delta = state.nodes.find(item => item.id.startsWith('gap:'));
@@ -166,11 +167,13 @@ try {
           const part = owners.get(keyOf(scope.ref));
           const sinceShown = /時点(前)?から/u.test(drawn.text);
           if (part) {
-            const words = [...causeList(part.cause).map(cause => CAUSE_LABEL[cause]), ...(part.scope === null ? ['担当未確定'] : [])];
-            if (!sinceShown || !words.every(word => flat(drawn.text).includes(flat(word)))) noCause.push({ id: drawn.id, words, text: drawn.text });
+            const causes = causeList(part.cause).map(cause => CAUSE_LABEL[cause]);
+            if (!sinceShown || (part.scope === null && !flat(drawn.text).includes('担当未確定')) || causes.some(word => flat(drawn.text).includes(flat(word)))) {
+              noCause.push({ id: drawn.id, causes, text: drawn.text });
+            }
           } else if (sinceShown) guessed.push({ id: drawn.id, text: drawn.text });
         }
-        if (owners.size) check(where + ': each Scope with an open part shows its cause and since', noCause.length === 0, noCause.slice(0, 5));
+        if (owners.size) check(where + ': each Scope with an open part shows since when, not its causes', noCause.length === 0, noCause.slice(0, 5));
         check(where + ': a Scope with no open part gets no cause line', guessed.length === 0, guessed.slice(0, 5));
         const pairs = pairsByFrame.get(state.frameId) ?? [];
         if (!pairs.length) continue;

@@ -6,7 +6,7 @@
 // accumulates them) and `matched_until`. Read exactly as supplied; nothing is
 // inferred.
 // A frame carrying any of them is drawn from them in two areas: the purpose
-// area holds the phase line, 目的, 理想状態, 差 and 現在状態, and the next area
+// area holds 目的, 理想状態, 差 (whose heading names the phase) and 現在状態, and the next area
 // holds the Scopes the frame supplies there (as supplied, nesting included) or,
 // when it supplies none, one Scope per open part plus the conditions closed so
 // far as history.
@@ -382,8 +382,6 @@ const evaluationSigns = (journal, purposeId) => {
     + '（出所 ' + entry.source.ref.split(' ')[0] + (entry.actor ? ' · ' + entry.actor : '') + ' · ' + dayClockText(entry.observedAt ?? entry.recordedAt) + '）');
 };
 
-const HELD_LINES = 5;
-
 // Entities and relations of a gap frame, in the normalized World shape.
 // `earlier` are the frames before it (for the previous gap and history).
 export const gapView = ({ frame, earlier, presentation, key }) => {
@@ -414,7 +412,6 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     kind: 'gap', label, context: Object.freeze(context), source: null, time, flags: Object.freeze(['authority=false']), path: true,
     visible: true, activity: 'none', containment: null });
 
-  const phaseRef = ref('phase', purposeId);
   const idealRef = ref('ideal-state', purposeId);
   const currentRef = ref('current-state', purposeId);
   const deltaRef = ref('gap', purposeId);
@@ -427,43 +424,31 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
       + evaluationSigns(journal, purposeId).map(line => '\n' + line).join(''), areas.purpose, 2, adequacySummary(frame.adequacy),
       ['scope_status=' + frame.adequacy.state])
     : null;
-  const unknownCount = '不明';
   // The newest decision of a kind, up to this frame, for the purpose drawn (and,
   // for an ideal.set, the version drawn): its source's admission marks it (A3).
   const decided = (kind, version = null) => journal.filter(entry => entry.kind === kind && (entry.purpose_id ?? entry.purpose?.id) === purposeId
     && (version === null || versionText(entry.ideal_version ?? entry.version) === versionText(version))).at(-1) ?? null;
 
-  // Phase line: what the supplied phase says, checked against the gap.
+  // S6 (adrs#647 comment 6306887827): no phase box. 理想↔現在の差's heading
+  // names the supplied phase, when it began (the first received frame, going
+  // back from this one, in the same phase), a matched phase's next stale time
+  // and whether the phase disagrees with the gap. The phase itself is read
+  // here and on 理想状態; what was held is in 仕訳 ▸ (atlas-timeline.mjs).
   const phase = frame.phase ?? null;
   const consistent = phase === null ? true : (phase === 'approximating' ? g !== null && g.parts.length > 0
     : phase === 'matched' ? g !== null && g.parts.length === 0 : g === null);
-  const phaseDetail = phase === 'approximating' ? '差 ' + (g ? g.parts.length + ' · ' + versionText(g.basis.ideal_version) : unknownCount)
-    : phase === 'matched' ? '新規 0 · 次の鮮度切れ ' + (frame.matched_until ? clockText(frame.matched_until) : '不明')
-      : phase === 'ended' ? 'Scope は凍結（履歴）'
-        : phase === null ? '差 ' + (counts ? counts.open : unknownCount) : '差 ' + unknownCount;
-  // v5: satisfied conditions whose evidence predates the ideal.set are shown,
-  // not hidden: a match that may be a false positive.
-  const beforeIdeal = g?.summary.before_ideal ? ' · 理想状態の確定前の観測で一致 ' + g.summary.before_ideal + ' 件' : '';
   const phaseDecision = phase === 'defining' ? decided('ideal.drafting') : phase === 'ended' ? decided('purpose.ended') : null;
-  // v12: the declarations held back up to this frame, counted by reason. Display only.
-  const held = [...earlier, frame].flatMap(item => item.held ?? []);
-  const heldText = held.length ? '\n保持 ' + held.length + ' 件（' + [...new Set(held.map(item => item.reason))].sort()
-    .map(reason => reason + ' ' + held.filter(item => item.reason === reason).length).join(' · ') + '）' : '';
-  // Contract 3 (revised): with no band on screen, the phase line names when
-  // its phase began: the first received frame, going back from this one, in
-  // the same phase.
   let phaseStart = frame;
   for (const item of [...earlier].reverse()) {
     if (item.phase !== phase) break;
     phaseStart = item;
   }
-  const phaseSince = phase === null ? '' : '（' + dayClockText(phaseStart.asOf) + ' から）';
-  const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + admissionMark(phaseDecision) + phaseSince + ' · ' + phaseDetail + beforeIdeal
-    + (consistent ? '' : ' · gap と不整合') + heldText
-    // Cases 15 and 29: what was held, one line each in the order they entered,
-    // at most HELD_LINES; the rest counted.
-    + held.slice(0, HELD_LINES).map(item => '\n保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.source.ref).join('')
-    + (held.length > HELD_LINES ? '\n他 ' + (held.length - HELD_LINES) + ' 件' : '');
+  const deltaHeading = '理想↔現在の差' + (phase === null ? '' : '（' + PHASE_LABEL[phase] + admissionMark(phaseDecision) + '・' + dayClockText(phaseStart.asOf) + ' から'
+    + (phase === 'matched' ? '・次の鮮度切れ ' + (frame.matched_until ? dayClockText(frame.matched_until) : '不明') : '') + '）')
+    + (consistent ? '' : ' · gap と不整合');
+  // v5: satisfied conditions whose evidence predates the ideal.set are shown,
+  // not hidden: a match that may be a false positive.
+  const beforeIdeal = g?.summary.before_ideal ? '\n理想状態の確定前の観測で一致 ' + g.summary.before_ideal + ' 件' : '';
 
   const prevVersion = prevGap?.basis.ideal_version ?? null;
   // The ideal state moves only within one purpose; a new purpose's ideal is
@@ -476,12 +461,9 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const drafting = g === null ? null : decided('ideal.drafting');
   const revisingText = drafting && versionText(drafting.version) !== versionText(g.basis.ideal_version)
     && decided('ideal.set', drafting.version) === null ? ' · 改訂中 ' + versionText(drafting.version) : '';
-  // Only what is there is written: additions and revisions when there are any.
-  const moves = g === null ? [] : [['追加', 'ideal-added'], ['改訂', 'ideal-revised']].filter(([, cause]) => counts.byCause[cause] > 0)
-    .map(([name, cause]) => name + ' ' + counts.byCause[cause]);
   const idealLine = g === null ? '照らし合わせる理想状態なし（' + (phase === 'defining' ? '定義中' : phase === 'ended' ? '目的は終了' : '未定義') + '）'
     : (moved ? versionText(prevVersion) + '→' : '') + versionText(g.basis.ideal_version) + admissionMark(decided('ideal.set', g.basis.ideal_version))
-      + (moved ? ' 移動' : '') + ' · ' + conditionsText + (moves.length ? '（' + moves.join(' · ') + '）' : '') + revisingText;
+      + (moved ? ' 移動' : '') + ' · ' + conditionsText + revisingText;
   const prevOpen = g === null ? '' : g.basis.prev_frame === null ? '初回' : prevGap ? '前 ' + prevGap.parts.length : '前 不明';
   // The cause of each side of a part (v6: ideal side first; a side without one is left out).
   const causeText = part => {
@@ -552,24 +534,23 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     return hits.length ? ' · 物理Scope ' + hits.map(physicalName).join(' / ') : ' · 物理Scope 未特定';
   };
   // 差 is the difference only: which conditions differ (! unmet, ? unknown)
-  // and why. The ideal's and the current state's contents are in their nodes.
-  // It is named 理想↔現在の差, apart from GapA. With physical Scope
-  // declarations each row names its repo/package, or 未特定 when none is declared.
-  const deltaText = g === null ? (phase === 'ended' ? '理想↔現在の差\n差 対象外\n目的は終了した' : '理想↔現在の差\n差 不明\n照らし合わせる理想状態がまだ無い')
-    : '理想↔現在の差\n差 ' + counts.open + '（' + prevOpen + '）' + (counts.agrees ? '' : ' · 集計不一致')
+  // and why, and the previous frame's count. The ideal's and the current
+  // state's contents are in their nodes. It is named 理想↔現在の差, apart from
+  // GapA. With physical Scope declarations each row names its repo/package, or
+  // 未特定 when none is declared.
+  const deltaText = g === null ? deltaHeading + (phase === 'ended' ? '\n差 対象外\n目的は終了した' : '\n差 不明\n照らし合わせる理想状態がまだ無い')
+    : deltaHeading + '\n' + prevOpen + (counts.agrees ? '' : ' · 集計不一致')
       + g.parts.map(part => '\n' + (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · ' + causeText(part)
         + (physical ? physicalMark(part) : '')).join('')
       + (physical ? '' : unplaced.length ? '\nScope に付かない差 ' + unplaced.length + ' 件' : '');
   const deltaFlags = g === null ? ['scope_status=unknown'] : counts.open === 0 ? ['standing=completed-history'] : counts.unknown > 0 ? ['scope_status=unknown'] : ['scope_status=unmet'];
   // The current state: observations (journal entries of kind observation up
-  // to this frame; none recorded reads so, never 0 observed), its contrast with
-  // the ideal state as supplied (how many of its conditions match; unmet ones
-  // are 差, never written here) and the current claims.
+  // to this frame; none recorded reads so, never 0 observed), the matches
+  // resting on observations older than the ideal, and the current claims.
+  // The other matches are the ideal's conditions less 差's rows (S6).
   const observations = journal.filter(entry => entry.kind === 'observation');
   const lastObserved = observations.map(entry => entry.observedAt ?? entry.recordedAt).sort().at(-1);
   const claims = currentClaims(journal);
-  const contrast = g === null ? '' : '\n' + (g.summary.satisfied === null || g.summary.conditions === null ? '理想の条件との一致 未供給'
-    : '理想の条件 ' + g.summary.conditions + ' 件のうち一致 ' + g.summary.satisfied + ' 件');
   // Plans are an attribute of the ideal state (v12): 理想状態 ends with the
   // frame's plans and the plans bound to no ideal state, so every chrome shows
   // them (the HUD's plan cell too). No line when neither is there (no zero
@@ -578,7 +559,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const plans = frame.plans ?? null;
   const planLine = plans === null && !unbound ? '' : '\n計画：' + (plans === null ? '未宣言（UNKNOWN）' : plans.length ? plans.length + ' 件' : '有効な計画 0 件')
     + (unbound ? ' · 未結合 ' + unbound + ' 件' : '');
-  const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + contrast
+  const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + beforeIdeal
     + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
 
   // The supplied purpose label; when this frame was already drawn from its
@@ -592,9 +573,6 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     + (evaluation ? ' · ' + (evaluation.past ? '過去の評価：' : '評価：') + evaluation.verdict + evaluation.mark : '')];
 
   const entities = [
-    entity(phaseRef, phaseLabel, areas.purpose, 0, '局面は供給された phase。matched は理想状態との一致で、目的の達成ではない。'
-      + (frame.matched_until ? ' matched_until=' + frame.matched_until : '')
-      + held.map(item => '\n保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref).join('')),
     entity(purposeRef, purposeLines.join('\n'), areas.purpose, 1,
       '目的は観測では判定しない（人が評価する）。purpose_id=' + purposeId + (gap ? ' · purpose_rev=' + gap.basis.purpose_rev : '')
         + (evaluation ? ' · ' + (evaluation.past ? '過去の評価' : '評価') + '=' + evaluation.verdict + ' (' + evaluation.recordedAt + ')' : ''),
@@ -603,11 +581,12 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     ...(adequacy ? [Object.freeze({ ...adequacy, area: areas.purpose, order: 2 })] : []),
     entity(idealRef, '理想状態\n' + idealLine + planLine, areas.purpose, 3,
       g === null ? '照らし合わせる理想状態が無い（parts=null: UNKNOWN）。'
-        : '理想状態 ' + versionText(g.basis.ideal_version) + (moved ? '（直前 ' + versionText(prevVersion) + '）' : '') + '。追加・改訂は開いている差の原因の件数。'),
-    entity(deltaRef, deltaText, areas.purpose, 4, g === null ? '差は不明（0 ではない）。'
+        : '理想状態 ' + versionText(g.basis.ideal_version) + (moved ? '（直前 ' + versionText(prevVersion) + '）' : '') + '。'),
+    entity(deltaRef, deltaText, areas.purpose, 4, (phase === null ? '' : '局面は供給された phase。matched は理想状態との一致で、目的の達成ではない。'
+      + (frame.matched_until ? ' matched_until=' + frame.matched_until : '') + '\n') + (g === null ? '差は不明（0 ではない）。'
       : '現在状態と理想状態の差。原因ごとの件数は parts から数えた値（1 件が複数の原因を持てる）。'
         + (counts.agrees ? '' : ' 供給された summary は parts と一致しない: ' + JSON.stringify(g.summary))
-        + unplaced.map(part => '\nScope に付かない差: ' + partRecord(part)).join(''), deltaFlags),
+        + unplaced.map(part => '\nScope に付かない差: ' + partRecord(part)).join('')), deltaFlags),
     entity(currentRef, '現在状態\n' + currentLine, areas.purpose, 5, '現在状態は観測だけ（frame ' + frame.asOf + '）。判定（✓=充足 ?=不明 !=未達）は差に置く。'),
   ];
   const relations = [
@@ -621,8 +600,9 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     const sinceFrame = [...earlier, frame].find(item => item.id === since);
     return (ago === 0 ? 'この時点から' : ago + ' 時点前から') + '（' + clockText(sinceFrame.asOf) + '）';
   };
-  // A part's line: its state, its causes and since when it is open.
-  const partLine = part => (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + sinceText(part.since);
+  // A part's card line: since when it is open. Its state and causes are 差's
+  // row (S6: not repeated on the card).
+  const partLine = part => sinceText(part.since);
   const beforeIdealMark = part => part.observed_before_ideal ? ' · 理想状態の確定前の観測' : '';
   // Case 26: the part's last matched observation, as supplied; none supplied, nothing.
   const observedMark = part => part.last_observed === undefined ? '' : part.last_observed === null ? ' · 最後の観測なし'
@@ -631,8 +611,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const packageLabel = item => {
     const parts = physicalParts(item), keeps = keepsOf(item);
     return [...physicalHeading(item), ...(keeps.length ? ['保つ: ' + keeps.join('・')] : []), ...(parts.length ? ['対象: 理想↔現在の差'] : []),
-      ...parts.map(part => (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · '
-        + (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + ownerLine(part) + observedMark(part))].join('\n');
+      ...parts.map(part => (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · ' + ownerLine(part) + observedMark(part))].join('\n');
   };
   const packageSummary = item => {
     const parts = physicalParts(item), keeps = keepsOf(item);
@@ -695,4 +674,8 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
 // the present only; the gap is not derived again.
 export const phaseStale = (frame, now) => frame.phase === 'matched' && typeof frame.matched_until === 'string'
   && Number.isFinite(now) && now > Date.parse(frame.matched_until);
-export const STALE_PHASE_LABEL = '局面：一致・維持 → 鮮度切れ・最新か不明';
+export const STALE_PHASE_LABEL = '鮮度切れ・最新か不明';
+// The stale present's 理想↔現在の差 label (S6): its heading says it went stale
+// in place of its next stale time; the lines below it stay.
+export const staleDeltaLabel = (label, frame) => label.replace('・次の鮮度切れ ' + dayClockText(frame.matched_until) + '）',
+  '・' + STALE_PHASE_LABEL + '（' + dayClockText(frame.matched_until) + ' を過ぎた））');
