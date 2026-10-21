@@ -166,6 +166,14 @@ check('cases 15 and 29: the heading counts what was held up to the frame', heldT
 // changes of the time shown are the panel right under them.
 check('the controls are the status, the search, ◀ 前へ / 次へ ▶ / 現在へ and the changes', JSON.stringify(SCREEN_CONTROLS.map(item => item.id))
   === JSON.stringify(['atlas-world-status', 'atlas-world-search', 'atlas-world-search-results', 'atlas-world-search-count', 'atlas-world-step-back', 'atlas-world-step-forward', 'atlas-world-present', 'atlas-world-change']));
+// The panel's row says what the page draws: six lines, fixed (116 px,
+// atlas-ui.mjs), the rest scrolled inside it (S7c).
+{
+  const carries = SCREEN_CONTROLS.find(item => item.id === 'atlas-world-change')?.carries ?? '';
+  const style = readFileSync(new URL('../packages/control/atlas-ui.mjs', import.meta.url), 'utf8');
+  check('the changes panel is 6 lines, fixed, as the table says', carries.includes('6 行（固定）') && !carries.includes('6 行まで')
+    && /#atlas-world-change\{[^}]*\bheight:116px/u.test(style) && !/#atlas-world-change\{[^}]*max-height/u.test(style), carries);
+}
 // The steps past the present: the present's upkeep by stale_at minute,
 // earliest first; fresh up to stale_at itself (≦); passed ones left out.
 const stepsOf = (options, now) => (timeline.forecastSteps?.(parseAtlasWorldInput(gapWorld(options)).frames.at(-1), now) ?? []).map(step => [step.at, step.items.map(item => item.condition)]);
