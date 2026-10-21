@@ -415,8 +415,8 @@ feature('held rows in 仕訳 ▸ (cases 15, 29)', () => {
   const rows = { t0: [], t1: [], t2: [], t3, t4: t3, t5, t6: t5, t7: t5 };
   for (const item of heldWorld.frames) assert.deepEqual(timeline.heldLines(heldWorld.frames, item), rows[item.id], item.id + ': held up to the frame, one row each');
   assert.deepEqual(timeline.heldLines(input.frames, frame('t5')), [], 'none held: no row');
-  assert.equal(timeline.journalButtonText(timeline.journalLines(heldWorld.frames[5]).length, t5.length, false), '仕訳 1 · 保持 3 ▸');
-  assert.equal(timeline.journalButtonText(0, 0, true), '仕訳 0 · 保持 0 ▾');
+  assert.equal(timeline.journalButtonText(timeline.journalLines(heldWorld.frames[5]).length, t5.length, false), '仕訳 1 · 保持 3（累計）▸');
+  assert.equal(timeline.journalButtonText(0, 0, true), '仕訳 0 · 保持 0（累計）▾');
 });
 // Case 14: while an ideal is in force, a newer ideal.drafting with no ideal.set
 // of its version yet reads 改訂中 on 理想状態. Display only.

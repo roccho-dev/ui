@@ -168,7 +168,7 @@ try {
       check(where + ': the search count names no frame id or rev', !after.count.includes(world.frames[index].id) && !after.count.includes('rev') && before.count.includes(world.frames[index].id), after.count);
       const journal = views.after[step === 'present' ? 'journal' : 'backJournal'], journalBefore = views.before[step === 'present' ? 'journal' : 'backJournal'];
       const entries = journalBefore.rows.filter(row => row !== 'この時点の仕訳はない');
-      check(where + ': 仕訳 n · 保持 m ▸ counts the entries and what was held', after.journalButton === '仕訳 ' + entries.length + ' · 保持 ' + s6.held.length + ' ▸', after.journalButton);
+      check(where + ': 仕訳 n · 保持 m（累計）▸ counts the frame\'s entries and what was held up to it', after.journalButton === '仕訳 ' + entries.length + ' · 保持 ' + s6.held.length + '（累計）▸', after.journalButton);
       check(where + ': 仕訳 ▸ lists the entries, then each declaration held up to the frame, visible',
         JSON.stringify(journal.rows) === JSON.stringify(entries.length + s6.held.length ? [...entries, ...s6.held] : journalBefore.rows), { before: journalBefore.rows, after: journal.rows, held: s6.held });
       check(where + ': no HUD, panel, strip or band region in this build', after.nonArea === 0, after.nonArea);
