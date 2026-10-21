@@ -43,18 +43,26 @@ const MINUTE = 60_000;
 const world = gapWorld();
 const asOf = Date.parse(world.frames.at(-1).asOf);
 const { scratch, done } = proofScratch(args.out);
-// Three builds: the plain story (status rows, time controls); `forecast`, the
-// story up to the matched t5 with upkeep, held declarations and unbound plans
-// (予定 ▸, the held lines); `history`, the whole story with a drafting ideal
-// and the parts' last observations (改訂中, last_observed, 仕訳 ▸, search).
-const worlds = { page: world, forecast: gapWorld({ through: 't5', upkeep: true, held: true, unbound: true }),
-  history: gapWorld({ drafting: true, lastObserved: true, held: true }) };
+// One build per story, so a field a build does not accept stops only the
+// checks that need it: the plain story (status rows, time controls);
+// `legacy`, GapA from the producer's purpose-adequacy entity as the HQ World
+// carries it (no `adequacy` yet); `forecast`, up to the matched t5 with held
+// declarations and unbound plans (予定 ▸, held lines); `upkeep`, the same with
+// frames[i].upkeep; `history`, the whole story with a drafting ideal (改訂中,
+// 仕訳 ▸, search); `observed`, with the parts' last observations.
+const worlds = { page: world, legacy: gapWorld({ adequacy: true }), forecast: gapWorld({ through: 't5', held: true, unbound: true }),
+  upkeep: gapWorld({ through: 't5', upkeep: true }), history: gapWorld({ drafting: true, held: true }), observed: gapWorld({ lastObserved: true }) };
 const bodies = {};
+const buildFailures = {};
 for (const [name, value] of Object.entries(worlds)) {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(value), { flag: 'wx' });
-  await buildLiveAtlas({ input, out: path.join(args.out, name), consumer: 'app', chrome: 'none', updateIntervalMinutes: 10 });
-  bodies[name] = fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
+  try {
+    await buildLiveAtlas({ input, out: path.join(args.out, name), consumer: 'app', chrome: 'none', updateIntervalMinutes: 10 });
+    bodies[name] = fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
+  } catch (error) {
+    buildFailures[name] = String(error.message).split('\n')[0];
+  }
 }
 const site = http.createServer((request, response) => {
   const body = bodies[new URL(request.url, 'http://localhost').pathname.split('/')[1] || 'page'] ?? bodies.page;
@@ -89,6 +97,8 @@ const shown = (page, words) => page.evaluate(words => {
     }) };
 }, words);
 const allShown = result => result.words.every(item => item.inside);
+// A visible button pressed, or false when the page has none by that name.
+const press = (page, name) => page.getByRole('button', { name, exact: true }).click({ timeout: 2000 }).then(() => true, () => false);
 // The rows of the 予定 / 仕訳 list: whether the list is shown and each row,
 // matched by its whole text, lies inside it.
 const listShown = (page, lines) => page.evaluate(lines => {
@@ -178,54 +188,85 @@ try {
       allShown(stalled) && stalled.row.text.indexOf(STALLED) < stalled.row.text.indexOf('LATEST'), stalled);
     await live.close();
 
-    // 予定 ▸ (t+1, not a frame): the three areas stay at t0; the list shows
-    // the plans, the unbound plans and the upkeep, each row inside the list.
-    const forecast = await open(width, false, null, 'forecast');
-    const atPresent = await boxes(forecast);
-    check(width + 'px: the phase box lists each held declaration (cases 15 and 29)',
-      atPresent.phase?.includes(flat('保持 actor-mismatch · ideal.set · adrs#647保持 proposal · ideal.set · ops#552保持 author-unknown · 種類不明 · adrs#647')), atPresent.phase);
-    await forecast.getByRole('button', { name: '予定 ▸' }).click();
-    await settle(forecast);
-    const planned = await listShown(forecast, ['予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）',
-      '未結合 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2', '維持の作業（鮮度切れの予定の早い順）',
-      'c1 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 05:41Z', 'c3 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 06:10Z']);
-    check(width + 'px 予定 ▸: plans, unbound plans and upkeep are visible rows', planned.visible && planned.rows.every(row => row.inside), planned);
-    check(width + 'px 予定 ▸: the three areas stay at t0', JSON.stringify(await boxes(forecast)) === JSON.stringify(atPresent)
-      && allShown(await shown(forecast, ['表示中：現在 6/6 · t5'])));
-    await forecast.getByRole('button', { name: '予定 ▾' }).click();
-    await settle(forecast);
-    check(width + 'px 予定 ▾ closes the list', !(await listShown(forecast, [])).visible);
-    await forecast.close();
-
-    // The past: 改訂中 (case 14), the last observation (case 26), 仕訳 ▸.
-    const history = await open(width, false, null, 'history');
-    await history.getByRole('button', { name: '◀ 前へ' }).click();
-    await settle(history);
-    const t6 = await boxes(history);
-    check(width + 'px t6: 理想状態 reads 改訂中 v3 while v2 is in force', t6['ideal-state']?.includes(flat('v2 · 条件 4 · 改訂中 v3')), t6['ideal-state']);
-    check(width + 'px t6: the stale part names its last observation', t6['gap-part']?.includes(flat('最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）')), t6['gap-part']);
-    await history.getByRole('button', { name: '仕訳 1 ▸' }).click();
-    await settle(history);
-    const entries = await listShown(history, ['△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
-    check(width + 'px 仕訳 1 ▸: the entry t6 carries is a visible row', entries.visible && entries.rows.every(row => row.inside), entries);
-    await history.getByRole('button', { name: '仕訳 1 ▾' }).click();
-    // Search: choosing a relation brings the camera to its from box, drawn
-    // inside the graph and with the relation's label shown.
-    await history.getByRole('button', { name: '現在へ' }).click();
-    await history.fill('#atlas-world-search', 'current-delta');
-    await settle(history);
-    const relationKey = await history.evaluate(() => window.liveAtlas.page.searchResults.find(row => row.kind === 'relation')?.key ?? null);
-    await history.selectOption('#atlas-world-search-results', relationKey);
-    await settle(history);
-    const focused = await history.evaluate(() => {
-      const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
-      const id = atlas.projection.selectedRegionId;
-      const box = view.getState(adapter.cellsByRegionId.get(id))?.shape?.node?.getBoundingClientRect();
-      const frame = document.getElementById('atlas-world').getBoundingClientRect();
-      return { id, inside: Boolean(box && box.width > 0 && box.left >= frame.left - 1 && box.right <= frame.right + 1 && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1) };
+    // Each story below is checked on its own page; a story whose build was
+    // refused fails its own checks only.
+    const story = async (name, label, body) => {
+      if (!bodies[name]) { check(width + 'px ' + label + ': built', false, buildFailures[name]); return; }
+      const page = await open(width, false, null, name);
+      try { await body(page); } finally { await page.close(); }
+    };
+    // The HQ World has no `adequacy` yet: GapA comes from the producer's
+    // purpose-adequacy entity and its box is drawn, inside the graph.
+    await story('legacy', 'GapA from the purpose-adequacy entity', async page => {
+      const gapA = await page.evaluate(() => {
+        const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
+        const item = atlas.projection.scene.representations.find(rep => rep.atlas?.ref?.kind === 'purpose-adequacy');
+        const state = item ? view.getState(adapter.cellsByRegionId.get(item.regionId)) : null;
+        const text = state?.text?.node, box = text?.getBoundingClientRect(), frame = document.getElementById('atlas-world').getBoundingClientRect();
+        return { text: text?.textContent ?? null, inside: Boolean(box && box.width > 0 && box.left >= frame.left - 1 && box.right <= frame.right + 1
+          && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1) };
+      });
+      check(width + 'px: GapA (目的↔理想の差) is drawn from the earlier entity, visible in the graph', gapA.inside && flat(gapA.text ?? '').startsWith(flat('目的↔理想の差')), gapA);
     });
-    check(width + 'px search: a chosen relation focuses its from box (現在状態)', relationKey && /current-state/u.test(focused.id ?? '') && focused.inside, { relationKey, focused });
-    await history.close();
+    // 予定 ▸ (t+1, not a frame): the three areas stay at t0; the list shows the
+    // plans, the unbound plans and matched_until, each row inside the list.
+    await story('forecast', '予定 ▸ and held lines', async page => {
+      const atPresent = await boxes(page);
+      check(width + 'px: the phase box lists each held declaration (cases 15 and 29)',
+        atPresent.phase?.includes(flat('保持 actor-mismatch · ideal.set · adrs#647保持 proposal · ideal.set · ops#552保持 author-unknown · 種類不明 · adrs#647')), atPresent.phase);
+      const opened = await press(page, '予定 ▸');
+      await settle(page);
+      const planned = await listShown(page, ['予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）',
+        '未結合 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2', '次の鮮度切れ 10-17 05:41Z']);
+      check(width + 'px 予定 ▸: plans, unbound plans and matched_until are visible rows', opened && planned.visible && planned.rows.every(row => row.inside), planned);
+      check(width + 'px 予定 ▸: the three areas stay at t0', opened && JSON.stringify(await boxes(page)) === JSON.stringify(atPresent)
+        && allShown(await shown(page, ['表示中：現在 6/6 · t5'])));
+      const closed = await press(page, '予定 ▾');
+      await settle(page);
+      check(width + 'px 予定 ▾ closes the list', closed && !(await listShown(page, [])).visible);
+    });
+    await story('upkeep', '予定 ▸ with upkeep', async page => {
+      const opened = await press(page, '予定 ▸');
+      await settle(page);
+      const planned = await listShown(page, ['維持の作業（鮮度切れの予定の早い順）', 'c1 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 05:41Z',
+        'c3 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 06:10Z']);
+      check(width + 'px 予定 ▸: the upkeep, per condition, earliest first, is visible', opened && planned.visible && planned.rows.every(row => row.inside), planned);
+    });
+    // The past: 改訂中 (case 14) and 仕訳 ▸; then search.
+    await story('history', '改訂中, 仕訳 ▸ and search', async page => {
+      await press(page, '◀ 前へ');
+      await settle(page);
+      const t6 = await boxes(page);
+      check(width + 'px t6: 理想状態 reads 改訂中 v3 while v2 is in force', t6['ideal-state']?.includes(flat('v2 · 条件 4 · 改訂中 v3')), t6['ideal-state']);
+      const opened = await press(page, '仕訳 1 ▸');
+      await settle(page);
+      const entries = await listShown(page, ['△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
+      check(width + 'px 仕訳 1 ▸: the entry t6 carries is a visible row', opened && entries.visible && entries.rows.every(row => row.inside), entries);
+      await press(page, '仕訳 1 ▾');
+      // Search: choosing a relation brings the camera to its from box, drawn
+      // inside the graph.
+      await press(page, '現在へ');
+      await page.fill('#atlas-world-search', 'current-delta');
+      await settle(page);
+      const relationKey = await page.evaluate(() => window.liveAtlas.page.searchResults.find(row => row.kind === 'relation')?.key ?? null);
+      if (relationKey) await page.selectOption('#atlas-world-search-results', relationKey);
+      await settle(page);
+      const focused = await page.evaluate(() => {
+        const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
+        const id = atlas.projection.selectedRegionId;
+        const box = id ? view.getState(adapter.cellsByRegionId.get(id))?.shape?.node?.getBoundingClientRect() : null;
+        const frame = document.getElementById('atlas-world').getBoundingClientRect();
+        return { id, inside: Boolean(box && box.width > 0 && box.left >= frame.left - 1 && box.right <= frame.right + 1 && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1) };
+      });
+      check(width + 'px search: a chosen relation focuses its from box (現在状態)', relationKey && /current-state/u.test(focused.id ?? '') && focused.inside, { relationKey, focused });
+    });
+    // The last observation (case 26), on the stale part at t6.
+    await story('observed', 'the last observation', async page => {
+      await press(page, '◀ 前へ');
+      await settle(page);
+      const t6 = await boxes(page);
+      check(width + 'px t6: the stale part names its last observation', t6['gap-part']?.includes(flat('最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）')), t6['gap-part']);
+    });
   }
 } catch (error) {
   interruption = String(error?.stack ?? error);

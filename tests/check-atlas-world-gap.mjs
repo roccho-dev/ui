@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
-import { TIMELINE_ID_PREFIX, forecastLines, journalLines } from '../packages/control/src/atlas-timeline.mjs';
+import * as timeline from '../packages/control/src/atlas-timeline.mjs';
+import { TIMELINE_ID_PREFIX } from '../packages/control/src/atlas-timeline.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 import { knownPlan } from './fixtures/atlas-plan-worlds.mjs';
 
@@ -352,26 +353,48 @@ planned.frames[3].plans = [];
 assert.deepEqual(parseAtlasWorldInput(planned).frames[3].entities.filter(entity => entity.ref.kind !== 'ideal-state'),
   frame('t3').entities.filter(entity => entity.ref.kind !== 'ideal-state'), 'plans change no gap entity');
 
-// GapA (目的↔理想の差) comes only from a frame's `adequacy` (contract v12).
-// Without it there is no GapA and the ideal state approximates the purpose
-// directly; a producer's purpose-adequacy entity (the earlier path, removed at
-// ④) is neither drawn nor kept.
+// GapA (目的↔理想の差) is the producer's purpose-adequacy (apps#129): drawn as
+// supplied between 理想状態 and 理想↔現在の差, never judged here from the
+// journal, a match or CI. When none is supplied there is no GapA and the ideal
+// state approximates the purpose directly, as before. This earlier path is
+// what the HQ World draws GapA from until apps ② ships `adequacy`; it is
+// removed at ④.
 const ofKind = (world, id, kind) => world.frames.find(item => item.id === id).entities.filter(entity => entity.ref.kind === kind);
 const gapRelations = item => item.relations.filter(relation => relation.kind === 'gap').map(relation => relation.from.kind + '>' + relation.to.kind + ' ' + relation.label);
-const purposeOrder = item => item.entities.filter(entity => entity.area === 'purpose').sort((a, b) => a.order - b.order).map(entity => entity.ref.kind);
 for (const item of input.frames) {
   assert.deepEqual(ofKind(input, item.id, 'purpose-adequacy'), [], item.id + ': no GapA supplied, none drawn');
   assert.ok(gapRelations(item).includes('ideal-state>purpose 近似'), item.id + ': ideal approximates the purpose');
 }
-const earlierPath = gapWorld();
-for (const item of earlierPath.frames) item.entities.push({ ref: { space: 'fixture:gap', kind: 'purpose-adequacy', id: 'hq' }, label: '目的↔理想の差\n未評価',
-  area: 'purpose', order: 9, visible: true, activity: 'none', flags: ['purpose_adequacy=unassessed'] });
-assert.deepEqual(parseAtlasWorldInput(earlierPath).frames.map(item => item.entities), input.frames.map(item => item.entities), 'the earlier purpose-adequacy entity draws nothing');
-// Admission is a mark only (adrs#647): on the evaluation in 目的.
-assert.equal(byKind(parseAtlasWorldInput(gapWorld({ admission: true })).frames[3])['purpose:hq'], '目的\n宣言だけで回る組織\nrev 1（未採択） · 過去の評価：理想状態が不十分（pending-review）');
+const suppliedAdequacy = gapWorld({ adequacy: true });
+const adequate = parseAtlasWorldInput(suppliedAdequacy);
+const purposeOrder = item => item.entities.filter(entity => entity.area === 'purpose').sort((a, b) => a.order - b.order).map(entity => entity.ref.kind);
+for (const item of adequate.frames) {
+  const [drawn] = ofKind(adequate, item.id, 'purpose-adequacy');
+  const raw = suppliedAdequacy.frames.find(each => each.id === item.id).entities.find(entity => entity.ref.kind === 'purpose-adequacy');
+  assert.deepEqual([drawn.label, drawn.flags, drawn.summary], [raw.label, raw.flags, raw.summary], item.id + ': GapA as supplied');
+  assert.deepEqual(purposeOrder(item), ['phase', 'purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': declared as the chain P, GapA, I, GapB, C');
+  const relations = gapRelations(item);
+  assert.ok(relations.includes('ideal-state>purpose-adequacy 照らす') && relations.includes('purpose-adequacy>purpose 十分性')
+    && !relations.some(relation => relation.endsWith(' 近似')), item.id + ': one path P–GapA–I: ' + relations.join(', '));
+  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'purpose-adequacy').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
+    frame(item.id).entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': GapA changes no other entity');
+}
+assert.deepEqual(ofKind(adequate, 't4', 'purpose-adequacy')[0].flags, ['purpose_adequacy=insufficient', 'role=whole-purpose-evaluation']);
+assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(adequate))), adequate, 'GapA is idempotent');
+// The journal never judges GapA: a current, unadmitted evaluation leaves it as supplied.
+const rejudged = gapWorld({ adequacy: true });
+Object.assign(rejudged.frames[3].journal.find(entry => entry.kind === 'purpose.evaluated'), { ideal_version: 2 });
+rejudged.frames[3].journal.find(entry => entry.kind === 'purpose.evaluated').source.admission = 'observed_not_admitted';
+const rejudgedWorld = parseAtlasWorldInput(rejudged);
+for (const item of rejudgedWorld.frames) assert.deepEqual(ofKind(rejudgedWorld, item.id, 'purpose-adequacy'), ofKind(adequate, item.id, 'purpose-adequacy'), item.id + ': no GapA judgment here');
+// Admission is a mark only (adrs#647): on the evaluation in 目的, never on GapA's state.
+const markedWorld = parseAtlasWorldInput(gapWorld({ adequacy: true, admission: true }));
+for (const item of markedWorld.frames) assert.deepEqual(ofKind(markedWorld, item.id, 'purpose-adequacy'), ofKind(adequate, item.id, 'purpose-adequacy'), item.id + ': admission leaves GapA as supplied');
+assert.equal(byKind(markedWorld.frames[3])['purpose:hq'], '目的\n宣言だけで回る組織\nrev 1（未採択） · 過去の評価：理想状態が不十分（pending-review）');
 
 // Contract v12 (adrs#647): a frame's `adequacy` is GapA as the producer judged
-// it. The ui draws its state and reason only (no count) and judges nothing.
+// it. The ui draws its state and reason only (no count) and judges nothing;
+// it wins over a supplied purpose-adequacy entity (the earlier path).
 const judgedRaw = gapWorld({ judged: true });
 const judged = parseAtlasWorldInput(judgedRaw);
 const gapALabel = { t0: '不明 · 照らす理想状態が無い', t1: '不明 · 照らす理想状態が無い', t2: '不明 · 人の評価なし', t3: '不明 · 過去の評価（版が違う）',
@@ -391,6 +414,9 @@ const evaluatedRaw = gapWorld({ judged: true });
 Object.assign(evaluatedRaw.frames[4].adequacy, { state: 'unmet', reason: 'evaluated' });
 const evaluatedGapA = ofKind(parseAtlasWorldInput(evaluatedRaw), 't4', 'purpose-adequacy')[0];
 assert.deepEqual([evaluatedGapA.label, evaluatedGapA.flags], ['目的↔理想の差\n不十分 · 人の評価：理想状態が不十分', ['scope_status=unmet']], 'evaluated: unmet');
+const bothRaw = gapWorld({ judged: true, adequacy: true });
+assert.deepEqual(parseAtlasWorldInput(bothRaw).frames.map(item => ofKind({ frames: [item] }, item.id, 'purpose-adequacy').map(entity => entity.label)),
+  judged.frames.map(item => ['目的↔理想の差\n' + gapALabel[item.id]]), 'frame.adequacy wins over the earlier entity');
 // The evaluation's admission is a mark only, in GapA's reason line.
 const admittedGapA = gapWorld({ judged: true });
 admittedGapA.frames[3].adequacy.evidence.source.admission = 'observed_not_admitted';
@@ -421,63 +447,102 @@ const heldText = { t3: '\n保持 1 件（actor-mismatch 1）' + heldLines, t4: '
 for (const id of ['t5', 't6', 't7']) heldText[id] = '\n保持 3 件（actor-mismatch 1 · author-unknown 1 · proposal 1）' + heldLines
   + '\n保持 proposal · ideal.set · ops#552\n保持 author-unknown · 種類不明 · adrs#647';
 for (const item of heldWorld.frames) {
-  assert.equal(byKind(item)['phase:hq'], byKind(frame(item.id))['phase:hq'] + (heldText[item.id] ?? ''), item.id + ': held by reason, accumulated');
   assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'phase').map(entity => [entity.ref.kind, entity.label, entity.flags]),
     frame(item.id).entities.filter(entity => entity.ref.kind !== 'phase').map(entity => [entity.ref.kind, entity.label, entity.flags]), item.id + ': held changes nothing else');
 }
 assert.match(heldWorld.frames[5].entities.find(entity => entity.ref.kind === 'phase').summary, /保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552/u);
-// A stale matched present replaces the phase line only: what was held stays.
-const heldNow = parseAtlasWorldInput(gapWorld({ held: true, through: 't5' }));
-const staleHeld = projectAtlasWorld({ input: heldNow, frame: heldNow.frames[5], selected: 'none', now: Date.parse('2026-10-17T05:41:01Z'), chrome: 'none' })
-  .scene.representations.find(rep => rep.atlas?.ref?.kind === 'phase').label.replace(/\s+/gu, ' ');
-assert.ok(staleHeld.includes('鮮度切れ・最新か不明') && staleHeld.includes('保持 3 件') && staleHeld.includes('保持 proposal · ideal.set · ops#552'), staleHeld);
-const manyHeld = gapWorld({ held: true });
-manyHeld.frames[6].held = Array.from({ length: 4 }, (_, n) => ({ reason: 'proposal', kind: 'plan.set', recordedAt: '2026-10-17T05:3' + n + ':00Z', source: { ref: 'ops#' + (600 + n), commentId: null, sha256: null } }));
-const manyPhase = byKind(parseAtlasWorldInput(manyHeld).frames[6])['phase:hq'];
-assert.ok(manyPhase.includes('\n保持 7 件（'), 'all counted: ' + manyPhase);
-assert.equal(manyPhase.split('\n').filter(line => line.startsWith('保持 ') && !/^保持 \d+ 件/u.test(line)).length, 5, 'at most 5 held lines');
-assert.ok(manyPhase.endsWith('\n他 2 件'), 'the rest counted: ' + manyPhase);
+
+// I2b-1 (contract 3 revised, v12): each feature is checked on its own, so each
+// one that is missing fails by itself (and all are reported together).
+const missing = [];
+const feature = (name, body) => {
+  try { body(); } catch (error) { missing.push(name + ': ' + String(error.message).split('\n')[0]); }
+};
+feature('held lines (cases 15, 29)', () => {
+  for (const item of heldWorld.frames) {
+    assert.equal(byKind(item)['phase:hq'], byKind(frame(item.id))['phase:hq'] + (heldText[item.id] ?? ''), item.id + ': held by reason, accumulated, one line each');
+  }
+  // A stale matched present replaces the phase line only: what was held stays.
+  const heldNow = parseAtlasWorldInput(gapWorld({ held: true, through: 't5' }));
+  const staleHeld = projectAtlasWorld({ input: heldNow, frame: heldNow.frames[5], selected: 'none', now: Date.parse('2026-10-17T05:41:01Z'), chrome: 'none' })
+    .scene.representations.find(rep => rep.atlas?.ref?.kind === 'phase').label.replace(/\s+/gu, ' ');
+  assert.ok(staleHeld.includes('鮮度切れ・最新か不明') && staleHeld.includes('保持 3 件') && staleHeld.includes('保持 proposal · ideal.set · ops#552'), 'stale keeps held: ' + staleHeld);
+  const manyHeld = gapWorld({ held: true });
+  manyHeld.frames[6].held = Array.from({ length: 4 }, (_, n) => ({ reason: 'proposal', kind: 'plan.set', recordedAt: '2026-10-17T05:3' + n + ':00Z', source: { ref: 'ops#' + (600 + n), commentId: null, sha256: null } }));
+  const manyPhase = byKind(parseAtlasWorldInput(manyHeld).frames[6])['phase:hq'];
+  assert.ok(manyPhase.includes('\n保持 7 件（'), 'all counted: ' + manyPhase);
+  assert.equal(manyPhase.split('\n').filter(line => line.startsWith('保持 ') && !/^保持 \d+ 件/u.test(line)).length, 5, 'at most 5 held lines');
+  assert.ok(manyPhase.endsWith('\n他 2 件'), 'the rest counted: ' + manyPhase);
+});
 // Case 14: while an ideal is in force, a newer ideal.drafting with no ideal.set
 // of its version yet reads 改訂中 on 理想状態. Display only.
-const drafted = parseAtlasWorldInput(gapWorld({ drafting: true }));
-assert.equal(byKind(drafted.frames[6])['ideal-state:hq'], byKind(frame('t6'))['ideal-state:hq'] + ' · 改訂中 v3', 't6: 改訂中 v3');
-for (const id of ['t5', 't7']) assert.equal(byKind(drafted.frames.find(item => item.id === id))['ideal-state:hq'], byKind(frame(id))['ideal-state:hq'], id + ': not drafting, or no ideal in force');
-assert.ok(!byKind(frame('t1'))['ideal-state:hq'].includes('改訂中'), 't1: drafting the first ideal is 定義中, not 改訂中');
+feature('改訂中 (case 14)', () => {
+  const drafted = parseAtlasWorldInput(gapWorld({ drafting: true }));
+  assert.equal(byKind(drafted.frames[6])['ideal-state:hq'], byKind(frame('t6'))['ideal-state:hq'] + ' · 改訂中 v3', 't6: 改訂中 v3');
+  for (const id of ['t5', 't7']) assert.equal(byKind(drafted.frames.find(item => item.id === id))['ideal-state:hq'], byKind(frame(id))['ideal-state:hq'], id + ': not drafting, or no ideal in force');
+  assert.ok(!byKind(frame('t1'))['ideal-state:hq'].includes('改訂中'), 't1: drafting the first ideal is 定義中, not 改訂中');
+});
 // Case 26: parts[i].last_observed, the observation the judge last matched for
-// the part, is drawn on its line: when, from where, by whom; null reads 最後の観測なし.
-const observed = parseAtlasWorldInput(gapWorld({ lastObserved: true }));
-assert.equal(byKind(observed.frames[4])['gap-part:c1'], expected.t4['gap-part:c1'] + ' · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）');
-assert.equal(byKind(observed.frames[4])['gap-part:c3'], expected.t4['gap-part:c3'] + ' · 最後の観測なし');
-assert.ok(byKind(observed.frames[6])['gap-part:c1'].endsWith('鮮度切れ · この時点から（06:00Z） · 担当未確定 · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）'),
-  'case 26: the stale part names its last observer');
-const observedPhysical = parseAtlasWorldInput(gapWorld({ lastObserved: true, physical: true }));
-assert.ok(byKind(observedPhysical.frames[4])['package:roccho-dev/apps:packages/atlas'].includes('! c1 · 未達 · 現在の後退 · 担当未確定 · 最後の観測 10-17 03:40Z'), 'the card line too');
-const groupedObserved = parseAtlasWorldInput(gapWorld({ lastObserved: true, groups: true }));
-assert.ok(groupedObserved.frames[4].entities.find(entity => entity.ref.id === 'c1').label.endsWith('担当未確定 · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）'), 'a supplied Scope card too');
-// frames[i].upkeep is read exactly and kept; 予定 ▸ lists it (below).
-const kept = parseAtlasWorldInput(gapWorld({ upkeep: true }));
-assert.deepEqual(kept.frames[5].upkeep.map(item => item.condition), ['c3', 'c1']);
-assert.equal(kept.frames[4].upkeep, undefined, 'only the frames that carry it');
-const fullV12 = parseAtlasWorldInput(gapWorld({ judged: true, held: true, evaluator: true, physical: true, drafting: true, lastObserved: true, upkeep: true }));
-assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(fullV12))), fullV12, 'contract v12 fields are idempotent');
+// the part, is read exactly and drawn on its line: when, from where, by whom;
+// null reads 最後の観測なし.
+feature('最後の観測 (case 26)', () => {
+  const observed = parseAtlasWorldInput(gapWorld({ lastObserved: true }));
+  assert.equal(byKind(observed.frames[4])['gap-part:c1'], expected.t4['gap-part:c1'] + ' · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）');
+  assert.equal(byKind(observed.frames[4])['gap-part:c3'], expected.t4['gap-part:c3'] + ' · 最後の観測なし');
+  assert.ok(byKind(observed.frames[6])['gap-part:c1'].endsWith('鮮度切れ · この時点から（06:00Z） · 担当未確定 · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）'),
+    'case 26: the stale part names its last observer');
+  const observedPhysical = parseAtlasWorldInput(gapWorld({ lastObserved: true, physical: true }));
+  assert.ok(byKind(observedPhysical.frames[4])['package:roccho-dev/apps:packages/atlas'].includes('! c1 · 未達 · 現在の後退 · 担当未確定 · 最後の観測 10-17 03:40Z'), 'the card line too');
+  const groupedObserved = parseAtlasWorldInput(gapWorld({ lastObserved: true, groups: true }));
+  assert.ok(groupedObserved.frames[4].entities.find(entity => entity.ref.id === 'c1').label.endsWith('担当未確定 · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）'), 'a supplied Scope card too');
+  const rejectPart = (mutate, pattern) => { const raw = gapWorld({ lastObserved: true }); mutate(raw.frames[4].gap.parts.find(part => part.condition === 'c1')); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
+  rejectPart(part => { part.last_observed.value = 'x'; }, /last_observed: unknown field value/);
+  rejectPart(part => { part.last_observed.observedAt = 'then'; }, /last_observed.observedAt must be a parseable instant/);
+  rejectPart(part => { part.last_observed.source = { ref: 'x', url: 'y' }; }, /last_observed.source: unknown field url/);
+  rejectPart(part => { delete part.last_observed.actor; }, /last_observed.actor is required/);
+});
+// frames[i].upkeep is read exactly and kept; 予定 ▸ lists it.
+feature('upkeep', () => {
+  const kept = parseAtlasWorldInput(gapWorld({ upkeep: true }));
+  assert.deepEqual(kept.frames[5].upkeep.map(item => item.condition), ['c3', 'c1']);
+  assert.equal(kept.frames[4].upkeep, undefined, 'only the frames that carry it');
+  const rejectT5 = (mutate, pattern) => { const raw = gapWorld({ upkeep: true }); mutate(raw.frames[5]); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
+  rejectT5(item => { item.upkeep = {}; }, /upkeep must be an array/);
+  rejectT5(item => { item.upkeep[0].maxAge = 'PT1H'; }, /upkeep\[0\]: unknown field maxAge/);
+  rejectT5(item => { delete item.upkeep[0].stale_at; }, /upkeep\[0\].stale_at is required/);
+  rejectT5(item => { item.upkeep[0].observedAt = 'soon'; }, /upkeep\[0\].observedAt must be a parseable instant/);
+  const fullV12 = parseAtlasWorldInput(gapWorld({ judged: true, held: true, evaluator: true, physical: true, drafting: true, lastObserved: true, upkeep: true }));
+  assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(fullV12))), fullV12, 'contract v12 fields are idempotent');
+});
 // 予定 ▸ (contract 3, revised): the latest frame's planned side, not a frame:
 // its plans, the plans bound to no ideal state, and the upkeep (per condition,
 // earliest first) or, without it, matched_until alone. Not matched: none.
-const forecastOf = world => forecastLines(world.frames);
-assert.deepEqual(forecastOf(parseAtlasWorldInput(gapWorld({ through: 't5', upkeep: true, unbound: true }))), [
-  '予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）', '未結合 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2',
-  '維持の作業（鮮度切れの予定の早い順）', 'c1 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 05:41Z', 'c3 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 06:10Z']);
-assert.deepEqual(forecastOf(parseAtlasWorldInput(gapWorld({ through: 't5' }))).slice(-1), ['次の鮮度切れ 10-17 05:41Z'], 'no upkeep: matched_until alone');
-assert.deepEqual(forecastOf(input).slice(-1), ['維持の作業：なし（一致・維持ではない）'], 'the latest is not matched');
+feature('予定 ▸', () => {
+  assert.equal(typeof timeline.forecastLines, 'function', 'forecastLines is provided');
+  const forecastOf = world => timeline.forecastLines(world.frames);
+  assert.deepEqual(forecastOf(parseAtlasWorldInput(gapWorld({ through: 't5', unbound: true }))), [
+    '予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）', '未結合 2 件：resources#71:tool-split v1 · nixos#12:fork-surface v2', '次の鮮度切れ 10-17 05:41Z']);
+  assert.deepEqual(forecastOf(input).slice(-1), ['維持の作業：なし（一致・維持ではない）'], 'the latest is not matched');
+});
+feature('予定 ▸ with upkeep', () => {
+  assert.deepEqual(timeline.forecastLines(parseAtlasWorldInput(gapWorld({ through: 't5', upkeep: true })).frames).slice(-3), [
+    '維持の作業（鮮度切れの予定の早い順）', 'c1 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 05:41Z', 'c3 · 観測 10-17 03:40Z · 鮮度切れの予定 10-17 06:10Z']);
+});
 // 仕訳 n ▸: the entries the displayed frame carries, one row each.
-assert.deepEqual(journalLines(frame('t3')), [
-  '▲ 理想の確定 · 2026-10-17T02:30:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64),
-  '★ 評価 · 2026-10-17T02:50:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
-assert.deepEqual(journalLines(frame('t6')), [], 't6 carries none');
+feature('仕訳 ▸', () => {
+  assert.equal(typeof timeline.journalLines, 'function', 'journalLines is provided');
+  assert.deepEqual(timeline.journalLines(frame('t3')), [
+    '▲ 理想の確定 · 2026-10-17T02:30:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64),
+    '★ 評価 · 2026-10-17T02:50:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
+  assert.deepEqual(timeline.journalLines(frame('t6')), [], 't6 carries none');
+});
 // Search: a selected relation brings the camera to a drawn end of it (the
 // chrome-free view has no record panel), its from box first.
-const relationSelected = projectAtlasWorld({ input, frame: frame('t4'), selected: relationKey(frame('t4').relations.find(item => item.label === '差').ref), chrome: 'none' });
-assert.equal(relationSelected.selectedRegionId, 'world:' + entityKey(frame('t4').relations.find(item => item.label === '差').from), 'a relation focuses its from box');
+feature('search focuses a relation', () => {
+  const chosen = frame('t4').relations.find(item => item.label === '差');
+  const relationSelected = projectAtlasWorld({ input, frame: frame('t4'), selected: relationKey(chosen.ref), chrome: 'none' });
+  assert.equal(relationSelected.selectedRegionId, 'world:' + entityKey(chosen.from), 'a relation focuses its from box');
+});
 // A World without them is drawn as before (apps ② ships later): checked above on `input`.
 // The fields are read exactly; anything else is rejected.
 const rejectV12 = (mutate, pattern) => { const raw = gapWorld({ judged: true, held: true }); mutate(raw.frames[3]); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
@@ -496,16 +561,6 @@ rejectV12(item => { item.held = {}; }, /held must be an array/);
 rejectV12(item => { delete item.held[0].source; }, /held\[0\].source is required/);
 rejectV12(item => { item.held[0].plan = 'x'; }, /held\[0\]: unknown field plan/);
 rejectV12(item => { item.held[0].recordedAt = 'later'; }, /held\[0\].recordedAt must be a parseable instant/);
-const rejectT5 = (mutate, pattern) => { const raw = gapWorld({ upkeep: true }); mutate(raw.frames[5]); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
-rejectT5(item => { item.upkeep = {}; }, /upkeep must be an array/);
-rejectT5(item => { item.upkeep[0].maxAge = 'PT1H'; }, /upkeep\[0\]: unknown field maxAge/);
-rejectT5(item => { delete item.upkeep[0].stale_at; }, /upkeep\[0\].stale_at is required/);
-rejectT5(item => { item.upkeep[0].observedAt = 'soon'; }, /upkeep\[0\].observedAt must be a parseable instant/);
-const rejectPart = (mutate, pattern) => { const raw = gapWorld({ lastObserved: true }); mutate(raw.frames[4].gap.parts.find(part => part.condition === 'c1')); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
-rejectPart(part => { part.last_observed.value = 'x'; }, /last_observed: unknown field value/);
-rejectPart(part => { part.last_observed.observedAt = 'then'; }, /last_observed.observedAt must be a parseable instant/);
-rejectPart(part => { part.last_observed.source = { ref: 'x', url: 'y' }; }, /last_observed.source: unknown field url/);
-rejectPart(part => { delete part.last_observed.actor; }, /last_observed.actor is required/);
 const noEvaluation = gapWorld({ judged: true });
 noEvaluation.frames[2].adequacy.evidence = noEvaluation.frames[3].adequacy.evidence;
 assert.throws(() => parseAtlasWorldInput(noEvaluation), /adequacy.evidence must be null for reason no-evaluation/);
@@ -541,17 +596,19 @@ for (const item of physicalWorld.frames) {
 assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(physicalWorld))), physicalWorld, 'physical Scope is idempotent');
 // The purpose-state-target is matched by kind and id alone (R, I1): the
 // producer's own space for it does not stop the move onto 理想状態.
-const otherSpace = gapWorld({ judged: true, physical: true });
-for (const relation of otherSpace.frames[2].relations) if (relation.to.kind === 'purpose-state-target') relation.to = { ...relation.to, space: 'producer:atlas' };
-otherSpace.frames[2].entities.find(entity => entity.ref.kind === 'purpose-state-target').ref.space = 'producer:atlas';
-assert.ok(physicalRelations(parseAtlasWorldInput(otherSpace).frames[2]).includes('service>ideal-state この条件を保つもの'), 'kind and id alone');
+feature('operation matched by kind and id', () => {
+  const otherSpace = gapWorld({ judged: true, physical: true });
+  for (const relation of otherSpace.frames[2].relations) if (relation.to.kind === 'purpose-state-target') relation.to = { ...relation.to, space: 'producer:atlas' };
+  otherSpace.frames[2].entities.find(entity => entity.ref.kind === 'purpose-state-target').ref.space = 'producer:atlas';
+  assert.ok(physicalRelations(parseAtlasWorldInput(otherSpace).frames[2]).includes('service>ideal-state この条件を保つもの'), 'kind and id alone');
+});
 
 // Position is computed from the relations alone (no order fixed per area, kind
 // or name): GapA is drawn above GapB, and no other relation of the purpose
 // area runs through GapB's box.
 const through = (box, a, b) => Array.from({ length: 99 }, (_, n) => (n + 1) / 100)
   .some(t => { const x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t; return x > box.x && x < box.x + box.width && y > box.y && y < box.y + box.height; });
-for (const world of [judged, physicalWorld]) for (const item of world.frames) {
+for (const world of [adequate, judged, physicalWorld]) for (const item of world.frames) {
   const scene = projectWorldScene({ input: world, frame: item });
   const bounds = new Map(scene.representations.map(rep => [rep.regionId, rep.bounds]));
   const regionOf = kind => scene.representations.find(rep => rep.atlas?.ref?.kind === kind).regionId;
@@ -562,4 +619,5 @@ for (const world of [judged, physicalWorld]) for (const item of world.frames) {
   for (const relation of scene.relations.filter(each => purposeArea.has(each.from) && purposeArea.has(each.to) && ![each.from, each.to].includes(gapB)))
     assert.ok(!through(bounds.get(gapB), center(relation.from), center(relation.to)), item.id + ': ' + relation.from + ' → ' + relation.to + ' crosses 理想↔現在の差');
 }
+assert.deepEqual(missing, [], 'I2b-1 features: ' + missing.join(' | '));
 console.log(JSON.stringify({ status: 'atlas-world-gap-checks-pass', frames: input.frames.length }));
