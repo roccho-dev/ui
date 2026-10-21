@@ -57,8 +57,12 @@ for (const input of [parseAtlasWorldInput(raw), parseAtlasWorldInput(withOmitted
         assert.ok(none.selectedRegionId === null || drawn.has(none.selectedRegionId),
           'none focus marker is null or a drawn region: ' + selected + ' -> ' + none.selectedRegionId);
         if (drawn.has('world:' + selected)) assert.equal(none.selectedRegionId, 'world:' + selected, 'a drawn entity marks itself');
-        if (selected.startsWith('relation:') || !frame.entities.some(item => entityKey(item.ref) === selected)) {
-          assert.equal(none.selectedRegionId, null, 'relations and missing records mark no region');
+        // A relation marks a drawn end of it (the search brings it into view); a
+        // missing record marks none.
+        if (selected.startsWith('relation:')) {
+          assert.ok(none.selectedRegionId === null || none.selectedRegionId.startsWith('world:entity:'), 'a relation marks an entity box or none: ' + none.selectedRegionId);
+        } else if (!frame.entities.some(item => entityKey(item.ref) === selected)) {
+          assert.equal(none.selectedRegionId, null, 'missing records mark no region');
         }
         assert.equal(none.viewport.panel, null, 'none reserves no panel');
         assert.deepEqual(none.viewport.graph, worldViewport(viewport, { panel: false }).graph, 'none graph takes the viewport');

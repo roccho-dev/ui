@@ -655,10 +655,10 @@ try {
   });
   check('only the exact native status and search rows are visible HTML control surfaces',
     JSON.stringify(htmlSurface.bodyChildren) === JSON.stringify(['atlas-world-screen'])
-      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world'])
+      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world-list', 'atlas-world'])
       && JSON.stringify(htmlSurface.statusChildren) === JSON.stringify(['span#atlas-world-status'])
       && JSON.stringify(htmlSurface.barChildren) === JSON.stringify(['input#atlas-world-search', 'select#atlas-world-search-results', 'span#atlas-world-search-count',
-        'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present'])
+        'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present', 'button#atlas-world-forecast', 'button#atlas-world-journal'])
       && htmlSurface.statusHeight === 24 && htmlSurface.barHeight === 36, htmlSurface);
   const svgControls = await page.evaluate(() => window.liveAtlas.projection.scene.representations
     .filter(item => item.atlas?.kind === 'control').map(item => item.atlas.control).sort());

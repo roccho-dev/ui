@@ -121,10 +121,27 @@ const UNBOUND = {
 // `adequacy: true` supplies GapA (目的↔理想の差) on each frame as apps#129's
 // producer did: a purpose-adequacy entity whose state the producer judged
 // (insufficient at t4 only; the ui reads it, never the journal). The earlier
-// path, read only when a frame has no `adequacy` (contract v12).
+// path, read only when a frame has no `adequacy` (contract v12); the HQ World
+// still carries it until apps ② ships, so it is removed at ④.
 const adequacyEntity = id => ({ ref: ref('purpose-adequacy', 'hq'), label: '目的↔理想の差\n' + (id === 't4' ? '不十分（評価）' : '未評価（十分性は未判定）'),
   area: 'purpose', order: 9, visible: true, activity: 'none', summary: 'GapA (producer)',
   flags: ['purpose_adequacy=' + (id === 't4' ? 'insufficient' : 'unassessed'), 'role=whole-purpose-evaluation'] });
+// `drafting: true` (case 14) starts drafting ideal v3 at 05:20, while v2 stays
+// in force: t6 reads 改訂中 v3.
+const DRAFTING = [entry('ideal.drafting', '2026-10-17T05:20:00Z', { purpose_id: 'hq', version: 3 })];
+// `lastObserved: true` (case 26) gives each open part the observation the
+// judge last matched for it (parts[i].last_observed): c1's 03:40Z line, by
+// atlas.events; c3 and c4 were never observed (null).
+const LAST_OBSERVED = { c1: { observedAt: '2026-10-17T03:40:00Z', source: { ref: 'hq:observations.jsonl' }, actor: 'atlas.events' } };
+// `upkeep: true` gives each matched frame frames[i].upkeep: per condition met,
+// the observation's time and when it goes stale (observedAt + maxAge, as the
+// judge chose it); the earliest is the frame's matched_until.
+const UPKEEP = {
+  t2: [{ condition: 'c2', observedAt: '2026-10-17T01:40:00Z', stale_at: '2026-10-17T03:40:00Z' },
+    { condition: 'c1', observedAt: '2026-10-17T01:40:00Z', stale_at: '2026-10-17T02:41:00Z' }],
+  t5: [{ condition: 'c3', observedAt: '2026-10-17T03:40:00Z', stale_at: '2026-10-17T06:10:00Z' },
+    { condition: 'c1', observedAt: '2026-10-17T03:40:00Z', stale_at: '2026-10-17T05:41:00Z' }],
+};
 // `judged: true` gives each frame contract v12's `adequacy` (adrs#647) as the
 // producer judges this story: no ideal at t0/t1, no evaluation at t2, the v1
 // evaluation past at t3/t4 (versions compare as written: 1 is not 'v2'),
@@ -193,9 +210,9 @@ const physicalScopes = (frameId, gap) => {
   return { entities, relations };
 };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
-  adequacy = false, judged = false, held = false, evaluator = false, physical = false } = {}) => {
+  adequacy = false, judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
-  const extra = [...(current ? CURRENT : []), ...(evaluator ? EVALUATIONS : [])];
+  const extra = [...(current ? CURRENT : []), ...(evaluator ? EVALUATIONS : []), ...(drafting ? DRAFTING : [])];
   const entries = extra.length ? [...decided, ...extra].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
   const c1 = (current, since) => part('c1', '端末で直接入力できる', 'unmet', cause(null, current), since, null);
@@ -229,12 +246,14 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
     },
     frames: frames.slice(0, frames.findIndex(item => item.id === through) + 1).map((item, index) => {
       if (newPurpose && index >= 3 && item.gap) item.gap.basis.purpose_id = 'hq.v2';
+      if (lastObserved) for (const part of item.gap.parts ?? []) part.last_observed = structuredClone(LAST_OBSERVED[part.condition] ?? null);
       const nested = groups && item.gap.parts?.length
         ? groupedScopes(item.id, item.gap.parts, frames.slice(0, index + 1).flatMap(each => each.gap.closed), groups === 'unplaced' ? 'c4' : null) : null;
       const declared = physical ? physicalScopes(item.id, item.gap) : { entities: [], relations: [] };
       const supplied = nested ?? { entities: [], relations: [] };
       return { ...item, journal: [...journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf), ...(unbound ? structuredClone(UNBOUND[item.id] ?? []) : [])],
         entities: [...item.entities, ...(adequacy ? [adequacyEntity(item.id)] : []), ...supplied.entities, ...declared.entities],
+        ...(upkeep && item.phase === 'matched' ? { upkeep: structuredClone(UPKEEP[item.id]) } : {}),
         relations: [...item.relations, ...supplied.relations, ...declared.relations],
         ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}) };
     }),

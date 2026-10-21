@@ -565,11 +565,13 @@ export const projectWorldScene = ({
   // flags choose them. Either way a symbol precedes the label.
   // A matched phase past its matched_until, on the ui's clock, for the frame
   // shown as the present: say it is stale and not known latest. The gap is
-  // not derived again.
+  // not derived again. Only the phase line is replaced; the lines below it
+  // (what was held) stay.
   const stale = staleAt !== null && phaseStale(frame, staleAt);
   const look = supplied => {
     const entity = stale && supplied.ref.kind === 'phase'
-      ? { ...supplied, label: STALE_PHASE_LABEL + '（' + frame.matched_until.slice(11, 16) + 'Z を過ぎた）', flags: ['scope_status=unknown'] }
+      ? { ...supplied, label: STALE_PHASE_LABEL + '（' + frame.matched_until.slice(11, 16) + 'Z を過ぎた）'
+        + supplied.label.split('\n').slice(1).map(line => '\n' + line).join(''), flags: ['scope_status=unknown'] }
       : supplied;
     const activity = displayedActivity(entity.activity);
     const status = activity === 'none' ? statusOf(entity.flags) : null;
@@ -904,6 +906,13 @@ const focusRegion = ({ chrome, scene, detail, selected }) => {
     if (index.relationByKey.has(selected) && scene.omittedRelationIds.includes(selected)) return 'world:omitted-cycle';
     if (index.relationByKey.has(selected)) return 'world:judgement-line:1';
     return null;
+  }
+  // A chosen relation (from the search) brings a drawn end of it into view,
+  // its from box first: there is no record panel to read it in.
+  const relation = index.relationByKey.get(selected);
+  if (relation) {
+    const end = [relation.from, relation.to].map(entityKey).find(key => visibleEntityKeys.has(key));
+    return end ? regionId(end) : null;
   }
   const entity = index.entityByKey.get(selected);
   if (!entity) return null;
