@@ -101,6 +101,15 @@ const causeSides = cause => {
 };
 const causesOf = part => { const sides = causeSides(part.cause); return [...sides.ideal, ...sides.current, ...(sides.carried ? ['carried'] : [])]; };
 
+const lastObserved = (value, at) => {
+  exact(value, ['observedAt', 'source', 'actor'], at);
+  instant(value.observedAt, at + '.observedAt');
+  exact(value.source, ['ref'], at + '.source');
+  text(value.source.ref, at + '.source.ref');
+  if (value.actor !== null) text(value.actor, at + '.actor');
+  return json(value, at);
+};
+
 export const normalizeGap = (value, at) => {
   if (value === null) return null;
   exact(value, ['basis', 'parts', 'closed', 'summary'], at);
@@ -118,7 +127,7 @@ export const normalizeGap = (value, at) => {
   check((value.parts === null) === (basis.ideal_version === null), at + ': parts and basis.ideal_version must both be null or both be present');
   const parts = value.parts === null ? null : value.parts.map((part, index) => {
     const where = at + '.parts[' + index + ']';
-    exact(part, ['condition', 'state', 'cause', 'since', 'scope', 'refs'], where, ['label', 'observed_before_ideal']);
+    exact(part, ['condition', 'state', 'cause', 'since', 'scope', 'refs'], where, ['label', 'observed_before_ideal', 'last_observed']);
     check(part.state === 'unmet' || part.state === 'unknown', where + '.state must be unmet|unknown (satisfied conditions are not parts)');
     const cause = normalizeCause(part.cause, where + '.cause');
     check(Array.isArray(part.refs), where + '.refs must be an array');
@@ -132,6 +141,9 @@ export const normalizeGap = (value, at) => {
       scope: part.scope === null ? null : text(part.scope, where + '.scope'),
       refs: Object.freeze(part.refs.map((ref, n) => text(ref, where + '.refs[' + n + ']'))),
       observed_before_ideal: part.observed_before_ideal === true,
+      // v12 (case 26): the observation the judge last matched for the part,
+      // or null when it was never observed. Kept only when supplied.
+      ...(part.last_observed === undefined ? {} : { last_observed: part.last_observed === null ? null : lastObserved(part.last_observed, where + '.last_observed') }),
     });
   });
   if (parts) check(new Set(parts.map(part => part.condition)).size === parts.length, at + '.parts: a condition appears twice');
@@ -223,6 +235,20 @@ export const normalizeAdequacy = (value, at, gap) => {
   }
   return json(value, at);
 };
+// Contract 3, revised: `upkeep` lists, on a matched frame, each condition met
+// with the time of the observation the judge chose and when it goes stale.
+// Read exactly; 予定 ▸ lists it. Display only.
+export const normalizeUpkeep = (value, at) => {
+  check(Array.isArray(value), at + ' must be an array');
+  return Object.freeze(value.map((item, index) => {
+    const where = at + '[' + index + ']';
+    exact(item, ['condition', 'observedAt', 'stale_at'], where);
+    text(item.condition, where + '.condition');
+    instant(item.observedAt, where + '.observedAt');
+    instant(item.stale_at, where + '.stale_at');
+    return json(item, where);
+  }));
+};
 // v12: `held` lists the declarations held back that entered at the frame.
 // Display only.
 export const normalizeHeld = (value, at) => {
@@ -272,7 +298,7 @@ const clockText = asOf => {
   return match ? match[1] + (/Z$/u.test(asOf) ? 'Z' : '') : asOf;
 };
 // Month, day and time: a claim's age must show, whatever day it is read.
-const dayClockText = at => {
+export const dayClockText = at => {
   const match = /^\d{4}-(\d\d-\d\d)T(\d\d:\d\d)/u.exec(String(at));
   return match ? match[1] + ' ' + match[2] + (/Z$/u.test(at) ? 'Z' : '') : String(at ?? '時刻不明');
 };
@@ -356,6 +382,8 @@ const evaluationSigns = (journal, purposeId) => {
     + '（出所 ' + entry.source.ref.split(' ')[0] + (entry.actor ? ' · ' + entry.actor : '') + ' · ' + dayClockText(entry.observedAt ?? entry.recordedAt) + '）');
 };
 
+const HELD_LINES = 5;
+
 // Entities and relations of a gap frame, in the normalized World shape.
 // `earlier` are the frames before it (for the previous gap and history).
 export const gapView = ({ frame, earlier, presentation, key }) => {
@@ -390,17 +418,15 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const idealRef = ref('ideal-state', purposeId);
   const currentRef = ref('current-state', purposeId);
   const deltaRef = ref('gap', purposeId);
-  // GapA (目的↔理想の差) is never judged here. v12: the frame's `adequacy`,
+  // GapA (目的↔理想の差) is never judged here: the frame's `adequacy` (v12),
   // drawn as its state and reason (no count) with the evaluators' unverified
-  // signs. The earlier path (removed at ④): the producer's purpose-adequacy
-  // entity, drawn as supplied. Neither: no GapA.
-  const suppliedAdequacy = frame.entities.find(item => item.ref.kind === 'purpose-adequacy' && item.ref.id === purposeId) ?? null;
+  // signs. Without it, no GapA.
   const adequacy = frame.adequacy
     ? entity(ref('purpose-adequacy', purposeId), '目的↔理想の差\n' + ADEQUACY_STATE_LABEL[frame.adequacy.state] + ' · '
       + ADEQUACY_REASON_LABEL[frame.adequacy.reason] + admissionMark(frame.adequacy.evidence)
       + evaluationSigns(journal, purposeId).map(line => '\n' + line).join(''), areas.purpose, 2, adequacySummary(frame.adequacy),
       ['scope_status=' + frame.adequacy.state])
-    : suppliedAdequacy;
+    : null;
   const unknownCount = '不明';
   // The newest decision of a kind, up to this frame, for the purpose drawn (and,
   // for an ideal.set, the version drawn): its source's admission marks it (A3).
@@ -421,7 +447,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const phaseDecision = phase === 'defining' ? decided('ideal.drafting') : phase === 'ended' ? decided('purpose.ended') : null;
   // v12: the declarations held back up to this frame, counted by reason. Display only.
   const held = [...earlier, frame].flatMap(item => item.held ?? []);
-  const heldText = held.length ? ' · 保持 ' + held.length + ' 件（' + [...new Set(held.map(item => item.reason))].sort()
+  const heldText = held.length ? '\n保持 ' + held.length + ' 件（' + [...new Set(held.map(item => item.reason))].sort()
     .map(reason => reason + ' ' + held.filter(item => item.reason === reason).length).join(' · ') + '）' : '';
   // Contract 3 (revised): with no band on screen, the phase line names when
   // its phase began: the first received frame, going back from this one, in
@@ -433,7 +459,11 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   }
   const phaseSince = phase === null ? '' : '（' + dayClockText(phaseStart.asOf) + ' から）';
   const phaseLabel = '局面：' + (phase === null ? '未供給' : PHASE_LABEL[phase]) + admissionMark(phaseDecision) + phaseSince + ' · ' + phaseDetail + beforeIdeal
-    + (consistent ? '' : ' · gap と不整合') + heldText;
+    + (consistent ? '' : ' · gap と不整合') + heldText
+    // Cases 15 and 29: what was held, one line each in the order they entered,
+    // at most HELD_LINES; the rest counted.
+    + held.slice(0, HELD_LINES).map(item => '\n保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.source.ref).join('')
+    + (held.length > HELD_LINES ? '\n他 ' + (held.length - HELD_LINES) + ' 件' : '');
 
   const prevVersion = prevGap?.basis.ideal_version ?? null;
   // The ideal state moves only within one purpose; a new purpose's ideal is
@@ -441,12 +471,17 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const moved = g !== null && prevVersion !== null && prevGap.basis.purpose_id === g.basis.purpose_id
     && versionText(prevVersion) !== versionText(g.basis.ideal_version);
   const conditionsText = g === null || g.summary.conditions === null ? '条件 未供給' : '条件 ' + g.summary.conditions;
+  // Case 14: with an ideal in force, the newest ideal.drafting whose version
+  // has no ideal.set up to this frame reads 改訂中. Display only.
+  const drafting = g === null ? null : decided('ideal.drafting');
+  const revisingText = drafting && versionText(drafting.version) !== versionText(g.basis.ideal_version)
+    && decided('ideal.set', drafting.version) === null ? ' · 改訂中 ' + versionText(drafting.version) : '';
   // Only what is there is written: additions and revisions when there are any.
   const moves = g === null ? [] : [['追加', 'ideal-added'], ['改訂', 'ideal-revised']].filter(([, cause]) => counts.byCause[cause] > 0)
     .map(([name, cause]) => name + ' ' + counts.byCause[cause]);
   const idealLine = g === null ? '照らし合わせる理想状態なし（' + (phase === 'defining' ? '定義中' : phase === 'ended' ? '目的は終了' : '未定義') + '）'
     : (moved ? versionText(prevVersion) + '→' : '') + versionText(g.basis.ideal_version) + admissionMark(decided('ideal.set', g.basis.ideal_version))
-      + (moved ? ' 移動' : '') + ' · ' + conditionsText + (moves.length ? '（' + moves.join(' · ') + '）' : '');
+      + (moved ? ' 移動' : '') + ' · ' + conditionsText + (moves.length ? '（' + moves.join(' · ') + '）' : '') + revisingText;
   const prevOpen = g === null ? '' : g.basis.prev_frame === null ? '初回' : prevGap ? '前 ' + prevGap.parts.length : '前 不明';
   // The cause of each side of a part (v6: ideal side first; a side without one is left out).
   const causeText = part => {
@@ -477,7 +512,8 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   const linksOf = item => frame.relations.filter(relation => key(relation.from) === key(item.ref) && !relation.containment)
     .flatMap(relation => (relation.context?.conditions ?? [relation.context?.condition]).filter(condition => typeof condition === 'string')
       .map(condition => ({ condition, lifetime: relation.context.lifetime === 'operation' ? 'operation' : 'development',
-        keeps: [key(keepTarget), key(idealRef)].includes(key(relation.to)) })));
+        // Matched by kind and id alone: the producer's space for its target may differ.
+        keeps: [keepTarget, idealRef].some(target => relation.to.kind === target.kind && relation.to.id === target.id) })));
   const keepsOf = item => [...new Set(linksOf(item).filter(link => link.keeps && link.lifetime === 'operation').map(link => link.condition))];
   const partLinksOf = item => linksOf(item).filter(link => !link.keeps && (g?.parts ?? []).some(part => part.condition === link.condition));
   const physicalParts = item => (g?.parts ?? []).filter(part => partLinksOf(item).some(link => link.condition === part.condition));
@@ -588,11 +624,15 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // A part's line: its state, its causes and since when it is open.
   const partLine = part => (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + sinceText(part.since);
   const beforeIdealMark = part => part.observed_before_ideal ? ' · 理想状態の確定前の観測' : '';
+  // Case 26: the part's last matched observation, as supplied; none supplied, nothing.
+  const observedMark = part => part.last_observed === undefined ? '' : part.last_observed === null ? ' · 最後の観測なし'
+    : ' · 最後の観測 ' + dayClockText(part.last_observed.observedAt) + '（' + part.last_observed.source.ref
+      + (part.last_observed.actor ? ' · ' + part.last_observed.actor : '') + '）';
   const packageLabel = item => {
     const parts = physicalParts(item), keeps = keepsOf(item);
     return [...physicalHeading(item), ...(keeps.length ? ['保つ: ' + keeps.join('・')] : []), ...(parts.length ? ['対象: 理想↔現在の差'] : []),
       ...parts.map(part => (part.state === 'unmet' ? '!' : '?') + ' ' + part.condition + ' · '
-        + (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + ownerLine(part))].join('\n');
+        + (part.state === 'unmet' ? '未達' : '不明') + ' · ' + causeText(part) + ' · ' + ownerLine(part) + observedMark(part))].join('\n');
   };
   const packageSummary = item => {
     const parts = physicalParts(item), keeps = keepsOf(item);
@@ -611,7 +651,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
       if (parts?.length !== 1) return item;
       const [part] = parts;
       relations.push(relation('part-' + part.condition, item.ref, deltaRef, '差'));
-      return Object.freeze({ ...item, label: item.label + '\n' + partLine(part) + (part.scope === null ? ' · 担当未確定' : '') + beforeIdealMark(part),
+      return Object.freeze({ ...item, label: item.label + '\n' + partLine(part) + (part.scope === null ? ' · 担当未確定' : '') + beforeIdealMark(part) + observedMark(part),
         summary: (item.summary ?? '') + '\n' + partRecord(part), flags: Object.freeze([...item.flags, 'gap-view']) });
     });
   // One relation per lifetime to 理想↔現在の差 and one to 理想状態 for the
@@ -631,7 +671,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   (suppliedScopes.length ? [] : g?.parts ?? []).forEach((part, index) => {
     const partRef = ref('gap-part', part.condition);
     const flags = [part.state === 'unmet' ? 'scope_status=unmet' : 'scope_status=unknown', ...(part.scope === null ? ['unassigned'] : [])];
-    entities.push(entity(partRef, (part.label ?? part.condition) + '\n' + partLine(part) + ' · ' + (part.scope ?? '担当未確定') + beforeIdealMark(part),
+    entities.push(entity(partRef, (part.label ?? part.condition) + '\n' + partLine(part) + ' · ' + (part.scope ?? '担当未確定') + beforeIdealMark(part) + observedMark(part),
       areas.scope, index, partRecord(part), flags));
     relations.push(relation('part-' + part.condition, partRef, deltaRef, '差'));
   });
@@ -645,7 +685,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   }
 
   // Keep the other areas' entities, any supplied Scopes, and the relations among them.
-  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope && item !== suppliedAdequacy)];
+  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
   return Object.freeze({ entities: Object.freeze([...entities, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });

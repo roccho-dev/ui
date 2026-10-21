@@ -12,7 +12,8 @@ import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
 import { ATLAS_CHROMES, projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
-import { UPDATE_STALLED, hasBand, stepIndex, timelinePosition, transportOf, transportParts, updateStalled, viewedText } from './src/atlas-timeline.mjs';
+import { UPDATE_STALLED, forecastLines, hasBand, journalLines, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
+  viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 
 const STYLE = `
@@ -437,7 +438,9 @@ export const mountAtlasUI = ({
 
 const WORLD_STYLE = `
 body{margin:0;overflow:hidden}
-#atlas-world-screen{display:flex;flex-direction:column;height:100vh;background:#fff}
+#atlas-world-screen{position:relative;display:flex;flex-direction:column;height:100vh;background:#fff}
+#atlas-world-list{position:absolute;z-index:2;top:64px;left:8px;right:8px;max-height:45%;overflow:auto;box-sizing:border-box;padding:4px 8px;font:13px system-ui,sans-serif;background:#fff;border:1px solid #adb5bd;overflow-wrap:anywhere}
+#atlas-world-list[hidden]{display:none}
 #atlas-world{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#fff}
 #atlas-world svg text{white-space:pre}
 #atlas-world-status-bar{box-sizing:border-box;flex:none;display:flex;align-items:center;height:24px;padding:2px 8px;min-width:0;font:13px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6}
@@ -479,8 +482,13 @@ export const mountAtlasWorldUI = ({
   const back = el('button', { type: 'button', id: 'atlas-world-step-back', text: '◀ 前へ', onclick: () => stepFrame(-1) });
   const forward = el('button', { type: 'button', id: 'atlas-world-step-forward', text: '次へ ▶', onclick: () => stepFrame(1) });
   const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => followLatest() });
-  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, back, forward, toPresent);
-  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, container);
+  // 予定 ▸ (t+1: the latest frame's planned side, not a frame) and 仕訳 n ▸
+  // (the entries the displayed frame carries) open one list over the graph.
+  const forecast = el('button', { type: 'button', id: 'atlas-world-forecast', onclick: () => toggleList('forecast') });
+  const journalButton = el('button', { type: 'button', id: 'atlas-world-journal', onclick: () => toggleList('journal') });
+  const list = el('div', { id: 'atlas-world-list', role: 'region', 'aria-label': '予定・仕訳', hidden: 'hidden' });
+  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, back, forward, toPresent, forecast, journalButton);
+  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, list, container);
   root.append(style, screen);
 
   const page = {
@@ -506,6 +514,7 @@ export const mountAtlasWorldUI = ({
     projection: null,
     planOpen: false,
     journalOpen: null,
+    listOpen: null,
     updateIntervalMs,
     destroyed: false,
   };
@@ -545,6 +554,18 @@ export const mountAtlasWorldUI = ({
     back.disabled = position.index < 0 || stepIndex(position, -1) === position.index;
     forward.disabled = position.index < 0 || stepIndex(position, 1) === position.index;
     toPresent.disabled = position.present && page.latest;
+    // The open list, drawn again with the frame shown (仕訳) or the latest (予定).
+    const entries = journalLines(frame);
+    forecast.textContent = '予定 ' + (page.listOpen === 'forecast' ? '▾' : '▸');
+    journalButton.textContent = '仕訳 ' + entries.length + ' ' + (page.listOpen === 'journal' ? '▾' : '▸');
+    const lines = page.listOpen === 'forecast' ? forecastLines(page.input.frames)
+      : page.listOpen === 'journal' ? (entries.length ? entries : ['この時点の仕訳はない']) : [];
+    list.replaceChildren(...lines.map(line => el('div', { text: line })));
+    list.hidden = page.listOpen === null;
+  };
+  const toggleList = which => {
+    page.listOpen = page.listOpen === which ? null : which;
+    draw();
   };
 
   // Without the HUD there is no Fit control on screen, so the camera may not
@@ -660,7 +681,10 @@ export const mountAtlasWorldUI = ({
   const onSearchSelection = () => {
     if (page.destroyed) return;
     const key = choices.value;
-    if (page.searchResults.some(row => row.key === key)) select(key, { inspect: true });
+    if (!page.searchResults.some(row => row.key === key)) return;
+    select(key, { inspect: true });
+    // Bring the chosen record's box (a relation: its drawn end) into view.
+    focusSelected();
   };
   search.addEventListener('input', onSearchInput);
   choices.addEventListener('change', onSearchSelection);

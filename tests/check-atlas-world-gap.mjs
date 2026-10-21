@@ -417,8 +417,8 @@ const heldWorld = parseAtlasWorldInput(gapWorld({ held: true }));
 // Cases 15 and 29: what was held is read on the phase box too, one line per
 // declaration (reason · kind · source), in the order they entered, at most 5.
 const heldLines = '\n保持 actor-mismatch · ideal.set · adrs#647';
-const heldText = { t3: ' · 保持 1 件（actor-mismatch 1）' + heldLines, t4: ' · 保持 1 件（actor-mismatch 1）' + heldLines };
-for (const id of ['t5', 't6', 't7']) heldText[id] = ' · 保持 3 件（actor-mismatch 1 · author-unknown 1 · proposal 1）' + heldLines
+const heldText = { t3: '\n保持 1 件（actor-mismatch 1）' + heldLines, t4: '\n保持 1 件（actor-mismatch 1）' + heldLines };
+for (const id of ['t5', 't6', 't7']) heldText[id] = '\n保持 3 件（actor-mismatch 1 · author-unknown 1 · proposal 1）' + heldLines
   + '\n保持 proposal · ideal.set · ops#552\n保持 author-unknown · 種類不明 · adrs#647';
 for (const item of heldWorld.frames) {
   assert.equal(byKind(item)['phase:hq'], byKind(frame(item.id))['phase:hq'] + (heldText[item.id] ?? ''), item.id + ': held by reason, accumulated');
@@ -426,10 +426,16 @@ for (const item of heldWorld.frames) {
     frame(item.id).entities.filter(entity => entity.ref.kind !== 'phase').map(entity => [entity.ref.kind, entity.label, entity.flags]), item.id + ': held changes nothing else');
 }
 assert.match(heldWorld.frames[5].entities.find(entity => entity.ref.kind === 'phase').summary, /保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552/u);
+// A stale matched present replaces the phase line only: what was held stays.
+const heldNow = parseAtlasWorldInput(gapWorld({ held: true, through: 't5' }));
+const staleHeld = projectAtlasWorld({ input: heldNow, frame: heldNow.frames[5], selected: 'none', now: Date.parse('2026-10-17T05:41:01Z'), chrome: 'none' })
+  .scene.representations.find(rep => rep.atlas?.ref?.kind === 'phase').label.replace(/\s+/gu, ' ');
+assert.ok(staleHeld.includes('鮮度切れ・最新か不明') && staleHeld.includes('保持 3 件') && staleHeld.includes('保持 proposal · ideal.set · ops#552'), staleHeld);
 const manyHeld = gapWorld({ held: true });
 manyHeld.frames[6].held = Array.from({ length: 4 }, (_, n) => ({ reason: 'proposal', kind: 'plan.set', recordedAt: '2026-10-17T05:3' + n + ':00Z', source: { ref: 'ops#' + (600 + n), commentId: null, sha256: null } }));
 const manyPhase = byKind(parseAtlasWorldInput(manyHeld).frames[6])['phase:hq'];
-assert.equal(manyPhase.split('\n').filter(line => line.startsWith('保持 ')).length, 5, 'at most 5 held lines');
+assert.ok(manyPhase.includes('\n保持 7 件（'), 'all counted: ' + manyPhase);
+assert.equal(manyPhase.split('\n').filter(line => line.startsWith('保持 ') && !/^保持 \d+ 件/u.test(line)).length, 5, 'at most 5 held lines');
 assert.ok(manyPhase.endsWith('\n他 2 件'), 'the rest counted: ' + manyPhase);
 // Case 14: while an ideal is in force, a newer ideal.drafting with no ideal.set
 // of its version yet reads 改訂中 on 理想状態. Display only.

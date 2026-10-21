@@ -4,7 +4,7 @@
 // undeclared (UNKNOWN), not as an empty future. Pure; no DOM.
 
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
-import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, UNBOUND_MARK, admissionMark, unboundPlanCount } from './atlas-gap.mjs';
+import { JOURNAL_LABEL, JOURNAL_MARK, PHASE_LABEL, UNBOUND_MARK, admissionMark, dayClockText, unboundPlanCount } from './atlas-gap.mjs';
 
 // Whether a World carries phases or a journal, and so gets the band.
 export const hasBand = input => input.frames.some(frame => Object.hasOwn(frame, 'phase') || Object.hasOwn(frame, 'journal'));
@@ -99,6 +99,35 @@ export const planDetailLines = plans => {
     '出所：' + plan.source.repo + ' · comment ' + (plan.source.commentId ?? 'UNKNOWN') + ' · 更新 ' + (plan.source.updatedAt ?? 'UNKNOWN')
       + ' · sha256 ' + (plan.source.sha256 ?? 'UNKNOWN'),
   ]);
+};
+
+// One journal entry as a row: its mark and kind, the plan it names, when it
+// was recorded, its author and its source.
+export const journalRow = entry => JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + (entry.unbound === true ? UNBOUND_MARK : '')
+  + (entry.kind === 'plan.set' && entry.plan ? ' ' + entry.plan + (entry.version === undefined ? '' : ' v' + entry.version) : '')
+  + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
+  + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
+  + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN');
+// 仕訳 n ▸ (contract 3, revised): the entries the displayed frame carries
+// (v6: only those new at it), one row each.
+export const journalLines = frame => (frame.journal ?? []).map(journalRow);
+// 予定 ▸ (contract 3, revised): the planned side of the latest frame, never a
+// frame and never a fact: its plans, the plans bound to no ideal state (each
+// id at its newest version), and the upkeep — per condition, earliest first —
+// or, without it, matched_until alone. A latest frame not matched has none.
+export const forecastLines = frames => {
+  const latest = frames.at(-1);
+  const plans = latest.plans ?? null;
+  const bound = new Set((plans ?? []).map(item => item.plan));
+  const unbound = [...new Map(frames.flatMap(item => item.journal ?? []).filter(entry => entry.unbound === true && !bound.has(entry.plan))
+    .map(entry => [entry.plan, entry])).values()];
+  const upkeep = [...(latest.upkeep ?? [])].sort((a, b) => Date.parse(a.stale_at) - Date.parse(b.stale_at) || a.condition.localeCompare(b.condition));
+  return Object.freeze(['予定（最新 ' + latest.id + ' · 計画であって事実ではない）', ...planDetailLines(plans),
+    ...(unbound.length ? ['未結合 ' + unbound.length + ' 件：' + unbound.map(entry => entry.plan + (entry.version === undefined ? '' : ' v' + entry.version)).join(' · ')] : []),
+    ...(latest.phase !== 'matched' ? ['維持の作業：なし（一致・維持ではない）']
+      : upkeep.length ? ['維持の作業（鮮度切れの予定の早い順）',
+        ...upkeep.map(item => item.condition + ' · 観測 ' + dayClockText(item.observedAt) + ' · 鮮度切れの予定 ' + dayClockText(item.stale_at))]
+        : ['次の鮮度切れ ' + (latest.matched_until ? dayClockText(latest.matched_until) : '不明')])]);
 };
 
 // Where the displayed frame stands among the received frames. A held frame no
@@ -245,13 +274,7 @@ export const projectTimeline = ({
       const [at, kind] = journalOpen.split(':');
       const entries = kind === '*' ? [...groups.entries()].filter(([groupKey]) => groupKey.startsWith(at + ':')).flatMap(([, list]) => list)
         : groups.get(journalOpen) ?? [];
-      for (const entry of entries) {
-        journalRows.push(JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABEL[entry.kind] + (entry.unbound === true ? UNBOUND_MARK : '')
-          + (entry.kind === 'plan.set' && entry.plan ? ' ' + entry.plan + (entry.version === undefined ? '' : ' v' + entry.version) : '')
-          + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
-          + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
-          + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN'));
-      }
+      for (const entry of entries) journalRows.push(journalRow(entry));
       if (!entries.length) journalRows.push('この印の仕訳はもう無い');
     }
   }
