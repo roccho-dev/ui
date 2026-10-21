@@ -118,14 +118,6 @@ const UNBOUND = {
   t6: [unboundPlan('2026-10-17T05:20:00Z', 'roccho-dev', 'mieru#3:release', 1, 'roccho-dev/mieru#3', 4200, 'e'),
     unboundPlan('2026-10-17T05:25:00Z', 'roccho-dev', 'resources#71:tool-split', 2, 'roccho-dev/resources#71', 4300, 'f')],
 };
-// `adequacy: true` supplies GapA (目的↔理想の差) on each frame as apps#129's
-// producer did: a purpose-adequacy entity whose state the producer judged
-// (insufficient at t4 only; the ui reads it, never the journal). The earlier
-// path, read only when a frame has no `adequacy` (contract v12); the HQ World
-// still carries it until apps ② ships, so it is removed at ④.
-const adequacyEntity = id => ({ ref: ref('purpose-adequacy', 'hq'), label: '目的↔理想の差\n' + (id === 't4' ? '不十分（評価）' : '未評価（十分性は未判定）'),
-  area: 'purpose', order: 9, visible: true, activity: 'none', summary: 'GapA (producer)',
-  flags: ['purpose_adequacy=' + (id === 't4' ? 'insufficient' : 'unassessed'), 'role=whole-purpose-evaluation'] });
 // `drafting: true` (case 14) starts drafting ideal v3 at 05:20, while v2 stays
 // in force: t6 reads 改訂中 v3.
 const DRAFTING = [entry('ideal.drafting', '2026-10-17T05:20:00Z', { purpose_id: 'hq', version: 3 })];
@@ -210,7 +202,7 @@ const physicalScopes = (frameId, gap) => {
   return { entities, relations };
 };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
-  adequacy = false, judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false } = {}) => {
+  judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
   const extra = [...(current ? CURRENT : []), ...(evaluator ? EVALUATIONS : []), ...(drafting ? DRAFTING : [])];
   const entries = extra.length ? [...decided, ...extra].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
@@ -252,7 +244,7 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
       const declared = physical ? physicalScopes(item.id, item.gap) : { entities: [], relations: [] };
       const supplied = nested ?? { entities: [], relations: [] };
       return { ...item, journal: [...journalBetween(entries, frames[index - 1]?.asOf ?? null, item.asOf), ...(unbound ? structuredClone(UNBOUND[item.id] ?? []) : [])],
-        entities: [...item.entities, ...(adequacy ? [adequacyEntity(item.id)] : []), ...supplied.entities, ...declared.entities],
+        entities: [...item.entities, ...supplied.entities, ...declared.entities],
         ...(upkeep && item.phase === 'matched' ? { upkeep: structuredClone(UPKEEP[item.id]) } : {}),
         relations: [...item.relations, ...supplied.relations, ...declared.relations],
         ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}) };

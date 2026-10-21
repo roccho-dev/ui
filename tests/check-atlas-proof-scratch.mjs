@@ -10,7 +10,7 @@ import fs from 'node:fs';
 
 const dir = new URL('./', import.meta.url);
 const files = fs.readdirSync(dir).filter(name => /^atlas-.*(browser-proof|composition-gate)\.mjs$/u.test(name)).sort();
-assert.ok(files.length >= 10, 'the Atlas browser proofs and the gate are found: ' + files.join(', '));
+assert.ok(files.length >= 8, 'the Atlas browser proofs and the gate are found: ' + files.join(', '));
 for (const name of files) {
   const text = fs.readFileSync(new URL(name, dir), 'utf8');
   assert.ok(!/\btmpdir\b|mkdtemp/u.test(text), name + ': no system temp directory (os.tmpdir / mkdtemp)');

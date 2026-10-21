@@ -2,9 +2,10 @@
 // (overlap, empty and cut labels) is tests/atlas-world-readability-browser-proof.mjs.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAtlasWorldInput, worldPair } from '../packages/control/src/atlas-world.mjs';
-import { ATLAS_STATUS, projectAtlasWorld, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
-import { TIMELINE_ID_PREFIX } from '../packages/control/src/atlas-timeline.mjs';
+import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
+import { ATLAS_STATUS, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
+import { forecastLines } from '../packages/control/src/atlas-timeline.mjs';
+import { planWorld } from './fixtures/atlas-plan-worlds.mjs';
 import { countRelationCrossings } from './fixtures/atlas-crossings.mjs';
 import { STATUS_FLAGS, crossingWorld, statusWorld } from './fixtures/atlas-readability-worlds.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
@@ -53,27 +54,16 @@ assert.deepEqual(crossings['bundled/before'], { before: 5, after: 5 }, 'nested a
 assert.ok(Object.values(crossings).reduce((sum, item) => sum + item.before - item.after, 0) > 0, 'total crossings decrease');
 assert.throws(() => projectWorldScene({ input: statusInput, frame: statusInput.frames[0], ordering: 'names' }), /unsupported ordering/);
 
-// The planned side says nothing has happened: no done/happened words and no
-// fact colors, only the dashed plan look.
+// The planned side (予定 ▸) says nothing has happened: no done/happened
+// words, and it names itself as plans, not facts.
 const FUTURE_FACT_WORDS = /完了|起きた|済み|達成/u;
-const timelineInput = parseAtlasWorldInput(worldWithFrames(3));
-let futureCells = 0;
-for (const [index, latest] of [[0, false], [1, false], [2, true]]) {
-  const pair = index === 0 ? worldPair(timelineInput) : worldPair(timelineInput, index);
-  const frame = index === 0 ? pair.before : pair.after;
-  for (const chrome of ['none', 'full']) {
-    const cells = projectAtlasWorld({ input: timelineInput, frame, latest, chrome, selected: 'none' }).scene.representations
-      .filter(item => item.regionId.startsWith(TIMELINE_ID_PREFIX));
-    // The chrome-free view draws no strip (未設計のため。設計の合意後に戻す).
-    if (chrome === 'none') { assert.equal(cells.length, 0, 'none: no strip'); continue; }
-    const plan = cells.find(item => item.regionId === TIMELINE_ID_PREFIX + 'plan');
-    assert.ok(plan.label.startsWith('予定') && plan.visual.appearance.dashed, 'the plan reads 予定 and is dashed');
-    assert.ok(!Object.values(ATLAS_STATUS).some(item => item.appearance.fillColor === plan.visual.appearance.fillColor
-      && item.appearance.strokeColor === plan.visual.appearance.strokeColor), 'the plan uses no status color');
-    for (const item of cells.filter(cell => ['forward', 'plan'].some(part => cell.regionId === TIMELINE_ID_PREFIX + part))) {
-      assert.equal(FUTURE_FACT_WORDS.test(item.label), false, 'future side says nothing happened: ' + item.label);
-      futureCells += 1;
-    }
+let futureLines = 0;
+for (const world of [parseAtlasWorldInput(worldWithFrames(3)), parseAtlasWorldInput(planWorld())]) {
+  const lines = forecastLines(world.frames);
+  assert.ok(lines[0].includes('計画であって事実ではない'), 'the planned side names itself: ' + lines[0]);
+  for (const line of lines) {
+    assert.equal(FUTURE_FACT_WORDS.test(line), false, 'future side says nothing happened: ' + line);
+    futureLines += 1;
   }
 }
-console.log(JSON.stringify({ status: 'atlas-world-readability-checks-pass', statusCases, crossings, futureCells }));
+console.log(JSON.stringify({ status: 'atlas-world-readability-checks-pass', statusCases, crossings, futureLines }));

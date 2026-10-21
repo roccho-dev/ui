@@ -1,7 +1,7 @@
 // Update stalled, on the browser's clock. Run inside the
 // semantic-map-browser-proof Nix shell:
 //   node tests/atlas-world-stall-browser-proof.mjs --out=<fresh absent directory>
-// A chrome-free build (as /hq/) opened over HTTP with `?events=` pointing at a
+// A build (as /hq/) opened over HTTP with `?events=` pointing at a
 // separate-origin SSE producer that sends its World on connect and then
 // heartbeats on demand. The update period comes only from the build
 // (--update-interval-minutes); a build that names none claims no stall:
@@ -47,7 +47,7 @@ const data = JSON.stringify(world);
 const { scratch, done } = proofScratch(args.out);
 fs.writeFileSync(path.join(scratch, 'world.json'), data, { flag: 'wx' });
 const build = async (name, options) => {
-  await buildLiveAtlas({ input: path.join(scratch, 'world.json'), out: path.join(args.out, name), consumer: 'app', chrome: 'none', ...options });
+  await buildLiveAtlas({ input: path.join(scratch, 'world.json'), out: path.join(args.out, name), consumer: 'app', ...options });
   return fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
 };
 const pages = { unset: await build('unset', {}), ten: await build('ten', { updateIntervalMinutes: 10 }), short: await build('short', { updateIntervalMinutes: 2 }) };

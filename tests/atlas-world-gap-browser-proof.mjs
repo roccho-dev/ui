@@ -40,10 +40,10 @@ const fixture = !arg('input');
 // Its scratch (the Worlds it builds from, the browser's temporary files) sits
 // under --out, never the system temp directory, and is removed at the end.
 const { scratch, done } = proofScratch(arg('out'));
-const serve = async (name, world, chrome = 'none') => {
+const serve = async (name, world) => {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
-  await buildLiveAtlas({ input, out: path.join(arg('out'), name), consumer: 'app', chrome });
+  await buildLiveAtlas({ input, out: path.join(arg('out'), name), consumer: 'app' });
   const body = fs.readFileSync(path.join(path.resolve(arg('out')), name, 'index.html'));
   const server = http.createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
@@ -73,7 +73,7 @@ const wording = compat ? [] : [
 // check to an earlier build of it).
 const claims = compat ? null : arg('page-current') ? await servePage(arg('page-current')) : arg('page') ? null : await serve('current', gapWorld({ current: true }));
 // L3: plans bound to no ideal state (the fixture's unbound plans), listed in
-// 現在状態 of the chrome-free view (`--page-unbound=` applies the check to an
+// 現在状態 of the one screen (`--page-unbound=` applies the check to an
 // earlier build).
 const unbound = compat || (arg('page') && !arg('page-unbound')) ? null : {
   none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
@@ -97,9 +97,6 @@ const expected = {
   t6: { gap: '! c1 · 鮮度切れ', 'gap-part': '端末で直接入力できる未達 · 鮮度切れ' },
   t7: { phase: '局面：目的の終了 · Scope は凍結（履歴）', gap: '差 対象外', 'gap-closed': 'c1 目的の終了', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
 };
-// v6: each journal entry is marked at the frame that carries it.
-const expectedMarks = { 'timeline:journal:0:purpose.set': '◎1', 'timeline:journal:2:observation': '·1', 'timeline:journal:3:purpose.evaluated': '★1',
-  'timeline:journal:4:observation': '·1', 'timeline:journal:4:plan.set': '◇1', 'timeline:journal:5:purpose.evaluated': '★1' };
 // What only contract v5 adds; checked unless --compat.
 if (!compat) {
   expected.t5.phase += ' · 理想状態の確定前の観測で一致 1 件';
@@ -157,8 +154,8 @@ try {
         const gapNodes = state.nodes.filter(node => ['phase', 'purpose', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed'].includes(node.kind));
         const bad = gapNodes.filter(node => flat(node.text) !== flat(node.label) || !inside(node));
         check(where + ': gap nodes drawn whole inside their boxes', gapNodes.length >= 5 && bad.length === 0, bad.slice(0, 4));
-        // The chrome-free view draws no strip or band (未設計のため。設計の合意後に戻す),
-        // and the graph takes the screen down to its bottom margin.
+        // No strip or band is drawn (contract 3, revised), and the graph takes
+        // the screen down to its bottom margin.
         const strip = await page.evaluate(() => [...window.liveAtlas.adapter.cellsByRegionId.keys()].filter(id => id.startsWith('timeline:')).length);
         check(where + ': no strip or band is drawn and the graph reaches the bottom of the screen',
           state.timeline === 0 && strip === 0 && Math.abs(state.graph.y + state.graph.height - (state.screen.bottom - state.screen.top - 16)) <= 1,
@@ -226,12 +223,6 @@ try {
       if (fixture) check(size.width + 'x' + size.height + ': only the ideal moving (t2 -> t3) leaves the drawn observations of 現在状態 unchanged',
         observed(currentByFrame.t2) && observed(currentByFrame.t2) === observed(currentByFrame.t3), { t2: currentByFrame.t2, t3: currentByFrame.t3 });
       if (fixture) {
-        // Stopped: the chrome-free view draws no band (未設計のため。設計の合意後に戻す).
-        // const band = (await read(page)).band;
-        // for (const [id, words] of Object.entries(expectedMarks)) {
-        //   const cell = band.find(item => item.id === id);
-        //   check(size.width + 'x' + size.height + ': journal mark ' + id + ' reads ' + words, cell && flat(cell.text) === flat(words), cell ?? band.map(item => item.id));
-        // }
         // Going back, 現在状態 is that frame's own total, not the newest.
         await page.focus('#atlas-world');
         for (let step = 0; step < frames.length - 1 - frames.indexOf('t3'); step += 1) await page.keyboard.press('[');
@@ -242,17 +233,6 @@ try {
           back.frameId === 't3' && flat(backCurrent?.text) === flat('現在状態観測 1 件 · 最新 01:40Z理想の条件 3 件のうち一致 2 件') && inside(backCurrent), { frameId: back.frameId, text: backCurrent?.text });
         await page.keyboard.press('L');
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        // Stopped: the chrome-free view draws no band, so no journal mark to open (未設計のため。設計の合意後に戻す).
-        // // A journal mark opens its entries: kind, time, author and source.
-        // const mark = (await read(page)).band.find(cell => cell.id === 'timeline:journal:3:purpose.evaluated');
-        // check(size.width + 'x' + size.height + ': the evaluation mark is drawn', mark && flat(mark.text) === '★1', mark);
-        // if (mark) {
-        //   await page.mouse.click((mark.shape.left + mark.shape.right) / 2, (mark.shape.top + mark.shape.bottom) / 2);
-        //   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        //   const rows = (await read(page)).band.filter(cell => cell.id.startsWith('timeline:journal-line:'));
-        //   check(size.width + 'x' + size.height + ': the mark opens its entry with author and source, drawn inside its row',
-        //     rows.length === 1 && flat(rows[0].text).includes(flat('★ 評価 · 2026-10-17T02:50:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530')) && inside(rows[0]), rows);
-        // }
       }
       check(size.width + 'x' + size.height + ': no page or console errors', errors.length === 0, errors);
     } finally {
@@ -349,7 +329,7 @@ try {
       const [withUnbound, without] = [await drawnFrames(unbound.none), await drawnFrames(all)];
       check('unbound plans: every frame draws 差, 理想状態, Scopes and Agents (texts and colors) and 現在状態\'s colors as without them',
         Object.keys(without).length === 8 && JSON.stringify(withUnbound) === JSON.stringify(without), Object.keys(withUnbound));
-      // The chrome-free view shows the count on 理想状態 (#373), read as drawn.
+      // The one screen shows the count on 理想状態 (#373), read as drawn.
       const idealText = async (server, steps) => {
         const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
         await page.goto(urlOf(server), { waitUntil: 'domcontentloaded', timeout: 60000 });

@@ -1,4 +1,4 @@
-// Supplied containment as drawn, in the chrome-free World. Run inside the
+// Supplied containment as drawn, in the one World screen. Run inside the
 // semantic-map-browser-proof Nix shell:
 //   node tests/atlas-world-nesting-browser-proof.mjs --out=<fresh absent directory> [--input=<World JSON> ...]
 // For the gap fixture with its Scope area nested as a producer supplies it
@@ -52,7 +52,7 @@ for (const [name, world] of worlds) {
   const input = path.join(scratch, builds.length + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
   const dir = path.join(out, String(builds.length));
-  await buildLiveAtlas({ input, out: dir, consumer: 'app', chrome: 'none' });
+  await buildLiveAtlas({ input, out: dir, consumer: 'app' });
   builds.push({ name, world, file: path.join(path.resolve(dir), 'index.html') });
 }
 
@@ -115,7 +115,7 @@ try {
       const count = await page.evaluate(() => window.liveAtlas.input.frames.length);
       // As first shown (no Fit, no input): at 1500x1000 the areas stand side by
       // side, each across within the screen with its top in the graph view
-      // (whose bottom is the projection's; the chrome-free view draws no strip
+      // (whose bottom is the projection's; the one screen draws no strip
       // or band); a taller area continues below and is reached by panning. At
       // 1280x720 the last area (Agent) is at least partly on the screen.
       const first = await page.evaluate(() => {
