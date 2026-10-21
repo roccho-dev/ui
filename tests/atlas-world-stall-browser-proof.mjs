@@ -15,7 +15,6 @@
 // Read from the drawn status line, not from page state.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
@@ -42,14 +41,17 @@ const receiving = (text, at) => text.includes('最終受信 ' + new Date(at).toI
 const world = worldWithFrames(3);
 const asOf = Date.parse(world.frames.at(-1).asOf);
 const data = JSON.stringify(world);
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-stall-'));
-fs.writeFileSync(path.join(scratch, 'world.json'), data, { flag: 'wx' });
+// The World it builds from sits under --out (never the system temp directory).
 fs.mkdirSync(args.out);
+const scratch = path.join(args.out, 'scratch');
+fs.mkdirSync(scratch);
+fs.writeFileSync(path.join(scratch, 'world.json'), data, { flag: 'wx' });
 const build = async (name, options) => {
   await buildLiveAtlas({ input: path.join(scratch, 'world.json'), out: path.join(args.out, name), consumer: 'app', chrome: 'none', ...options });
   return fs.readFileSync(path.join(path.resolve(args.out), name, 'index.html'));
 };
 const pages = { unset: await build('unset', {}), ten: await build('ten', { updateIntervalMinutes: 10 }), short: await build('short', { updateIntervalMinutes: 2 }) };
+fs.rmSync(scratch, { recursive: true });
 
 let current = null;
 const site = http.createServer((request, response) => {
@@ -73,7 +75,7 @@ const checks = [];
 const check = (name, pass, detail = null) => checks.push({ name, pass: Boolean(pass), ...(pass ? {} : { detail }) });
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 const status = page => page.evaluate(() => {
-  const node = document.getElementById('atlas-world-search-count');
+  const node = document.getElementById('atlas-world-status');
   const box = node?.getBoundingClientRect();
   return { text: node?.textContent ?? '', visible: Boolean(box && box.width > 0 && box.height > 0) };
 });

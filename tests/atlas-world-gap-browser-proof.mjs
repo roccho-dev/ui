@@ -17,7 +17,6 @@
 //   matched_until without any input.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
@@ -37,8 +36,11 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 const fixture = !arg('input');
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-gap-'));
+// The Worlds it builds from sit under --out (never the system temp directory)
+// and are removed once built.
 fs.mkdirSync(arg('out'));
+const scratch = path.join(arg('out'), 'scratch');
+fs.mkdirSync(scratch);
 const serve = async (name, world, chrome = 'none') => {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
@@ -77,6 +79,7 @@ const claims = compat ? null : arg('page-current') ? await servePage(arg('page-c
 const unbound = compat || (arg('page') && !arg('page-unbound')) ? null : {
   none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
 };
+fs.rmSync(scratch, { recursive: true });
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
@@ -104,6 +107,10 @@ if (!compat) {
   expected.t5.phase += ' · 理想状態の確定前の観測で一致 1 件';
   Object.assign(expected.t6, { phase: '局面：近似中 · 差 2 · v2', gap: '! c1 · 鮮度切れ? c4 · 照合不能' });
 }
+// Contract 3 (revised): the phase line names when its phase began.
+const PHASE_SINCE = { t0: '10-17 00:00Z', t1: '10-17 01:00Z', t2: '10-17 02:00Z', t3: '10-17 03:00Z', t4: '10-17 03:00Z', t5: '10-17 05:00Z',
+  t6: '10-17 06:00Z', t7: '10-17 07:00Z' };
+for (const [id, item] of Object.entries(expected)) if (item.phase) item.phase = item.phase.replace(/^(局面：[^ ]+)/u, '$1（' + PHASE_SINCE[id] + ' から）');
 const flat = value => String(value ?? '').replace(/\s/gu, '');
 // Fixed words, so the check does not depend on the module under test.
 const ADMISSION_WORDS = { observed_not_admitted: '未採択' };

@@ -39,6 +39,12 @@ const expected = {
     'gap-closed:t7': '閉じた差 4（この時点 1）\nc4 現在が充足・c1 目的の終了' },
 };
 for (const item of Object.values(expected)) if (item['gap:hq']) item['gap:hq'] = '理想↔現在の差\n' + item['gap:hq'];
+// Contract 3 (revised, adrs#647 comment 6305441262): with no band on screen the
+// phase line names when its phase began, the first received frame, going back
+// from the one drawn, in the same phase. t4 is still in t3's approximation.
+const PHASE_SINCE = { t0: '10-17 00:00Z', t1: '10-17 01:00Z', t2: '10-17 02:00Z', t3: '10-17 03:00Z', t4: '10-17 03:00Z', t5: '10-17 05:00Z',
+  t6: '10-17 06:00Z', t7: '10-17 07:00Z' };
+for (const [id, item] of Object.entries(expected)) item['phase:hq'] = item['phase:hq'].replace(/^(局面：[^ ]+)/u, '$1（' + PHASE_SINCE[id] + ' から）');
 for (const item of input.frames) {
   const drawn = byKind(item);
   for (const [key, label] of Object.entries(expected[item.id])) assert.equal(drawn[key], label, item.id + ' ' + key);
@@ -252,9 +258,9 @@ assert.equal(byKind(frame('t6'))['gap-closed:t6'], '閉じた差 3（この時�
 const matchedNow = parseAtlasWorldInput(gapWorld({ through: 't5' }));
 const phaseLabel = (world, id, now) => projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none', now, chrome: 'none' })
   .scene.representations.find(rep => rep.atlas?.ref?.kind === 'phase').label.replace(/\s+/gu, ' ');
-assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:40:59Z')), '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件');
+assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:40:59Z')), '局面：一致・維持（10-17 05:00Z から） · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件');
 assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:41:01Z')), '? · 局面：一致・維持 → 鮮度切れ・最新か不明（05:41Z を過ぎた）');
-assert.equal(phaseLabel(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')), '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'a past frame is not judged by today');
+assert.equal(phaseLabel(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')), '局面：一致・維持（10-17 02:00Z から） · 新規 0 · 次の鮮度切れ 02:41Z', 'a past frame is not judged by today');
 
 // The band: phase segments merge, journal marks group per frame and kind,
 // and a mark opens its entries' kind, time, author and source. It is drawn in
@@ -329,7 +335,13 @@ rejectT1(item => { item.gap.closed.push({ condition: 'c9', at: 't1', by: 'purpos
 // A phase that disagrees with the gap is shown as disagreeing.
 const off = gapWorld();
 off.frames[4].phase = 'matched';
-assert.equal(byKind(parseAtlasWorldInput(off).frames[4])['phase:hq'], '局面：一致・維持 · 新規 0 · 次の鮮度切れ 不明 · gap と不整合');
+assert.equal(byKind(parseAtlasWorldInput(off).frames[4])['phase:hq'], '局面：一致・維持（10-17 04:00Z から） · 新規 0 · 次の鮮度切れ 不明 · gap と不整合');
+// The phase's start is read from the received frames alone: a World cut at
+// t4 says the same, and a frame whose phase is not supplied names none.
+assert.equal(byKind(parseAtlasWorldInput(gapWorld({ through: 't4' })).frames[4])['phase:hq'], expected.t4['phase:hq'], 'received frames only');
+const unsupplied = gapWorld();
+delete unsupplied.frames[4].phase;
+assert.ok(!byKind(parseAtlasWorldInput(unsupplied).frames[4])['phase:hq'].includes('から）'), 'no phase: no start');
 // A summary that disagrees with the parts is shown as disagreeing.
 const offSummary = gapWorld();
 offSummary.frames[4].gap.summary.open = 9;

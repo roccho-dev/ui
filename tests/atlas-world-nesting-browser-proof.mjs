@@ -16,7 +16,6 @@
 // with an open part, fails: the proof would be empty.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
@@ -43,8 +42,11 @@ const prebuilt = argv.find(([name]) => name === 'page')?.[1] ?? null;
 const inputs = argv.filter(([name]) => name === 'input').map(([, file]) => [path.basename(file), JSON.parse(fs.readFileSync(file, 'utf8'))]);
 const worlds = prebuilt ? inputs : [['gap-grouped', gapWorld({ groups: true })], ['gap-grouped-unplaced', gapWorld({ groups: 'unplaced' })], ...inputs];
 if (prebuilt && worlds.length !== 1) throw new Error('--page needs exactly one --input');
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-nesting-'));
+// The Worlds it builds from sit under --out (never the system temp directory)
+// and are removed once built.
 fs.mkdirSync(out);
+const scratch = path.join(out, 'scratch');
+fs.mkdirSync(scratch);
 const builds = [];
 for (const [name, world] of worlds) {
   if (prebuilt) { builds.push({ name, world, file: path.resolve(prebuilt) }); continue; }
@@ -54,6 +56,7 @@ for (const [name, world] of worlds) {
   await buildLiveAtlas({ input, out: dir, consumer: 'app', chrome: 'none' });
   builds.push({ name, world, file: path.join(path.resolve(dir), 'index.html') });
 }
+fs.rmSync(scratch, { recursive: true });
 
 const keyOf = ref => ref.space + '\u0000' + ref.kind + '\u0000' + ref.id;
 // The supplied Scope each open part belongs to, read from the input alone: the
