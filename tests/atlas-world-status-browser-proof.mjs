@@ -13,7 +13,8 @@
 // - ◀ 前へ shows the previous frame: the time text and the three areas read
 //   that frame; 次へ ▶ steps back toward the present; 現在へ returns to the latest;
 // - the phase line names when its phase began.
-// Every file it writes is under --out; the World it builds from is removed.
+// Every file it writes is under --out (fixtures/proof-scratch.mjs): the World
+// it builds from and the browser's temporary files, removed at the end.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -21,6 +22,7 @@ import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { startAtlasProducer } from './fixtures/live-atlas/sse-producer.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -40,11 +42,10 @@ const SILENT = 'SSE 応答なし';
 const MINUTE = 60_000;
 const world = gapWorld();
 const asOf = Date.parse(world.frames.at(-1).asOf);
-fs.mkdirSync(args.out);
-const input = path.join(args.out, 'world.json');
+const { scratch, done } = proofScratch(args.out);
+const input = path.join(scratch, 'world.json');
 fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
 await buildLiveAtlas({ input, out: path.join(args.out, 'page'), consumer: 'app', chrome: 'none', updateIntervalMinutes: 10 });
-fs.rmSync(input);
 const body = fs.readFileSync(path.join(path.resolve(args.out), 'page', 'index.html'));
 const site = http.createServer((request, response) => {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
@@ -156,6 +157,7 @@ try {
   await browser?.close();
   await producer.close();
   await new Promise(resolve => site.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-status-browser-proof/1', status: !interruption && failed.length === 0 && checks.length > 0 ? 'PASS' : 'FAIL',

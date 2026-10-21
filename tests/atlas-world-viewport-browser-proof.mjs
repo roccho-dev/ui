@@ -12,13 +12,13 @@
 //   and never below 1 when the World cannot be shown whole at 1.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { LABEL_LINE_PX, linePx } from '../packages/control/src/atlas-text.mjs';
 import { startAtlasProducer } from './fixtures/live-atlas/sse-producer.mjs';
 import { statusWorld } from './fixtures/atlas-readability-worlds.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -33,13 +33,15 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 }
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-viewport-'));
+// Its scratch (the World it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory; the page is built in <out>/page.
+const { scratch, done } = proofScratch(arg('out'));
 const built = arg('input') ? JSON.parse(fs.readFileSync(arg('input'), 'utf8')) : statusWorld();
 const streamed = arg('events-input') ? JSON.parse(fs.readFileSync(arg('events-input'), 'utf8')) : built;
 const inputPath = path.join(scratch, 'world.json');
 fs.writeFileSync(inputPath, JSON.stringify(built), { flag: 'wx' });
-const receipt = await buildLiveAtlas({ input: inputPath, out: arg('out'), consumer: 'app', chrome: 'none' });
-const body = fs.readFileSync(path.join(path.resolve(arg('out')), 'index.html'));
+const receipt = await buildLiveAtlas({ input: inputPath, out: path.join(arg('out'), 'page'), consumer: 'app', chrome: 'none' });
+const body = fs.readFileSync(path.join(path.resolve(arg('out')), 'page', 'index.html'));
 const server = http.createServer((request, response) => {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
   response.end(body);
@@ -159,6 +161,7 @@ try {
 } finally {
   await producer.close();
   await new Promise(resolve => server.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-viewport-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

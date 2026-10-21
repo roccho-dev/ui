@@ -7,10 +7,10 @@
 // reads undeclared, and a reload keeps the held frame.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 import { PLAN_UNDECLARED, TIMELINE_ID_PREFIX } from '../packages/control/src/atlas-timeline.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
 
@@ -34,11 +34,13 @@ process.exit(78);
 
 const world = worldWithFrames(3);
 const frameIds = world.frames.map(frame => frame.id);
-const inputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-timeline-'));
-const inputPath = path.join(inputDir, 'world.json');
+// Its scratch (the World it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory; the page is built in <out>/page.
+const { scratch, done } = proofScratch(args.out);
+const inputPath = path.join(scratch, 'world.json');
 fs.writeFileSync(inputPath, JSON.stringify(world), { flag: 'wx' });
-const receipt = await buildLiveAtlas({ input: inputPath, out: args.out, consumer: 'app', chrome: 'none' });
-const body = fs.readFileSync(path.join(path.resolve(args.out), 'index.html'));
+const receipt = await buildLiveAtlas({ input: inputPath, out: path.join(args.out, 'page'), consumer: 'app', chrome: 'none' });
+const body = fs.readFileSync(path.join(path.resolve(args.out), 'page', 'index.html'));
 const server = http.createServer((request, response) => {
   const { pathname } = new URL(request.url, 'http://localhost');
   if (pathname !== '/' && pathname !== '/index.html') { response.writeHead(404).end('not found'); return; }
@@ -133,6 +135,7 @@ try {
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-timeline-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

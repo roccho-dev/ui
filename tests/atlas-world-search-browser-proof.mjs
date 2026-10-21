@@ -11,6 +11,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { entityKey, relationKey } from '../packages/control/src/atlas-world.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -65,8 +66,11 @@ const suppliedKeys = (frameId, value) => {
 const expectedBefore = suppliedKeys(before.frameId, frameTerm);
 const expectedAfter = suppliedKeys(after.frameId, frameTerm);
 
-const receipt = await buildLiveAtlas({ input: args.input, out: args.out, consumer: 'app' });
-const output = path.resolve(args.out);
+// The browser's temporary files sit under --out, never the system temp
+// directory, and are removed at the end; the page is built in <out>/page.
+const { done } = proofScratch(args.out);
+const receipt = await buildLiveAtlas({ input: args.input, out: path.join(args.out, 'page'), consumer: 'app' });
+const output = path.resolve(args.out, 'page');
 const server = http.createServer((request, response) => {
   const { pathname } = new URL(request.url, 'http://localhost');
   if (pathname !== '/' && pathname !== '/index.html') { response.writeHead(404).end('not found'); return; }
@@ -214,6 +218,7 @@ try {
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
+  done();
 }
 
 const failed = checks.filter(item => !item.pass);

@@ -7,10 +7,10 @@
 // its detail opens and follows the frame too; nothing else changes.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
 import { PLAN_NONE, PLAN_UNDECLARED, TIMELINE_ID_PREFIX, planDetailLines, planSummary } from '../packages/control/src/atlas-timeline.mjs';
 import { planWorld } from './fixtures/atlas-plan-worlds.mjs';
@@ -37,10 +37,13 @@ const world = planWorld();
 const parsed = parseAtlasWorldInput(world);
 const summaries = parsed.frames.map(frame => planSummary(frame.plans ?? null));
 const details = parsed.frames.map(frame => planDetailLines(frame.plans ?? null));
-const inputPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-plan-')), 'world.json');
+// Its scratch (the World it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory; the page is built in <out>/page.
+const { scratch, done } = proofScratch(args.out);
+const inputPath = path.join(scratch, 'world.json');
 fs.writeFileSync(inputPath, JSON.stringify(world), { flag: 'wx' });
-const receipt = await buildLiveAtlas({ input: inputPath, out: args.out, consumer: 'app', chrome: 'none' });
-const body = fs.readFileSync(path.join(path.resolve(args.out), 'index.html'));
+const receipt = await buildLiveAtlas({ input: inputPath, out: path.join(args.out, 'page'), consumer: 'app', chrome: 'none' });
+const body = fs.readFileSync(path.join(path.resolve(args.out), 'page', 'index.html'));
 const server = http.createServer((request, response) => {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
   response.end(body);
@@ -133,6 +136,7 @@ try {
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-plan-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

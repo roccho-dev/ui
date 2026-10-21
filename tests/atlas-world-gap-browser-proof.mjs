@@ -21,6 +21,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const argv = process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -36,11 +37,9 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
 const fixture = !arg('input');
-// The Worlds it builds from sit under --out (never the system temp directory)
-// and are removed once built.
-fs.mkdirSync(arg('out'));
-const scratch = path.join(arg('out'), 'scratch');
-fs.mkdirSync(scratch);
+// Its scratch (the Worlds it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory, and is removed at the end.
+const { scratch, done } = proofScratch(arg('out'));
 const serve = async (name, world, chrome = 'none') => {
   const input = path.join(scratch, name + '.json');
   fs.writeFileSync(input, JSON.stringify(world), { flag: 'wx' });
@@ -79,7 +78,6 @@ const claims = compat ? null : arg('page-current') ? await servePage(arg('page-c
 const unbound = compat || (arg('page') && !arg('page-unbound')) ? null : {
   none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
 };
-fs.rmSync(scratch, { recursive: true });
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
@@ -397,6 +395,7 @@ try {
   for (const [, server] of wording) await new Promise(resolve => server.close(resolve));
   if (claims) await new Promise(resolve => claims.close(resolve));
   if (unbound) for (const server of Object.values(unbound)) await new Promise(resolve => server.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-gap-browser-proof/2', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

@@ -9,10 +9,10 @@
 // they come from the supplier, not from this UI.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 import { ATLAS_STATUS } from '../packages/control/src/atlas-world-projection.mjs';
 import { statusWorld } from './fixtures/atlas-readability-worlds.mjs';
 import { bundledWorld } from './fixtures/atlas-timeline-frames.mjs';
@@ -33,10 +33,11 @@ if (!driverRoot || !path.isAbsolute(driverRoot) || !path.isAbsolute(process.env.
 }
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-readability-'));
 const worlds = [['bundled', bundledWorld()], ['status', statusWorld()], ['plans', planWorld()], ['gap', gapWorld()],
   ...argv.filter(([name]) => name === 'input').map(([, file]) => [path.basename(file), JSON.parse(fs.readFileSync(file, 'utf8'))])];
-fs.mkdirSync(out);
+// Its scratch (the Worlds it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory, and is removed at the end.
+const { scratch, done } = proofScratch(out);
 const builds = [];
 for (const [name, world] of worlds) {
   const input = path.join(scratch, builds.length + '.json');
@@ -194,6 +195,7 @@ try {
 } finally {
   await browser?.close();
   await new Promise(resolve => server.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-readability-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

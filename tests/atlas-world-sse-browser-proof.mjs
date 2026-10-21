@@ -11,12 +11,12 @@
 // - a page opened after the change shows the newest frame at once.
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
 import { TIMELINE_ID_PREFIX } from '../packages/control/src/atlas-timeline.mjs';
 import { worldWithFrames } from './fixtures/atlas-timeline-frames.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map(argument => {
   const index = argument.indexOf('=');
@@ -46,13 +46,15 @@ const DISCONNECTED = 'SSE 未接続';
 const built = args.input ? readWorld(args.input) : worldWithFrames(3);
 const newer = args['events-input'] ? readWorld(args['events-input']) : worldWithFrames(4);
 const lastOf = world => world.frames.at(-1);
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-sse-'));
+// Its scratch (the World it builds from, the browser's temporary files) sits
+// under --out, never the system temp directory; the page is built in <out>/page.
+const { scratch, done } = proofScratch(args.out);
 fs.writeFileSync(path.join(scratch, 'world.json'), JSON.stringify(built), { flag: 'wx' });
 // `--page=<index.html>` serves an existing build (its embedded World must be
 // `--input`) instead of building one from this checkout.
 const receipt = args.page ? { output: { path: args.page } }
-  : await buildLiveAtlas({ input: path.join(scratch, 'world.json'), out: args.out, consumer: 'app', chrome: 'none' });
-const body = fs.readFileSync(args.page ?? path.join(path.resolve(args.out), 'index.html'));
+  : await buildLiveAtlas({ input: path.join(scratch, 'world.json'), out: path.join(args.out, 'page'), consumer: 'app', chrome: 'none' });
+const body = fs.readFileSync(args.page ?? path.join(path.resolve(args.out), 'page', 'index.html'));
 const page = http.createServer((request, response) => {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.byteLength, 'cache-control': 'no-store' });
   response.end(body);
@@ -289,6 +291,7 @@ try {
   await new Promise(resolve => silent.close(resolve));
   silent.closeAllConnections?.();
   await new Promise(resolve => page.close(resolve));
+  done();
 }
 const failed = checks.filter(item => !item.pass);
 const result = { schema: 'atlas-world-sse-browser-proof/1', status: !interruption && failed.length === 0 ? 'PASS' : 'FAIL',

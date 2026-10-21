@@ -5,11 +5,11 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { proofScratch } from './fixtures/proof-scratch.mjs';
 import { startAtlasProducer } from './fixtures/live-atlas/sse-producer.mjs';
 import { containmentIndex, entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 
@@ -25,7 +25,11 @@ if (!fontConfig || !path.isAbsolute(fontConfig) || !fs.existsSync(fontConfig)) {
 const { chromium } = createRequire(import.meta.url)(driverRoot);
 if (!fs.existsSync(chromium.executablePath())) throw new Error('provided Chromium is unavailable');
 
-const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'atlas-a2-ui-'));
+// --out=<fresh absent directory>: its scratch (the build, the browser's
+// temporary files) sits there, never the system temp directory, and is removed at the end.
+const out = process.argv.slice(2).find(argument => argument.startsWith('--out='))?.slice('--out='.length);
+if (!out) throw new Error('--out=<fresh absent directory> is required');
+const { scratch: tempRoot, done } = proofScratch(out);
 const output = path.join(tempRoot, 'dist');
 const receipt = await buildLiveAtlas({
   input: 'examples/atlas/input/a2-world.json',
@@ -734,7 +738,12 @@ try {
   await clickCell('world:control:fit');
 
   const renderedNodeLabels = async () => page.evaluate(() => {
-    const atlas = window.liveAtlas, adapter = atlas.adapter, viewport = atlas.projection.viewport.graph;
+    const atlas = window.liveAtlas, adapter = atlas.adapter;
+    // The graph viewport is in the container's coordinates; the text boxes are
+    // in the page's, below the status and search rows. Compare them in one space.
+    const origin = document.getElementById('atlas-world').getBoundingClientRect();
+    const graph = atlas.projection.viewport.graph;
+    const viewport = { x: graph.x + origin.left, y: graph.y + origin.top, width: graph.width, height: graph.height };
     const svg = document.querySelector('#atlas-world svg');
     // defs rectangles have no useful screen bbox. Map the actual clip rect
     // through the clipped owner's CTM, then test the real text box in that
@@ -1512,7 +1521,7 @@ try {
       server.close(resolve);
       server.closeAllConnections?.();
     })],
-    ['temporary files', () => fsp.rm(tempRoot, { recursive: true, force: true })],
+    ['temporary files', () => done()],
   ]) {
     try { await close(); } catch (error) { cleanupErrors.push({ name, error: String(error) }); }
   }
