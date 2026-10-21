@@ -12,7 +12,11 @@
 // - row 2 holds the search and ◀ 前へ / 次へ ▶ / 現在へ;
 // - ◀ 前へ shows the previous frame: the time text and the three areas read
 //   that frame; 次へ ▶ steps back toward the present; 現在へ returns to the latest;
-// - the phase line names when its phase began.
+// - 差's heading names when its phase began (S6: no phase box);
+// - 仕訳 n · 保持 m ▸ lists the frame's entries and what was held up to it;
+// - the status and search rows hold exactly the controls of the display
+//   section's table (packages/control/src/atlas-screen-table.mjs), and the
+//   search count names no frame id or rev.
 // Every file it writes is under --out (fixtures/proof-scratch.mjs): the World
 // it builds from and the browser's temporary files, removed at the end.
 import fs from 'node:fs';
@@ -20,6 +24,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLiveAtlas } from '../scripts/build-live-atlas.mjs';
+import { SCREEN_CONTROLS } from '../packages/control/src/atlas-screen-table.mjs';
 import { startAtlasProducer } from './fixtures/live-atlas/sse-producer.mjs';
 import { gapWorld } from './fixtures/atlas-gap-world.mjs';
 import { proofScratch } from './fixtures/proof-scratch.mjs';
@@ -147,25 +152,27 @@ try {
       return { name, visible: Boolean(box && box.width > 0 && box.right <= window.innerWidth + 0.5) };
     }));
     check(width + 'px: ◀ 前へ, 次へ ▶ and 現在へ are visible buttons on the search row', controls.every(item => item.visible), controls);
+    const rowIds = await page.evaluate(() => [...document.querySelectorAll('#atlas-world-status-bar > *, #atlas-world-search-bar > *')].map(item => item.id).sort());
+    check(width + 'px: the status and search rows hold the table\'s controls, no more', JSON.stringify(rowIds) === JSON.stringify(SCREEN_CONTROLS.map(item => item.id).sort()), rowIds);
     // Back: the previous frame, in the time text and the three areas.
     await page.getByRole('button', { name: '◀ 前へ' }).click();
     await settle(page);
     const back = await shown(page, ['HELD', '表示中：過去 7/8 · t6']);
     const backBoxes = await boxes(page);
     check(width + 'px ◀ 前へ: HELD and 表示中：過去 7/8 · t6 are visible', allShown(back), back);
-    check(width + 'px ◀ 前へ: the three areas read t6', backBoxes.gap?.includes(flat('差 2（前 0）! c1 · 鮮度切れ? c4 · 照合不能'))
-      && backBoxes.phase?.includes(flat('局面：近似中（10-17 06:00Z から）')), backBoxes);
+    check(width + 'px ◀ 前へ: the three areas read t6', backBoxes.gap?.includes(flat('理想↔現在の差（近似中・10-17 06:00Z から）前 0! c1 · 鮮度切れ? c4 · 照合不能'))
+      && !backBoxes.phase, backBoxes);
     for (let n = 0; n < 2; n += 1) { await page.getByRole('button', { name: '◀ 前へ' }).click(); await settle(page); }
     const t4 = await boxes(page);
-    check(width + 'px: at t4 the phase line names that its approximation began at t3', t4.phase?.startsWith(flat('局面：近似中（10-17 03:00Z から）')), t4.phase);
+    check(width + 'px: at t4 差\'s heading names that its approximation began at t3', t4.gap?.includes(flat('理想↔現在の差（近似中・10-17 03:00Z から）')), t4.gap);
     await page.getByRole('button', { name: '次へ ▶' }).click();
     await settle(page);
     const forward = await shown(page, ['表示中：過去 6/8 · t5']);
-    check(width + 'px 次へ ▶: one frame toward the present (t5)', allShown(forward) && (await boxes(page)).gap?.includes(flat('差 0（前 3）')), forward);
+    check(width + 'px 次へ ▶: one frame toward the present (t5)', allShown(forward) && (await boxes(page)).gap?.includes(flat('次の鮮度切れ 10-17 05:41Z）前 3')), forward);
     await page.getByRole('button', { name: '現在へ' }).click();
     await settle(page);
     const present = await shown(page, ['LATEST', '表示中：現在 8/8 · t7']);
-    check(width + 'px 現在へ: back at the latest', allShown(present) && (await boxes(page)).phase?.includes(flat('局面：目的の終了（10-17 07:00Z から）')), present);
+    check(width + 'px 現在へ: back at the latest', allShown(present) && (await boxes(page)).gap?.includes(flat('理想↔現在の差（目的の終了・10-17 07:00Z から）')), present);
     // The key shortcuts do what the buttons do.
     await page.focus('#atlas-world');
     await page.keyboard.press('[');
@@ -210,10 +217,18 @@ try {
     });
     // 予定 ▸ (t+1, not a frame): the three areas stay at t0; the list shows the
     // plans, the unbound plans and matched_until, each row inside the list.
-    await story('forecast', '予定 ▸ and held lines', async page => {
+    await story('forecast', '予定 ▸ and held rows', async page => {
       const atPresent = await boxes(page);
-      check(width + 'px: the phase box lists each held declaration (cases 15 and 29)',
-        atPresent.phase?.includes(flat('保持 actor-mismatch · ideal.set · adrs#647保持 proposal · ideal.set · ops#552保持 author-unknown · 種類不明 · adrs#647')), atPresent.phase);
+      // Cases 15 and 29 (S6): what was held is a row of 仕訳 ▸, never in a box;
+      // the button counts it without opening.
+      check(width + 'px: no box draws what was held', !Object.values(atPresent).some(text => text.includes('保持')), atPresent);
+      const journal = await press(page, '仕訳 1 · 保持 3 ▸');
+      await settle(page);
+      const held = await listShown(page, ['保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647',
+        '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552', '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647']);
+      check(width + 'px 仕訳 1 · 保持 3 ▸: each held declaration is a visible row (cases 15 and 29)', journal && held.visible && held.rows.every(row => row.inside), held);
+      await press(page, '仕訳 1 · 保持 3 ▾');
+      await settle(page);
       const opened = await press(page, '予定 ▸');
       await settle(page);
       const planned = await listShown(page, ['予定（最新 t5 · 計画であって事実ではない）', '予定：計画未宣言（UNKNOWN）',
@@ -238,16 +253,18 @@ try {
       await settle(page);
       const t6 = await boxes(page);
       check(width + 'px t6: 理想状態 reads 改訂中 v3 while v2 is in force', t6['ideal-state']?.includes(flat('v2 · 条件 4 · 改訂中 v3')), t6['ideal-state']);
-      const opened = await press(page, '仕訳 1 ▸');
+      const opened = await press(page, '仕訳 1 · 保持 3 ▸');
       await settle(page);
       const entries = await listShown(page, ['△ 理想の定義開始 · 2026-10-17T05:20:00Z · 作者 roccho · 出所 adrs#647 comment 6230983530 · sha256 ' + 'a'.repeat(64)]);
-      check(width + 'px 仕訳 1 ▸: the entry t6 carries is a visible row', opened && entries.visible && entries.rows.every(row => row.inside), entries);
-      await press(page, '仕訳 1 ▾');
+      check(width + 'px 仕訳 1 · 保持 3 ▸: the entry t6 carries is a visible row', opened && entries.visible && entries.rows.every(row => row.inside), entries);
+      await press(page, '仕訳 1 · 保持 3 ▾');
       // Search: choosing a relation brings the camera to its from box, drawn
       // inside the graph.
       await press(page, '現在へ');
       await page.fill('#atlas-world-search', 'current-delta');
       await settle(page);
+      const count = await page.evaluate(() => document.getElementById('atlas-world-search-count')?.textContent ?? '');
+      check(width + 'px search: the count names no frame id or rev (they are on the status row)', /^\d+ /u.test(count) && !count.includes('t7') && !count.includes('rev'), count);
       const relationKey = await page.evaluate(() => window.liveAtlas.page.searchResults.find(row => row.kind === 'relation')?.key ?? null);
       if (relationKey) await page.selectOption('#atlas-world-search-results', relationKey);
       await settle(page);

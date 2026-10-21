@@ -1,20 +1,19 @@
-// The gap view, phases, band and ui clock as drawn (adrs#647 contract v3-v6).
+// The gap view, phases and ui clock as drawn (adrs#647 contract v3-v6).
 // Run inside the semantic-map-browser-proof Nix shell:
 //   node tests/atlas-world-gap-browser-proof.mjs --out=<fresh absent directory> [--input=<World JSON>]
 // Chrome-free builds opened over HTTP in windows of 1280x720, 1500x1000 and
 // 1920x1080. Every frame is reached with `[`/`]` and read from the drawn SVG
 // text and rectangles (not page state):
-// - the phase line, 目的, 理想状態, 差, 現在状態 and each open part are drawn
-//   whole inside their boxes, with the fixture's wording per frame: every
-//   phase; the ideal alone moving (t3); matched with its freshness (t5);
-//   stale observation back to approximating (t6);
+// - 目的, 理想状態, 差, 現在状態 and each open part are drawn whole inside
+//   their boxes, with the fixture's wording per frame: every phase, named on
+//   差's heading with when it began (S6: no phase box); the ideal alone moving
+//   (t3); matched with its next stale time (t5); stale observation back to
+//   approximating (t6);
 // - each part names the cause of each side, and 差 counts both sides (v6);
-// - the band's phase segments and journal marks are drawn inside their cells,
-//   each mark at the frame carrying the entry, and a mark opens its entries'
-//   author and source; 現在状態 counts the journal up to the frame shown,
-//   also after stepping back (v6);
+// - no strip or band is drawn; 現在状態 counts the journal up to the frame
+//   shown, also after stepping back (v6);
 // - on the browser's clock, the present matched frame turns stale after its
-//   matched_until without any input.
+//   matched_until without any input, on 差's heading.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -75,37 +74,34 @@ const claims = compat ? null : arg('page-current') ? await servePage(arg('page-c
 // L3: plans bound to no ideal state (the fixture's unbound plans), listed in
 // 現在状態 of the one screen (`--page-unbound=` applies the check to an
 // earlier build).
-const unbound = compat || (arg('page') && !arg('page-unbound')) ? null : {
+const unbound = compat || !fixture || (arg('page') && !arg('page-unbound')) ? null : {
   none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
 };
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
 const expected = {
-  t0: { phase: '局面：目的変更 · 差 不明', gap: '差 不明', 'current-state': '現在状態観測の仕訳なし' },
-  t1: { phase: '局面：定義中 · 差 不明', 'ideal-state': '照らし合わせる理想状態なし（定義中）' },
-  // 差 is the difference only; 現在状態 holds the contrast with the ideal state.
-  t2: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'ideal-state': 'v1 · 条件 2', gap: '差 0（前 不明）',
-    'current-state': '現在状態観測 1 件 · 最新 01:40Z理想の条件 2 件のうち一致 2 件' },
-  // v6: a part names the cause of each side.
-  t3: { phase: '局面：近似中 · 差 1 · v2', 'ideal-state': 'v1→v2 移動 · 条件 3（追加 1）', gap: '差 1（前 0）! c3 · 理想に追加 · 未観測',
-    'current-state': '現在状態観測 1 件 · 最新 01:40Z理想の条件 3 件のうち一致 2 件', purpose: '宣言だけで回る組織rev 1 · 過去の評価：理想状態が不十分',
-    'gap-part': 'windows repo を退役する未達 · 理想に追加 · 未観測 · この時点から' },
+  t0: { gap: '理想↔現在の差（目的変更・10-17 00:00Z から）差 不明', 'current-state': '現在状態観測の仕訳なし' },
+  t1: { gap: '理想↔現在の差（定義中・10-17 01:00Z から）', 'ideal-state': '照らし合わせる理想状態なし（定義中）' },
+  // 差 is the difference only, with the previous frame's count; 現在状態 the observations.
+  t2: { 'ideal-state': 'v1 · 条件 2', gap: '理想↔現在の差（一致・維持・10-17 02:00Z から・次の鮮度切れ 10-17 02:41Z）前 不明',
+    'current-state': '現在状態観測 1 件 · 最新 01:40Z' },
+  // v6: a part names the cause of each side, on 差; its card says since when.
+  t3: { 'ideal-state': 'v1→v2 移動 · 条件 3', gap: '理想↔現在の差（近似中・10-17 03:00Z から）前 0! c3 · 理想に追加 · 未観測',
+    'current-state': '現在状態観測 1 件 · 最新 01:40Z', purpose: '宣言だけで回る組織rev 1 · 過去の評価：理想状態が不十分',
+    'gap-part': 'windows repo を退役するこの時点から' },
   // v6: the journal accumulates: t4 carries one more observation.
-  t4: { phase: '局面：近似中 · 差 3 · v2', gap: '差 3（前 1）! c3 · 継続! c1 · 現在の後退? c4 · 未観測', 'current-state': '現在状態観測 2 件 · 最新 03:40Z理想の条件 4 件のうち一致 1 件' },
-  t5: { phase: '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z', purpose: 'rev 1 · 評価：到達', 'gap-closed': '閉じた差 3（この時点 3）', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
-  t6: { gap: '! c1 · 鮮度切れ', 'gap-part': '端末で直接入力できる未達 · 鮮度切れ' },
-  t7: { phase: '局面：目的の終了 · Scope は凍結（履歴）', gap: '差 対象外', 'gap-closed': 'c1 目的の終了', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
+  t4: { gap: '理想↔現在の差（近似中・10-17 03:00Z から）前 1! c3 · 継続! c1 · 現在の後退? c4 · 未観測', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
+  t5: { gap: '理想↔現在の差（一致・維持・10-17 05:00Z から・次の鮮度切れ 10-17 05:41Z）前 3', purpose: 'rev 1 · 評価：到達', 'gap-closed': '閉じた差 3（この時点 3）',
+    'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
+  t6: { gap: '! c1 · 鮮度切れ', 'gap-part': '端末で直接入力できるこの時点から' },
+  t7: { gap: '理想↔現在の差（目的の終了・10-17 07:00Z から）差 対象外', 'gap-closed': 'c1 目的の終了', 'current-state': '現在状態観測 2 件 · 最新 03:40Z' },
 };
 // What only contract v5 adds; checked unless --compat.
 if (!compat) {
-  expected.t5.phase += ' · 理想状態の確定前の観測で一致 1 件';
-  Object.assign(expected.t6, { phase: '局面：近似中 · 差 2 · v2', gap: '! c1 · 鮮度切れ? c4 · 照合不能' });
+  expected.t5['current-state'] += '理想状態の確定前の観測で一致 1 件';
+  expected.t6.gap = '理想↔現在の差（近似中・10-17 06:00Z から）前 0! c1 · 鮮度切れ? c4 · 照合不能';
 }
-// Contract 3 (revised): the phase line names when its phase began.
-const PHASE_SINCE = { t0: '10-17 00:00Z', t1: '10-17 01:00Z', t2: '10-17 02:00Z', t3: '10-17 03:00Z', t4: '10-17 03:00Z', t5: '10-17 05:00Z',
-  t6: '10-17 06:00Z', t7: '10-17 07:00Z' };
-for (const [id, item] of Object.entries(expected)) if (item.phase) item.phase = item.phase.replace(/^(局面：[^ ]+)/u, '$1（' + PHASE_SINCE[id] + ' から）');
 const flat = value => String(value ?? '').replace(/\s/gu, '');
 // Fixed words, so the check does not depend on the module under test.
 const ADMISSION_WORDS = { observed_not_admitted: '未採択' };
@@ -151,9 +147,9 @@ try {
         const state = await read(page);
         const where = size.width + 'x' + size.height + ' ' + state.frameId;
         check(where + ': the frame reached is the one asked for', state.frameId === frames[index], state.frameId);
-        const gapNodes = state.nodes.filter(node => ['phase', 'purpose', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed'].includes(node.kind));
+        const gapNodes = state.nodes.filter(node => ['purpose', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed'].includes(node.kind));
         const bad = gapNodes.filter(node => flat(node.text) !== flat(node.label) || !inside(node));
-        check(where + ': gap nodes drawn whole inside their boxes', gapNodes.length >= 5 && bad.length === 0, bad.slice(0, 4));
+        check(where + ': gap nodes drawn whole inside their boxes', gapNodes.length >= 4 && bad.length === 0, bad.slice(0, 4));
         // No strip or band is drawn (contract 3, revised), and the graph takes
         // the screen down to its bottom margin.
         const strip = await page.evaluate(() => [...window.liveAtlas.adapter.cellsByRegionId.keys()].filter(id => id.startsWith('timeline:')).length);
@@ -168,8 +164,8 @@ try {
         check(where + ': the word 目標 is not drawn in the gap view', !gapNodes.some(node => node.text.includes('目標')), null);
         check(where + ': no 目的の変更前の観測 wording (the count is of observations before the ideal.set)',
           !gapNodes.some(node => flat(node.text).includes('目的の変更前の観測')), gapNodes.map(node => node.text));
-        // For any input, against the frame's own supplied fields: the phase
-        // line names the supplied phase, and with no parts no 差 0 is drawn.
+        // For any input, against the frame's own supplied fields: 差's heading
+        // names the supplied phase, and with no parts no 差 0 is drawn.
         const supplied = await page.evaluate(id => {
           const item = window.liveAtlas.input.frames.find(frame => frame.id === id);
           return { phase: item.phase ?? null, partsNull: item.gap ? item.gap.parts === null : null,
@@ -188,13 +184,13 @@ try {
         if (mark) markedFrames.add(state.frameId);
         check(where + ': 目的 shows an unadmitted purpose.set\'s mark, and no mark otherwise',
           purposeNode && (mark ? flat(purposeNode.text).includes(flat(mark)) : !/（未採択）/u.test(purposeNode.text)), { admission: supplied.admission, text: purposeNode?.text });
-        // The ideal state's conditions face, in 現在状態, how many of them match
-        // (as supplied); 差 names each differing condition and holds no match
-        // count and no counter reading 0.
+        // 理想状態 names its conditions; 現在状態 does not count the matches
+        // (S6: the conditions less 差's rows); 差 names each differing
+        // condition and holds no match count and no counter reading 0.
         if (supplied.conditions !== null && supplied.satisfied !== null) {
           const ideal = state.nodes.find(node => node.kind === 'ideal-state');
-          check(where + ': 理想状態 names its conditions and 現在状態 how many match them',
-            flat(ideal?.text).includes(flat('条件 ' + supplied.conditions)) && flat(current?.text).includes(flat('理想の条件 ' + supplied.conditions + ' 件のうち一致 ' + supplied.satisfied + ' 件')),
+          check(where + ': 理想状態 names its conditions and 現在状態 does not count the matches',
+            flat(ideal?.text).includes(flat('条件 ' + supplied.conditions)) && !flat(current?.text).includes('理想の条件'),
             { ideal: ideal?.text, current: current?.text, supplied });
         }
         if (supplied.differing) {
@@ -204,10 +200,12 @@ try {
             delta && supplied.differing.every(item => flat(delta.text).includes(flat(item))) && !/✓\d/u.test(flat(delta.text))
               && !/(追加|改訂|後退|未観測|照合不能|鮮度切れ|継続)0/u.test(flat(delta.text)), { text: delta?.text, differing: supplied.differing, lines: lines.length });
         }
-        const phaseNode = state.nodes.find(node => node.kind === 'phase');
+        // S6: no phase box; 差's heading names the supplied phase (none when not supplied).
+        const deltaNode = state.nodes.find(node => node.kind === 'gap');
         const PHASE_WORDS = { 'purpose-changed': '目的変更', defining: '定義中', approximating: '近似中', matched: '一致・維持', ended: '目的の終了' };
-        check(where + ': the phase line names the supplied phase', phaseNode
-          && flat(phaseNode.text).includes(flat('局面：' + (supplied.phase ? PHASE_WORDS[supplied.phase] : '未供給'))), { supplied, text: phaseNode?.text });
+        check(where + ': no phase box, and 差\'s heading names the supplied phase', !state.nodes.some(node => node.kind === 'phase') && deltaNode
+          && (supplied.phase ? flat(deltaNode.text).includes(flat('理想↔現在の差（' + PHASE_WORDS[supplied.phase])) : !flat(deltaNode.text).includes('理想↔現在の差（')),
+          { supplied, text: deltaNode?.text });
         if (supplied.partsNull) check(where + ': with parts null no 差 0 is drawn', !gapNodes.some(node => /差0/u.test(flat(node.text))), gapNodes.map(node => node.text));
         if (fixture) {
           for (const [kind, words] of Object.entries(expected[state.frameId] ?? {})) {
@@ -218,10 +216,9 @@ try {
             !gapNodes.some(node => /差0/u.test(flat(node.text))), gapNodes.map(node => node.text));
         }
       }
-      // Only its contrast with the moved ideal changes, never its observations.
-      const observed = text => text?.split('理想の条件')[0] ?? null;
-      if (fixture) check(size.width + 'x' + size.height + ': only the ideal moving (t2 -> t3) leaves the drawn observations of 現在状態 unchanged',
-        observed(currentByFrame.t2) && observed(currentByFrame.t2) === observed(currentByFrame.t3), { t2: currentByFrame.t2, t3: currentByFrame.t3 });
+      // Only the ideal moving changes nothing of 現在状態.
+      if (fixture) check(size.width + 'x' + size.height + ': only the ideal moving (t2 -> t3) leaves 現在状態 as drawn unchanged',
+        currentByFrame.t2 && currentByFrame.t2 === currentByFrame.t3, { t2: currentByFrame.t2, t3: currentByFrame.t3 });
       if (fixture) {
         // Going back, 現在状態 is that frame's own total, not the newest.
         await page.focus('#atlas-world');
@@ -230,7 +227,7 @@ try {
         const back = await read(page);
         const backCurrent = back.nodes.find(node => node.kind === 'current-state');
         check(size.width + 'x' + size.height + ': back at t3, 現在状態 counts the journal up to t3 only',
-          back.frameId === 't3' && flat(backCurrent?.text) === flat('現在状態観測 1 件 · 最新 01:40Z理想の条件 3 件のうち一致 2 件') && inside(backCurrent), { frameId: back.frameId, text: backCurrent?.text });
+          back.frameId === 't3' && flat(backCurrent?.text) === flat('現在状態観測 1 件 · 最新 01:40Z') && inside(backCurrent), { frameId: back.frameId, text: backCurrent?.text });
         await page.keyboard.press('L');
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       }
@@ -247,8 +244,8 @@ try {
       await page.clock.install({ time: new Date('2026-10-17T05:30:00Z') });
       await page.goto(urlOf(server), { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
-      const node = (await read(page)).nodes.find(item => item.kind === 'phase');
-      check(story + ': the present phase line reads 理想状態の確定前の観測で一致 1 件, never 目的の変更前',
+      const node = (await read(page)).nodes.find(item => item.kind === 'current-state');
+      check(story + ': the present 現在状態 reads 理想状態の確定前の観測で一致 1 件, never 目的の変更前',
         flat(node?.text).includes(flat('理想状態の確定前の観測で一致 1 件')) && !flat(node?.text).includes('目的の変更前') && inside(node), node?.text);
     } finally {
       await browser.close();
@@ -281,7 +278,7 @@ try {
         state.frameId === 't6' && node && lines.every(line => flat(node.text).includes(flat(line))) && flat(node.text) === flat(node.label) && inside(node), node?.text);
       check(where + ': 現在状態 has no status look and no ✓', look.status === null && !/[✓]/u.test(node?.text ?? ''), look);
       const delta = state.nodes.find(item => item.kind === 'gap');
-      check(where + ': 差 reads as without claims', flat(delta?.text) === flat('? · 理想↔現在の差差 2（前 0）! c1 · 鮮度切れ? c4 · 照合不能'), delta?.text);
+      check(where + ': 差 reads as without claims', flat(delta?.text) === flat('? · 理想↔現在の差（近似中・10-17 06:00Z から）前 0! c1 · 鮮度切れ? c4 · 照合不能'), delta?.text);
     } finally {
       await browser.close();
     }
@@ -355,14 +352,14 @@ try {
       await page.clock.install({ time: new Date('2026-10-17T05:30:00Z') });
       await page.goto(urlOf(matched), { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
-      const phaseText = async () => flat((await read(page)).nodes.find(node => node.kind === 'phase')?.text);
-      check('before matched_until the present reads matched with its freshness', (await phaseText()).includes(flat('一致・維持（10-17 05:00Z から） · 新規 0 · 次の鮮度切れ 05:41Z')), await phaseText());
+      const deltaText = async () => flat((await read(page)).nodes.find(node => node.kind === 'gap')?.text);
+      check('before matched_until the present reads matched with its next stale time', (await deltaText()).includes(flat('理想↔現在の差（一致・維持・10-17 05:00Z から・次の鮮度切れ 10-17 05:41Z）')), await deltaText());
       await page.clock.fastForward(12 * 60 * 1000);
       await page.waitForTimeout(300);
       const stale = await read(page);
-      const node = stale.nodes.find(item => item.kind === 'phase');
-      check('after matched_until, with no input, it reads stale and not known latest, drawn inside its box',
-        flat(node?.text).includes(flat('鮮度切れ・最新か不明（05:41Z を過ぎた）')) && !flat(node?.text).includes('次の鮮度切れ') && inside(node), node);
+      const node = stale.nodes.find(item => item.kind === 'gap');
+      check('after matched_until, with no input, 差\'s heading reads stale and not known latest, drawn inside its box',
+        flat(node?.text).includes(flat('理想↔現在の差（一致・維持・10-17 05:00Z から・鮮度切れ・最新か不明（10-17 05:41Z を過ぎた））')) && !flat(node?.text).includes('次の鮮度切れ') && inside(node), node);
     } finally {
       await browser.close();
     }

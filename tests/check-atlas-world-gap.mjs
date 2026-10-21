@@ -13,38 +13,38 @@ const input = parseAtlasWorldInput(gapWorld());
 const byKind = frame => Object.fromEntries(frame.entities.map(item => [item.ref.kind + ':' + item.ref.id, item.label]));
 const frame = id => input.frames.find(item => item.id === id);
 const byKindKeys = item => item.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
+// S6 (adrs#647 comment 6306887827): no phase box. 理想↔現在の差's heading
+// names the phase and when it began (the first received frame, going back from
+// the one drawn, in the same phase; t4 is still in t3's approximation), and a
+// matched phase's next stale time. 理想状態: version and conditions. 差: which
+// conditions differ and why, and the previous frame's count. 現在状態: the
+// observations, and the matches resting on observations older than the ideal.
+// A part's card: since when, and whose.
+const HEADING = { t0: '目的変更・10-17 00:00Z から', t1: '定義中・10-17 01:00Z から', t2: '一致・維持・10-17 02:00Z から・次の鮮度切れ 10-17 02:41Z',
+  t3: '近似中・10-17 03:00Z から', t4: '近似中・10-17 03:00Z から', t5: '一致・維持・10-17 05:00Z から・次の鮮度切れ 10-17 05:41Z',
+  t6: '近似中・10-17 06:00Z から', t7: '目的の終了・10-17 07:00Z から' };
 const expected = {
-  t0: { 'phase:hq': '局面：目的変更 · 差 不明', 'gap:hq': '差 不明\n照らし合わせる理想状態がまだ無い', 'current-state:hq': '現在状態\n観測の仕訳なし',
+  t0: { 'gap:hq': '差 不明\n照らし合わせる理想状態がまだ無い', 'current-state:hq': '現在状態\n観測の仕訳なし',
     'purpose:hq': '目的\n宣言だけで回る組織\nrev 1' },
-  t1: { 'phase:hq': '局面：定義中 · 差 不明', 'ideal-state:hq': '理想状態\n照らし合わせる理想状態なし（定義中）' },
-  // 理想状態: version and conditions (additions / revisions only when any). 差:
-  // which conditions differ and why, nothing else. 現在状態: observations and
-  // the contrast with the ideal state (how many conditions match).
-  t2: { 'phase:hq': '局面：一致・維持 · 新規 0 · 次の鮮度切れ 02:41Z', 'ideal-state:hq': '理想状態\nv1 · 条件 2',
-    'gap:hq': '差 0（前 不明）', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z\n理想の条件 2 件のうち一致 2 件' },
-  t3: { 'phase:hq': '局面：近似中 · 差 1 · v2', 'ideal-state:hq': '理想状態\nv1→v2 移動 · 条件 3（追加 1）',
-    'gap:hq': '差 1（前 0）\n! c3 · 理想に追加 · 未観測', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z\n理想の条件 3 件のうち一致 2 件',
+  t1: { 'gap:hq': '差 不明\n照らし合わせる理想状態がまだ無い', 'ideal-state:hq': '理想状態\n照らし合わせる理想状態なし（定義中）' },
+  t2: { 'ideal-state:hq': '理想状態\nv1 · 条件 2', 'gap:hq': '前 不明', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z' },
+  t3: { 'ideal-state:hq': '理想状態\nv1→v2 移動 · 条件 3',
+    'gap:hq': '前 0\n! c3 · 理想に追加 · 未観測', 'current-state:hq': '現在状態\n観測 1 件 · 最新 01:40Z',
     'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 過去の評価：理想状態が不十分',
-    'gap-part:c3': 'windows repo を退役する\n未達 · 理想に追加 · 未観測 · この時点から（03:00Z） · scope:atlas' },
-  t4: { 'phase:hq': '局面：近似中 · 差 3 · v2', 'ideal-state:hq': '理想状態\nv2 · 条件 4', 'gap:hq': '差 3（前 1）\n! c3 · 継続\n! c1 · 現在の後退\n? c4 · 未観測',
-    'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z\n理想の条件 4 件のうち一致 1 件',
-    'gap-part:c3': 'windows repo を退役する\n未達 · 継続 · 1 時点前から（03:00Z） · scope:atlas',
-    'gap-part:c1': '端末で直接入力できる\n未達 · 現在の後退 · この時点から（04:00Z） · 担当未確定' },
-  t5: { 'phase:hq': '局面：一致・維持 · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件', 'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 評価：到達',
-    'gap:hq': '差 0（前 3）', 'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z\n理想の条件 4 件のうち一致 4 件', 'gap-closed:t5': '閉じた差 3（この時点 3）\nc1 現在が充足・c4 現在が充足' },
-  t6: { 'phase:hq': '局面：近似中 · 差 2 · v2', 'gap:hq': '差 2（前 0）\n! c1 · 鮮度切れ\n? c4 · 照合不能',
-    'gap-part:c4': 'envs のスコープ主張\n不明 · 照合不能 · この時点から（06:00Z） · scope:envs' },
-  t7: { 'phase:hq': '局面：目的の終了 · Scope は凍結（履歴）', 'gap:hq': '差 対象外\n目的は終了した',
+    'gap-part:c3': 'windows repo を退役する\nこの時点から（03:00Z） · scope:atlas' },
+  t4: { 'ideal-state:hq': '理想状態\nv2 · 条件 4', 'gap:hq': '前 1\n! c3 · 継続\n! c1 · 現在の後退\n? c4 · 未観測',
+    'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z',
+    'gap-part:c3': 'windows repo を退役する\n1 時点前から（03:00Z） · scope:atlas',
+    'gap-part:c1': '端末で直接入力できる\nこの時点から（04:00Z） · 担当未確定' },
+  t5: { 'purpose:hq': '目的\n宣言だけで回る組織\nrev 1 · 評価：到達',
+    'gap:hq': '前 3', 'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z\n理想状態の確定前の観測で一致 1 件', 'gap-closed:t5': '閉じた差 3（この時点 3）\nc1 現在が充足・c4 現在が充足' },
+  t6: { 'gap:hq': '前 0\n! c1 · 鮮度切れ\n? c4 · 照合不能',
+    'gap-part:c4': 'envs のスコープ主張\nこの時点から（06:00Z） · scope:envs' },
+  t7: { 'gap:hq': '差 対象外\n目的は終了した',
     'ideal-state:hq': '理想状態\n照らし合わせる理想状態なし（目的は終了）', 'current-state:hq': '現在状態\n観測 2 件 · 最新 03:40Z',
     'gap-closed:t7': '閉じた差 4（この時点 1）\nc4 現在が充足・c1 目的の終了' },
 };
-for (const item of Object.values(expected)) if (item['gap:hq']) item['gap:hq'] = '理想↔現在の差\n' + item['gap:hq'];
-// Contract 3 (revised, adrs#647 comment 6305441262): with no band on screen the
-// phase line names when its phase began, the first received frame, going back
-// from the one drawn, in the same phase. t4 is still in t3's approximation.
-const PHASE_SINCE = { t0: '10-17 00:00Z', t1: '10-17 01:00Z', t2: '10-17 02:00Z', t3: '10-17 03:00Z', t4: '10-17 03:00Z', t5: '10-17 05:00Z',
-  t6: '10-17 06:00Z', t7: '10-17 07:00Z' };
-for (const [id, item] of Object.entries(expected)) item['phase:hq'] = item['phase:hq'].replace(/^(局面：[^ ]+)/u, '$1（' + PHASE_SINCE[id] + ' から）');
+for (const [id, item] of Object.entries(expected)) if (item['gap:hq']) item['gap:hq'] = '理想↔現在の差（' + HEADING[id] + '）\n' + item['gap:hq'];
 for (const item of input.frames) {
   const drawn = byKind(item);
   for (const [key, label] of Object.entries(expected[item.id])) assert.equal(drawn[key], label, item.id + ' ' + key);
@@ -59,26 +59,27 @@ for (const item of input.frames) {
   // No ideal state (parts null): unknown, never zero.
   if (item.gap.parts === null) assert.ok(!Object.values(drawn).some(label => /差 0/u.test(label)), item.id + ': parts null never reads 差 0');
   assert.deepEqual(item.entities.filter(entity => entity.area === 'agents').map(entity => entity.ref.id), ['atlas.W', 'envs.W']);
+  assert.ok(!item.entities.some(entity => entity.ref.kind === 'phase'), item.id + ': no phase box');
 }
 // No verdict mark on 現在状態; when only the ideal moves (t2 -> t3), its
-// observations do not change, only its contrast with the (moved) ideal.
+// observations do not change.
 const observedLine = id => byKind(frame(id))['current-state:hq'].split('\n')[1];
 assert.equal(observedLine('t3'), observedLine('t2'), 'ideal-only move leaves the observations unchanged');
 for (const item of input.frames) assert.ok(!/[✓?!]\d/u.test(byKind(item)['current-state:hq']), item.id + ': no verdict on 現在状態');
-// 差 draws the difference only: no satisfied count (that contrast is in
-// 現在状態) and no counter that reads 0 below its heading and count lines.
+// 差 draws the difference only: no satisfied count and no count of its own
+// rows (S6), and no counter that reads 0 below its heading and count lines.
 for (const item of input.frames) {
   const delta = byKind(item)['gap:hq'];
-  assert.ok(delta.startsWith('理想↔現在の差\n差 '), item.id + ': the second gap is named apart from the first: ' + delta);
-  assert.ok(!/✓/u.test(delta) && !/[^\d（]0(?=[・ ）]|$)/u.test(delta.split('\n').slice(2).join('\n')), item.id + ': 差 is the difference only: ' + delta);
-  assert.ok(!/（追加 0|改訂 0/u.test(byKind(item)['ideal-state:hq']), item.id + ': 理想状態 writes no zero count');
+  assert.ok(delta.startsWith('理想↔現在の差（'), item.id + ': the second gap is named apart from the first: ' + delta);
+  assert.ok(!/✓/u.test(delta) && !/^差 \d/mu.test(delta) && !/[^\d（]0(?=[・ ）]|$)/u.test(delta.split('\n').slice(2).join('\n')), item.id + ': 差 is the difference only: ' + delta);
+  assert.ok(!/（(追加|改訂) \d/u.test(byKind(item)['ideal-state:hq']), item.id + ': 理想状態 does not count the causes of 差');
 }
 // The before-ideal count is of observations older than the ideal.set: the
 // wording says so whether only the ideal moved or the purpose changed.
 for (const newPurpose of [false, true]) {
   const story = parseAtlasWorldInput(gapWorld({ newPurpose }));
-  const t5 = story.frames.find(item => item.id === 't5').entities.find(item => item.ref.kind === 'phase').label;
-  assert.ok(t5.endsWith(' · 理想状態の確定前の観測で一致 1 件') && !t5.includes('目的の変更前'), (newPurpose ? 'new purpose' : 'ideal only') + ': ' + t5);
+  const t5 = story.frames.find(item => item.id === 't5').entities.find(item => item.ref.kind === 'current-state').label;
+  assert.ok(t5.endsWith('\n理想状態の確定前の観測で一致 1 件') && !t5.includes('目的の変更前'), (newPurpose ? 'new purpose' : 'ideal only') + ': ' + t5);
 }
 // v6: a part shows the cause of each side it has; the earlier single list is
 // still read and, split by the cause names, drawn the same.
@@ -87,8 +88,7 @@ for (const item of legacy.frames) assert.deepEqual(byKind(item), byKind(frame(it
 const sided = gapWorld();
 sided.frames[3].gap.parts[0].cause = { ideal: ['ideal-added'], current: [] };
 sided.frames[3].gap.summary.by_cause = { 'ideal-added': 1 };
-assert.equal(byKind(parseAtlasWorldInput(sided).frames[3])['gap-part:c3'], 'windows repo を退役する\n未達 · 理想に追加 · この時点から（03:00Z） · scope:atlas',
-  'one side only: that side alone');
+assert.ok(byKind(parseAtlasWorldInput(sided).frames[3])['gap:hq'].endsWith('\n! c3 · 理想に追加'), 'one side only: that side alone');
 // v6: the journal is accumulated from each frame's new entries, up to the
 // frame shown; going back draws that frame's own total.
 assert.deepEqual(input.frames.map(item => item.journal.length), [1, 1, 2, 2, 2, 1, 0, 0], 'each frame carries only its new entries');
@@ -115,11 +115,12 @@ for (const item of grouped.frames) {
 }
 assert.ok(grouped.frames.some(item => item.relations.some(relation => relation.containment)), 'the grouped fixture supplies containment');
 // Each open part is shown on the one supplied Scope whose id is its scope or
-// condition: its state, causes and since; 担当なし when it has no scope.
+// condition: since when; 担当未確定 when it has no scope. Its state and causes
+// are 差's row (S6).
 const groupedLabel = (id, entityKind, entityId) => grouped.frames.find(item => item.id === id).entities
   .find(entity => entity.ref.kind === entityKind && entity.ref.id === entityId).label;
-assert.equal(groupedLabel('t4', 'semantic-scope', 'c3'), 'windows repo を退役する\n未達\n未達 · 継続 · 1 時点前から（03:00Z）');
-assert.equal(groupedLabel('t4', 'unassigned-change', 'c1'), '端末で直接入力できる\n未達\n未達 · 現在の後退 · この時点から（04:00Z） · 担当未確定');
+assert.equal(groupedLabel('t4', 'semantic-scope', 'c3'), 'windows repo を退役する\n未達\n1 時点前から（03:00Z）');
+assert.equal(groupedLabel('t4', 'unassigned-change', 'c1'), '端末で直接入力できる\n未達\nこの時点から（04:00Z） · 担当未確定');
 assert.equal(groupedLabel('t6', 'closed-change', 'c3@t5'), 'c3\ncurrent-satisfied', 'no open part: nothing attached');
 assert.equal(groupedLabel('t6', 'scope-group', 'owner:none'), '担当なし', 'a container is not a part');
 // An open part on no supplied Scope is counted on 差 (not when there is none)
@@ -132,8 +133,8 @@ assert.match(deltaOf(unplacedWorld).label, /\nScope に付かない差 1 件$/u)
 assert.ok(!deltaOf(grouped).label.includes('Scope に付かない差'), 'all placed: no unplaced line');
 assert.ok(!byKind(frame('t4'))['gap:hq'].includes('Scope に付かない差'), 'derived Scopes: no unplaced line');
 assert.match(deltaOf(unplacedWorld).summary, /Scope に付かない差: condition=c4 · state=unknown · cause=ideal:なし,current:current-unobserved/u);
-assert.ok(deltaOf(unplacedWorld).label.includes('? c4 · 未観測')
-  && !unplacedWorld.frames[4].entities.some(entity => entity.area === 'scopes' && entity.label.includes('未観測 · この時点から')), 'c4 is on 差 and on no card');
+const sinceCards = world => world.frames[4].entities.filter(entity => entity.area === 'scopes' && /\n(この時点から|\d+ 時点前から)（/u.test(entity.label)).length;
+assert.ok(deltaOf(unplacedWorld).label.includes('? c4 · 未観測') && sinceCards(unplacedWorld) === 2 && sinceCards(grouped) === 3, 'c4 is on 差 and on no card');
 // Two Scopes a part could belong to: it is shown on neither.
 const ambiguous = gapWorld({ groups: true });
 ambiguous.frames[4].entities.push({ ref: { space: 'fixture:gap', kind: 'semantic-scope', id: 'scope:atlas' }, label: '別の主張', area: 'scopes', order: 9, visible: true, activity: 'none' });
@@ -149,9 +150,9 @@ assert.deepEqual(parseAtlasWorldInput(JSON.parse(JSON.stringify(grouped))), grou
 // and 現在状態 carries no status.
 const claimed = parseAtlasWorldInput(gapWorld({ current: true }));
 const claimedState = id => byKind(claimed.frames.find(item => item.id === id))['current-state:hq'];
-assert.equal(claimedState('t4'), '現在状態\n観測 4 件 · 最新 03:50Z\n理想の条件 4 件のうち一致 1 件\n作業の主張（current） 2 件\n'
+assert.equal(claimedState('t4'), '現在状態\n観測 4 件 · 最新 03:50Z\n作業の主張（current） 2 件\n'
   + 'b · 進行（出所 current:P#L2） · 10-17 03:50Z\nc · 進行（出所 current:P#L3） · 10-17 03:50Z');
-assert.equal(claimedState('t6'), '現在状態\n観測 8 件 · 最新 05:30Z\n理想の条件 4 件のうち一致 2 件\n作業の主張（current） 3 件\n'
+assert.equal(claimedState('t6'), '現在状態\n観測 8 件 · 最新 05:30Z\n作業の主張（current） 3 件\n'
   + 'b · 完了と報告（出所 current:P#L2） · 10-17 05:30Z\nc · 不明（最新の行が不正）（出所 current:P#L3） · 10-17 05:30Z\n'
   + 'a · 作成（出所 current:P#L1） · 証拠 roccho-dev/apps#124（出所 current:P#L4） · 10-17 05:30Z');
 for (const item of claimed.frames) {
@@ -169,7 +170,7 @@ for (const item of claimed.frames) {
 const admitted = parseAtlasWorldInput(gapWorld({ admission: true }));
 const admittedKinds = id => byKind(admitted.frames.find(item => item.id === id));
 assert.equal(admittedKinds('t2')['purpose:hq'], '目的\n宣言だけで回る組織\nrev 1（未採択）', 'purpose.set from an unadmitted source');
-assert.equal(admittedKinds('t3')['ideal-state:hq'], '理想状態\nv1→v2（未採択） 移動 · 条件 3（追加 1）', 'ideal.set v2 from an unadmitted source');
+assert.equal(admittedKinds('t3')['ideal-state:hq'], '理想状態\nv1→v2（未採択） 移動 · 条件 3', 'ideal.set v2 from an unadmitted source');
 assert.equal(admittedKinds('t3')['purpose:hq'], '目的\n宣言だけで回る組織\nrev 1（未採択） · 過去の評価：理想状態が不十分（pending-review）', 'an unknown admission value is shown as is');
 assert.equal(admittedKinds('t2')['ideal-state:hq'], '理想状態\nv1 · 条件 2', 'ideal.set v1 has no admission: no mark');
 for (const item of admitted.frames) {
@@ -244,14 +245,18 @@ assert.equal(byKind(frame('t6'))['gap-closed:t6'], '閉じた差 3（この時�
 // The ui clock: past matched_until, the present matched frame reads stale;
 // before it, or for a frame that is not the present, it does not.
 const matchedNow = parseAtlasWorldInput(gapWorld({ through: 't5' }));
-const phaseLabel = (world, id, now) => projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none', now })
-  .scene.representations.find(rep => rep.atlas?.ref?.kind === 'phase').label.replace(/\s+/gu, ' ');
-assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:40:59Z')), '局面：一致・維持（10-17 05:00Z から） · 新規 0 · 次の鮮度切れ 05:41Z · 理想状態の確定前の観測で一致 1 件');
-assert.equal(phaseLabel(matchedNow, 't5', Date.parse('2026-10-17T05:41:01Z')), '? · 局面：一致・維持 → 鮮度切れ・最新か不明（05:41Z を過ぎた）');
-assert.equal(phaseLabel(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')), '局面：一致・維持（10-17 02:00Z から） · 新規 0 · 次の鮮度切れ 02:41Z', 'a past frame is not judged by today');
+// The stale present is named on 理想↔現在の差's heading (S6), in place of its
+// next stale time, and its box reads unknown.
+const flat = text => text.replace(/\s+/gu, '');
+const deltaDrawn = (world, id, now) => flat(projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none', now })
+  .scene.representations.find(rep => rep.atlas?.ref?.kind === 'gap').label);
+assert.ok(deltaDrawn(matchedNow, 't5', Date.parse('2026-10-17T05:40:59Z')).endsWith(flat('理想↔現在の差（一致・維持・10-17 05:00Z から・次の鮮度切れ 10-17 05:41Z）\n前 3')));
+assert.equal(deltaDrawn(matchedNow, 't5', Date.parse('2026-10-17T05:41:01Z')), flat('? · 理想↔現在の差（一致・維持・10-17 05:00Z から・鮮度切れ・最新か不明（10-17 05:41Z を過ぎた））\n前 3'));
+assert.ok(deltaDrawn(matchedNow, 't2', Date.parse('2026-10-17T05:41:01Z')).endsWith(flat('理想↔現在の差（一致・維持・10-17 02:00Z から・次の鮮度切れ 10-17 02:41Z）\n前 不明')),
+  'a past frame is not judged by today');
 
-// No band (contract 3, revised): the phase line names when its phase began,
-// and 仕訳 ▸ lists each frame's own entries (v6: at the frame that carries them).
+// No band (contract 3, revised): 仕訳 ▸ lists each frame's own entries (v6: at
+// the frame that carries them).
 assert.deepEqual(input.frames.map(item => timeline.journalLines(item).map(row => row.split(' ')[0])),
   [['◎'], ['△'], ['▲', '·'], ['▲', '★'], ['◇', '·'], ['★'], [], []], 'each frame lists the entries it carries');
 
@@ -310,17 +315,17 @@ rejectT1(item => { item.gap.closed.push({ condition: 'c9', at: 't1', by: 'purpos
 // A phase that disagrees with the gap is shown as disagreeing.
 const off = gapWorld();
 off.frames[4].phase = 'matched';
-assert.equal(byKind(parseAtlasWorldInput(off).frames[4])['phase:hq'], '局面：一致・維持（10-17 04:00Z から） · 新規 0 · 次の鮮度切れ 不明 · gap と不整合');
+assert.equal(byKind(parseAtlasWorldInput(off).frames[4])['gap:hq'].split('\n')[0], '理想↔現在の差（一致・維持・10-17 04:00Z から・次の鮮度切れ 不明） · gap と不整合');
 // The phase's start is read from the received frames alone: a World cut at
 // t4 says the same, and a frame whose phase is not supplied names none.
-assert.equal(byKind(parseAtlasWorldInput(gapWorld({ through: 't4' })).frames[4])['phase:hq'], expected.t4['phase:hq'], 'received frames only');
+assert.equal(byKind(parseAtlasWorldInput(gapWorld({ through: 't4' })).frames[4])['gap:hq'], expected.t4['gap:hq'], 'received frames only');
 const unsupplied = gapWorld();
 delete unsupplied.frames[4].phase;
-assert.ok(!byKind(parseAtlasWorldInput(unsupplied).frames[4])['phase:hq'].includes('から）'), 'no phase: no start');
+assert.equal(byKind(parseAtlasWorldInput(unsupplied).frames[4])['gap:hq'].split('\n')[0], '理想↔現在の差', 'no phase: no start');
 // A summary that disagrees with the parts is shown as disagreeing.
 const offSummary = gapWorld();
 offSummary.frames[4].gap.summary.open = 9;
-assert.match(byKind(parseAtlasWorldInput(offSummary).frames[4])['gap:hq'], /^理想↔現在の差\n差 3（前 1） · 集計不一致\n/u);
+assert.match(byKind(parseAtlasWorldInput(offSummary).frames[4])['gap:hq'], /^理想↔現在の差（[^\n]+）\n前 1 · 集計不一致\n/u);
 // Plans never enter the gap: they are named on 理想状態 only (an attribute of the ideal).
 const planned = gapWorld();
 planned.frames[3].plans = [];
@@ -357,7 +362,7 @@ for (const item of judged.frames) {
   assert.equal(drawn.label, '目的↔理想の差\n' + gapALabel[item.id], item.id + ': GapA state and reason');
   assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': GapA status from its state only');
   assert.ok(!/\d+ 件/u.test(drawn.label), item.id + ': GapA draws no count');
-  assert.deepEqual(purposeOrder(item), ['phase', 'purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': the chain P, GapA, I, GapB, C');
+  assert.deepEqual(purposeOrder(item), ['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': the chain P, GapA, I, GapB, C');
   assert.ok(gapRelations(item).includes('ideal-state>purpose-adequacy 照らす') && gapRelations(item).includes('purpose-adequacy>purpose 十分性'), item.id);
   assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'purpose-adequacy').map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]),
     frame(item.id).entities.map(entity => [entity.ref.kind, entity.ref.id, entity.label, entity.flags]), item.id + ': adequacy changes no other entity');
@@ -386,20 +391,13 @@ for (const item of signed.frames) {
   assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': a sign changes no state');
   assert.equal(byKind(item)['gap:hq'], byKind(frame(item.id))['gap:hq'], item.id + ': a sign changes no GapB');
 }
-// held (contract v12): the declarations held back up to the frame, counted by
-// reason on the phase line. Display only: every other label and flag as without.
+// held (contract v12): the declarations held back up to the frame. Display
+// only, and never in a box (S6): every label and flag as without.
 const heldWorld = parseAtlasWorldInput(gapWorld({ held: true }));
-// Cases 15 and 29: what was held is read on the phase box too, one line per
-// declaration (reason · kind · source), in the order they entered, at most 5.
-const heldLines = '\n保持 actor-mismatch · ideal.set · adrs#647';
-const heldText = { t3: '\n保持 1 件（actor-mismatch 1）' + heldLines, t4: '\n保持 1 件（actor-mismatch 1）' + heldLines };
-for (const id of ['t5', 't6', 't7']) heldText[id] = '\n保持 3 件（actor-mismatch 1 · author-unknown 1 · proposal 1）' + heldLines
-  + '\n保持 proposal · ideal.set · ops#552\n保持 author-unknown · 種類不明 · adrs#647';
 for (const item of heldWorld.frames) {
-  assert.deepEqual(item.entities.filter(entity => entity.ref.kind !== 'phase').map(entity => [entity.ref.kind, entity.label, entity.flags]),
-    frame(item.id).entities.filter(entity => entity.ref.kind !== 'phase').map(entity => [entity.ref.kind, entity.label, entity.flags]), item.id + ': held changes nothing else');
+  assert.deepEqual(item.entities.map(entity => [entity.ref.kind, entity.label, entity.flags]),
+    frame(item.id).entities.map(entity => [entity.ref.kind, entity.label, entity.flags]), item.id + ': held changes no box');
 }
-assert.match(heldWorld.frames[5].entities.find(entity => entity.ref.kind === 'phase').summary, /保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552/u);
 
 // I2b-1 (contract 3 revised, v12): each feature is checked on its own, so each
 // one that is missing fails by itself (and all are reported together).
@@ -407,21 +405,18 @@ const missing = [];
 const feature = (name, body) => {
   try { body(); } catch (error) { missing.push(name + ': ' + String(error.message).split('\n')[0]); }
 };
-feature('held lines (cases 15, 29)', () => {
-  for (const item of heldWorld.frames) {
-    assert.equal(byKind(item)['phase:hq'], byKind(frame(item.id))['phase:hq'] + (heldText[item.id] ?? ''), item.id + ': held by reason, accumulated, one line each');
-  }
-  // A stale matched present replaces the phase line only: what was held stays.
-  const heldNow = parseAtlasWorldInput(gapWorld({ held: true, through: 't5' }));
-  const staleHeld = projectAtlasWorld({ input: heldNow, frame: heldNow.frames[5], selected: 'none', now: Date.parse('2026-10-17T05:41:01Z') })
-    .scene.representations.find(rep => rep.atlas?.ref?.kind === 'phase').label.replace(/\s+/gu, ' ');
-  assert.ok(staleHeld.includes('鮮度切れ・最新か不明') && staleHeld.includes('保持 3 件') && staleHeld.includes('保持 proposal · ideal.set · ops#552'), 'stale keeps held: ' + staleHeld);
-  const manyHeld = gapWorld({ held: true });
-  manyHeld.frames[6].held = Array.from({ length: 4 }, (_, n) => ({ reason: 'proposal', kind: 'plan.set', recordedAt: '2026-10-17T05:3' + n + ':00Z', source: { ref: 'ops#' + (600 + n), commentId: null, sha256: null } }));
-  const manyPhase = byKind(parseAtlasWorldInput(manyHeld).frames[6])['phase:hq'];
-  assert.ok(manyPhase.includes('\n保持 7 件（'), 'all counted: ' + manyPhase);
-  assert.equal(manyPhase.split('\n').filter(line => line.startsWith('保持 ') && !/^保持 \d+ 件/u.test(line)).length, 5, 'at most 5 held lines');
-  assert.ok(manyPhase.endsWith('\n他 2 件'), 'the rest counted: ' + manyPhase);
+// Cases 15 and 29 (S6): what was held up to the frame shown is read in 仕訳 ▸,
+// one row per declaration (reason · kind · when · source) in the order they
+// entered, after the frame's entries; the button counts both.
+feature('held rows in 仕訳 ▸ (cases 15, 29)', () => {
+  assert.equal(typeof timeline.heldLines, 'function', 'heldLines is provided');
+  const t3 = ['保持 actor-mismatch · ideal.set · 2026-10-17T02:40:00Z · 出所 adrs#647'];
+  const t5 = [...t3, '保持 proposal · ideal.set · 2026-10-17T04:20:00Z · 出所 ops#552', '保持 author-unknown · 種類不明 · 2026-10-17T04:30:00Z · 出所 adrs#647'];
+  const rows = { t0: [], t1: [], t2: [], t3, t4: t3, t5, t6: t5, t7: t5 };
+  for (const item of heldWorld.frames) assert.deepEqual(timeline.heldLines(heldWorld.frames, item), rows[item.id], item.id + ': held up to the frame, one row each');
+  assert.deepEqual(timeline.heldLines(input.frames, frame('t5')), [], 'none held: no row');
+  assert.equal(timeline.journalButtonText(timeline.journalLines(heldWorld.frames[5]).length, t5.length, false), '仕訳 1 · 保持 3 ▸');
+  assert.equal(timeline.journalButtonText(0, 0, true), '仕訳 0 · 保持 0 ▾');
 });
 // Case 14: while an ideal is in force, a newer ideal.drafting with no ideal.set
 // of its version yet reads 改訂中 on 理想状態. Display only.
@@ -438,10 +433,10 @@ feature('最後の観測 (case 26)', () => {
   const observed = parseAtlasWorldInput(gapWorld({ lastObserved: true }));
   assert.equal(byKind(observed.frames[4])['gap-part:c1'], expected.t4['gap-part:c1'] + ' · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）');
   assert.equal(byKind(observed.frames[4])['gap-part:c3'], expected.t4['gap-part:c3'] + ' · 最後の観測なし');
-  assert.ok(byKind(observed.frames[6])['gap-part:c1'].endsWith('鮮度切れ · この時点から（06:00Z） · 担当未確定 · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）'),
+  assert.ok(byKind(observed.frames[6])['gap-part:c1'].endsWith('\nこの時点から（06:00Z） · 担当未確定 · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）'),
     'case 26: the stale part names its last observer');
   const observedPhysical = parseAtlasWorldInput(gapWorld({ lastObserved: true, physical: true }));
-  assert.ok(byKind(observedPhysical.frames[4])['package:roccho-dev/apps:packages/atlas'].includes('! c1 · 未達 · 現在の後退 · 担当未確定 · 最後の観測 10-17 03:40Z'), 'the card line too');
+  assert.ok(byKind(observedPhysical.frames[4])['package:roccho-dev/apps:packages/atlas'].includes('! c1 · 担当未確定 · 最後の観測 10-17 03:40Z'), 'the card line too');
   const groupedObserved = parseAtlasWorldInput(gapWorld({ lastObserved: true, groups: true }));
   assert.ok(groupedObserved.frames[4].entities.find(entity => entity.ref.id === 'c1').label.endsWith('担当未確定 · 最後の観測 10-17 03:40Z（hq:observations.jsonl · atlas.events）'), 'a supplied Scope card too');
   const rejectPart = (mutate, pattern) => { const raw = gapWorld({ lastObserved: true }); mutate(raw.frames[4].gap.parts.find(part => part.condition === 'c1')); assert.throws(() => parseAtlasWorldInput(raw), pattern); };
@@ -525,10 +520,10 @@ const physicalT4 = physicalWorld.frames[4];
 assert.deepEqual(physicalT4.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id),
   ['package:roccho-dev/apps:packages/atlas', 'package:roccho-dev/ui:packages/control', 'service:native:serve-static'], 't4: the declared physical things are the Scopes');
 assert.equal(byKind(physicalT4)['package:roccho-dev/apps:packages/atlas'],
-  'roccho-dev/apps\npackages/atlas\n対象: 理想↔現在の差\n! c3 · 未達 · 継続 · 担当 scope:atlas\n! c1 · 未達 · 現在の後退 · 担当未確定');
-assert.equal(byKind(physicalT4)['package:roccho-dev/ui:packages/control'], 'roccho-dev/ui\npackages/control\n対象: 理想↔現在の差\n! c3 · 未達 · 継続 · 担当 scope:atlas');
-assert.equal(byKind(physicalT4)['service:native:serve-static'], 'native:serve-static\n保つ: c1\n対象: 理想↔現在の差\n! c1 · 未達 · 現在の後退 · 担当未確定');
-assert.equal(byKind(physicalT4)['gap:hq'], '理想↔現在の差\n差 3（前 1）\n! c3 · 継続 · 物理Scope roccho-dev/apps/packages/atlas / roccho-dev/ui/packages/control'
+  'roccho-dev/apps\npackages/atlas\n対象: 理想↔現在の差\n! c3 · 担当 scope:atlas\n! c1 · 担当未確定');
+assert.equal(byKind(physicalT4)['package:roccho-dev/ui:packages/control'], 'roccho-dev/ui\npackages/control\n対象: 理想↔現在の差\n! c3 · 担当 scope:atlas');
+assert.equal(byKind(physicalT4)['service:native:serve-static'], 'native:serve-static\n保つ: c1\n対象: 理想↔現在の差\n! c1 · 担当未確定');
+assert.equal(byKind(physicalT4)['gap:hq'], '理想↔現在の差（近似中・10-17 03:00Z から）\n前 1\n! c3 · 継続 · 物理Scope roccho-dev/apps/packages/atlas / roccho-dev/ui/packages/control'
   + '\n! c1 · 現在の後退 · 物理Scope roccho-dev/apps/packages/atlas / native:serve-static\n? c4 · 未観測 · 物理Scope 未特定');
 const physicalRelations = item => gapRelations(item).filter(relation => /^(package|service)>/u.test(relation));
 assert.deepEqual(physicalRelations(physicalT4), ['package>gap この差を埋める対象', 'package>gap この差を埋める対象', 'service>gap この条件を保つもの', 'service>ideal-state この条件を保つもの']);
