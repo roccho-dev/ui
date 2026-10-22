@@ -86,7 +86,7 @@ const REMOVED = [
 const lineWorlds = [
   ...worlds,
   ...[{}, { groups: true }, { groups: 'unplaced' }, { current: true, admission: true }, { newPurpose: true }, { sides: false, v5: false },
-    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }, { pRecords: 'waiting', judged: true }, { pRecords: 'series', judged: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
+    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }, { pRecords: 'waiting', judged: true }, { pRecords: 'series', judged: true }, { pRecords: 'redacted', judged: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
   plannedWorld(),
   parseAtlasWorldInput(crowdedGapWorld()),
   // D1 (R c6343482688): GapA waits for the User, and the owner source held an evaluation back.
@@ -326,6 +326,22 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('series: a series with another field is refused', refused(records => { records[0].entries[0].token = 'x'; }).includes('entries must be'));
   check('series: two series with one id are refused', refused(records => { records[0].entries[1].id = 'atlas'; }).includes('entries must be'));
   check('replaced: a replacement without what it replaces is refused', refused(records => { records[1].replaces = ''; }).includes('replaces must be non-empty text'));
+}
+// A record apps sends without its text (adrs#647 W c6350841730, R c6350853997): the data carries no text, the ui marks
+// it replaced at once, though the replacement itself is in no frame yet; the form is closed.
+{
+  const raw = () => gapWorld({ pRecords: 'redacted', judged: true });
+  check('redacted: the input has no text of p-1', !JSON.stringify(raw()).includes('試験の値'));
+  const world = parseAtlasWorldInput(raw());
+  const index = world.frames.findIndex(item => item.id === 't4');
+  const change = gapModule.frameChangeLabel(world.frames.slice(0, index), world.frames[index], world.frames).split('\n');
+  check('redacted: t4\'s changes show it replaced at once', change.includes('⊘ 置き換えられた P の記録 p-1 → p-11 · 2026-10-17T03:45:00Z · P の記録（未照合） · 出所 hq:p-records.jsonl 行 1'), change);
+  const gapA = id => world.frames.find(item => item.id === id).entities.find(entity => entity.ref.kind === 'purpose-adequacy')?.label.split('\n') ?? [];
+  const WAITING = 'User の判断待ち：置き換えられた P の記録 p-1 → p-11（atlas・10-17 03:45Z から・P の記録）';
+  check('redacted: until the replacement is placed it still waits, without text, from P\'s write time', gapA('t4').includes(WAITING) && gapA('t5').includes(WAITING), [gapA('t4'), gapA('t5')]);
+  const refused = mutate => { const value = raw(); mutate(value.frames[index].p_records.find(item => item.id === 'p-1')); try { parseAtlasWorldInput(value); return ''; } catch (error) { return error.message; } };
+  check('redacted: a field of its own beside superseded_by is refused', refused(record => { record.question = '試験の値'; }).includes('unknown field question'));
+  check('redacted: superseded_by must be text or null', refused(record => { record.superseded_by = 3; }).includes('superseded_by must be non-empty text or null'));
 }
 // The panel's row says what the page draws: six lines, fixed (116 px,
 // atlas-ui.mjs), the rest scrolled inside it (S7c).

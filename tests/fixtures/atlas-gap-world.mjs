@@ -236,6 +236,9 @@ const P_RECORDS_T5 = [
   laterRecord('p.supersede', 'p-10', { replaces: 'p-1', by: 'p-11' }),
   laterRecord('user.decision.requested', 'p-12', { question: 'H のやり直し', options: [], recommended: null, since: '2026-10-17T04:20:00Z', reask_due: null }, 'sys1'),
 ];
+// A record as apps sends it once P replaced it: the common fields, its source and superseded_by, nothing of its own.
+const redact = (record, by) => ({ schema: record.schema, id: record.id, kind: record.kind, at: record.at, series: record.series, ref: record.ref,
+  authority: false, source: record.source, superseded_by: by });
 const P_RECORD_HELD = { reason: 'p-record: at', kind: null, recordedAt: '2026-10-17T03:50:00Z', source: { ref: 'hq:p-records.jsonl', commentId: null, sha256: sha('p') } };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
   judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false, retired = false, pRecords = false } = {}) => {
@@ -285,7 +288,11 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
         relations: [...item.relations, ...supplied.relations, ...declared.relations],
         ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}),
         ...(pRecords === 'series' && item.id === 't5' ? { p_records: structuredClone(P_RECORDS_T5) } : {}),
-        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS).map(record => ['waiting', 'series'].includes(pRecords) && record.id === 'p-2' ? { ...record, request: null } : record), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
+        // `pRecords: 'redacted'` (adrs#647 W c6350841730, R c6350853997): apps already sends p-1 without its text,
+        // replaced by p-11, while the replacement itself is in no frame yet (it entered after the last one).
+        ...(pRecords === 'redacted' && item.id === 't5' ? { p_records: structuredClone(P_RECORDS_T5).filter(record => record.kind !== 'p.supersede') } : {}),
+        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS).map(record => ['waiting', 'series', 'redacted'].includes(pRecords) && record.id === 'p-2' ? { ...record, request: null } : record)
+          .map(record => pRecords === 'redacted' && record.id === 'p-1' ? redact(record, 'p-11') : record), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
     }),
   };
 };
