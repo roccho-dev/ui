@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
-import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
+import { ATLAS_STATUS, projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
 import { SCREEN_CONTROLS, SCREEN_LINES } from '../packages/control/src/atlas-screen-table.mjs';
 import * as gapModule from '../packages/control/src/atlas-gap.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
@@ -35,6 +35,9 @@ const worlds = [parseAtlasWorldInput(bundledWorld()), parseAtlasWorldInput(world
   parseAtlasWorldInput(gapWorld({ current: true, retired: true })),
   parseAtlasWorldInput(JSON.parse(readFileSync(new URL('../examples/atlas/input/a2-world.json', import.meta.url), 'utf8')))];
 let regions = 0;
+const STATUS_SYMBOLS = Object.values(ATLAS_STATUS).map(status => status.symbol);
+const drawnSymbols = new Map();
+const drawnActivity = new Set();
 for (const world of worlds) for (const item of world.frames) for (const viewport of [{ width: 800, height: 900 }, { width: 1500, height: 1000 }]) {
   const projection = project(world, item, { viewport });
   const kinds = new Set(projection.scene.representations.map(rep => rep.atlas?.kind ?? 'none'));
@@ -43,7 +46,24 @@ for (const world of worlds) for (const item of world.frames) for (const viewport
   for (const key of ['detail', 'direction', 'selected', 'worldComparison', 'aggregateRelationIds']) assert.ok(!(key in projection), item.id + ': no ' + key);
   assert.deepEqual(Object.keys(projection.viewport), ['graph'], 'one layout: the graph alone');
   regions += projection.scene.representations.length;
+  // D5 (apps#73; adrs#647 R c6344515321): a still image tells the states apart
+  // by the symbol, never by the colour alone; one state is drawn with one symbol.
+  for (const rep of projection.scene.representations.filter(rep => rep.atlas?.kind === 'entity')) {
+    const head = rep.label.split(' · ')[0];
+    if (rep.atlas.status !== null) {
+      check(item.id + ': D5 ' + rep.regionId + ' carries its state\'s symbol', rep.label.startsWith(ATLAS_STATUS[rep.atlas.status].symbol + ' · '), rep.label);
+      drawnSymbols.set(rep.atlas.status, new Set([...(drawnSymbols.get(rep.atlas.status) ?? []), head]));
+    } else if (rep.atlas.activity !== 'none') {
+      // Activity has its own symbols; only the unknown one shares `?`, which means unknown there too.
+      drawnActivity.add(rep.atlas.activity);
+      check(item.id + ': D5 ' + rep.regionId + ' activity symbol is no state\'s', !STATUS_SYMBOLS.includes(head) || (rep.atlas.activity === 'unknown' && head === ATLAS_STATUS.unknown.symbol), rep.label);
+    }
+  }
 }
+check('D5: every state has its own symbol', new Set(STATUS_SYMBOLS).size === STATUS_SYMBOLS.length, STATUS_SYMBOLS);
+check('D5: every state is drawn by some World here', drawnSymbols.size === STATUS_SYMBOLS.length, [...drawnSymbols.keys()]);
+check('D5: some World here draws activity', drawnActivity.size > 0);
+check('D5: every drawn state is drawn with one symbol', [...drawnSymbols.values()].every(symbols => symbols.size === 1), Object.fromEntries([...drawnSymbols].map(([status, symbols]) => [status, [...symbols]])));
 assert.deepEqual(worldViewport({ width: 800, height: 600 }), { graph: { x: 16, y: 16, width: 768, height: 568 } });
 
 // The table. A box is named by what gapView draws in it; any other box is the
@@ -218,4 +238,4 @@ check('an approximating present with conditions met has its steps', JSON.stringi
 }
 for (const failure of failures) console.error(JSON.stringify(failure));
 assert.equal(failures.length, 0, failures.length + ' screen checks fail');
-console.log(JSON.stringify({ status: 'atlas-world-screen-checks-pass', regions, kinds: seen.size, cases: new Set([...CASES.map(([number]) => number), 15, 29]).size }));
+console.log(JSON.stringify({ status: 'atlas-world-screen-checks-pass', regions, kinds: seen.size, states: [...drawnSymbols.keys()].sort().join(','), activity: [...drawnActivity].sort().join(','), cases: new Set([...CASES.map(([number]) => number), 15, 29]).size }));
