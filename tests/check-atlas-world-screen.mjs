@@ -69,7 +69,7 @@ assert.deepEqual(worldViewport({ width: 800, height: 600 }), { graph: { x: 16, y
 // The table. A box is named by what gapView draws in it; any other box is the
 // producer's (supplied), and so is every box of a frame without a gap. Lines are read as gapView writes them, before the
 // layout wraps them; the stale present's heading as the projection writes it.
-const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed', 'history-hidden', 'p-series']);
+const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed', 'history-hidden', 'p-series', 'p-summary']);
 const boxOf = (entity, frame) => !Object.hasOwn(frame, 'gap') ? 'supplied' : GAP_BOXES.has(entity.ref.kind) && (entity.ref.kind !== 'purpose' || entity.flags.includes('gap-view')) ? entity.ref.kind
   : entity.flags.includes('gap-view') ? (entity.flags.includes('physical-scope') ? 'physical' : 'scope-card')
     : entity.ref.kind === 'phase' ? 'phase' : 'supplied';
@@ -326,6 +326,38 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('series: a series with another field is refused', refused(records => { records[0].entries[0].token = 'x'; }).includes('entries must be'));
   check('series: two series with one id are refused', refused(records => { records[0].entries[1].id = 'atlas'; }).includes('entries must be'));
   check('replaced: a replacement without what it replaces is refused', refused(records => { records[1].replaces = ''; }).includes('replaces must be non-empty text'));
+}
+// P's report at a glance (User c6351593265, R c6352966769): one box, first in the area after the Scopes, with the
+// latest of each kind up to the frame and "無し" for a kind there is none of; 目的 and GapA are where they were.
+{
+  const summaryOf = (options, id) => parseAtlasWorldInput(gapWorld(options)).frames.find(item => item.id === id).entities.find(entity => entity.ref.kind === 'p-summary');
+  const t5 = summaryOf({ pRecords: 'series', judged: true }, 't5');
+  check('summary: at t5 it reads every kind\'s latest', t5?.label === [
+    'P の報告の要約（P の記録・未照合）',
+    '系列 3 · 閉じた 1（host）',
+    'User の判断待ち 1 件：sys1 1',
+    'loop の停止 10-17 1 件（不要 1）',
+    '心拍：run 稼働 · tunnel 稼働 · HQ ループ 不明（10-17 03:45Z）',
+    '直近の判断：「atlas go ahead」→ C5 段 1 を採る（10-17 03:45Z）',
+    '直近の撤回・訂正：自己訂正 · 逸脱 1（10-17 03:45Z）',
+    '直近の receipt：hq-refresh v3 · PASS · 戻していない（10-17 03:45Z）',
+    '直近のレビュー：評者不明 · readback なし（10-17 03:45Z）',
+    '直近の User の基準：「偽陽性がなく迷わずシンプル」→ 鍵の選び方（10-17 03:45Z）',
+    '置き換え 1 件：p-1 → p-11',
+    '費用（数は正本、Atlas では UNKNOWN）：atlas roccho-dev/adrs#647 · sys1 roccho-dev/adrs#664 · host roccho-dev/adrs#663',
+  ].join('\n'), t5?.label);
+  check('summary: it is in the area after the Scopes, at its head', t5?.area === 'agents' && t5?.order === 0, t5 && [t5.area, t5.order]);
+  // The app normalizes the World it is sent again: that must hold (an order must be non-negative there).
+  const once = parseAtlasWorldInput(gapWorld({ pRecords: 'series', judged: true }));
+  let again = null;
+  try { again = parseAtlasWorldInput(JSON.parse(JSON.stringify(once))); } catch (error) { again = error.message; }
+  check('summary: the drawn World normalizes again', typeof again === 'object' && again !== null, again);
+  const t4 = summaryOf({ pRecords: true }, 't4')?.label.split('\n') ?? [];
+  check('summary: a kind there is none of reads 無し', ['系列の一覧 無し', '置き換え 無し', '費用の在りか 不明（系列の一覧 無し）'].every(line => t4.includes(line)), t4);
+  check('summary: no box before P recorded anything', !summaryOf({ pRecords: true }, 't3') && !summaryOf({}, 't7'));
+  const gapA = options => parseAtlasWorldInput(gapWorld(options)).frames.find(item => item.id === 't5').entities.find(entity => entity.ref.kind === 'purpose-adequacy');
+  check('summary: GapA is as it was', JSON.stringify(gapA({ pRecords: 'series', judged: true })?.flags) === JSON.stringify(gapA({ judged: true })?.flags));
+  check('summary: no replaced text, no session id', !t5?.label.includes('試験の値') && !t5?.label.includes('session-0001'));
 }
 // A record apps sends without its text (adrs#647 W c6350841730, R c6350853997): the data carries no text, the ui marks
 // it replaced at once, though the replacement itself is in no frame yet; the form is closed.

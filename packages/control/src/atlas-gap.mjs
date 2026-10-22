@@ -476,6 +476,36 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
     '系列 ' + item.id + ' · 正本 ' + item.canon + ' · ゴール ' + (item.goal ?? 'なし') + ' · host ' + item.host + ' · 出所 ' + seriesList.source.ref + ' 行 ' + seriesList.source.line,
     [...(count ? ['awaiting=user-decision'] : []), ...(item.state === 'closed' ? ['history-preserved'] : [])]);
   });
+  // P's report at a glance (User c6351593265: each kind answered from the screen in 10 seconds; R c6352966769: on the
+  // first screen, 1500×900, no scroll, the latest frame): one box at the head of the area after the Scopes (the Agents'
+  // in the HQ World; order 0, the World is normalized again in the app and an order is non-negative), so 目的 and
+  // GapA stay where they are. Every line is P's record up to this frame, its latest of a
+  // kind, "無し" when there is none; a replaced record is left out. Projected (P): each is also a row of the changes
+  // of the frame it entered, which only ◀ 前へ reaches.
+  const latest = kind => liveRecords.filter(item => kind(item)).at(-1) ?? null;
+  const when = item => '（' + dayClockText(item.at) + '）';
+  const closedSeries = (seriesList?.entries ?? []).filter(item => item.state === 'closed');
+  const bySeries = [...new Set(waiting.map(item => item.series ?? '系列なし'))].map(id => id + ' ' + waiting.filter(item => (item.series ?? '系列なし') === id).length);
+  const lastDecision = latest(item => item.kind === 'user.decision.recorded');
+  const corrected = latest(item => item.kind === 'p.position' && item.position !== 'claim');
+  const receipt = latest(item => item.kind === 'p.receipt');
+  const review = latest(item => item.kind === 'review.pasted');
+  const criterion = latest(item => item.kind === 'user.criterion');
+  const replaced = [...supersededIn([...earlier, frame])];
+  const summaryArea = presentation.areas.find(area => area.id !== areas.purpose && area.id !== areas.scope)?.id ?? areas.scope;
+  const summary = pRecords.length ? entity(ref('p-summary', frame.id), ['P の報告の要約（P の記録・未照合）',
+    seriesList ? '系列 ' + seriesList.entries.length + ' · 閉じた ' + closedSeries.length + (closedSeries.length ? '（' + closedSeries.map(item => item.id).join('・') + '）' : '') : '系列の一覧 無し',
+    waiting.length ? 'User の判断待ち ' + waiting.length + ' 件：' + bySeries.join('・') : 'User の判断待ち 無し',
+    day === null ? 'loop の停止 不明' : 'loop の停止 ' + day.slice(5) + ' ' + (stops.length ? stops.length + ' 件（不要 ' + stops.filter(item => item.needed === false).length + '）' : '無し'),
+    heartbeat ? '心拍：run ' + LIFE_LABEL[heartbeat.run] + ' · tunnel ' + LIFE_LABEL[heartbeat.tunnel] + ' · HQ ループ ' + LIFE_LABEL[heartbeat.hq_loop] + when(heartbeat) : '心拍 無し',
+    lastDecision ? '直近の判断：「' + lastDecision.words + '」→ ' + lastDecision.changes + when(lastDecision) : '直近の判断 無し',
+    corrected ? '直近の撤回・訂正：' + (POSITION_LABEL[corrected.position] ?? corrected.position) + ' · ' + corrected.about + when(corrected) : '直近の撤回・訂正 無し',
+    receipt ? '直近の receipt：' + receipt.action + ' ' + receipt.target + ' · ' + receipt.result + ' · ' + (receipt.reverted ? '戻した' : '戻していない') + when(receipt) : '直近の receipt 無し',
+    review ? '直近のレビュー：' + (review.reviewer ?? '評者不明') + ' · readback ' + (review.readback ?? 'なし') + when(review) : '直近のレビュー 無し',
+    criterion ? '直近の User の基準：「' + criterion.words + '」→ ' + criterion.binds + when(criterion) : '直近の User の基準 無し',
+    replaced.length ? '置き換え ' + replaced.length + ' 件：' + replaced.map(([id, by]) => id + ' → ' + (by ?? 'なし')).join('・') : '置き換え 無し',
+    seriesList ? '費用（数は正本、Atlas では UNKNOWN）：' + seriesList.entries.map(item => item.id + ' ' + item.canon).join(' · ') : '費用の在りか 不明（系列の一覧 無し）',
+  ].join('\n'), summaryArea, 0, 'P の記録 ' + pRecords.length + ' 件から、この frame までの各種類の直近（P の主張、未照合）。各行の元は、その記録が入った frame の変化の欄にある。') : null;
   const pCurrentLines = (heartbeat ? '\n心拍（P の記録）：run ' + LIFE_LABEL[heartbeat.run] + ' · tunnel ' + LIFE_LABEL[heartbeat.tunnel]
     + ' · HQ ループ ' + LIFE_LABEL[heartbeat.hq_loop] + ' · reap ' + heartbeat.reaped + ' · 張り直し ' + heartbeat.rebuilt + ' · ' + dayClockText(heartbeat.at) : '')
     + (stops.length ? '\nloop の停止（P の記録）：' + day.slice(5) + ' ' + stops.length + ' 件（不要 ' + stops.filter(item => item.needed === false).length + '）' : '');
@@ -539,7 +569,7 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
   // A Scope area the frame supplies itself (e.g. nested per owner, with its
   // containment) is drawn as supplied; Scopes are derived from the parts only
   // when it supplies none. The kinds derived here are never counted as supplied.
-  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed', 'history-hidden', 'p-series'].includes(item.ref.kind))
+  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed', 'history-hidden', 'p-series', 'p-summary'].includes(item.ref.kind))
     .map(item => item.flags.includes('gap-view') && item.ref.kind !== 'package'
       ? Object.freeze({ ...item, label: item.label.split('\n').slice(0, -1).join('\n'), summary: item.summary?.split('\n').slice(0, -1).join('\n') || null,
         flags: Object.freeze(item.flags.filter(flag => flag !== 'gap-view')) })
@@ -757,10 +787,10 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
     '現在の図に描かない履歴の単位 ' + hiddenHistory + ' 件（前の義務・閉じた差）。記録は残り、検索と前の時点で読める。', ['history-preserved']));
   // Keep the other areas' entities, any supplied Scopes, and the relations among them.
   const kept = [...shownScopes.map(item => isHistory(item) ? Object.freeze({ ...item, visible: false }) : item),
-    ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
+    ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope && item.ref.kind !== 'p-summary')];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
-  return Object.freeze({ entities: Object.freeze([...entities, ...seriesCards, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });
+  return Object.freeze({ entities: Object.freeze([...entities, ...seriesCards, ...(summary ? [summary] : []), ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });
 };
 
 // Stale: past matched_until on the ui's clock. Judged for the frame shown as
