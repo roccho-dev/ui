@@ -147,10 +147,18 @@ assert.ok(!drawnAt(grouped, 't6').some(kind => HISTORY_KINDS.includes(kind)), 't
 const kept = gapWorld({ groups: true });
 kept.frames.find(item => item.id === 't6').entities.push({ ref: { space: 'fixture:gap', kind: 'semantic-scope', id: 'kept-service' }, label: '維持する service',
   area: 'scopes', order: 20, visible: true, activity: 'none', flags: ['standing=completed-history', 'scope_status=declared_satisfied'] });
+// apps puts it in the `history` group (semantic-scope-world-core.mjs:224): the
+// group stays drawn then, so what it contains is not hidden with it.
+kept.frames.find(item => item.id === 't6').relations.push({ ref: { space: 'fixture:gap', kind: 'scope-contains', id: 't6:history:kept-service' },
+  from: { space: 'fixture:gap', kind: 'scope-group', id: 'history' }, to: { space: 'fixture:gap', kind: 'semantic-scope', id: 'kept-service' },
+  kind: 'contains', path: false, containment: 'from-contains-to' });
 const keptWorld = parseAtlasWorldInput(kept);
-assert.equal(keptWorld.frames.find(item => item.id === 't6').entities.find(entity => entity.ref.id === 'kept-service').visible, true, 't6: a completed-history Scope stays');
-assert.ok(projectAtlasWorld({ input: keptWorld, frame: keptWorld.frames.find(item => item.id === 't6'), selected: 'none' })
-  .scene.representations.some(rep => rep.atlas?.ref?.id === 'kept-service'), 't6: the kept service is drawn');
+const keptT6 = keptWorld.frames.find(item => item.id === 't6');
+assert.equal(keptT6.entities.find(entity => entity.ref.id === 'kept-service').visible, true, 't6: a completed-history Scope stays');
+assert.equal(keptT6.entities.find(entity => entity.ref.kind === 'scope-group' && entity.ref.id === 'history').visible, true, 't6: its history group stays');
+const keptDrawn = projectAtlasWorld({ input: keptWorld, frame: keptT6, selected: 'none' }).scene.representations.map(rep => rep.atlas?.ref).filter(Boolean);
+assert.ok(keptDrawn.some(ref => ref.id === 'kept-service'), 't6: the kept service is drawn inside the history group');
+assert.ok(!keptDrawn.some(ref => HISTORY_KINDS.includes(ref.kind)), 't6: the closed changes beside it are still not drawn');
 // ◀ 前へ: t7 holds the same history; moving back to t6 does not bring it back.
 assert.ok(!drawnAt(grouped, 't7').some(kind => HISTORY_KINDS.includes(kind)) && !drawnAt(grouped, 't6').some(kind => HISTORY_KINDS.includes(kind)),
   'stepping back from t7 to t6 draws no history unit');
