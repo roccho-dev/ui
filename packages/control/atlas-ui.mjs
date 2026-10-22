@@ -11,7 +11,7 @@ import {
 import { fitCamera } from '../semantic-map/camera-fit.js';
 import { layoutTopology, lodFor, projectAtlas } from './src/live-atlas-projection.mjs';
 import { entityKey, parseAtlasWorldInput, relationKey, worldPair } from './src/atlas-world.mjs';
-import { projectAtlasWorld, worldViewport } from './src/atlas-world-projection.mjs';
+import { projectAtlasWorld, selectionText, worldViewport } from './src/atlas-world-projection.mjs';
 import { UPDATE_STALLED, forecastSteps, stepIndex, timelinePosition, transportOf, transportParts, updateStalled,
   viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
@@ -449,6 +449,7 @@ body{margin:0;overflow:hidden}
 #atlas-world-search-results{width:30%;min-width:80px;font:inherit}
 #atlas-world-search-count{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #atlas-world-search-bar button{flex:none;font:inherit}
+#atlas-world-search-bar #atlas-world-selection{flex:0 1 auto;min-width:0;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #atlas-world-change{box-sizing:border-box;flex:none;height:116px;overflow:auto;padding:4px 8px;font:13px/18px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6;overflow-wrap:anywhere}
 `;
 
@@ -485,7 +486,10 @@ export const mountAtlasWorldUI = ({
   const back = el('button', { type: 'button', id: 'atlas-world-step-back', text: '◀ 前へ', onclick: () => stepFrame(-1) });
   const forward = el('button', { type: 'button', id: 'atlas-world-step-forward', text: '次へ ▶', onclick: () => stepFrame(1) });
   const toPresent = el('button', { type: 'button', id: 'atlas-world-present', text: '現在へ', onclick: () => followLatest() });
-  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, back, forward, toPresent);
+  // D4 (apps#73): a selection the frame shown does not draw says so here; when
+  // it is absent, pressing opens, held, the received frame it was last in.
+  const selectionLast = el('button', { type: 'button', id: 'atlas-world-selection', onclick: () => openSelectionLast() });
+  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, selectionLast, back, forward, toPresent);
   // S7c: the changes of the time shown, right under the time controls: the
   // frame's (atlas-gap.mjs frameChangeLabel) or, on a step past the present,
   // the step's (forecastChangeLabel), one line each; six lines high whatever
@@ -565,6 +569,10 @@ export const mountAtlasWorldUI = ({
     forward.disabled = position.index < 0 || (position.present && page.latest ? (page.step ?? -1) >= steps().length - 1
       : stepIndex(position, 1) === position.index);
     toPresent.disabled = position.present && page.latest && page.step === null;
+    const selection = page.projection?.selection ?? null;
+    selectionLast.textContent = selection ? selectionText(selection) : '選択の最後へ';
+    selectionLast.title = selection?.last ? selectionLast.textContent + ' · 押すとその時点を開く' : selectionLast.textContent;
+    selectionLast.disabled = !selection?.last;
   };
   // The steps past the present (S7): from the present frame's upkeep, at the
   // page's clock. Only while the present is followed.
@@ -663,6 +671,15 @@ export const mountAtlasWorldUI = ({
     onSelect?.(key);
     draw();
     if (sync) syncGraphSelection(key);
+  };
+
+  // The selection stays the same id; the frame it was last in is held, and its
+  // box brought into view as a search choice is.
+  const openSelectionLast = () => {
+    const last = page.projection?.selection?.last;
+    if (page.destroyed || !last || last.index >= page.input.frames.length || page.input.frames[last.index].id !== last.id) return;
+    showFrame(last.index);
+    focusSelected();
   };
 
   const onSearchInput = () => {

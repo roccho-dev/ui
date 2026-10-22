@@ -80,6 +80,9 @@ export const SCREEN_CONTROLS = Object.freeze([
   row('controls', 'atlas-world-search', '描かれない記録に届く唯一の道', 'U', null),
   row('controls', 'atlas-world-search-results', '検索の結果', 'U', null),
   row('controls', 'atlas-world-search-count', '検索の件数（frame id・rev は状態の行にある）', 'U', null),
+  // D4 (apps#73; adrs#647 W c6344580290, R c6345797392).
+  row('controls', 'atlas-world-selection', '選択がこの時点に無いこと（最後に在った frame）・描かれない履歴であること、と最後に在った frame を HELD で開く道', 'U', null,
+    '道だけは P (a)：無いと ◀ 前へを O(n) 回'),
   row('controls', 'atlas-world-step-back', 't-1', 'U', null),
   row('controls', 'atlas-world-step-forward', '次の frame と、現在の先の予定の歩み（stale_at に届く唯一の道、S7）', 'U', null),
   row('controls', 'atlas-world-present', '現在の frame', 'P', null, '(a) 無いと O(n) 回の操作'),
