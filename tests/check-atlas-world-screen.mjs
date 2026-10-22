@@ -11,8 +11,8 @@
 // Every check is reported; one failing does not hide the others.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseAtlasWorldInput } from '../packages/control/src/atlas-world.mjs';
-import { ATLAS_STATUS, projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
+import { entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
+import { ATLAS_STATUS, projectAtlasWorld, selectionText, worldViewport } from '../packages/control/src/atlas-world-projection.mjs';
 import { SCREEN_CONTROLS, SCREEN_LINES } from '../packages/control/src/atlas-screen-table.mjs';
 import * as gapModule from '../packages/control/src/atlas-gap.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
@@ -202,8 +202,43 @@ check('cases 15 and 29: the heading counts what was held up to the frame', heldT
   && heldText('t6').includes(flat('保持 累計 3')) && !changeText({}, 't6').includes(flat('保持 累計')) && !drawn({ held: true }, 't5').includes(flat('保持')));
 // S7: the time controls are three; 予定 ▸ and 仕訳 ▸ are gone. S7c: the
 // changes of the time shown are the panel right under them.
-check('the controls are the status, the search, ◀ 前へ / 次へ ▶ / 現在へ and the changes', JSON.stringify(SCREEN_CONTROLS.map(item => item.id))
-  === JSON.stringify(['atlas-world-status', 'atlas-world-search', 'atlas-world-search-results', 'atlas-world-search-count', 'atlas-world-step-back', 'atlas-world-step-forward', 'atlas-world-present', 'atlas-world-change']));
+check('the controls are the status, the search, the selection (D4), ◀ 前へ / 次へ ▶ / 現在へ and the changes', JSON.stringify(SCREEN_CONTROLS.map(item => item.id))
+  === JSON.stringify(['atlas-world-status', 'atlas-world-search', 'atlas-world-search-results', 'atlas-world-search-count', 'atlas-world-selection', 'atlas-world-step-back', 'atlas-world-step-forward', 'atlas-world-present', 'atlas-world-change']));
+// D4 (apps#73; adrs#647 W c6344580290, R c6345797392): a selection the frame
+// shown does not draw says so, under the same id: absent, with the received
+// frame it was last in; a history unit kept but not drawn (B1), as history.
+{
+  const world = parseAtlasWorldInput(gapWorld({ groups: true }));
+  const selectionAt = (frame, selected) => project(world, frame, { selected }).selection;
+  const keyOf = entity => entityKey(entity.ref);
+  const present = world.frames.at(-1);
+  const inPresent = new Set([...present.entities.map(keyOf), ...present.relations.map(relation => relationKey(relation.ref))]);
+  const gone = [...new Set(world.frames.flatMap(item => item.entities.filter(entity => entity.visible).map(keyOf)).filter(key => !inPresent.has(key)))];
+  check('D4: the fixture has drawn records gone from the present', gone.length > 0);
+  for (const key of gone) {
+    const lastIndex = world.frames.findLastIndex(item => item.entities.some(entity => keyOf(entity) === key));
+    const last = world.frames[lastIndex];
+    const label = last.entities.find(entity => keyOf(entity) === key).label.split('\n')[0];
+    const selection = selectionAt(present, key);
+    check('D4 ' + key + ': absent from the present, named with the frame it was last in', selection?.state === 'absent'
+      && selection.last?.index === lastIndex && selection.last.id === last.id
+      && selectionText(selection) === '選択 ' + label + ' はこの時点に無い（最後 ' + last.id + ' · ' + gapModule.dayClockText(last.asOf) + '）', selection);
+    check('D4 ' + key + ': in the frame it was last in, it is not absent', selectionAt(last, key)?.state !== 'absent');
+  }
+  const t6 = world.frames.find(item => item.id === 't6');
+  const history = t6.entities.filter(entity => !entity.visible && ['closed-change', 'obligation'].includes(entity.ref.kind));
+  check('D4: the fixture has history units at t6', history.length > 0);
+  for (const entity of history) {
+    const selection = selectionAt(t6, keyOf(entity));
+    check('D4 ' + keyOf(entity) + ': a history unit not drawn reads as history, with no frame to open', selection?.state === 'history' && selection.last === null
+      && selectionText(selection) === '選択 ' + entity.label.split('\n')[0] + ' は描かれない（履歴）', selection);
+  }
+  const drawnEntity = t6.entities.find(entity => entity.visible);
+  check('D4: a drawn selection has no line', selectionAt(t6, keyOf(drawnEntity)) === null && selectionText(null) === '');
+  const never = selectionAt(t6, 'entity:none');
+  check('D4: a selection in no received frame is absent, its last frame unknown', never?.state === 'absent' && never.last === null
+    && selectionText(never) === '選択 entity:none はこの時点に無い（最後 不明）', never);
+}
 // The panel's row says what the page draws: six lines, fixed (116 px,
 // atlas-ui.mjs), the rest scrolled inside it (S7c).
 {
