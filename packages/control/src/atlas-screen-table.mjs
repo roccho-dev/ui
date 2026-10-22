@@ -18,6 +18,8 @@ export const SCREEN_LINES = Object.freeze([
   row('purpose', 'purpose-text', '目的の文', 'U', ANY),
   row('purpose-adequacy', 'adequacy-heading', '見出し', 'U', /^目的↔理想の差$/u),
   row('purpose-adequacy', 'adequacy-state', 'GapA の state・reason（1・2・5・19・20・24）', 'U', /^(不十分|不明) · .+$/u),
+  row('purpose-adequacy', 'adequacy-awaiting', '人の判断待ち：User の評価で解ける理由だけ（no-evaluation・past、D1、apps#73）', 'U', /^人の判断待ち：User の評価（入力源）$/u),
+  row('purpose-adequacy', 'adequacy-held', '入力源が保持した評価の理由：User の次の作用（D1、R c6343482688）', 'U', /^評価は保持：.+$/u),
   row('purpose-adequacy', 'adequacy-evaluator', '評価者の評価（未検証、23・24）', 'U', /^評価者の評価（未検証） .+$/u),
   row('ideal-state', 'ideal-heading', '見出し', 'U', /^理想状態$/u),
   row('ideal-state', 'ideal-version', '版・採択の印・移動・条件の数・改訂中（L1、11、14）', 'U',

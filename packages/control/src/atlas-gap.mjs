@@ -375,6 +375,19 @@ const ADEQUACY_STATE_LABEL = Object.freeze({ unmet: '不十分', unknown: '不�
 const ADEQUACY_REASON_LABEL = Object.freeze({ 'purpose-ended': '目的は終了した', 'no-ideal': '照らす理想状態が無い', 'no-evaluation': '人の評価なし',
   past: '過去の評価（版が違う）', evaluated: '人の評価：理想状態が不十分', 'not-yet-while-matched': '一致のまま未到達と評価',
   'achieved-while-open': '差が開いたまま到達と評価', 'no-adequacy-verdict': '十分性の評価なし' });
+// D1 (apps#73; adrs#647 c6343466521, R c6343482688): GapA waits for the User
+// only when there is no evaluation or it is of another version (apps
+// contract.mjs:162-166); every other reason waits for something else and keeps
+// its `?`. An evaluation the owner source holds back says what the User's next
+// act is (write a readback, write in the owner repo, …), from the World's held.
+const AWAITING_USER = Object.freeze(['no-evaluation', 'past']);
+const EVALUATION_HELD_LABEL = Object.freeze({ 'owner-readback-missing': 'readback が無い', 'owner-credentials-changed': '資格を変えた後の readback が無い',
+  'owner-before-readback': 'readback より前に書かれた', 'owner-not-read': '入力源から読めない（消えた・読めない）', 'owner-unreadable': '入力源が読めない',
+  'owner-via-app': 'App 経由の書き込み', 'owner-other-author': '入力源の別の作者', 'owner-mismatch': '入力源か作者が宣言と違う',
+  'evaluation-not-from-owner': '入力源の外の評価', 'evaluator-not-declared': '入力源が宣言されていない', 'eval-form': '評価の形が違う' });
+const heldEvaluation = (frames, after) => frames.flatMap(item => item.held ?? [])
+  .filter(item => Object.hasOwn(EVALUATION_HELD_LABEL, item.reason) && (after === null || Date.parse(item.recordedAt) > Date.parse(after)))
+  .sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)).at(-1) ?? null;
 const adequacySummary = value => 'GapA（目的↔理想の差）· state=' + value.state + ' · reason=' + value.reason
   + ' · basis purpose_rev=' + value.basis.purpose_rev + ' ideal_version=' + (value.basis.ideal_version ?? 'null')
   + (value.evidence ? ' · 評価 ' + value.evidence.verdict + '（' + value.evidence.recordedAt + ' · 作者 ' + (value.evidence.actor ?? '不明')
@@ -429,11 +442,14 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // GapA (目的↔理想の差) is never judged here: the frame's `adequacy` (v12),
   // drawn as its state and reason (no count) with the evaluators' unverified
   // signs. Without it, no GapA.
+  const awaiting = frame.adequacy ? AWAITING_USER.includes(frame.adequacy.reason) : false;
+  const held = awaiting ? heldEvaluation([...earlier, frame], frame.adequacy.evidence?.recordedAt ?? null) : null;
   const adequacy = frame.adequacy
     ? entity(ref('purpose-adequacy', purposeId), '目的↔理想の差\n' + ADEQUACY_STATE_LABEL[frame.adequacy.state] + ' · '
       + ADEQUACY_REASON_LABEL[frame.adequacy.reason] + admissionMark(frame.adequacy.evidence)
+      + (awaiting ? '\n人の判断待ち：User の評価（入力源）' : '') + (held ? '\n評価は保持：' + EVALUATION_HELD_LABEL[held.reason] : '')
       + evaluationSigns(journal, purposeId).map(line => '\n' + line).join(''), areas.purpose, 2, adequacySummary(frame.adequacy),
-      ['scope_status=' + frame.adequacy.state])
+      ['scope_status=' + frame.adequacy.state, ...(awaiting ? ['awaiting=user-evaluation'] : [])])
     : null;
   // The newest decision of a kind, up to this frame, for the purpose drawn (and,
   // for an ideal.set, the version drawn): its source's admission marks it (A3).
