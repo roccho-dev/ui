@@ -38,6 +38,8 @@ export const SCREEN_LINES = Object.freeze([
   row('current-state', 'current-observed', '観測の件数・最新の時刻（L2）', 'U', /^(観測 \d+ 件 · 最新 \S+|観測の仕訳なし)$/u),
   row('current-state', 'current-before-ideal', '理想の確定前の観測で一致 n 件（16）', 'U', /^理想状態の確定前の観測で一致 \d+ 件$/u),
   row('current-state', 'current-claims', '作業の主張の件数（17）', 'U', /^作業の主張（current） \d+ 件$/u),
+  row('current-state', 'current-stopped', '止まった経路の最後の主張の件数と、止まった時刻（v4、adrs#647 c6339644103）', 'U',
+    /^止まった経路の最後の主張（current） \d+ 件 · \d\d-\d\d \d\d:\d\dZ? 以後は更新されない$/u),
   row('current-state', 'current-claim', '作業の主張（17）', 'U', ANY),
   row('gap-part', 'part-since', 'since・担当（担当未確定）・最後の観測（10・12・26）', 'U', /^(この時点から|\d+ 時点前から)（[^）]+）( · .+)?$/u),
   row('gap-part', 'part-text', '条件の文', 'U', ANY),

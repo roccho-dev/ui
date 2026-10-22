@@ -312,14 +312,23 @@ export const dayClockText = at => {
 // last-write-wins); no value is its latest line being invalid (apps#124).
 const CLAIM_LABEL = Object.freeze({ created: '作成', progressed: '進行', 'reported-done': '完了と報告',
   'reported-blocked': '阻害と報告', 'reported-stopped': '中止と報告' });
+// v4 removed the current files (apps#139, #153): the producer records once
+// `route:current` = `retired` (apps step). From the frame that holds it, a
+// claim whose latest line came from `current:` is the last claim of a stopped
+// route, never a current one (R, adrs#647 c6339644103); earlier frames are as
+// before. Returns the current claims and the stopped route's last ones.
+const ROUTE_RETIRED = 'route:current';
 const currentClaims = journal => {
   const latest = new Map();
+  let retiredAt = null;
   for (const entry of journal) {
+    if (entry.kind === 'observation' && entry.target?.id === ROUTE_RETIRED) retiredAt = entry.value === 'retired' ? entry.observedAt ?? entry.recordedAt : null;
     const id = entry.kind === 'observation' && typeof entry.target?.id === 'string' ? /^(work|evidence):(.+)$/u.exec(entry.target.id) : null;
     if (id) latest.set(id[1] + ':' + id[2], entry);
   }
   const ids = [...new Set([...latest.keys()].map(item => item.replace(/^(work|evidence):/u, '')))];
-  return ids.map(id => {
+  const stopped = id => retiredAt !== null && String((latest.get('work:' + id) ?? latest.get('evidence:' + id)).source?.ref ?? '').startsWith('current:');
+  const line = id => {
     const work = latest.get('work:' + id) ?? null, evidence = latest.get('evidence:' + id) ?? null;
     const state = work === null ? '状態の行なし' : work.value === null || work.value === undefined ? '不明（最新の行が不正）'
       : CLAIM_LABEL[work.value] ?? String(work.value) + '（未知の値）';
@@ -328,7 +337,8 @@ const currentClaims = journal => {
     const proof = evidence === null ? '' : ' · 証拠 ' + (evidence.value === null || evidence.value === undefined ? '不明' : String(evidence.value)) + from(evidence);
     const said = work ?? evidence;
     return id + ' · ' + state + (work ? from(work) : '') + proof + ' · ' + dayClockText(said.observedAt ?? said.recordedAt);
-  });
+  };
+  return { current: ids.filter(id => !stopped(id)).map(line), stopped: ids.filter(stopped).map(line), retiredAt };
 };
 
 // A digest revision is shown by its first 8 hex digits, named as shortened;
@@ -566,7 +576,9 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
       + ' · 内容 ' + (plan.nodes === null ? 'UNKNOWN' : 'ノード ' + plan.nodes.length + ' 件')
       + ' · 出所 ' + plan.source.repo + (plan.source.commentId === null || plan.source.commentId === undefined ? '' : ' comment ' + plan.source.commentId)).join('');
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + beforeIdeal
-    + (claims.length ? '\n作業の主張（current） ' + claims.length + ' 件\n' + claims.join('\n') : '');
+    + (claims.current.length ? '\n作業の主張（current） ' + claims.current.length + ' 件\n' + claims.current.join('\n') : '')
+    + (claims.stopped.length ? '\n止まった経路の最後の主張（current） ' + claims.stopped.length + ' 件 · ' + dayClockText(claims.retiredAt) + ' 以後は更新されない\n'
+      + claims.stopped.join('\n') : '');
 
   // The supplied purpose label; when this frame was already drawn from its
   // gap (the World is normalized twice in the app), drop the line added here.

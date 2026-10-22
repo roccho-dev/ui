@@ -45,6 +45,10 @@ const CURRENT = [
   claim('2026-10-17T05:30:00Z', 'work:b', 'reported-done', 2),
   claim('2026-10-17T05:30:00Z', 'work:c', null, 3),
 ];
+// v4 (adrs#647 c6339644103): the producer's one record that the current route
+// is retired (apps step), between t5 and t6.
+const RETIRED = [{ kind: 'observation', recordedAt: '2026-10-17T05:40:00Z', observedAt: '2026-10-17T05:40:00Z', actor: null,
+  source: { ref: 'step:route sha256:' + sha('r'), commentId: null, sha256: null }, target: { kind: 'state', id: 'route:current' }, value: 'retired' }];
 // v6: the entries recorded after the previous frame's asOf, up to this one's.
 const journalBetween = (entries, after, asOf) => structuredClone(entries.filter(item => Date.parse(item.recordedAt) <= Date.parse(asOf)
   && (after === null || Date.parse(item.recordedAt) > Date.parse(after))));
@@ -100,7 +104,8 @@ const groupedScopes = (frameId, parts, closed, leaveOut = null) => {
 // (hq -> hq.v2) instead of only the ideal state. `groups: true` adds, to each
 // frame with open parts, the Scope area nested as a producer supplies it;
 // `groups: 'unplaced'` does so without c4's Scope (c4 then matches none).
-// `current: true` adds the current claims above (at t4 and t6).
+// `current: true` adds the current claims above (at t4 and t6); `retired: true`
+// adds the record that the current route is retired (at t6).
 // `admission: true` gives some decisions' sources an admission (A3, apps#120):
 // the purpose.set and ideal.set v2 read observed_not_admitted, the first
 // evaluation a value this ui does not know (shown as is).
@@ -205,9 +210,9 @@ const physicalScopes = (frameId, gap) => {
   return { entities, relations };
 };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
-  judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false } = {}) => {
+  judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false, retired = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
-  const extra = [...(current ? CURRENT : []), ...(evaluator ? EVALUATIONS : []), ...(drafting ? DRAFTING : [])];
+  const extra = [...(current ? CURRENT : []), ...(retired ? RETIRED : []), ...(evaluator ? EVALUATIONS : []), ...(drafting ? DRAFTING : [])];
   const entries = extra.length ? [...decided, ...extra].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
   const cause = (ideal, current) => sides ? { ideal, current } : causesOf({ ideal, current });
   const c1 = (current, since) => part('c1', '端末で直接入力できる', 'unmet', cause(null, current), since, null);

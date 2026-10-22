@@ -160,6 +160,16 @@ assert.equal(claimedState('t4'), '現在状態\n観測 4 件 · 最新 03:50Z\n�
 assert.equal(claimedState('t6'), '現在状態\n観測 8 件 · 最新 05:30Z\n作業の主張（current） 3 件\n'
   + 'b · 完了と報告（出所 current:P#L2） · 10-17 05:30Z\nc · 不明（最新の行が不正）（出所 current:P#L3） · 10-17 05:30Z\n'
   + 'a · 作成（出所 current:P#L1） · 証拠 roccho-dev/apps#124（出所 current:P#L4） · 10-17 05:30Z');
+// v4 (R, adrs#647 c6339644103): once the producer records route:current =
+// retired, the claims from current: are the last claims of a stopped route,
+// never current ones; frames before it are as they were.
+const retired = parseAtlasWorldInput(gapWorld({ current: true, retired: true }));
+const retiredState = id => byKind(retired.frames.find(item => item.id === id))['current-state:hq'];
+assert.equal(retiredState('t4'), claimedState('t4'), 'a frame before the retirement is as before');
+assert.equal(retiredState('t6'), '現在状態\n観測 9 件 · 最新 05:40Z\n止まった経路の最後の主張（current） 3 件 · 10-17 05:40Z 以後は更新されない\n'
+  + 'b · 完了と報告（出所 current:P#L2） · 10-17 05:30Z\nc · 不明（最新の行が不正）（出所 current:P#L3） · 10-17 05:30Z\n'
+  + 'a · 作成（出所 current:P#L1） · 証拠 roccho-dev/apps#124（出所 current:P#L4） · 10-17 05:30Z');
+assert.ok(!retiredState('t6').includes('作業の主張（current）'), 'none of them is shown as a current claim');
 for (const item of claimed.frames) {
   const plainKinds = Object.entries(byKind(frame(item.id))).filter(([entityKey]) => !/^(current-state|frame-change):/u.test(entityKey));
   assert.deepEqual(Object.entries(byKind(item)).filter(([entityKey]) => !/^(current-state|frame-change):/u.test(entityKey)), plainKinds, item.id + ': claims change nothing but 現在状態');
