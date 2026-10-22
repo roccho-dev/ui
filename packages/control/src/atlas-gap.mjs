@@ -446,10 +446,24 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // signs. Without it, no GapA.
   const awaiting = frame.adequacy ? AWAITING_USER.includes(frame.adequacy.reason) : false;
   const held = awaiting ? heldEvaluation([...earlier, frame], frame.adequacy.evidence?.recordedAt ?? null) : null;
+  // P's records up to this frame (adrs#647 v2 c6346263403, R c6348033913): the User's judgments P recorded as
+  // waiting, each until a recorded judgment names it, are lines of 目的↔理想の差 — P's record, never the User's
+  // evaluation (no ✋, no flag, nothing judged). The latest heartbeat and the frame day's loop stops are lines of
+  // 現在状態, also P's record (no observation of the HQ is made from them).
+  const pRecords = [...earlier, frame].flatMap(item => item.p_records ?? []);
+  const answered = new Set(pRecords.filter(item => item.kind === 'user.decision.recorded' && item.request !== null).map(item => item.request));
+  const waitingLines = pRecords.filter(item => item.kind === 'user.decision.requested' && !answered.has(item.id))
+    .map(item => '\nUser の判断待ち：' + item.question + '（' + (item.series ?? '系列なし') + '・' + dayClockText(item.since) + ' から・P の記録）').join('');
+  const heartbeat = pRecords.filter(item => item.kind === 'heartbeat').at(-1) ?? null;
+  const day = /^\d{4}-\d\d-\d\d/u.exec(frame.asOf)?.[0] ?? null;
+  const stops = day === null ? [] : pRecords.filter(item => item.kind === 'loop.stopped' && item.at.startsWith(day));
+  const pCurrentLines = (heartbeat ? '\n心拍（P の記録）：run ' + LIFE_LABEL[heartbeat.run] + ' · tunnel ' + LIFE_LABEL[heartbeat.tunnel]
+    + ' · HQ ループ ' + LIFE_LABEL[heartbeat.hq_loop] + ' · reap ' + heartbeat.reaped + ' · 張り直し ' + heartbeat.rebuilt + ' · ' + dayClockText(heartbeat.at) : '')
+    + (stops.length ? '\nloop の停止（P の記録）：' + day.slice(5) + ' ' + stops.length + ' 件（不要 ' + stops.filter(item => item.needed === false).length + '）' : '');
   const adequacy = frame.adequacy
     ? entity(ref('purpose-adequacy', purposeId), '目的↔理想の差\n' + ADEQUACY_STATE_LABEL[frame.adequacy.state] + ' · '
       + ADEQUACY_REASON_LABEL[frame.adequacy.reason] + admissionMark(frame.adequacy.evidence)
-      + (awaiting ? '\n人の判断待ち：User の評価（入力源）' : '') + (held ? '\n評価は保持：' + EVALUATION_HELD_LABEL[held.reason] : '')
+      + (awaiting ? '\n人の判断待ち：User の評価（入力源）' : '') + (held ? '\n評価は保持：' + EVALUATION_HELD_LABEL[held.reason] : '') + waitingLines
       + evaluationSigns(journal, purposeId).map(line => '\n' + line).join(''), areas.purpose, 2, adequacySummary(frame.adequacy),
       ['scope_status=' + frame.adequacy.state, ...(awaiting ? ['awaiting=user-evaluation'] : [])])
     : null;
@@ -594,6 +608,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
       + ' · 内容 ' + (plan.nodes === null ? 'UNKNOWN' : 'ノード ' + plan.nodes.length + ' 件')
       + ' · 出所 ' + plan.source.repo + (plan.source.commentId === null || plan.source.commentId === undefined ? '' : ' comment ' + plan.source.commentId)).join('');
   const currentLine = (observations.length ? '観測 ' + observations.length + ' 件 · 最新 ' + clockText(lastObserved) : '観測の仕訳なし') + beforeIdeal
+    + pCurrentLines
     + (claims.current.length ? '\n作業の主張（current） ' + claims.current.length + ' 件\n' + claims.current.join('\n') : '')
     + (claims.stopped.length ? '\n止まった経路の最後の主張（current） ' + claims.stopped.length + ' 件 · ' + dayClockText(claims.retiredAt) + ' 以後は更新されない\n'
       + claims.stopped.join('\n') : '');
@@ -755,6 +770,25 @@ const P_RECORD_FIELDS = Object.freeze({
   'p.receipt': ['action', 'target', 'sha256', 'result', 'reverted'],
   heartbeat: ['run', 'tunnel', 'hq_loop', 'reaped', 'rebuilt'],
 });
+// Each field's value, as apps collect/precord.mjs checks it: [check, what it must be].
+const isText = v => typeof v === 'string' && v.length > 0;
+const orNull = ([ok, expected]) => [v => v === null || ok(v), expected + ' or null'];
+const TEXT = [isText, 'non-empty text'];
+const INSTANT = [v => isText(v) && /^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d+)?)?Z$/u.test(v) && Number.isFinite(Date.parse(v)), 'an ISO UTC time'];
+const COUNT = [v => Number.isSafeInteger(v) && v >= 0, 'a non-negative integer'];
+const BOOL = [v => typeof v === 'boolean', 'true or false'];
+const ONE_OF = (...values) => [v => values.includes(v), values.join('|')];
+const LIFE = ONE_OF('alive', 'dead', 'unknown');
+const P_RECORD_VALUES = Object.freeze({
+  'user.decision.requested': { question: TEXT, options: [v => Array.isArray(v) && v.every(isText), 'a list of non-empty text'], recommended: orNull(TEXT), since: INSTANT, reask_due: orNull(INSTANT) },
+  'user.decision.recorded': { request: orNull(TEXT), words: TEXT, changes: TEXT },
+  'p.position': { position: ONE_OF('claim', 'withdrawal', 'correction', 'self-correction'), about: TEXT },
+  'review.pasted': { reviewer: orNull(TEXT), readback: orNull(TEXT) },
+  'user.criterion': { words: TEXT, binds: TEXT },
+  'loop.stopped': { role: TEXT, round: orNull(COUNT), next: TEXT, reason: TEXT, needed: orNull(BOOL), action: orNull(TEXT) },
+  'p.receipt': { action: TEXT, target: TEXT, sha256: orNull([v => typeof v === 'string' && /^[0-9a-f]{64}$/u.test(v), '64 hex']), result: ONE_OF('PASS', 'FAIL'), reverted: BOOL },
+  heartbeat: { run: LIFE, tunnel: LIFE, hq_loop: LIFE, reaped: COUNT, rebuilt: COUNT },
+});
 // The changes' marks for them: each differs from every journal mark and every state symbol (D5), except ✋,
 // which means here what it means on a box: a human's judgment is waiting.
 export const P_RECORD_MARK = Object.freeze({ 'user.decision.requested': '✋', 'user.decision.recorded': '◆', 'p.position': '✎',
@@ -768,11 +802,13 @@ export const normalizePRecords = (value, at) => {
     check(item.schema === 'p-record-v1', where + '.schema must be p-record-v1');
     check(item.authority === false, where + '.authority must be false (P\'s claim)');
     text(item.id, where + '.id');
-    instant(item.at, where + '.at');
+    check(INSTANT[0](item.at), where + '.at must be ' + INSTANT[1]);
     for (const key of ['series', 'ref']) if (item[key] !== null) text(item[key], where + '.' + key);
     exact(item.source, ['ref', 'sha256', 'line'], where + '.source');
     text(item.source.ref, where + '.source.ref');
     count(item.source.line, where + '.source.line');
+    // The values too, as apps reads them (R c6347788839): the ui's edge does not trust what it is sent.
+    for (const [key, [ok, expected]] of Object.entries(P_RECORD_VALUES[item.kind])) check(ok(item[key]), where + '.' + key + ' must be ' + expected);
     return json(item, where);
   });
   check(new Set(records.map(item => item.id)).size === records.length, at + ': duplicate p-record id');
