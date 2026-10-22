@@ -690,9 +690,16 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // draw its own history as current either. One line counts them (never dropped
   // silently, D6). A Scope `standing=completed-history` is a satisfied condition
   // that must keep being met (its upkeep), so it stays drawn (B3, #73
-  // counter-example 3; R c6341212243).
-  const isHistory = item => item.area === areas.scope && ((item.ref.kind === 'scope-group' && item.ref.id === 'history')
-    || item.ref.kind === 'obligation' || item.ref.kind === 'closed-change');
+  // counter-example 3; R c6341212243). apps puts such a Scope in the `history`
+  // group too (semantic-scope-world-core.mjs:224), and a hidden container hides
+  // what it contains, so the group itself is hidden only when everything in it
+  // is history.
+  const historyUnit = item => item.area === areas.scope && (item.ref.kind === 'obligation' || item.ref.kind === 'closed-change');
+  const byKey = new Map(shownScopes.map(item => [key(item.ref), item]));
+  const inGroup = group => frame.relations.filter(item => item.containment === 'from-contains-to' && key(item.from) === key(group.ref))
+    .map(item => byKey.get(key(item.to))).filter(Boolean);
+  const isHistory = item => historyUnit(item) || (item.area === areas.scope && item.ref.kind === 'scope-group' && item.ref.id === 'history'
+    && inGroup(item).every(historyUnit));
   const hiddenHistory = shownScopes.filter(item => isHistory(item) && item.ref.kind !== 'scope-group').length;
   if (hiddenHistory) entities.push(entity(ref('history-hidden', frame.id), '履歴 ' + hiddenHistory + ' 件（◀ 前へと検索で読める）', areas.scope, 0,
     '現在の図に描かない履歴の単位 ' + hiddenHistory + ' 件（前の義務・閉じた差）。記録は残り、検索と前の時点で読める。', ['history-preserved']));

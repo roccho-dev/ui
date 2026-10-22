@@ -259,3 +259,15 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
     }),
   };
 };
+
+// D6 (apps#73; adrs#647 c6342302345): t4 with more Scopes than the projection
+// draws in one area (its limit is 40), and one Scope that is not visible and is
+// not history. The rest is the grouped story.
+export const crowdedGapWorld = () => {
+  const raw = gapWorld({ groups: true });
+  const t4 = raw.frames.find(item => item.id === "t4");
+  for (let index = 0; index < 41; index += 1) t4.entities.push({ ref: ref("semantic-scope", "crowd-" + String(index).padStart(2, "0")),
+    label: "群 " + index, area: "scopes", order: 200 + index, visible: true, activity: "none", flags: [] });
+  t4.entities.push({ ref: ref("semantic-scope", "quiet"), label: "描かない Scope", area: "scopes", order: 300, visible: false, activity: "none", flags: [] });
+  return raw;
+};

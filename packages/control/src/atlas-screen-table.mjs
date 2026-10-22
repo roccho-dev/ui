@@ -45,6 +45,9 @@ export const SCREEN_LINES = Object.freeze([
   row('gap-part', 'part-text', '条件の文', 'U', ANY),
   row('gap-closed', 'closed-count', '閉じた差の数（10・11・13）', 'U', /^閉じた差 \d+（この時点 \d+）$/u),
   row('gap-closed', 'closed-list', '閉じた差の条件と閉じ方', 'U', ANY),
+  // D6 (apps#73; R c6342315491): the one place on the screen that says some of an area is not drawn, by reason.
+  row('area', 'area-omitted', '描かれない対象の件数（上限・非表示）と、検索で読めること（D6、apps#73）', 'U', /^(上限で描かない|非表示) \d+ 件（検索で読める）$/u),
+  row('area', 'area-name', 'エリアの名（presentation が供給する）', 'U', ANY),
   row('history-hidden', 'history-hidden-count', '現在の図に描かない履歴の単位の件数（B1・D6、apps#73）', 'P', /^履歴 \d+ 件（◀ 前へと検索で読める）$/u,
     '(a) 中身は ◀ 前へか検索で読める（adrs#647 c6341039299）'),
   row('scope-card', 'card-since', 'since・担当（担当未確定）・最後の観測（10・12・26）', 'U', /^(この時点から|\d+ 時点前から)（[^）]+）( · .+)?$/u),

@@ -16,7 +16,7 @@ import { projectAtlasWorld, worldViewport } from '../packages/control/src/atlas-
 import { SCREEN_CONTROLS, SCREEN_LINES } from '../packages/control/src/atlas-screen-table.mjs';
 import * as gapModule from '../packages/control/src/atlas-gap.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
-import { gapWorld } from './fixtures/atlas-gap-world.mjs';
+import { crowdedGapWorld, gapWorld } from './fixtures/atlas-gap-world.mjs';
 import { knownPlan, unknownPlan } from './fixtures/atlas-plan-worlds.mjs';
 
 // The gap story with two plans at t4 (one with unknown content).
@@ -68,6 +68,7 @@ const lineWorlds = [
   ...[{}, { groups: true }, { groups: 'unplaced' }, { current: true, admission: true }, { newPurpose: true }, { sides: false, v5: false },
     { physical: true, lastObserved: true }, { held: true, upkeep: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
   plannedWorld(),
+  parseAtlasWorldInput(crowdedGapWorld()),
 ];
 const seen = new Set();
 for (const world of lineWorlds) for (const frame of world.frames) {
@@ -100,6 +101,17 @@ for (const world of lineWorlds) for (const frame of world.frames) {
       const kind = kindOf('atlas-world-change', line);
       if (kind) seen.add(kind);
       else check(frame.id + ' atlas-world-change: the line is of a kind in the table', false, line);
+    }
+  }
+  // D6 (R c6342315491): an area heading is its name, then only the table's
+  // phrases for what is not drawn.
+  for (const rep of project(world, frame).scene.representations.filter(item => item.atlas?.kind === 'area')) {
+    const [name, ...phrases] = rep.label.split(' · ');
+    if (kindOf('area', name) === 'area-name') seen.add('area-name');
+    for (const phrase of phrases) {
+      const kind = kindOf('area', phrase);
+      if (kind === 'area-omitted') seen.add(kind);
+      else check(frame.id + ' area: the heading phrase is of a kind in the table', false, phrase);
     }
   }
 }
