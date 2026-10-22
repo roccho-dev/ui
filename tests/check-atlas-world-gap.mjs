@@ -461,6 +461,17 @@ withHeld.frames[2].held = [{ reason: 'owner-readback-missing', kind: null, recor
 const heldGapA = parseAtlasWorldInput(withHeld);
 assert.equal(ofKind(heldGapA, 't2', 'purpose-adequacy')[0].label, '目的↔理想の差\n' + gapALabel.t2 + '\n評価は保持：readback が無い', 't2: the held evaluation says why');
 assert.ok(!ofKind(heldGapA, 't3', 'purpose-adequacy')[0].label.includes('評価は保持'), 't3: a hold older than the counted evaluation (02:50Z) is not shown');
+// R c6344084041: a later hold of someone else's writing (an evaluation on #647,
+// another login, an App) does not replace the User's next act.
+const othersLater = gapWorld({ judged: true });
+othersLater.frames[2].held = [{ reason: 'owner-readback-missing', kind: null, recordedAt: '2026-10-17T01:50:00Z', source: { ref: 'roccho-dev/atlas-owner#1', commentId: 7, sha256: null } },
+  ...['evaluation-not-from-owner', 'owner-other-author', 'owner-via-app'].map((reason, index) => ({ reason, kind: null,
+    recordedAt: '2026-10-17T01:5' + (5 + index) + ':00Z', source: { ref: 'roccho-dev/adrs#647', commentId: 8 + index, sha256: null } }))];
+assert.equal(ofKind(parseAtlasWorldInput(othersLater), 't2', 'purpose-adequacy')[0].label, '目的↔理想の差\n' + gapALabel.t2 + '\n評価は保持：readback が無い',
+  't2: holds of others\' writing do not replace the User\'s next act');
+const othersOnly = gapWorld({ judged: true });
+othersOnly.frames[2].held = [{ reason: 'evaluation-not-from-owner', kind: null, recordedAt: '2026-10-17T01:55:00Z', source: { ref: 'roccho-dev/adrs#647', commentId: 8, sha256: null } }];
+assert.ok(!ofKind(parseAtlasWorldInput(othersOnly), 't2', 'purpose-adequacy')[0].label.includes('評価は保持'), 't2: someone else\'s held writing alone draws no line');
 assert.ok(projectAtlasWorld({ input: judged, frame: judged.frames.find(item => item.id === 't4'), selected: 'none' }).scene.representations
   .some(rep => rep.atlas?.ref?.kind === 'gap-part' && rep.label.startsWith('? · ')), 't4: an unknown difference keeps its ?');
 // S4: an evaluator's `evaluation:` observation (Jev) is a sign in GapA's box,
