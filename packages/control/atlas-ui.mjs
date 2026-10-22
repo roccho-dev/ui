@@ -557,7 +557,9 @@ export const mountAtlasWorldUI = ({
       viewedText(page.input.frames, frame, currentStep(), steps().length), last].filter(Boolean).join(' · ');
     status.title = status.textContent;
     const index = page.input.frames.findIndex(item => item.id === frame.id);
-    const text = currentStep() ? forecastChangeLabel(currentStep()) : frameChangeLabel(index < 0 ? [] : page.input.frames.slice(0, index), frame);
+    // Every frame of the input shown, so a P record replaced later is not drawn with its text (adrs#647 R c6349841686).
+    const text = currentStep() ? forecastChangeLabel(currentStep())
+      : frameChangeLabel(index < 0 ? [] : page.input.frames.slice(0, index), frame, index < 0 ? page.pair.input.frames : page.input.frames);
     if (changes.dataset.text !== text) {
       changes.dataset.text = text;
       changes.replaceChildren(...text.split('\n').map(line => el('div', { text: line })));

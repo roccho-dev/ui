@@ -410,7 +410,7 @@ const evaluationSigns = (journal, purposeId) => {
 
 // Entities and relations of a gap frame, in the normalized World shape.
 // `earlier` are the frames before it (for the previous gap and history).
-export const gapView = ({ frame, earlier, presentation, key }) => {
+export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, frame] }) => {
   const gap = frame.gap ?? null;
   // The parts are known only with an ideal state (v4: parts null otherwise).
   const g = gap !== null && gap.parts !== null ? gap : null;
@@ -450,13 +450,30 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // waiting, each until a recorded judgment names it, are lines of 目的↔理想の差 — P's record, never the User's
   // evaluation (no ✋, no flag, nothing judged). The latest heartbeat and the frame day's loop stops are lines of
   // 現在状態, also P's record (no observation of the HQ is made from them).
+  // A record P replaced anywhere in the World (`all`) is never drawn with its text (R c6349841686); a judgment
+  // waiting closes when a recorded judgment names it or when it is replaced up to this frame.
+  const superseded = supersededIn(all);
   const pRecords = [...earlier, frame].flatMap(item => item.p_records ?? []);
+  const replacedHere = supersededIn([...earlier, frame]);
   const answered = new Set(pRecords.filter(item => item.kind === 'user.decision.recorded' && item.request !== null).map(item => item.request));
-  const waitingLines = pRecords.filter(item => item.kind === 'user.decision.requested' && !answered.has(item.id))
-    .map(item => '\nUser の判断待ち：' + item.question + '（' + (item.series ?? '系列なし') + '・' + dayClockText(item.since) + ' から・P の記録）').join('');
-  const heartbeat = pRecords.filter(item => item.kind === 'heartbeat').at(-1) ?? null;
+  const waiting = pRecords.filter(item => item.kind === 'user.decision.requested' && !answered.has(item.id) && !replacedHere.has(item.id));
+  const waitingLines = waiting.map(item => '\nUser の判断待ち：' + (superseded.has(item.id) ? supersededText(item.id, superseded.get(item.id)) : item.question)
+    + '（' + (item.series ?? '系列なし') + '・' + dayClockText(item.since) + ' から・P の記録）').join('');
+  const liveRecords = pRecords.filter(item => !superseded.has(item.id));
+  const heartbeat = liveRecords.filter(item => item.kind === 'heartbeat').at(-1) ?? null;
   const day = /^\d{4}-\d\d-\d\d/u.exec(frame.asOf)?.[0] ?? null;
-  const stops = day === null ? [] : pRecords.filter(item => item.kind === 'loop.stopped' && item.at.startsWith(day));
+  const stops = day === null ? [] : liveRecords.filter(item => item.kind === 'loop.stopped' && item.at.startsWith(day));
+  // P's series list (p.series, the latest up to this frame): one card per series in the Scope area, made here, as
+  // HQ's physical Scopes leave no supplied Scope drawn (W c6349826755). P's record: no session id is drawn.
+  const seriesList = liveRecords.filter(item => item.kind === 'p.series').at(-1) ?? null;
+  const seriesCards = (seriesList?.entries ?? []).map((item, index) => {
+    const count = waiting.filter(record => record.series === item.id).length;
+    return entity(ref('p-series', item.id), item.id + '（' + item.canon + '）\n状態 ' + SERIES_STATE_LABEL[item.state]
+      + (count ? '\nUser の判断待ち ' + count + ' 件（P の記録）' : '') + '\n費用：' + item.canon + '（数は正本、Atlas では UNKNOWN）'
+      + '\n系列の一覧（P の記録） · ' + dayClockText(seriesList.at), areas.scope, 900 + index,
+    '系列 ' + item.id + ' · 正本 ' + item.canon + ' · ゴール ' + (item.goal ?? 'なし') + ' · host ' + item.host + ' · 出所 ' + seriesList.source.ref + ' 行 ' + seriesList.source.line,
+    [...(count ? ['awaiting=user-decision'] : []), ...(item.state === 'closed' ? ['history-preserved'] : [])]);
+  });
   const pCurrentLines = (heartbeat ? '\n心拍（P の記録）：run ' + LIFE_LABEL[heartbeat.run] + ' · tunnel ' + LIFE_LABEL[heartbeat.tunnel]
     + ' · HQ ループ ' + LIFE_LABEL[heartbeat.hq_loop] + ' · reap ' + heartbeat.reaped + ' · 張り直し ' + heartbeat.rebuilt + ' · ' + dayClockText(heartbeat.at) : '')
     + (stops.length ? '\nloop の停止（P の記録）：' + day.slice(5) + ' ' + stops.length + ' 件（不要 ' + stops.filter(item => item.needed === false).length + '）' : '');
@@ -520,7 +537,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // A Scope area the frame supplies itself (e.g. nested per owner, with its
   // containment) is drawn as supplied; Scopes are derived from the parts only
   // when it supplies none. The kinds derived here are never counted as supplied.
-  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed', 'history-hidden'].includes(item.ref.kind))
+  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed', 'history-hidden', 'p-series'].includes(item.ref.kind))
     .map(item => item.flags.includes('gap-view') && item.ref.kind !== 'package'
       ? Object.freeze({ ...item, label: item.label.split('\n').slice(0, -1).join('\n'), summary: item.summary?.split('\n').slice(0, -1).join('\n') || null,
         flags: Object.freeze(item.flags.filter(flag => flag !== 'gap-view')) })
@@ -741,7 +758,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
-  return Object.freeze({ entities: Object.freeze([...entities, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });
+  return Object.freeze({ entities: Object.freeze([...entities, ...seriesCards, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });
 };
 
 // Stale: past matched_until on the ui's clock. Judged for the frame shown as
@@ -769,6 +786,11 @@ const P_RECORD_FIELDS = Object.freeze({
   'loop.stopped': ['role', 'round', 'next', 'reason', 'needed', 'action'],
   'p.receipt': ['action', 'target', 'sha256', 'result', 'reverted'],
   heartbeat: ['run', 'tunnel', 'hq_loop', 'reaped', 'rebuilt'],
+  // adrs#647 W c6349826755, R c6349841686: P's series list (hq:p-series.json, p-series-v1) as one record, and
+  // P's explicit replacement of a record by another (never guessed from text).
+  // (`entries`, not `series`: every record already has the common `series`, its own series or null)
+  'p.series': ['entries'],
+  'p.supersede': ['replaces', 'by'],
 });
 // Each field's value, as apps collect/precord.mjs checks it: [check, what it must be].
 const isText = v => typeof v === 'string' && v.length > 0;
@@ -788,11 +810,28 @@ const P_RECORD_VALUES = Object.freeze({
   'loop.stopped': { role: TEXT, round: orNull(COUNT), next: TEXT, reason: TEXT, needed: orNull(BOOL), action: orNull(TEXT) },
   'p.receipt': { action: TEXT, target: TEXT, sha256: orNull([v => typeof v === 'string' && /^[0-9a-f]{64}$/u.test(v), '64 hex']), result: ONE_OF('PASS', 'FAIL'), reverted: BOOL },
   heartbeat: { run: LIFE, tunnel: LIFE, hq_loop: LIFE, reaped: COUNT, rebuilt: COUNT },
+  'p.series': { entries: [v => Array.isArray(v) && v.every(seriesItem) && new Set(v.map(item => item.id)).size === v.length,
+    'a list of {id, canon, goal, R, W, host, state} with unique ids'] },
+  'p.supersede': { replaces: TEXT, by: orNull(TEXT) },
 });
+// One series of p-series-v1 (P c6349797904): R and W (session ids or a tool name) are kept but never drawn.
+const SERIES_KEYS = ['id', 'canon', 'goal', 'R', 'W', 'host', 'state'];
+function seriesItem(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === SERIES_KEYS.length && SERIES_KEYS.every(key => Object.hasOwn(v, key))
+    && isText(v.id) && typeof v.canon === 'string' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+#[1-9]\d*$/u.test(v.canon)
+    && (v.goal === null || (typeof v.goal === 'string' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+#[1-9]\d*#c\d+$/u.test(v.goal)))
+    && (v.R === null || isText(v.R)) && (v.W === null || isText(v.W)) && isText(v.host) && ['open', 'closed', 'waiting'].includes(v.state);
+}
 // The changes' marks for them: each differs from every journal mark and every state symbol (D5), except ✋,
 // which means here what it means on a box: a human's judgment is waiting.
 export const P_RECORD_MARK = Object.freeze({ 'user.decision.requested': '✋', 'user.decision.recorded': '◆', 'p.position': '✎',
-  'review.pasted': '❞', 'user.criterion': '◈', 'loop.stopped': '⏸', 'p.receipt': '▣', heartbeat: '♡' });
+  'review.pasted': '❞', 'user.criterion': '◈', 'loop.stopped': '⏸', 'p.receipt': '▣', heartbeat: '♡', 'p.series': '☰', 'p.supersede': '↷' });
+// A record P replaced (p.supersede) is never drawn with its text, in any frame, before the replacement too (R
+// c6349841686: the text may be what had to go). Only that it was replaced, and by what. The data is unchanged.
+export const SUPERSEDED_MARK = '⊘';
+export const supersededIn = frames => new Map(frames.flatMap(item => item.p_records ?? []).filter(item => item.kind === 'p.supersede')
+  .map(item => [item.replaces, item.by]));
+const supersededText = (id, by) => '置き換えられた P の記録 ' + id + ' → ' + (by ?? 'なし');
 export const normalizePRecords = (value, at) => {
   check(Array.isArray(value), at + ' must be an array');
   const records = value.map((item, index) => {
@@ -814,6 +853,7 @@ export const normalizePRecords = (value, at) => {
   check(new Set(records.map(item => item.id)).size === records.length, at + ': duplicate p-record id');
   return Object.freeze(records);
 };
+const SERIES_STATE_LABEL = Object.freeze({ open: '進行中', closed: '閉じた', waiting: '待ち' });
 const POSITION_LABEL = Object.freeze({ claim: '主張', withdrawal: '撤回', correction: '訂正', 'self-correction': '自己訂正' });
 const LIFE_LABEL = Object.freeze({ alive: '稼働', dead: '停止', unknown: '不明' });
 const P_RECORD_BODY = Object.freeze({
@@ -829,11 +869,15 @@ const P_RECORD_BODY = Object.freeze({
     + (r.sha256 === null ? '' : ' · sha256 ' + r.sha256),
   heartbeat: r => '心拍 · run ' + LIFE_LABEL[r.run] + ' · tunnel ' + LIFE_LABEL[r.tunnel] + ' · HQ ループ ' + LIFE_LABEL[r.hq_loop]
     + ' · reap ' + r.reaped + ' · 張り直し ' + r.rebuilt,
+  'p.series': r => '系列の一覧 · ' + r.entries.length + ' 系列（' + r.entries.map(item => item.id).join('・') + '）',
+  'p.supersede': r => '置き換え · ' + r.replaces + ' → ' + (r.by ?? 'なし'),
 });
 // One of P's records as a row: its mark, what it says, its series, when P wrote it, that it is P's unverified
 // claim (R c6346274848: only a receipt matched against the HQ's log may say verified, and none is yet), and where.
-export const pRecordRow = record => P_RECORD_MARK[record.kind] + ' ' + P_RECORD_BODY[record.kind](record)
-  + ' · ' + (record.series ?? '系列なし') + ' · ' + record.at + ' · P の記録（未照合） · 出所 ' + (record.ref ?? record.source.ref + ' 行 ' + record.source.line);
+export const pRecordRow = (record, superseded = new Map()) => superseded.has(record.id)
+  ? SUPERSEDED_MARK + ' ' + supersededText(record.id, superseded.get(record.id)) + ' · ' + record.at + ' · P の記録（未照合） · 出所 ' + record.source.ref + ' 行 ' + record.source.line
+  : P_RECORD_MARK[record.kind] + ' ' + P_RECORD_BODY[record.kind](record)
+    + ' · ' + (record.series ?? '系列なし') + ' · ' + record.at + ' · P の記録（未照合） · 出所 ' + (record.ref ?? record.source.ref + ' 行 ' + record.source.line);
 // One declaration held back (v12) as a row.
 const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref;
 // S7c (adrs#647): the changes of a frame, shown in #atlas-world-change under
@@ -844,9 +888,11 @@ const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類
 // frames). `earlier` are the frames before it. P's records that entered at
 // the frame are rows here too (p_records), after the journal; a record held
 // back (`p-record: …`) is one of the frame's held, so 保持 累計 counts it
-// (R c6346841107: that it did not enter is a fact).
-export const frameChangeLabel = (earlier, frame) => {
-  const changes = [...(frame.journal ?? []).map(journalRow), ...(frame.p_records ?? []).map(pRecordRow), ...(frame.held ?? []).map(heldRow)];
+// (R c6346841107: that it did not enter is a fact). `all`: every frame of the
+// World, so a record replaced in a later frame is not drawn here either.
+export const frameChangeLabel = (earlier, frame, all = [...earlier, frame]) => {
+  const superseded = supersededIn(all);
+  const changes = [...(frame.journal ?? []).map(journalRow), ...(frame.p_records ?? []).map(item => pRecordRow(item, superseded)), ...(frame.held ?? []).map(heldRow)];
   const heldSoFar = [...earlier, frame].flatMap(item => item.held ?? []).length;
   return 'この時点の変化 ' + changes.length + ' 件' + (heldSoFar ? ' · 保持 累計 ' + heldSoFar : '') + changes.map(row => '\n' + row).join('');
 };
