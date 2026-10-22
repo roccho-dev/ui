@@ -28,7 +28,7 @@ export const graphViewTypeContract = Object.freeze({
   },
   relationVisual: (relation) => Object.freeze({
     directed: !UNDIRECTED_RELATION_KINDS.has(relation.kind),
-    line: 'graph',
+    line: relation.kind === 'metrics' ? 'graph-metrics' : relation.kind === 'control' ? 'graph-control' : 'graph',
     foreground: relation.from === relation.to,
   }),
   defaultView: () => Object.freeze({ pattern: GRAPH_PATTERN }),

@@ -1,6 +1,7 @@
 import { BaseGraph } from '../vendor/maxgraph/view/BaseGraph.js';
 import { ShapeRegistry } from '../vendor/maxgraph/view/shape/ShapeRegistry.js';
 import EllipseShape from '../vendor/maxgraph/view/shape/node/EllipseShape.js';
+import ImageShape from '../vendor/maxgraph/view/shape/node/ImageShape.js';
 import { EdgeMarkerRegistry } from '../vendor/maxgraph/view/style/marker/EdgeMarkerRegistry.js';
 import { createArrow } from '../vendor/maxgraph/view/style/marker/edge-markers.js';
 import { PerimeterRegistry } from '../vendor/maxgraph/view/style/perimeter/PerimeterRegistry.js';
@@ -14,6 +15,7 @@ export const createSemanticGraph = options => {
   // BaseGraph leaves built-in registries empty; register only the primitives
   // selected by this renderer's existing styles.
   ShapeRegistry.add('ellipse', EllipseShape);
+  ShapeRegistry.add('image', ImageShape);
   EdgeMarkerRegistry.add('classic', createArrow(2));
   PerimeterRegistry.add('rectanglePerimeter', RectanglePerimeter);
   PerimeterRegistry.add('rhombusPerimeter', RhombusPerimeter);
