@@ -49,7 +49,7 @@ assert.deepEqual(worldViewport({ width: 800, height: 600 }), { graph: { x: 16, y
 // The table. A box is named by what gapView draws in it; any other box is the
 // producer's (supplied), and so is every box of a frame without a gap. Lines are read as gapView writes them, before the
 // layout wraps them; the stale present's heading as the projection writes it.
-const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed']);
+const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed', 'history-hidden']);
 const boxOf = (entity, frame) => !Object.hasOwn(frame, 'gap') ? 'supplied' : GAP_BOXES.has(entity.ref.kind) && (entity.ref.kind !== 'purpose' || entity.flags.includes('gap-view')) ? entity.ref.kind
   : entity.flags.includes('gap-view') ? (entity.flags.includes('physical-scope') ? 'physical' : 'scope-card')
     : entity.ref.kind === 'phase' ? 'phase' : 'supplied';

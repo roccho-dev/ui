@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { entityKey, parseAtlasWorldInput, relationKey } from '../packages/control/src/atlas-world.mjs';
 import { projectAtlasWorld, projectWorldScene } from '../packages/control/src/atlas-world-projection.mjs';
+import { searchAtlasWorld } from '../packages/control/src/atlas-world-search.mjs';
 import * as timeline from '../packages/control/src/atlas-timeline.mjs';
 import * as gapModule from '../packages/control/src/atlas-gap.mjs';
 // The rows of a frame's journal as the changes draws them.
@@ -106,11 +107,25 @@ assert.throws(() => parseAtlasWorldInput(cumulative), /t1: journal\[0\] repeats 
 // A Scope area the frame supplies (nested per owner, K8) is kept as supplied,
 // with its containment; Scopes are derived from the parts only otherwise. The
 // purpose area is drawn from the gap either way.
+// B1 (apps#73; adrs#647 c6341039299): the supplied history units — the
+// `history` group, closed changes, prior obligations, Scopes completed into
+// history — stay in the frame but are not drawn, in every frame; the closed
+// differences' box and one count line stand for them.
 const grouped = parseAtlasWorldInput(gapWorld({ groups: true }));
+const HISTORY_KINDS = ['closed-change', 'obligation'];
+const isHistoryUnit = entity => HISTORY_KINDS.includes(entity.ref.kind) || (entity.ref.kind === 'scope-group' && entity.ref.id === 'history');
 for (const item of grouped.frames) {
   const raw = gapWorld({ groups: true }).frames.find(each => each.id === item.id);
-  const suppliedScopes = raw.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
-  const drawnScopes = item.entities.filter(entity => entity.area === 'scopes').map(entity => entity.ref.kind + ':' + entity.ref.id);
+  const suppliedScopes = raw.entities.filter(entity => entity.area === 'scopes' && !isHistoryUnit(entity)).map(entity => entity.ref.kind + ':' + entity.ref.id);
+  // With supplied Scopes, the ui's own two (the box and the count) are not supplied ones.
+  const drawnScopes = item.entities.filter(entity => entity.area === 'scopes' && entity.visible
+    && !(suppliedScopes.length && ['gap-closed', 'history-hidden'].includes(entity.ref.kind))).map(entity => entity.ref.kind + ':' + entity.ref.id);
+  const history = raw.entities.filter(entity => entity.area === 'scopes' && isHistoryUnit(entity));
+  for (const unit of history) assert.equal(item.entities.find(entity => entity.ref.kind === unit.ref.kind && entity.ref.id === unit.ref.id)?.visible, false,
+    item.id + ': ' + unit.ref.kind + ':' + unit.ref.id + ' is kept but not drawn');
+  const counted = history.filter(unit => unit.ref.kind !== 'scope-group').length;
+  assert.equal(item.entities.find(entity => entity.ref.kind === 'history-hidden')?.label, counted ? '履歴 ' + counted + ' 件（◀ 前へと検索で読める）' : undefined,
+    item.id + ': the hidden history is counted, never dropped silently');
   if (suppliedScopes.length) {
     assert.deepEqual(drawnScopes, suppliedScopes, item.id + ': supplied Scopes kept as supplied');
     assert.equal(item.relations.filter(relation => relation.containment).length, raw.relations.filter(relation => relation.containment).length, item.id + ': containment kept');
@@ -119,6 +134,26 @@ for (const item of grouped.frames) {
     frame(item.id).entities.filter(entity => entity.area === 'purpose').map(entity => entity.label), item.id + ': purpose area from the gap');
 }
 assert.ok(grouped.frames.some(item => item.relations.some(relation => relation.containment)), 'the grouped fixture supplies containment');
+// B1: the fixture has history at t6; it is not drawn there, the box is, and
+// the hidden units are still found by search (the record is kept).
+const t6Grouped = grouped.frames.find(item => item.id === 't6');
+assert.ok(t6Grouped.entities.some(entity => entity.ref.kind === 'gap-closed' && entity.visible), 't6: the closed differences\' box is drawn');
+assert.ok(searchAtlasWorld(t6Grouped, 'c3@t5').some(row => row.kind === 'entity' && row.record.ref.kind === 'closed-change'), 't6: search reaches the hidden closed change');
+const drawnAt = (world, id) => projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none' })
+  .scene.representations.map(rep => rep.atlas?.ref?.kind).filter(Boolean);
+assert.ok(!drawnAt(grouped, 't6').some(kind => HISTORY_KINDS.includes(kind)), 't6: no history unit is drawn');
+// B3 (#73 counter-example 3; R c6341212243): a Scope completed into history
+// is a satisfied condition kept by its upkeep; it is not hidden with the history.
+const kept = gapWorld({ groups: true });
+kept.frames.find(item => item.id === 't6').entities.push({ ref: { space: 'fixture:gap', kind: 'semantic-scope', id: 'kept-service' }, label: '維持する service',
+  area: 'scopes', order: 20, visible: true, activity: 'none', flags: ['standing=completed-history', 'scope_status=declared_satisfied'] });
+const keptWorld = parseAtlasWorldInput(kept);
+assert.equal(keptWorld.frames.find(item => item.id === 't6').entities.find(entity => entity.ref.id === 'kept-service').visible, true, 't6: a completed-history Scope stays');
+assert.ok(projectAtlasWorld({ input: keptWorld, frame: keptWorld.frames.find(item => item.id === 't6'), selected: 'none' })
+  .scene.representations.some(rep => rep.atlas?.ref?.id === 'kept-service'), 't6: the kept service is drawn');
+// ◀ 前へ: t7 holds the same history; moving back to t6 does not bring it back.
+assert.ok(!drawnAt(grouped, 't7').some(kind => HISTORY_KINDS.includes(kind)) && !drawnAt(grouped, 't6').some(kind => HISTORY_KINDS.includes(kind)),
+  'stepping back from t7 to t6 draws no history unit');
 // Each open part is shown on the one supplied Scope whose id is its scope or
 // condition: since when; 担当未確定 when it has no scope. Its state and causes
 // are 差's row (S6).
