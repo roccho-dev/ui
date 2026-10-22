@@ -280,9 +280,10 @@ const normalizeFrame = (value, at, areaIds) => {
 // A frame that carries a gap is drawn from it (atlas-gap.mjs); its other
 // areas keep their supplied entities. Deriving again from a derived frame
 // gives the same frame.
-const withGapView = (frame, earlier, presentation) => {
+const withGapView = (frame, earlier, presentation, all) => {
   if (!hasGapView(frame)) return frame;
-  const view = gapView({ frame, earlier, presentation, key: entityKey });
+  // `all`: every frame, so a P record replaced later is not drawn with its text here (adrs#647 R c6349841686).
+  const view = gapView({ frame, earlier, presentation, key: entityKey, all });
   const entityIds = view.entities.map(item => entityKey(item.ref));
   check(new Set(entityIds).size === entityIds.length, frame.id + ': gap view entity collides with a supplied entity');
   deriveContainmentIndex(view.entities, view.relations, frame.id);
@@ -389,7 +390,7 @@ export const parseAtlasWorldInput = input => {
   check(Array.isArray(value.frames) && value.frames.length > 0, 'input.frames must be non-empty');
   const supplied = value.frames.map((frame, index) => normalizeFrame(frame, 'frames[' + index + ']', areaIds));
   checkJournalDeltas(supplied);
-  const frames = supplied.map((frame, index) => withGapView(frame, supplied.slice(0, index), presentation));
+  const frames = supplied.map((frame, index) => withGapView(frame, supplied.slice(0, index), presentation, supplied));
   check(new Set(frames.map(frame => frame.id)).size === frames.length, 'frame ids must be unique');
   check(new Set(frames.map(frame => frame.rev)).size === frames.length, 'frame rev values must be unique');
   let previousAsOf = Number.NEGATIVE_INFINITY;

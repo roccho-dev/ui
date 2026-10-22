@@ -39,7 +39,8 @@ export const ATLAS_STATUS = Object.freeze({
     flags: Object.freeze(['scope_status=conflict', 'evaluation-disagreement', 'conflict', 'source=conflict', 'source=whole-purpose-conflict', 'purpose_standing=conflict']) }),
   unassigned: Object.freeze({ symbol: '∅', appearance: palette(1, { dashed: true }), flags: Object.freeze(['unassigned']) }),
   // D1 (apps#73): GapA waits for the User's evaluation; before `unknown`, so it wins over the `?` it also is.
-  awaitingUser: Object.freeze({ symbol: '✋', appearance: palette(0, { strokeWidth: 2 }), flags: Object.freeze(['awaiting=user-evaluation']) }),
+  // …and a series' card with judgments P recorded as waiting (adrs#647 W c6349826755): the same meaning, a human's judgment.
+  awaitingUser: Object.freeze({ symbol: '✋', appearance: palette(0, { strokeWidth: 2 }), flags: Object.freeze(['awaiting=user-evaluation', 'awaiting=user-decision']) }),
   unknown: Object.freeze({ symbol: '?', appearance: palette(5, { dashed: true }),
     flags: Object.freeze(['scope_status=unknown', 'standing=unresolved', 'unknown', 'source=unknown', 'unexplained', 'purpose_standing=unknown']) }),
   unmet: Object.freeze({ symbol: '!', appearance: palette(3), flags: Object.freeze(['scope_status=unmet', 'purpose_standing=unmet']) }),

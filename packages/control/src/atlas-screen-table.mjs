@@ -61,6 +61,12 @@ export const SCREEN_LINES = Object.freeze([
     '(a) 中身は ◀ 前へか検索で読める（adrs#647 c6341039299）'),
   row('scope-card', 'card-since', 'since・担当（担当未確定）・最後の観測（10・12・26）', 'U', /^(この時点から|\d+ 時点前から)（[^）]+）( · .+)?$/u),
   row('scope-card', 'card-text', '供給された Scope の文', 'U', ANY),
+  // P's series list (p.series; adrs#647 W c6349826755, R c6349841686): one card per series, P's record; no session id.
+  row('p-series', 'series-state', '系列の状態（進行中・閉じた・待ち）', 'U', /^状態 (進行中|閉じた|待ち)$/u),
+  row('p-series', 'series-waiting', 'その系列の User の判断待ちの件数（P の記録）', 'U', /^User の判断待ち \d+ 件（P の記録）$/u),
+  row('p-series', 'series-cost', '費用の在りか：系列の正本（数は正本、Atlas では UNKNOWN）', 'U', /^費用：\S+（数は正本、Atlas では UNKNOWN）$/u),
+  row('p-series', 'series-source', '系列の一覧が P の記録であることと、その時刻', 'U', /^系列の一覧（P の記録） · \d\d-\d\d \d\d:\d\dZ?$/u),
+  row('p-series', 'series-name', '系列の名と正本', 'U', /^\S+（[^）]+）$/u),
   row('physical', 'physical-keeps', '保つ条件（operation、25・30）', 'U', /^保つ: .+$/u),
   row('physical', 'physical-target', 'この差を埋める対象であること（development、27）', 'U', /^対象: 理想↔現在の差$/u),
   row('physical', 'physical-part', '担う条件・担当（担当未確定）・最後の観測', 'U', /^[!?] \S+ · .+$/u),
@@ -70,7 +76,10 @@ export const SCREEN_LINES = Object.freeze([
   row('atlas-world-change', 'change-entry', 'その frame に入った仕訳：種類・時刻・作者・出所・sha256（S7、模型 4 行目）', 'U',
     /^\S+ .+ · \d{4}-\d\d-\d\dT\S+ · 作者 .+ · 出所 .+ · sha256 \S+$/u),
   row('atlas-world-change', 'change-p-record', 'その frame に入った P の記録：印・中身・系列・P が書いた時刻・P の記録（未照合）・出所（adrs#647 c6346827237）', 'U',
-    /^[✋◆✎❞◈⏸▣♡] .+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
+    /^[✋◆✎❞◈⏸▣♡☰↷] .+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
+  // adrs#647 R c6349841686: a record P replaced, in any frame, shows only that it was replaced and by what.
+  row('atlas-world-change', 'change-p-superseded', 'P が置き換えた記録：id・置き換えた id・時刻・出所（本文は描かない）', 'U',
+    /^⊘ 置き換えられた P の記録 \S+ → \S+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
   row('atlas-world-change', 'change-held', 'その frame で保持した宣言：reason・種類・時刻・出所（15・28・29）', 'U', /^保持 \S+(?: \S+)? · \S+ · \S+ · 出所 .+$/u),
   // (a reason may name its reader: `p-record: at`, apps collect/precord.mjs)
   row('atlas-world-change', 'step-heading', '予定の歩みの時刻（現在の upkeep の stale_at、分刻み）', 'U', /^予定 \d\d-\d\d \d\d:\d\dZ（観測が無ければ unknown）$/u),
