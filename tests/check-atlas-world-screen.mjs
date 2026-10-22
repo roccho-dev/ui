@@ -86,7 +86,7 @@ const REMOVED = [
 const lineWorlds = [
   ...worlds,
   ...[{}, { groups: true }, { groups: 'unplaced' }, { current: true, admission: true }, { newPurpose: true }, { sides: false, v5: false },
-    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
+    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }, { pRecords: 'waiting', judged: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
   plannedWorld(),
   parseAtlasWorldInput(crowdedGapWorld()),
   // D1 (R c6343482688): GapA waits for the User, and the owner source held an evaluation back.
@@ -273,6 +273,28 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('P records: authority other than false is refused', refused(records => { records[1].authority = true; }).includes('authority must be false'));
   check('P records: an unknown kind is refused', refused(records => { records[2].kind = 'user.decision.guessed'; }).includes('p-record-v1 kind'));
   check('P records: an id twice in a frame is refused', refused(records => { records[3].id = 'p-1'; }).includes('duplicate p-record id'));
+  // The values too (R c6347788839), as apps reads them.
+  check('P records: a value of the wrong type is refused (needed)', refused(records => { records[5].needed = 'no'; }).includes('needed must be true or false or null'));
+  check('P records: a value of the wrong type is refused (reaped)', refused(records => { records[7].reaped = -1; }).includes('reaped must be a non-negative integer'));
+  check('P records: a time that is not ISO UTC is refused (since)', refused(records => { records[0].since = 'yesterday'; }).includes('since must be an ISO UTC time'));
+  check('P records: an unknown value is refused (result)', refused(records => { records[6].result = 'OK'; }).includes('result must be PASS|FAIL'));
+}
+// P's records in the boxes (adrs#647 v2 c6346263403, R c6348033913): a judgment P recorded as waiting is a line of
+// 目的↔理想の差 until a recorded judgment names it; the latest heartbeat and the day's loop stops are lines of 現在状態.
+// All are P's record: GapA's state, symbol and flags stay what its adequacy makes them.
+{
+  const box = (options, id, kind) => parseAtlasWorldInput(gapWorld(options)).frames.find(item => item.id === id)?.entities.find(entity => entity.ref.kind === kind);
+  const lines = (options, id, kind) => box(options, id, kind)?.label.split('\n') ?? [];
+  const WAITING = 'User の判断待ち：試験の値（atlas・10-17 03:20Z から・P の記録）';
+  check('P in boxes: a judgment P recorded as waiting is on 目的↔理想の差 from its frame on', lines({ pRecords: 'waiting', judged: true }, 't4', 'purpose-adequacy').includes(WAITING)
+    && !lines({ pRecords: 'waiting', judged: true }, 't3', 'purpose-adequacy').includes(WAITING), lines({ pRecords: 'waiting', judged: true }, 't4', 'purpose-adequacy'));
+  check('P in boxes: a recorded judgment that names it closes it', !lines({ pRecords: true, judged: true }, 't4', 'purpose-adequacy').some(line => line.startsWith('User の判断待ち：')));
+  check('P in boxes: GapA\'s flags are its adequacy\'s alone (no ✋ or flag from P\'s record)',
+    JSON.stringify(box({ pRecords: 'waiting', judged: true }, 't4', 'purpose-adequacy')?.flags) === JSON.stringify(box({ judged: true }, 't4', 'purpose-adequacy')?.flags));
+  const current = lines({ pRecords: true }, 't4', 'current-state');
+  check('P in boxes: 現在状態 has the latest heartbeat P recorded', current.includes('心拍（P の記録）：run 稼働 · tunnel 稼働 · HQ ループ 不明 · reap 0 · 張り直し 1 · 10-17 03:45Z'), current);
+  check('P in boxes: 現在状態 counts the day\'s loop stops and the unneeded ones', current.includes('loop の停止（P の記録）：10-17 1 件（不要 1）'), current);
+  check('P in boxes: nothing before P recorded it', !lines({ pRecords: true }, 't3', 'current-state').some(line => line.includes('P の記録')));
 }
 // The panel's row says what the page draws: six lines, fixed (116 px,
 // atlas-ui.mjs), the rest scrolled inside it (S7c).

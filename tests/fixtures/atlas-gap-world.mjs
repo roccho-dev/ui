@@ -210,7 +210,8 @@ const physicalScopes = (frameId, gap) => {
   return { entities, relations };
 };
 // `pRecords: true` (adrs#647 c6346827237) gives t4 P's records of all eight kinds as apps writes them into
-// frames[i].p_records (p-record-v1, P's claims), and one record held back at t4 (`p-record: at`).
+// frames[i].p_records (p-record-v1, P's claims), and one record held back at t4 (`p-record: at`). p-2 records
+// the judgment p-1 asked for; `pRecords: 'waiting'` leaves it unnamed (request null), so p-1 still waits.
 const pRecord = (kind, id, fields, series = 'atlas', ref = 'roccho-dev/adrs#647') => ({ schema: 'p-record-v1', id, kind, at: '2026-10-17T03:45:00Z',
   series, ref, ...fields, authority: false, source: { ref: 'hq:p-records.jsonl', sha256: sha('p'), line: Number(id.slice(2)) } });
 const P_RECORDS = [
@@ -271,7 +272,7 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
         ...(upkeep && UPKEEP[item.id] ? { upkeep: structuredClone(UPKEEP[item.id]) } : {}),
         relations: [...item.relations, ...supplied.relations, ...declared.relations],
         ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}),
-        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
+        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS).map(record => pRecords === 'waiting' && record.id === 'p-2' ? { ...record, request: null } : record), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
     }),
   };
 };
