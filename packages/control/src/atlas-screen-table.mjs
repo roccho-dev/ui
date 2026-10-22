@@ -61,6 +61,17 @@ export const SCREEN_LINES = Object.freeze([
     '(a) 中身は ◀ 前へか検索で読める（adrs#647 c6341039299）'),
   row('scope-card', 'card-since', 'since・担当（担当未確定）・最後の観測（10・12・26）', 'U', /^(この時点から|\d+ 時点前から)（[^）]+）( · .+)?$/u),
   row('scope-card', 'card-text', '供給された Scope の文', 'U', ANY),
+  // P's report at a glance (User c6351593265, R c6352966769): the latest of each kind of P's record up to the frame,
+  // on the first screen. P (a): each line is also a row of the changes of the frame it entered, reached only by ◀ 前へ.
+  row('p-summary', 'summary-heading', '見出し：P の記録であること・未照合', 'P', /^P の報告の要約（P の記録・未照合）$/u, '(a) 元は変化の欄、◀ 前へでしか届かない'),
+  row('p-summary', 'summary-series', '系列の数と閉じた系列（Q1）', 'P', /^(系列 \d+ · 閉じた \d+(（.+）)?|系列の一覧 無し)$/u, '(a) 系列カードは scroll が要る'),
+  row('p-summary', 'summary-waiting', 'User の判断待ちの件数と系列ごとの数（Q2）', 'P', /^(User の判断待ち \d+ 件：.+|User の判断待ち 無し)$/u, '(a) 目的↔理想の差の行は画面の外に出うる'),
+  row('p-summary', 'summary-loop', 'その日の loop の停止と不要の数（Q4）', 'P', /^loop の停止 (\d\d-\d\d (\d+ 件（不要 \d+）|無し)|不明)$/u, '(a) 現在状態の行は scroll が要る'),
+  row('p-summary', 'summary-heartbeat', '最新の心拍（Q5）', 'P', /^(心拍：run \S+ · tunnel \S+ · HQ ループ \S+（\d\d-\d\d \d\d:\d\dZ?）|心拍 無し)$/u, '(a) 同上'),
+  row('p-summary', 'summary-latest', '種類ごとの直近（判断・撤回と訂正・receipt・レビュー・User の基準、Q7–Q10）', 'P',
+    /^(直近の ?(判断|撤回・訂正|receipt|レビュー|User の基準)：.+（\d\d-\d\d \d\d:\d\dZ?）|直近の ?(判断|撤回・訂正|receipt|レビュー|User の基準) 無し)$/u, '(a) 変化の欄、◀ 前へ'),
+  row('p-summary', 'summary-replaced', '置き換えの件数と、何が何に（Q11）', 'P', /^(置き換え \d+ 件：.+|置き換え 無し)$/u, '(a) 変化の欄、◀ 前へ'),
+  row('p-summary', 'summary-cost', '費用の在りか：系列ごとの正本（数は UNKNOWN、Q12）', 'P', /^(費用（数は正本、Atlas では UNKNOWN）：.+|費用の在りか 不明（系列の一覧 無し）)$/u, '(a) 系列カードは scroll が要る'),
   // P's series list (p.series; adrs#647 W c6349826755, R c6349841686): one card per series, P's record; no session id.
   row('p-series', 'series-state', '系列の状態（進行中・閉じた・待ち）', 'U', /^状態 (進行中|閉じた|待ち)$/u),
   row('p-series', 'series-waiting', 'その系列の User の判断待ちの件数（P の記録）', 'U', /^User の判断待ち \d+ 件（P の記録）$/u),
