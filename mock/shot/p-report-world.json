@@ -1,0 +1,1148 @@
+{
+ "kind": "ui.atlasWorldInput.v1",
+ "authority": false,
+ "note": "Synthetic adrs#647 v3 fixture.",
+ "presentation": {
+  "areas": [
+   {
+    "id": "purpose",
+    "label": "Purpose",
+    "order": 0
+   },
+   {
+    "id": "scopes",
+    "label": "Scope",
+    "order": 1
+   },
+   {
+    "id": "agents",
+    "label": "Agent",
+    "order": 2
+   }
+  ],
+  "purposeAreaId": "purpose",
+  "directionTargets": [
+   {
+    "space": "fixture:gap",
+    "kind": "purpose",
+    "id": "hq"
+   }
+  ],
+  "defaultSelection": {
+   "space": "fixture:gap",
+   "kind": "purpose",
+   "id": "hq"
+  }
+ },
+ "frames": [
+  {
+   "id": "t0",
+   "rev": 1,
+   "asOf": "2026-10-17T00:00:00Z",
+   "sourceState": "synthetic",
+   "entities": [
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "purpose",
+      "id": "hq"
+     },
+     "label": "目的\n宣言だけで回る組織",
+     "area": "purpose",
+     "order": 0,
+     "visible": true,
+     "activity": "none"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "atlas.W"
+     },
+     "label": "atlas.W\n担当",
+     "area": "agents",
+     "order": 0,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "envs.W"
+     },
+     "label": "envs.W\n担当",
+     "area": "agents",
+     "order": 1,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    }
+   ],
+   "relations": [],
+   "phase": "purpose-changed",
+   "gap": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": null,
+     "prev_frame": null
+    },
+    "parts": null,
+    "closed": [],
+    "summary": {
+     "open": null,
+     "by_cause": {},
+     "conditions": null,
+     "satisfied": null
+    }
+   },
+   "matched_until": null,
+   "journal": [
+    {
+     "kind": "purpose.set",
+     "recordedAt": "2026-10-16T23:30:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "purpose": {
+      "id": "hq",
+      "label": "宣言だけで回る組織"
+     },
+     "rev": 1
+    }
+   ],
+   "adequacy": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": null
+    },
+    "state": "unknown",
+    "reason": "no-ideal",
+    "evidence": null
+   }
+  },
+  {
+   "id": "t1",
+   "rev": 2,
+   "asOf": "2026-10-17T01:00:00Z",
+   "sourceState": "synthetic",
+   "entities": [
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "purpose",
+      "id": "hq"
+     },
+     "label": "目的\n宣言だけで回る組織",
+     "area": "purpose",
+     "order": 0,
+     "visible": true,
+     "activity": "none"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "atlas.W"
+     },
+     "label": "atlas.W\n担当",
+     "area": "agents",
+     "order": 0,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "envs.W"
+     },
+     "label": "envs.W\n担当",
+     "area": "agents",
+     "order": 1,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    }
+   ],
+   "relations": [],
+   "phase": "defining",
+   "gap": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": null,
+     "prev_frame": "t0"
+    },
+    "parts": null,
+    "closed": [],
+    "summary": {
+     "open": null,
+     "by_cause": {},
+     "conditions": null,
+     "satisfied": null
+    }
+   },
+   "matched_until": null,
+   "journal": [
+    {
+     "kind": "ideal.drafting",
+     "recordedAt": "2026-10-17T00:30:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "purpose_id": "hq",
+     "version": 1
+    }
+   ],
+   "adequacy": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": null
+    },
+    "state": "unknown",
+    "reason": "no-ideal",
+    "evidence": null
+   }
+  },
+  {
+   "id": "t2",
+   "rev": 3,
+   "asOf": "2026-10-17T02:00:00Z",
+   "sourceState": "synthetic",
+   "entities": [
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "purpose",
+      "id": "hq"
+     },
+     "label": "目的\n宣言だけで回る組織",
+     "area": "purpose",
+     "order": 0,
+     "visible": true,
+     "activity": "none"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "atlas.W"
+     },
+     "label": "atlas.W\n担当",
+     "area": "agents",
+     "order": 0,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "envs.W"
+     },
+     "label": "envs.W\n担当",
+     "area": "agents",
+     "order": 1,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    }
+   ],
+   "relations": [],
+   "phase": "matched",
+   "gap": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": "v1",
+     "prev_frame": "t1"
+    },
+    "parts": [],
+    "closed": [],
+    "summary": {
+     "open": 0,
+     "conditions": 2,
+     "satisfied": 2,
+     "by_cause": {}
+    }
+   },
+   "matched_until": "2026-10-17T02:41:00Z",
+   "journal": [
+    {
+     "kind": "ideal.set",
+     "recordedAt": "2026-10-17T01:30:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "version": 1,
+     "requires": [
+      "c1",
+      "c2"
+     ]
+    },
+    {
+     "kind": "observation",
+     "recordedAt": "2026-10-17T01:40:00Z",
+     "actor": "atlas.events",
+     "source": {
+      "ref": "hq:observations.jsonl",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "target": "c1",
+     "value": true
+    }
+   ],
+   "adequacy": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": "v1"
+    },
+    "state": "unknown",
+    "reason": "no-evaluation",
+    "evidence": null
+   }
+  },
+  {
+   "id": "t3",
+   "rev": 4,
+   "asOf": "2026-10-17T03:00:00Z",
+   "sourceState": "synthetic",
+   "entities": [
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "purpose",
+      "id": "hq"
+     },
+     "label": "目的\n宣言だけで回る組織",
+     "area": "purpose",
+     "order": 0,
+     "visible": true,
+     "activity": "none"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "atlas.W"
+     },
+     "label": "atlas.W\n担当",
+     "area": "agents",
+     "order": 0,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "envs.W"
+     },
+     "label": "envs.W\n担当",
+     "area": "agents",
+     "order": 1,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "synthetic"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "semantic-scope",
+      "id": "c3"
+     },
+     "label": "windows repo を退役する\n未達",
+     "area": "scopes",
+     "order": 0,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unmet"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:scope:atlas"
+     },
+     "label": "担当\nscope:atlas",
+     "area": "scopes",
+     "order": 101,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "group"
+     ]
+    }
+   ],
+   "relations": [
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t3:owner:scope:atlas:c3"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:scope:atlas"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "semantic-scope",
+      "id": "c3"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    }
+   ],
+   "phase": "approximating",
+   "gap": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": "v2",
+     "prev_frame": "t2"
+    },
+    "parts": [
+     {
+      "condition": "c3",
+      "label": "windows repo を退役する",
+      "state": "unmet",
+      "cause": {
+       "ideal": "ideal-added",
+       "current": "current-unobserved"
+      },
+      "since": "t3",
+      "scope": "scope:atlas",
+      "refs": [
+       "resources#25"
+      ]
+     }
+    ],
+    "closed": [],
+    "summary": {
+     "open": 1,
+     "conditions": 3,
+     "satisfied": 2,
+     "by_cause": {
+      "ideal-added": 1,
+      "current-unobserved": 1
+     }
+    }
+   },
+   "matched_until": null,
+   "journal": [
+    {
+     "kind": "ideal.set",
+     "recordedAt": "2026-10-17T02:30:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "version": 2,
+     "requires": [
+      "c1",
+      "c2",
+      "c3"
+     ]
+    },
+    {
+     "kind": "purpose.evaluated",
+     "recordedAt": "2026-10-17T02:50:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": 1,
+     "verdict": "ideal-insufficient",
+     "note": "一致したが不十分"
+    }
+   ],
+   "adequacy": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": "v2"
+    },
+    "state": "unknown",
+    "reason": "past",
+    "evidence": {
+     "recordedAt": "2026-10-17T02:50:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": 1,
+     "verdict": "ideal-insufficient",
+     "note": "一致したが不十分"
+    }
+   }
+  },
+  {
+   "id": "t4",
+   "rev": 5,
+   "asOf": "2026-10-17T04:00:00Z",
+   "sourceState": "synthetic",
+   "entities": [
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "purpose",
+      "id": "hq"
+     },
+     "label": "目的\n宣言だけで回る組織",
+     "area": "purpose",
+     "order": 0,
+     "visible": true,
+     "activity": "none"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "semantic-scope",
+      "id": "c3"
+     },
+     "label": "windows repo を退役する\n未達",
+     "area": "scopes",
+     "order": 0,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unmet"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "unassigned-change",
+      "id": "c1"
+     },
+     "label": "端末で直接入力できる\n未達",
+     "area": "scopes",
+     "order": 1,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unmet"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "semantic-scope",
+      "id": "c4"
+     },
+     "label": "envs のスコープ主張\n未確認",
+     "area": "scopes",
+     "order": 2,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unknown"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:scope:atlas"
+     },
+     "label": "担当\nscope:atlas",
+     "area": "scopes",
+     "order": 103,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "group"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:scope:envs"
+     },
+     "label": "担当\nscope:envs",
+     "area": "scopes",
+     "order": 104,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "group"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:none"
+     },
+     "label": "担当なし",
+     "area": "scopes",
+     "order": 105,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "group"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "atlas"
+     },
+     "label": "atlas（adrs#647）\nMMD：D4 → HQ の deploy\nui#386 merged · CI ✓",
+     "area": "scopes",
+     "order": 400,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unmet"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "sys1"
+     },
+     "label": "sys1\n【要実装 ui：✋ は flag awaiting=user-decision】\nUser の判断待ち（P の記録）：H のやり直し",
+     "area": "scopes",
+     "order": 401,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "awaiting=user-evaluation"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "codex"
+     },
+     "label": "codex\n能力の表 capability-v1",
+     "area": "scopes",
+     "order": 402,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unknown"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "exec"
+     },
+     "label": "能力 exec\n確認済み",
+     "area": "scopes",
+     "order": 410,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=declared_satisfied"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "app-server"
+     },
+     "label": "能力 app-server\ntool のみ",
+     "area": "scopes",
+     "order": 411,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unknown"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "mcp"
+     },
+     "label": "能力 mcp\n未試験",
+     "area": "scopes",
+     "order": 412,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unknown"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "sandbox"
+     },
+     "label": "能力 sandbox\n環境で阻まれた",
+     "area": "scopes",
+     "order": 413,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unmet"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "resume"
+     },
+     "label": "能力 resume\nUNKNOWN",
+     "area": "scopes",
+     "order": 414,
+     "visible": true,
+     "activity": "none",
+     "flags": [
+      "scope_status=unknown"
+     ]
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "atlas.R"
+     },
+     "label": "atlas.R\nsession running",
+     "area": "agents",
+     "order": 0,
+     "visible": true,
+     "activity": "now",
+     "flags": []
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "atlas.W"
+     },
+     "label": "atlas.W\ntranscript-only",
+     "area": "agents",
+     "order": 1,
+     "visible": true,
+     "activity": "recent",
+     "flags": []
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "sys1.W"
+     },
+     "label": "sys1.W\nsession 不明",
+     "area": "agents",
+     "order": 2,
+     "visible": true,
+     "activity": "unknown",
+     "flags": []
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "agent",
+      "id": "P"
+     },
+     "label": "P\nsession running",
+     "area": "agents",
+     "order": 3,
+     "visible": true,
+     "activity": "now",
+     "flags": []
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "mock-line",
+      "id": "adequacy-lines"
+     },
+     "label": "【要実装 ui：本来は目的エリアの「目的↔理想の差」の箱の行】\nUser の判断待ち：試験の値と凡例（atlas・16:20Z から・P の記録）\nUser の判断待ち：H のやり直し（sys1・10-21 から・P の記録）",
+     "area": "scopes",
+     "order": 380,
+     "visible": true,
+     "activity": "none",
+     "flags": []
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "mock-line",
+      "id": "current-lines"
+     },
+     "label": "【要実装 ui：本来は目的エリアの「現在状態」の箱の行】\nHQ ループ 応答 · 最後 16:39Z · reap 0\ntunnel 応答 · 張り直し 1（14:02Z）\nrun 不明 · 最後 16:38Z\nloop の停止 今日 3（不要 2）\nJev 残り 12/200 · TypeLLM 残り 不明 · C2 tool 31 回・48k tokens",
+     "area": "scopes",
+     "order": 381,
+     "visible": true,
+     "activity": "none",
+     "flags": []
+    }
+   ],
+   "relations": [
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:owner:scope:atlas:c3"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:scope:atlas"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "semantic-scope",
+      "id": "c3"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:owner:scope:envs:c4"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:scope:envs"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "semantic-scope",
+      "id": "c4"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:owner:none:c1"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "scope-group",
+      "id": "owner:none"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "unassigned-change",
+      "id": "c1"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:codex:exec"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "codex"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "exec"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:codex:app-server"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "codex"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "app-server"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:codex:mcp"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "codex"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "mcp"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:codex:sandbox"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "codex"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "sandbox"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    },
+    {
+     "ref": {
+      "space": "fixture:gap",
+      "kind": "scope-contains",
+      "id": "t4:codex:resume"
+     },
+     "from": {
+      "space": "fixture:gap",
+      "kind": "series",
+      "id": "codex"
+     },
+     "to": {
+      "space": "fixture:gap",
+      "kind": "capability",
+      "id": "resume"
+     },
+     "kind": "contains",
+     "path": false,
+     "containment": "from-contains-to"
+    }
+   ],
+   "phase": "approximating",
+   "gap": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": "v2",
+     "prev_frame": "t3"
+    },
+    "parts": [
+     {
+      "condition": "c3",
+      "label": "windows repo を退役する",
+      "state": "unmet",
+      "cause": {
+       "ideal": "carried",
+       "current": "carried"
+      },
+      "since": "t3",
+      "scope": "scope:atlas",
+      "refs": [
+       "resources#25"
+      ]
+     },
+     {
+      "condition": "c1",
+      "label": "端末で直接入力できる",
+      "state": "unmet",
+      "cause": {
+       "ideal": null,
+       "current": "current-regressed"
+      },
+      "since": "t4",
+      "scope": null,
+      "refs": []
+     },
+     {
+      "condition": "c4",
+      "label": "envs のスコープ主張",
+      "state": "unknown",
+      "cause": {
+       "ideal": null,
+       "current": "current-unobserved"
+      },
+      "since": "t4",
+      "scope": "scope:envs",
+      "refs": []
+     }
+    ],
+    "closed": [],
+    "summary": {
+     "open": 3,
+     "conditions": 4,
+     "satisfied": 1,
+     "by_cause": {
+      "carried": 1,
+      "current-regressed": 1,
+      "current-unobserved": 1
+     }
+    }
+   },
+   "matched_until": null,
+   "journal": [
+    {
+     "kind": "plan.set",
+     "recordedAt": "2026-10-17T03:10:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "plan": "resources#25:migration",
+     "serves": [
+      "c3"
+     ]
+    },
+    {
+     "kind": "observation",
+     "recordedAt": "2026-10-17T03:40:00Z",
+     "actor": "atlas.events",
+     "source": {
+      "ref": "hq:observations.jsonl",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "target": "c1",
+     "value": false
+    },
+    {
+     "kind": "observation",
+     "recordedAt": "2026-10-17T03:50:00Z",
+     "observedAt": "2026-10-17T03:50:00Z",
+     "actor": null,
+     "source": {
+      "ref": "current:P#L2 sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "commentId": null,
+      "sha256": null
+     },
+     "target": {
+      "kind": "state",
+      "id": "work:b"
+     },
+     "value": "progressed"
+    },
+    {
+     "kind": "observation",
+     "recordedAt": "2026-10-17T03:50:00Z",
+     "observedAt": "2026-10-17T03:50:00Z",
+     "actor": null,
+     "source": {
+      "ref": "current:P#L3 sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "commentId": null,
+      "sha256": null
+     },
+     "target": {
+      "kind": "state",
+      "id": "work:c"
+     },
+     "value": "progressed"
+    }
+   ],
+   "adequacy": {
+    "basis": {
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": "v2"
+    },
+    "state": "unknown",
+    "reason": "past",
+    "evidence": {
+     "recordedAt": "2026-10-17T02:50:00Z",
+     "actor": "roccho",
+     "source": {
+      "ref": "adrs#647",
+      "commentId": 6230983530,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     },
+     "purpose_id": "hq",
+     "purpose_rev": 1,
+     "ideal_version": 1,
+     "verdict": "ideal-insufficient",
+     "note": "一致したが不十分"
+    }
+   }
+  }
+ ]
+}
