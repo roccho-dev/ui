@@ -115,6 +115,10 @@ const areaRanks = (frame, areas, containment) => {
   return new Map(movable.flatMap(area => lists.get(area.id).map((key, index) => [key, index])));
 };
 
+// The supplied history units (B1, atlas-gap.mjs) are counted by their own line.
+const isHistoryUnit = entity => Boolean(entity) && (entity.ref.kind === 'obligation' || entity.ref.kind === 'closed-change'
+  || (entity.ref.kind === 'scope-group' && entity.ref.id === 'history'));
+
 const markSubtreeOmitted = (key, childrenByParent, omitted) => {
   if (omitted.has(key)) return;
   omitted.add(key);
@@ -136,10 +140,13 @@ const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
 
   const shown = [];
   const omitted = new Set();
+  // D6: what the per-area limit drops, apart from what is not visible.
+  const limited = new Set();
   const visit = key => {
     const entity = entityByKey.get(key);
     if (!entity?.visible || shown.length >= MAX_ENTITIES_PER_AREA) {
       markSubtreeOmitted(key, childrenByParent, omitted);
+      if (entity?.visible) markSubtreeOmitted(key, childrenByParent, limited);
       return;
     }
     shown.push(key);
@@ -183,6 +190,7 @@ const nestedAreaLayout = ({ area, rows, containment, rank, labelOf }) => {
     shown: Object.freeze(shown),
     shownSet,
     omitted: Object.freeze([...omitted].sort()),
+    limited: Object.freeze([...limited].sort()),
   });
 };
 
@@ -216,8 +224,13 @@ const fittedAreaLayout = ({ area, rows, containment, rank, labelOf, textScale })
   for (const [parent, children] of childrenByParent) childrenByParent.set(parent, orderedKeys(children, entityByKey));
   const shown = [];
   const omitted = new Set();
+  const limited = new Set();
   const visit = key => {
-    if (!entityByKey.get(key).visible || shown.length >= MAX_ENTITIES_PER_AREA) { markSubtreeOmitted(key, childrenByParent, omitted); return; }
+    if (!entityByKey.get(key).visible || shown.length >= MAX_ENTITIES_PER_AREA) {
+      markSubtreeOmitted(key, childrenByParent, omitted);
+      if (entityByKey.get(key).visible) markSubtreeOmitted(key, childrenByParent, limited);
+      return;
+    }
     shown.push(key);
     for (const child of childrenByParent.get(key)) visit(child);
   };
@@ -268,6 +281,7 @@ const fittedAreaLayout = ({ area, rows, containment, rank, labelOf, textScale })
     shown: Object.freeze(shown),
     shownSet,
     omitted: Object.freeze([...omitted].sort()),
+    limited: Object.freeze([...limited].sort()),
   });
 };
 
@@ -386,10 +400,18 @@ export const projectWorldScene = ({
     worldHeight = Math.max(worldHeight, bounds.y + bounds.height);
     contentRight = bounds.x + bounds.width + AREA_GAP;
     omittedEntityIds.push(...nested.omitted);
+    // D6 (apps#73; adrs#647 c6342302345, R c6342315491): what is not drawn is
+    // counted on the area heading by reason, and said to be reachable by search
+    // (the record keeps it). The history units have their own line (履歴 n 件),
+    // so they are not counted here again; the total stays in atlas.omitted.
+    const limitedSet = new Set(nested.limited);
+    const limitCount = nested.limited.length;
+    const hiddenCount = nested.omitted.filter(key => !limitedSet.has(key) && !isHistoryUnit(nested.entityByKey.get(key))).length;
 
     representations.push(Object.freeze({
       regionId: areaRegionId(area.id),
-      label: area.label + (nested.omitted.length ? ' · +' + nested.omitted.length + ' omitted' : ''),
+      label: area.label + (limitCount ? ' · 上限で描かない ' + limitCount + ' 件（検索で読める）' : '')
+        + (hiddenCount ? ' · 非表示 ' + hiddenCount + ' 件（検索で読める）' : ''),
       bounds,
       kind: 'area',
       depth: 0,
@@ -398,7 +420,8 @@ export const projectWorldScene = ({
       readOnly: true,
       geometryEditable: false,
       labelEditable: false,
-      atlas: Object.freeze({ kind: 'area', areaId: area.id, count: rows.length, omitted: nested.omitted.length }),
+      atlas: Object.freeze({ kind: 'area', areaId: area.id, count: rows.length, omitted: nested.omitted.length,
+        omittedBy: Object.freeze({ limit: limitCount, hidden: nested.omitted.length - limitCount }) }),
     }));
 
     for (const key of nested.shown) {
