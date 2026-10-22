@@ -86,7 +86,7 @@ const REMOVED = [
 const lineWorlds = [
   ...worlds,
   ...[{}, { groups: true }, { groups: 'unplaced' }, { current: true, admission: true }, { newPurpose: true }, { sides: false, v5: false },
-    { physical: true, lastObserved: true }, { held: true, upkeep: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
+    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
   plannedWorld(),
   parseAtlasWorldInput(crowdedGapWorld()),
   // D1 (R c6343482688): GapA waits for the User, and the owner source held an evaluation back.
@@ -238,6 +238,41 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   const never = selectionAt(t6, 'entity:none');
   check('D4: a selection in no received frame is absent, its last frame unknown', never?.state === 'absent' && never.last === null
     && selectionText(never) === '選択 entity:none はこの時点に無い（最後 不明）', never);
+}
+// P's records (p-record-v1; adrs#647 W c6346827237, R c6346841107): the records that entered at a frame are
+// rows of its changes, each P's unverified claim; one held back is one of the frame's held (保持 累計 counts it).
+{
+  const raw = () => gapWorld({ pRecords: true });
+  const world = parseAtlasWorldInput(raw());
+  const index = world.frames.findIndex(item => item.id === 't4');
+  const lines = (gapModule.frameChangeLabel?.(world.frames.slice(0, index), world.frames[index]) ?? '').split('\n');
+  const journal = world.frames[index].journal?.length ?? 0;
+  check('P records: the heading counts the journal, the eight records and the one held', lines[0] === 'この時点の変化 ' + (journal + 9) + ' 件 · 保持 累計 1', lines[0]);
+  const at = ' · 2026-10-17T03:45:00Z · P の記録（未照合） · 出所 ';
+  for (const row of [
+    '✋ User の判断待ち · 試験の値 · 推奨 a · 10-17 03:20Z から · 聞き直し 10-24 03:20Z · atlas' + at + 'roccho-dev/adrs#647',
+    '◆ User の判断 · 「atlas go ahead」→ C5 段 1 を採る · atlas' + at + 'roccho-dev/adrs#647',
+    '✎ P の自己訂正 · 逸脱 1 · atlas' + at + 'hq:p-records.jsonl 行 3',
+    '❞ 貼られたレビュー · 評者不明 · readback なし · atlas' + at + 'roccho-dev/adrs#647',
+    '◈ User の基準 · 「偽陽性がなく迷わずシンプル」→ 鍵の選び方 · 系列なし' + at + 'roccho-dev/adrs#647',
+    '⏸ loop の停止 · sys1.W · USER（不要）· 確認のため · P が再開 · sys1' + at + 'roccho-dev/adrs#647',
+    '▣ P の receipt · hq-refresh v3 · PASS · 戻していない · sha256 ' + '7'.repeat(64) + ' · atlas' + at + 'roccho-dev/adrs#647',
+    '♡ 心拍 · run 稼働 · tunnel 稼働 · HQ ループ 不明 · reap 0 · 張り直し 1 · 系列なし' + at + 'roccho-dev/adrs#647',
+  ]) check('P records: the row reads ' + row.slice(0, 12), lines.includes(row), lines);
+  check('P records: no row of P\'s says it was verified', !lines.some(line => line.includes('照合済み')));
+  check('P records: the record held back is a held row', lines.some(line => line.startsWith('保持 p-record: at · 種類不明 · ')), lines);
+  // The marks: every journal and P-record mark differs; only ✋ is also a state symbol, with the same meaning.
+  const marks = [...Object.values(gapModule.JOURNAL_MARK), ...Object.values(gapModule.P_RECORD_MARK ?? {})];
+  check('P records: the change marks are all different', new Set(marks).size === marks.length, marks);
+  check('P records: only ✋ is also a state symbol, the human\'s judgment waiting', JSON.stringify(marks.filter(mark => STATUS_SYMBOLS.includes(mark))) === '["✋"]'
+    && ATLAS_STATUS.awaitingUser.symbol === '✋' && gapModule.P_RECORD_MARK?.['user.decision.requested'] === '✋', marks);
+  // Closed per kind, P's claim only: anything else refuses the World as any unknown field does.
+  const refused = mutate => { const value = raw(); mutate(value.frames[index].p_records); try { parseAtlasWorldInput(value); return ''; } catch (error) { return error.message; } };
+  check('P records: an extra field is refused', refused(records => { records[0].note = 'x'; }).includes('unknown field note'));
+  check('P records: a missing field is refused', refused(records => { delete records[5].needed; }).includes('needed is required'));
+  check('P records: authority other than false is refused', refused(records => { records[1].authority = true; }).includes('authority must be false'));
+  check('P records: an unknown kind is refused', refused(records => { records[2].kind = 'user.decision.guessed'; }).includes('p-record-v1 kind'));
+  check('P records: an id twice in a frame is refused', refused(records => { records[3].id = 'p-1'; }).includes('duplicate p-record id'));
 }
 // The panel's row says what the page draws: six lines, fixed (116 px,
 // atlas-ui.mjs), the rest scrolled inside it (S7c).

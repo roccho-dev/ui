@@ -209,8 +209,23 @@ const physicalScopes = (frameId, gap) => {
   }
   return { entities, relations };
 };
+// `pRecords: true` (adrs#647 c6346827237) gives t4 P's records of all eight kinds as apps writes them into
+// frames[i].p_records (p-record-v1, P's claims), and one record held back at t4 (`p-record: at`).
+const pRecord = (kind, id, fields, series = 'atlas', ref = 'roccho-dev/adrs#647') => ({ schema: 'p-record-v1', id, kind, at: '2026-10-17T03:45:00Z',
+  series, ref, ...fields, authority: false, source: { ref: 'hq:p-records.jsonl', sha256: sha('p'), line: Number(id.slice(2)) } });
+const P_RECORDS = [
+  pRecord('user.decision.requested', 'p-1', { question: '試験の値', options: ['a', 'b'], recommended: 'a', since: '2026-10-17T03:20:00Z', reask_due: '2026-10-24T03:20:00Z' }),
+  pRecord('user.decision.recorded', 'p-2', { request: 'p-1', words: 'atlas go ahead', changes: 'C5 段 1 を採る' }),
+  pRecord('p.position', 'p-3', { position: 'self-correction', about: '逸脱 1' }, 'atlas', null),
+  pRecord('review.pasted', 'p-4', { reviewer: null, readback: null }),
+  pRecord('user.criterion', 'p-5', { words: '偽陽性がなく迷わずシンプル', binds: '鍵の選び方' }, null),
+  pRecord('loop.stopped', 'p-6', { role: 'sys1.W', round: 3, next: 'USER', reason: '確認のため', needed: false, action: 'P が再開' }, 'sys1'),
+  pRecord('p.receipt', 'p-7', { action: 'hq-refresh', target: 'v3', sha256: sha('7'), result: 'PASS', reverted: false }),
+  pRecord('heartbeat', 'p-8', { run: 'alive', tunnel: 'alive', hq_loop: 'unknown', reaped: 0, rebuilt: 1 }, null),
+];
+const P_RECORD_HELD = { reason: 'p-record: at', kind: null, recordedAt: '2026-10-17T03:50:00Z', source: { ref: 'hq:p-records.jsonl', commentId: null, sha256: sha('p') } };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
-  judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false, retired = false } = {}) => {
+  judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false, retired = false, pRecords = false } = {}) => {
   const decided = admission ? JOURNAL.map(item => ADMISSION[item.recordedAt] ? { ...item, source: { ...item.source, admission: ADMISSION[item.recordedAt] } } : item) : JOURNAL;
   const extra = [...(current ? CURRENT : []), ...(retired ? RETIRED : []), ...(evaluator ? EVALUATIONS : []), ...(drafting ? DRAFTING : [])];
   const entries = extra.length ? [...decided, ...extra].sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)) : decided;
@@ -255,7 +270,8 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
         entities: [...item.entities, ...supplied.entities, ...declared.entities],
         ...(upkeep && UPKEEP[item.id] ? { upkeep: structuredClone(UPKEEP[item.id]) } : {}),
         relations: [...item.relations, ...supplied.relations, ...declared.relations],
-        ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}) };
+        ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}),
+        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
     }),
   };
 };
