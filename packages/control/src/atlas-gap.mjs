@@ -684,17 +684,18 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   }
 
   // B1 (apps#73; adrs#647 c6341013793, c6341039299): a unit that is history at
-  // the frame — the supplied `history` group and what it holds: a prior
-  // obligation, a closed change, a Scope completed into history — is kept in
-  // the frame (search and the record reach it) but not drawn, in every frame,
-  // so an earlier frame does not draw its own history as current either. One
-  // line counts them (never dropped silently, D6); kept conditions (operation,
-  // upkeep) are not history and stay drawn (B3).
+  // the frame — the supplied `history` group, a prior obligation, a closed
+  // change (apps makes both as history) — is kept in the frame (search and the
+  // record reach it) but not drawn, in every frame, so an earlier frame does not
+  // draw its own history as current either. One line counts them (never dropped
+  // silently, D6). A Scope `standing=completed-history` is a satisfied condition
+  // that must keep being met (its upkeep), so it stays drawn (B3, #73
+  // counter-example 3; R c6341212243).
   const isHistory = item => item.area === areas.scope && ((item.ref.kind === 'scope-group' && item.ref.id === 'history')
-    || item.ref.kind === 'obligation' || item.ref.kind === 'closed-change' || item.flags.includes('standing=completed-history'));
+    || item.ref.kind === 'obligation' || item.ref.kind === 'closed-change');
   const hiddenHistory = shownScopes.filter(item => isHistory(item) && item.ref.kind !== 'scope-group').length;
   if (hiddenHistory) entities.push(entity(ref('history-hidden', frame.id), '履歴 ' + hiddenHistory + ' 件（◀ 前へと検索で読める）', areas.scope, 0,
-    '現在の図に描かない履歴の単位 ' + hiddenHistory + ' 件（前の義務・満たした差・完了済みの Scope）。記録は残り、検索と前の時点で読める。', ['history-preserved']));
+    '現在の図に描かない履歴の単位 ' + hiddenHistory + ' 件（前の義務・閉じた差）。記録は残り、検索と前の時点で読める。', ['history-preserved']));
   // Keep the other areas' entities, any supplied Scopes, and the relations among them.
   const kept = [...shownScopes.map(item => isHistory(item) ? Object.freeze({ ...item, visible: false }) : item),
     ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
