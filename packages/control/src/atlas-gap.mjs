@@ -488,7 +488,7 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
   // A Scope area the frame supplies itself (e.g. nested per owner, with its
   // containment) is drawn as supplied; Scopes are derived from the parts only
   // when it supplies none. The kinds derived here are never counted as supplied.
-  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed'].includes(item.ref.kind))
+  const suppliedScopes = frame.entities.filter(item => item.area === areas.scope && !['gap-part', 'gap-closed', 'history-hidden'].includes(item.ref.kind))
     .map(item => item.flags.includes('gap-view') && item.ref.kind !== 'package'
       ? Object.freeze({ ...item, label: item.label.split('\n').slice(0, -1).join('\n'), summary: item.summary?.split('\n').slice(0, -1).join('\n') || null,
         flags: Object.freeze(item.flags.filter(flag => flag !== 'gap-view')) })
@@ -673,16 +673,31 @@ export const gapView = ({ frame, earlier, presentation, key }) => {
     relations.push(relation('part-' + part.condition, partRef, deltaRef, '差'));
   });
   // History: every condition closed in this or an earlier frame. Kept, never
-  // erased, drawn as one quiet node; the full list is its summary.
+  // erased, drawn as one quiet node; the full list is its summary. B1 (apps#73,
+  // adrs#647 c6341039299): the supplied history units are not drawn (below), so
+  // this box is the closed differences' one place on the screen in every frame.
   const history = [...earlier, frame].flatMap(item => item.gap?.closed ?? []);
-  if (history.length && !suppliedScopes.length) {
+  if (history.length) {
     entities.push(entity(ref('gap-closed', frame.id), '閉じた差 ' + history.length + '（この時点 ' + (gap?.closed.length ?? 0) + '）\n'
       + history.slice(-2).map(item => item.condition + ' ' + CLOSED_LABEL[item.by]).join('・'), areas.scope, g?.parts.length ?? 0,
     history.map(item => item.condition + ' · at ' + item.at + ' · ' + CLOSED_LABEL[item.by]).join(' / '), ['history-preserved']));
   }
 
+  // B1 (apps#73; adrs#647 c6341013793, c6341039299): a unit that is history at
+  // the frame — the supplied `history` group and what it holds: a prior
+  // obligation, a closed change, a Scope completed into history — is kept in
+  // the frame (search and the record reach it) but not drawn, in every frame,
+  // so an earlier frame does not draw its own history as current either. One
+  // line counts them (never dropped silently, D6); kept conditions (operation,
+  // upkeep) are not history and stay drawn (B3).
+  const isHistory = item => item.area === areas.scope && ((item.ref.kind === 'scope-group' && item.ref.id === 'history')
+    || item.ref.kind === 'obligation' || item.ref.kind === 'closed-change' || item.flags.includes('standing=completed-history'));
+  const hiddenHistory = shownScopes.filter(item => isHistory(item) && item.ref.kind !== 'scope-group').length;
+  if (hiddenHistory) entities.push(entity(ref('history-hidden', frame.id), '履歴 ' + hiddenHistory + ' 件（◀ 前へと検索で読める）', areas.scope, 0,
+    '現在の図に描かない履歴の単位 ' + hiddenHistory + ' 件（前の義務・満たした差・完了済みの Scope）。記録は残り、検索と前の時点で読める。', ['history-preserved']));
   // Keep the other areas' entities, any supplied Scopes, and the relations among them.
-  const kept = [...shownScopes, ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
+  const kept = [...shownScopes.map(item => isHistory(item) ? Object.freeze({ ...item, visible: false }) : item),
+    ...frame.entities.filter(item => item.area !== areas.purpose && item.area !== areas.scope)];
   const keptKeys = new Set(kept.map(item => key(item.ref)));
   const keptRelations = frame.relations.filter(item => keptKeys.has(key(item.from)) && keptKeys.has(key(item.to)));
   return Object.freeze({ entities: Object.freeze([...entities, ...kept]), relations: Object.freeze([...relations, ...keptRelations]) });

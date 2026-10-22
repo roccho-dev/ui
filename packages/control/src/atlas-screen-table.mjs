@@ -45,6 +45,8 @@ export const SCREEN_LINES = Object.freeze([
   row('gap-part', 'part-text', '条件の文', 'U', ANY),
   row('gap-closed', 'closed-count', '閉じた差の数（10・11・13）', 'U', /^閉じた差 \d+（この時点 \d+）$/u),
   row('gap-closed', 'closed-list', '閉じた差の条件と閉じ方', 'U', ANY),
+  row('history-hidden', 'history-hidden-count', '現在の図に描かない履歴の単位の件数（B1・D6、apps#73）', 'P', /^履歴 \d+ 件（◀ 前へと検索で読める）$/u,
+    '(a) 中身は ◀ 前へか検索で読める（adrs#647 c6341039299）'),
   row('scope-card', 'card-since', 'since・担当（担当未確定）・最後の観測（10・12・26）', 'U', /^(この時点から|\d+ 時点前から)（[^）]+）( · .+)?$/u),
   row('scope-card', 'card-text', '供給された Scope の文', 'U', ANY),
   row('physical', 'physical-keeps', '保つ条件（operation、25・30）', 'U', /^保つ: .+$/u),
