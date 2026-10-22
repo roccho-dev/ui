@@ -310,7 +310,7 @@ try {
       && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world-change', 'atlas-world'])
       && JSON.stringify(htmlSurface.statusChildren) === JSON.stringify(['span#atlas-world-status'])
       && JSON.stringify(htmlSurface.barChildren) === JSON.stringify(['input#atlas-world-search', 'select#atlas-world-search-results', 'span#atlas-world-search-count',
-        'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present'])
+        'button#atlas-world-selection', 'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present'])
       && htmlSurface.statusHeight === 24 && htmlSurface.barHeight === 36, htmlSurface);
   check('the SVG draws the three areas only: no HUD, panel, strip or band region',
     JSON.stringify(htmlSurface.regionKinds) === JSON.stringify(['area', 'entity']) && htmlSurface.guides === 0

@@ -7,7 +7,7 @@ import { DEFAULT_THEME } from '../../semantic-map/renderer-maxgraph/theme.js';
 import { LABEL_LINE_PX, linePx, wrapLabel } from './atlas-text.mjs';
 import { containmentIndex, entityKey, indexWorldFrame, relationKey } from './atlas-world.mjs';
 import { timelinePosition } from './atlas-timeline.mjs';
-import { phaseStale, staleDeltaLabel } from './atlas-gap.mjs';
+import { dayClockText, phaseStale, staleDeltaLabel } from './atlas-gap.mjs';
 
 const AREA_GAP = 40;
 const AREA_TOP = 56;
@@ -526,6 +526,28 @@ const focusRegion = ({ scene, selected }) => {
   return scene.areaBounds.has(entity.area) ? areaRegionId(entity.area) : null;
 };
 
+// D4 (apps#73; adrs#647 W c6344580290, R c6345797392): a selection the frame
+// shown does not draw says so; the id is never swapped for another. Absent
+// from the frame: the received frame it was last in, to open held. A history
+// unit kept but not drawn (B1): that it is history (the search of this frame
+// reaches it). Otherwise null: drawn, or marked on its container as before.
+const recordIn = (frame, key) => frame.entities.find(entity => entityKey(entity.ref) === key)
+  ?? frame.relations.find(relation => relationKey(relation.ref) === key) ?? null;
+const recordName = (record, key) => String(record?.label || key).split('\n')[0];
+export const selectionState = ({ frames, scene, selected }) => {
+  if (typeof selected !== 'string' || !selected) return null;
+  const entity = scene.index.entityByKey.get(selected);
+  if (entity) return scene.visibleEntityKeys.has(selected) || !isHistoryUnit(entity) ? null
+    : Object.freeze({ state: 'history', label: recordName(entity, selected), last: null });
+  if (scene.index.relationByKey.has(selected)) return null;
+  const last = frames.findLastIndex(frame => recordIn(frame, selected) !== null);
+  return Object.freeze({ state: 'absent', label: recordName(last < 0 ? null : recordIn(frames[last], selected), selected),
+    last: last < 0 ? null : Object.freeze({ index: last, id: frames[last].id, asOf: frames[last].asOf }) });
+};
+export const selectionText = selection => selection === null ? ''
+  : selection.state === 'history' ? '選択 ' + selection.label + ' は描かれない（履歴）'
+    : '選択 ' + selection.label + ' はこの時点に無い（最後 ' + (selection.last ? selection.last.id + ' · ' + dayClockText(selection.last.asOf) : '不明') + '）';
+
 // One World projection (contract 3, revised: one screen, no HUD, panel, strip
 // or band): the three areas, fitted to their content. Content-fitted boxes are
 // sized for scale 1, whatever the viewport, so the World does not change size
@@ -559,6 +581,7 @@ export const projectAtlasWorld = ({
     world: scene.world,
     minScale: 1,
     selectedRegionId: focusRegion({ scene, selected }),
+    selection: selectionState({ frames: receivedInput.frames, scene, selected }),
     omittedRelationIds: scene.omittedRelationIds,
     omittedEntityIds: scene.omittedEntityIds,
     areaBounds: scene.areaBounds,

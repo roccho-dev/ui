@@ -227,6 +227,38 @@ try {
       });
       check(width + 'px search: a chosen relation focuses its from box (現在状態)', relationKey && /current-state/u.test(focused.id ?? '') && focused.inside, { relationKey, focused });
     });
+    // D4 (apps#73; adrs#647 W c6344580290, R c6345797392): a selection gone
+    // from the present is named on the search row, the time controls still
+    // visible; pressing it opens, held, the frame it was last in, by the same id.
+    await story('page', 'a selection gone from the present', async page => {
+      const gone = await page.evaluate(() => {
+        const key = ref => ['entity', ref.space, ref.kind, ref.id].map(encodeURIComponent).join(':');
+        const frames = window.liveAtlas.input.frames, present = new Set(frames.at(-1).entities.map(entity => key(entity.ref)));
+        const found = frames.flatMap(item => item.entities.filter(entity => entity.visible).map(entity => key(entity.ref))).find(each => !present.has(each)) ?? null;
+        if (found) window.liveAtlas.select(found);
+        const last = found ? frames.findLastIndex(item => item.entities.some(entity => key(entity.ref) === found)) : -1;
+        return { key: found, last, lastId: frames[last]?.id ?? null, count: frames.length };
+      });
+      await settle(page);
+      const row = () => page.evaluate(() => {
+        const button = document.getElementById('atlas-world-selection'), box = button?.getBoundingClientRect();
+        const controls = ['atlas-world-step-back', 'atlas-world-step-forward', 'atlas-world-present'].map(id => document.getElementById(id)?.getBoundingClientRect());
+        return { text: button?.textContent ?? null, title: button?.title ?? null, disabled: button?.disabled ?? null,
+          visible: Boolean(box && box.width > 24 && box.left >= 0 && box.right <= window.innerWidth + 0.5),
+          controls: controls.every(item => item && item.width > 0 && item.right <= window.innerWidth + 0.5),
+          selected: window.liveAtlas.page.selected, marked: window.liveAtlas.projection.selectedRegionId };
+      });
+      const before = await row();
+      check(width + 'px D4: a selection gone from the present is named on the search row, enabled, the time controls still visible',
+        gone.key && before.selected === gone.key && before.text?.startsWith('選択 ') && before.text.includes('はこの時点に無い（最後 ' + gone.lastId + ' · ')
+          && !before.disabled && before.visible && before.controls && before.marked === null, { gone, before });
+      await page.click('#atlas-world-selection');
+      await settle(page);
+      const after = await row();
+      const held = await shown(page, ['HELD', '表示中：過去 ' + (gone.last + 1) + '/' + gone.count + ' · ' + gone.lastId]);
+      check(width + 'px D4: pressing it opens, held, the frame it was last in; the id is the same and marked there',
+        allShown(held) && after.selected === gone.key && after.marked !== null && after.disabled && !after.text.includes('はこの時点に無い'), { held, after });
+    });
     // The last observation (case 26), on the stale part at t6.
     await story('observed', 'the last observation', async page => {
       await press(page, '◀ 前へ');
