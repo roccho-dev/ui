@@ -379,12 +379,14 @@ const ADEQUACY_REASON_LABEL = Object.freeze({ 'purpose-ended': '目的は終了�
 // only when there is no evaluation or it is of another version (apps
 // contract.mjs:162-166); every other reason waits for something else and keeps
 // its `?`. An evaluation the owner source holds back says what the User's next
-// act is (write a readback, write in the owner repo, …), from the World's held.
+// act is (write a readback, …), from the World's held. Only reasons the User's
+// act or the owner source's setup resolves; a hold of someone else's writing
+// (outside the owner source, another login, an App) says nothing about the
+// User's next act and must not replace one that does (R c6344084041).
 const AWAITING_USER = Object.freeze(['no-evaluation', 'past']);
 const EVALUATION_HELD_LABEL = Object.freeze({ 'owner-readback-missing': 'readback が無い', 'owner-credentials-changed': '資格を変えた後の readback が無い',
   'owner-before-readback': 'readback より前に書かれた', 'owner-not-read': '入力源から読めない（消えた・読めない）', 'owner-unreadable': '入力源が読めない',
-  'owner-via-app': 'App 経由の書き込み', 'owner-other-author': '入力源の別の作者', 'owner-mismatch': '入力源か作者が宣言と違う',
-  'evaluation-not-from-owner': '入力源の外の評価', 'evaluator-not-declared': '入力源が宣言されていない', 'eval-form': '評価の形が違う' });
+  'owner-mismatch': '入力源か作者が宣言と違う', 'evaluator-not-declared': '入力源が宣言されていない', 'eval-form': '評価の形が違う' });
 const heldEvaluation = (frames, after) => frames.flatMap(item => item.held ?? [])
   .filter(item => Object.hasOwn(EVALUATION_HELD_LABEL, item.reason) && (after === null || Date.parse(item.recordedAt) > Date.parse(after)))
   .sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt)).at(-1) ?? null;
