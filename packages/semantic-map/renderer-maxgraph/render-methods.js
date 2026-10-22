@@ -3,6 +3,9 @@ import { displayedRegionLabel, displayedRelationLabel } from './labels.js';
 import { appendReviewOverlay, assertReviewOverlay } from './review-overlay.js';
 import { edgeStyle, vertexStyle } from './styles.js';
 import { paletteFor, styleScaleFor } from './theme.js';
+import { parallelRoutePoints } from './parallel-routes.js';
+import { planLabelCallouts, calloutTextStyle } from './label-callouts.js';
+import { relationLabelOffset } from './relation-label-placement.js';
 import Point from '../vendor/maxgraph/view/geometry/Point.js';
 
 function geometryEquals(geometry, bounds) {
@@ -35,6 +38,65 @@ function applySelfLoopGeometry(edge, source, relation, model) {
   model.setGeometry(edge, next);
 }
 
+function applyParallelGeometry(edge, relation, routes, model) {
+  const points = routes.get(relation.id);
+  if (!points) return;
+  const geometry = edge.getGeometry();
+  if (!geometry) return;
+  const current = geometry.points ?? [];
+  if (current.length === points.length && current.every((point, index) => point.x === points[index][0] && point.y === points[index][1])) return;
+  const next = geometry.clone();
+  next.points = points.length ? points.map(([x, y]) => new Point(x, y)) : null;
+  model.setGeometry(edge, next);
+}
+
+function applyLabelGeometry(cell, representation, placement, model) {
+  const geometry = cell.getGeometry();
+  if (!geometry) return;
+  const box = representation.bounds;
+  const offset = placement ? new Point(placement.x - box.x - box.width,
+    placement.y + placement.height / 2 - box.y - box.height / 2) : null;
+  if ((!offset && !geometry.offset) || (offset && geometry.offset?.x === offset.x && geometry.offset?.y === offset.y)) return;
+  const next = geometry.clone();
+  next.offset = offset;
+  model.setGeometry(cell, next);
+}
+
+function placeRelationLabels(graph, container, cells, edges) {
+  const view = graph.getView(), scale = view.scale;
+  if (!(scale > 0)) return;
+  const rectangle = box => box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null;
+  const obstacles = [];
+  for (const cell of cells.values()) {
+    const state = view.getState(cell);
+    if (!state) continue;
+    if (cell.semantic?.mode !== 'boundary') obstacles.push(rectangle(state));
+    if (state.text?.boundingBox) obstacles.push(rectangle(state.text.boundingBox));
+  }
+  const viewport = { x: container.scrollLeft, y: container.scrollTop, width: container.clientWidth, height: container.clientHeight };
+  const updates = [];
+  for (const edge of [...edges.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
+    if (!edge.value || !['graph', 'graph-control', 'graph-metrics'].includes(edge.semantic?.line)) continue;
+    const state = view.getState(edge), geometry = edge.getGeometry(), box = state?.text?.boundingBox;
+    if (!box || !geometry) continue;
+    const current = geometry.offset;
+    // Subtract the previous owned offset to reconsider the original position
+    // after every projection, so deletion and camera changes cannot accumulate it.
+    const label = { x: box.x - (current?.x ?? 0) * scale - 2,
+      y: box.y - (current?.y ?? 0) * scale - 2, width: box.width + 4, height: box.height + 4 };
+    const delta = relationLabelOffset(label, obstacles, viewport);
+    obstacles.push({ ...label, x: label.x + delta.x, y: label.y + delta.y });
+    const x = delta.x / scale, y = delta.y / scale;
+    if (Math.abs((current?.x ?? 0) - x) < 1e-7 && Math.abs((current?.y ?? 0) - y) < 1e-7) continue;
+    const next = geometry.clone(); next.offset = x || y ? new Point(x, y) : null;
+    updates.push([edge, next]);
+  }
+  if (updates.length) graph.batchUpdate(() => {
+    const model = graph.getDataModel();
+    for (const [edge, geometry] of updates) model.setGeometry(edge, geometry);
+  });
+}
+
 const MOTIONS = new Set(['none', 'pulse', 'flow']);
 
 function motionOf(item) {
@@ -44,14 +106,28 @@ function motionOf(item) {
   return motion;
 }
 
-// Motion is a data attribute on maxGraph's own shape node; page CSS animates it.
+// Identity and motion live on maxGraph's render-owned nodes. Identity is an
+// association for inspection, never proof of visibility, geometry or validity.
 // A redraw keeps the node, but maxGraph may create a new shape (and node) for a
 // cell, so marks are reapplied after every render, camera change and label
 // refresh.
 function markMotion() {
   const view = this.graph.getView();
   for (const cell of [...this.cellsByRegionId.values(), ...this.edgesByProjectionKey.values()]) {
-    const node = view.getState(cell)?.shape?.node;
+    const state = view.getState(cell), semantic = cell.semantic;
+    for (const role of ['shape', 'text']) {
+      const element = state?.[role]?.node;
+      if (!element) continue;
+      element.setAttribute('data-semantic-role', role);
+      if (semantic?.type === 'region') {
+        element.setAttribute('data-semantic-region-id', semantic.regionId);
+        element.removeAttribute('data-semantic-relation-ids');
+      } else if (semantic?.type === 'relation') {
+        element.setAttribute('data-semantic-relation-ids', JSON.stringify(semantic.relationIds));
+        element.removeAttribute('data-semantic-region-id');
+      }
+    }
+    const node = state?.shape?.node;
     if (!node) continue;
     const motion = motionOf(cell.semantic);
     if (motion === 'none') node.removeAttribute('data-visual-motion');
@@ -221,6 +297,7 @@ function labelContext(scene) {
   }
   return Object.freeze({
     representationsById,
+    callouts: planLabelCallouts(scene, this.theme),
     selectedRegionIds,
     selectedRelationIds: new Set(this.selectionRelationIds),
   });
@@ -231,7 +308,7 @@ function regionDisplayLabel(representation, scene, context) {
     representation,
     scene.scale,
     this.theme,
-    context.selectedRegionIds.has(representation.regionId),
+    context.selectedRegionIds.has(representation.regionId) || context.callouts.has(representation.regionId),
   );
 }
 
@@ -279,7 +356,12 @@ function render(scene) {
   // scene throws with the previous surface, graph, cell maps and lastScene intact.
   for (const item of [...scene.representations, ...scene.relations]) motionOf(item);
   const styleScale = styleScaleFor(scene.scale);
-  const vertexStyles = new Map(scene.representations.map((item) => [item.regionId, vertexStyle(item, styleScale, this.theme)]));
+  const parallelRoutes = parallelRoutePoints(scene);
+  const labelContext = this.labelContext(scene);
+  const vertexStyles = new Map(scene.representations.map((item) => {
+    const style = vertexStyle(item, styleScale, this.theme), placement = labelContext.callouts.get(item.regionId);
+    return [item.regionId, placement ? { ...style, ...calloutTextStyle(placement, this.theme) } : style];
+  }));
   const edgeStyles = new Map(scene.relations.map((item) => [relationProjectionKey(item), edgeStyle(item, styleScale, this.theme)]));
   const nextCompositionKey = JSON.stringify(scene.resourceComposition ?? null);
   if (this.surfaceCompositionKey !== nextCompositionKey) {
@@ -307,7 +389,6 @@ function render(scene) {
   const cellsByRegionId = new Map(this.cellsByRegionId);
   const edgesByProjectionKey = new Map(this.edgesByProjectionKey);
   const model = graph.getDataModel();
-  const labelContext = this.labelContext(scene);
 
   this.projecting = true;
   try {
@@ -366,6 +447,7 @@ function render(scene) {
           if (cell.semanticStyleKey !== styleKey) model.setStyle(cell, style);
         }
         cell.semanticStyleKey = styleKey;
+        applyLabelGeometry(cell, representation, labelContext.callouts.get(representation.regionId), model);
         cell.semantic = Object.freeze({ type: 'region', ...representation, displayLabel });
       }
 
@@ -395,6 +477,7 @@ function render(scene) {
           if (edge.semanticStyleKey !== styleKey) model.setStyle(edge, style);
         }
         applySelfLoopGeometry(edge, source, relation, model);
+        applyParallelGeometry(edge, relation, parallelRoutes, model);
         edge.semanticStyleKey = styleKey;
         edge.semantic = Object.freeze({ type: 'relation', projectionKey: key, ...relation, displayLabel });
       }
@@ -426,6 +509,7 @@ function render(scene) {
       if (zOrderedCells.length) graph.orderCells(false, zOrderedCells);
     });
 
+    placeRelationLabels(graph, this.container, cellsByRegionId, edgesByProjectionKey);
     this.cellsByRegionId = cellsByRegionId;
     this.edgesByProjectionKey = edgesByProjectionKey;
 

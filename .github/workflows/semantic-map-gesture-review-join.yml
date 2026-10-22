@@ -70,3 +70,20 @@ jobs:
         run: python3 apps/artifact-shell/tests/maxgraph-keyboard-shortcuts-browser-proof.py
       - name: Prove chart preview authoring across all variants
         run: python3 apps/preview/tests/chart-browser-proof.py
+
+  painted-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24
+        with:
+          extra_nix_config: |
+            extra-experimental-features = nix-command flakes
+      - name: Inspect real painted identities and preserve read-only behavior
+        run: nix develop .#semantic-map-browser-proof -c node packages/semantic-map/tests/read_only_relation_selection_browser_e2e.mjs
