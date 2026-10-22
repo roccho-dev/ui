@@ -31,6 +31,8 @@ const project = (world, item, extra = {}) => projectAtlasWorld({ input: world, f
 // at any size; no record, detail or direction is projected.
 const worlds = [parseAtlasWorldInput(bundledWorld()), parseAtlasWorldInput(worldWithFrames(3)),
   parseAtlasWorldInput(gapWorld({ judged: true, held: true, evaluator: true, physical: true, unbound: true, drafting: true, lastObserved: true, upkeep: true })),
+  // v4 (adrs#647 c6339644103): the current claims, and from t6 the stopped route's last ones.
+  parseAtlasWorldInput(gapWorld({ current: true, retired: true })),
   parseAtlasWorldInput(JSON.parse(readFileSync(new URL('../examples/atlas/input/a2-world.json', import.meta.url), 'utf8')))];
 let regions = 0;
 for (const world of worlds) for (const item of world.frames) for (const viewport of [{ width: 800, height: 900 }, { width: 1500, height: 1000 }]) {
