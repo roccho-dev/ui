@@ -1,7 +1,7 @@
 // Generic bounded Atlas world input for the a2 presentation.
 // This is a display/read-model seam, never a business authority or owner codec.
 
-import { checkJournalDeltas, gapView, hasGapView, normalizeAdequacy, normalizeGap, normalizeHeld, normalizeJournal, normalizePhase, normalizeUpkeep } from './atlas-gap.mjs';
+import { checkJournalDeltas, gapView, hasGapView, normalizeAdequacy, normalizeGap, normalizeHeld, normalizeJournal, normalizePhase, normalizePRecords, normalizeUpkeep } from './atlas-gap.mjs';
 
 export const ATLAS_WORLD_KIND = 'ui.atlasWorldInput.v1';
 
@@ -243,7 +243,7 @@ const normalizePlans = (value, at) => {
 
 const normalizeFrame = (value, at, areaIds) => {
   exactKeys(value, ['id', 'rev', 'asOf', 'sourceState', 'coverage', 'entities', 'relations', 'plans', 'gap', 'phase', 'journal', 'matched_until',
-    'adequacy', 'held', 'upkeep'], at);
+    'adequacy', 'held', 'upkeep', 'p_records'], at);
   check(Array.isArray(value.entities) && value.entities.length > 0, at + '.entities must be non-empty');
   check(Array.isArray(value.relations), at + '.relations must be an array');
   const entities = value.entities.map((item, index) => normalizeEntity(item, at + '.entities[' + index + ']', areaIds));
@@ -272,6 +272,8 @@ const normalizeFrame = (value, at, areaIds) => {
     ...(value.adequacy === undefined ? {} : { adequacy: normalizeAdequacy(value.adequacy, at + '.adequacy', gap ?? null) }),
     ...(value.held === undefined ? {} : { held: normalizeHeld(value.held, at + '.held') }),
     ...(value.upkeep === undefined ? {} : { upkeep: normalizeUpkeep(value.upkeep, at + '.upkeep') }),
+    // P's records that entered at the frame (adrs#647 c6346827237), kept only when supplied.
+    ...(value.p_records === undefined ? {} : { p_records: normalizePRecords(value.p_records, at + '.p_records') }),
   });
 };
 
