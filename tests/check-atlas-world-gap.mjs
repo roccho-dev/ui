@@ -113,8 +113,7 @@ assert.throws(() => parseAtlasWorldInput(cumulative), /t1: journal\[0\] repeats 
 // differences' box and one count line stand for them.
 const grouped = parseAtlasWorldInput(gapWorld({ groups: true }));
 const HISTORY_KINDS = ['closed-change', 'obligation'];
-const isHistoryUnit = entity => HISTORY_KINDS.includes(entity.ref.kind) || (entity.ref.kind === 'scope-group' && entity.ref.id === 'history')
-  || (entity.flags ?? []).includes('standing=completed-history');
+const isHistoryUnit = entity => HISTORY_KINDS.includes(entity.ref.kind) || (entity.ref.kind === 'scope-group' && entity.ref.id === 'history');
 for (const item of grouped.frames) {
   const raw = gapWorld({ groups: true }).frames.find(each => each.id === item.id);
   const suppliedScopes = raw.entities.filter(entity => entity.area === 'scopes' && !isHistoryUnit(entity)).map(entity => entity.ref.kind + ':' + entity.ref.id);
@@ -143,6 +142,15 @@ assert.ok(searchAtlasWorld(t6Grouped, 'c3@t5').some(row => row.kind === 'entity'
 const drawnAt = (world, id) => projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none' })
   .scene.representations.map(rep => rep.atlas?.ref?.kind).filter(Boolean);
 assert.ok(!drawnAt(grouped, 't6').some(kind => HISTORY_KINDS.includes(kind)), 't6: no history unit is drawn');
+// B3 (#73 counter-example 3; R c6341212243): a Scope completed into history
+// is a satisfied condition kept by its upkeep; it is not hidden with the history.
+const kept = gapWorld({ groups: true });
+kept.frames.find(item => item.id === 't6').entities.push({ ref: { space: 'fixture:gap', kind: 'semantic-scope', id: 'kept-service' }, label: '維持する service',
+  area: 'scopes', order: 20, visible: true, activity: 'none', flags: ['standing=completed-history', 'scope_status=declared_satisfied'] });
+const keptWorld = parseAtlasWorldInput(kept);
+assert.equal(keptWorld.frames.find(item => item.id === 't6').entities.find(entity => entity.ref.id === 'kept-service').visible, true, 't6: a completed-history Scope stays');
+assert.ok(projectAtlasWorld({ input: keptWorld, frame: keptWorld.frames.find(item => item.id === 't6'), selected: 'none' })
+  .scene.representations.some(rep => rep.atlas?.ref?.id === 'kept-service'), 't6: the kept service is drawn');
 // ◀ 前へ: t7 holds the same history; moving back to t6 does not bring it back.
 assert.ok(!drawnAt(grouped, 't7').some(kind => HISTORY_KINDS.includes(kind)) && !drawnAt(grouped, 't6').some(kind => HISTORY_KINDS.includes(kind)),
   'stepping back from t7 to t6 draws no history unit');
