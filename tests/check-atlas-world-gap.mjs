@@ -414,13 +414,17 @@ assert.equal(byKind(parseAtlasWorldInput(gapWorld({ admission: true })).frames[3
 // it. The ui draws its state and reason only (no count) and judges nothing.
 const judgedRaw = gapWorld({ judged: true });
 const judged = parseAtlasWorldInput(judgedRaw);
-const gapALabel = { t0: '不明 · 照らす理想状態が無い', t1: '不明 · 照らす理想状態が無い', t2: '不明 · 人の評価なし', t3: '不明 · 過去の評価（版が違う）',
-  t4: '不明 · 過去の評価（版が違う）', t5: '不明 · 十分性の評価なし', t6: '不明 · 差が開いたまま到達と評価', t7: '不明 · 目的は終了した' };
+// D1 (apps#73; R c6343482688): only no-evaluation (t2) and past (t3, t4) wait for the User's evaluation.
+const AWAIT = '\n人の判断待ち：User の評価（入力源）';
+const AWAITING = new Set(['t2', 't3', 't4']);
+const gapALabel = { t0: '不明 · 照らす理想状態が無い', t1: '不明 · 照らす理想状態が無い', t2: '不明 · 人の評価なし' + AWAIT, t3: '不明 · 過去の評価（版が違う）' + AWAIT,
+  t4: '不明 · 過去の評価（版が違う）' + AWAIT, t5: '不明 · 十分性の評価なし', t6: '不明 · 差が開いたまま到達と評価', t7: '不明 · 目的は終了した' };
+const gapAFlags = id => ['scope_status=unknown', ...(AWAITING.has(id) ? ['awaiting=user-evaluation'] : [])];
 for (const item of judged.frames) {
   const [drawn, ...others] = ofKind(judged, item.id, 'purpose-adequacy');
   assert.equal(others.length, 0, item.id + ': one GapA');
   assert.equal(drawn.label, '目的↔理想の差\n' + gapALabel[item.id], item.id + ': GapA state and reason');
-  assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': GapA status from its state only');
+  assert.deepEqual(drawn.flags, gapAFlags(item.id), item.id + ': GapA status from its state (and, D1, the wait for the User)');
   assert.ok(!/\d+ 件/u.test(drawn.label), item.id + ': GapA draws no count');
   assert.deepEqual(purposeOrder(item), ['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state'], item.id + ': the chain P, GapA, I, GapB, C (S7c: the changes are not a box)');
   assert.ok(gapRelations(item).includes('ideal-state>purpose-adequacy 照らす') && gapRelations(item).includes('purpose-adequacy>purpose 十分性'), item.id);
@@ -435,7 +439,41 @@ assert.deepEqual([evaluatedGapA.label, evaluatedGapA.flags], ['目的↔理想�
 const admittedGapA = gapWorld({ judged: true });
 admittedGapA.frames[3].adequacy.evidence.source.admission = 'observed_not_admitted';
 const markedGapA = ofKind(parseAtlasWorldInput(admittedGapA), 't3', 'purpose-adequacy')[0];
-assert.deepEqual([markedGapA.label, markedGapA.flags], ['目的↔理想の差\n不明 · 過去の評価（版が違う）（未採択）', ['scope_status=unknown']], 'admission is a mark only');
+assert.deepEqual([markedGapA.label, markedGapA.flags], ['目的↔理想の差\n不明 · 過去の評価（版が違う）（未採択）' + AWAIT, gapAFlags('t3')], 'admission is a mark only');
+// D1 (apps#73; adrs#647 c6343466521, R c6343482688): GapA waiting for the User
+// is drawn ✋, not the ? of an unknown observation; every other reason keeps
+// its own mark. An evaluation the owner source held back after the latest
+// counted one says why (the User's next act).
+const symbolOf = (world, id) => projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none' })
+  .scene.representations.find(rep => rep.atlas?.ref?.kind === 'purpose-adequacy').label.split(' · ')[0];
+for (const item of judged.frames) assert.equal(symbolOf(judged, item.id), AWAITING.has(item.id) ? '✋' : '?', item.id + ': GapA symbol');
+for (const [reason, state] of [['not-yet-while-matched', 'unknown'], ['achieved-while-open', 'unknown'], ['no-adequacy-verdict', 'unknown'], ['evaluated', 'unmet'],
+  ['no-ideal', 'unknown'], ['purpose-ended', 'unknown']]) {
+  const raw = gapWorld({ judged: true });
+  Object.assign(raw.frames[5].adequacy, { state, reason });
+  const world = parseAtlasWorldInput(raw);
+  const drawn = ofKind(world, 't5', 'purpose-adequacy')[0];
+  assert.ok(!drawn.label.includes('人の判断待ち') && !drawn.flags.includes('awaiting=user-evaluation'), reason + ': no wait for the User');
+  assert.equal(symbolOf(world, 't5'), state === 'unmet' ? '!' : '?', reason + ': its own mark');
+}
+const withHeld = gapWorld({ judged: true });
+withHeld.frames[2].held = [{ reason: 'owner-readback-missing', kind: null, recordedAt: '2026-10-17T01:50:00Z', source: { ref: 'roccho-dev/atlas-owner#1', commentId: 7, sha256: null } }];
+const heldGapA = parseAtlasWorldInput(withHeld);
+assert.equal(ofKind(heldGapA, 't2', 'purpose-adequacy')[0].label, '目的↔理想の差\n' + gapALabel.t2 + '\n評価は保持：readback が無い', 't2: the held evaluation says why');
+assert.ok(!ofKind(heldGapA, 't3', 'purpose-adequacy')[0].label.includes('評価は保持'), 't3: a hold older than the counted evaluation (02:50Z) is not shown');
+// R c6344084041: a later hold of someone else's writing (an evaluation on #647,
+// another login, an App) does not replace the User's next act.
+const othersLater = gapWorld({ judged: true });
+othersLater.frames[2].held = [{ reason: 'owner-readback-missing', kind: null, recordedAt: '2026-10-17T01:50:00Z', source: { ref: 'roccho-dev/atlas-owner#1', commentId: 7, sha256: null } },
+  ...['evaluation-not-from-owner', 'owner-other-author', 'owner-via-app'].map((reason, index) => ({ reason, kind: null,
+    recordedAt: '2026-10-17T01:5' + (5 + index) + ':00Z', source: { ref: 'roccho-dev/adrs#647', commentId: 8 + index, sha256: null } }))];
+assert.equal(ofKind(parseAtlasWorldInput(othersLater), 't2', 'purpose-adequacy')[0].label, '目的↔理想の差\n' + gapALabel.t2 + '\n評価は保持：readback が無い',
+  't2: holds of others\' writing do not replace the User\'s next act');
+const othersOnly = gapWorld({ judged: true });
+othersOnly.frames[2].held = [{ reason: 'evaluation-not-from-owner', kind: null, recordedAt: '2026-10-17T01:55:00Z', source: { ref: 'roccho-dev/adrs#647', commentId: 8, sha256: null } }];
+assert.ok(!ofKind(parseAtlasWorldInput(othersOnly), 't2', 'purpose-adequacy')[0].label.includes('評価は保持'), 't2: someone else\'s held writing alone draws no line');
+assert.ok(projectAtlasWorld({ input: judged, frame: judged.frames.find(item => item.id === 't4'), selected: 'none' }).scene.representations
+  .some(rep => rep.atlas?.ref?.kind === 'gap-part' && rep.label.startsWith('? · ')), 't4: an unknown difference keeps its ?');
 // S4: an evaluator's `evaluation:` observation (Jev) is a sign in GapA's box,
 // as reported and unverified, the latest per question up to the frame. It
 // changes no state, flag or other box.
@@ -448,7 +486,7 @@ signLine.t7 = signLine.t6;
 for (const item of signed.frames) {
   const drawn = ofKind(signed, item.id, 'purpose-adequacy')[0];
   assert.equal(drawn.label, '目的↔理想の差\n' + gapALabel[item.id] + (signLine[item.id] ? '\n' + signLine[item.id] : ''), item.id + ': evaluator sign');
-  assert.deepEqual(drawn.flags, ['scope_status=unknown'], item.id + ': a sign changes no state');
+  assert.deepEqual(drawn.flags, gapAFlags(item.id), item.id + ': a sign changes no state');
   assert.equal(byKind(item)['gap:hq'], byKind(frame(item.id))['gap:hq'], item.id + ': a sign changes no GapB');
 }
 // held (contract v12): the declarations held back up to the frame. Display
