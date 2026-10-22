@@ -741,6 +741,63 @@ export const journalRow = entry => JOURNAL_MARK[entry.kind] + ' ' + JOURNAL_LABE
   + ' · ' + entry.recordedAt + ' · 作者 ' + (entry.actor ?? '不明')
   + ' · 出所 ' + entry.source.ref + admissionMark(entry) + (entry.source.commentId === undefined || entry.source.commentId === null ? '' : ' comment ' + entry.source.commentId)
   + ' · sha256 ' + (entry.source.sha256 ?? 'UNKNOWN');
+// P's records (p-record-v1; apps collect/precord.mjs; adrs#647 W c6346498633, c6346827237, R c6346841107):
+// frames[i].p_records holds the records that entered the ledger at the frame (only those, as journal, v6). Each
+// is P's claim (authority false), never verified here: drawn as a row of the changes, read by no judgment.
+// The fields are closed per kind, as apps reads them; anything else refuses the World as any unknown field does.
+const P_RECORD_FIELDS = Object.freeze({
+  'user.decision.requested': ['question', 'options', 'recommended', 'since', 'reask_due'],
+  'user.decision.recorded': ['request', 'words', 'changes'],
+  'p.position': ['position', 'about'],
+  'review.pasted': ['reviewer', 'readback'],
+  'user.criterion': ['words', 'binds'],
+  'loop.stopped': ['role', 'round', 'next', 'reason', 'needed', 'action'],
+  'p.receipt': ['action', 'target', 'sha256', 'result', 'reverted'],
+  heartbeat: ['run', 'tunnel', 'hq_loop', 'reaped', 'rebuilt'],
+});
+// The changes' marks for them: each differs from every journal mark and every state symbol (D5), except ✋,
+// which means here what it means on a box: a human's judgment is waiting.
+export const P_RECORD_MARK = Object.freeze({ 'user.decision.requested': '✋', 'user.decision.recorded': '◆', 'p.position': '✎',
+  'review.pasted': '❞', 'user.criterion': '◈', 'loop.stopped': '⏸', 'p.receipt': '▣', heartbeat: '♡' });
+export const normalizePRecords = (value, at) => {
+  check(Array.isArray(value), at + ' must be an array');
+  const records = value.map((item, index) => {
+    const where = at + '[' + index + ']';
+    check(plain(item) && Object.hasOwn(P_RECORD_FIELDS, item.kind), where + '.kind must be a p-record-v1 kind');
+    exact(item, ['schema', 'id', 'kind', 'at', 'series', 'ref', 'authority', 'source', ...P_RECORD_FIELDS[item.kind]], where);
+    check(item.schema === 'p-record-v1', where + '.schema must be p-record-v1');
+    check(item.authority === false, where + '.authority must be false (P\'s claim)');
+    text(item.id, where + '.id');
+    instant(item.at, where + '.at');
+    for (const key of ['series', 'ref']) if (item[key] !== null) text(item[key], where + '.' + key);
+    exact(item.source, ['ref', 'sha256', 'line'], where + '.source');
+    text(item.source.ref, where + '.source.ref');
+    count(item.source.line, where + '.source.line');
+    return json(item, where);
+  });
+  check(new Set(records.map(item => item.id)).size === records.length, at + ': duplicate p-record id');
+  return Object.freeze(records);
+};
+const POSITION_LABEL = Object.freeze({ claim: '主張', withdrawal: '撤回', correction: '訂正', 'self-correction': '自己訂正' });
+const LIFE_LABEL = Object.freeze({ alive: '稼働', dead: '停止', unknown: '不明' });
+const P_RECORD_BODY = Object.freeze({
+  'user.decision.requested': r => 'User の判断待ち · ' + r.question + (r.recommended === null ? '' : ' · 推奨 ' + r.recommended)
+    + ' · ' + dayClockText(r.since) + ' から' + (r.reask_due === null ? '' : ' · 聞き直し ' + dayClockText(r.reask_due)),
+  'user.decision.recorded': r => 'User の判断 · 「' + r.words + '」→ ' + r.changes,
+  'p.position': r => 'P の' + (POSITION_LABEL[r.position] ?? r.position) + ' · ' + r.about,
+  'review.pasted': r => '貼られたレビュー · ' + (r.reviewer ?? '評者不明') + ' · readback ' + (r.readback ?? 'なし'),
+  'user.criterion': r => 'User の基準 · 「' + r.words + '」→ ' + r.binds,
+  'loop.stopped': r => 'loop の停止 · ' + r.role + ' · ' + r.next + '（' + (r.needed === null ? '要否不明' : r.needed ? '必要' : '不要') + '）· ' + r.reason
+    + ' · ' + (r.action ?? '対処なし'),
+  'p.receipt': r => 'P の receipt · ' + r.action + ' ' + r.target + ' · ' + r.result + ' · ' + (r.reverted ? '戻した' : '戻していない')
+    + (r.sha256 === null ? '' : ' · sha256 ' + r.sha256),
+  heartbeat: r => '心拍 · run ' + LIFE_LABEL[r.run] + ' · tunnel ' + LIFE_LABEL[r.tunnel] + ' · HQ ループ ' + LIFE_LABEL[r.hq_loop]
+    + ' · reap ' + r.reaped + ' · 張り直し ' + r.rebuilt,
+});
+// One of P's records as a row: its mark, what it says, its series, when P wrote it, that it is P's unverified
+// claim (R c6346274848: only a receipt matched against the HQ's log may say verified, and none is yet), and where.
+export const pRecordRow = record => P_RECORD_MARK[record.kind] + ' ' + P_RECORD_BODY[record.kind](record)
+  + ' · ' + (record.series ?? '系列なし') + ' · ' + record.at + ' · P の記録（未照合） · 出所 ' + (record.ref ?? record.source.ref + ' 行 ' + record.source.line);
 // One declaration held back (v12) as a row.
 const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類不明') + ' · ' + item.recordedAt + ' · 出所 ' + item.source.ref;
 // S7c (adrs#647): the changes of a frame, shown in #atlas-world-change under
@@ -748,9 +805,12 @@ const heldRow = item => '保持 ' + item.reason + ' · ' + (item.kind ?? '種類
 // declarations held at it, v12), every one, with when, by whom and from
 // where; journal and held are reached nowhere else. The heading counts them
 // and what was held up to the frame (P(a): counting it needs the earlier
-// frames). `earlier` are the frames before it.
+// frames). `earlier` are the frames before it. P's records that entered at
+// the frame are rows here too (p_records), after the journal; a record held
+// back (`p-record: …`) is one of the frame's held, so 保持 累計 counts it
+// (R c6346841107: that it did not enter is a fact).
 export const frameChangeLabel = (earlier, frame) => {
-  const changes = [...(frame.journal ?? []).map(journalRow), ...(frame.held ?? []).map(heldRow)];
+  const changes = [...(frame.journal ?? []).map(journalRow), ...(frame.p_records ?? []).map(pRecordRow), ...(frame.held ?? []).map(heldRow)];
   const heldSoFar = [...earlier, frame].flatMap(item => item.held ?? []).length;
   return 'この時点の変化 ' + changes.length + ' 件' + (heldSoFar ? ' · 保持 累計 ' + heldSoFar : '') + changes.map(row => '\n' + row).join('');
 };

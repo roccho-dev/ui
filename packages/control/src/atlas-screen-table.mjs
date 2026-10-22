@@ -62,7 +62,10 @@ export const SCREEN_LINES = Object.freeze([
     '保持 累計 m だけは P (a)：前の frame へ移らないと数えられない'),
   row('atlas-world-change', 'change-entry', 'その frame に入った仕訳：種類・時刻・作者・出所・sha256（S7、模型 4 行目）', 'U',
     /^\S+ .+ · \d{4}-\d\d-\d\dT\S+ · 作者 .+ · 出所 .+ · sha256 \S+$/u),
-  row('atlas-world-change', 'change-held', 'その frame で保持した宣言：reason・種類・時刻・出所（15・28・29）', 'U', /^保持 \S+ · \S+ · \S+ · 出所 .+$/u),
+  row('atlas-world-change', 'change-p-record', 'その frame に入った P の記録：印・中身・系列・P が書いた時刻・P の記録（未照合）・出所（adrs#647 c6346827237）', 'U',
+    /^[✋◆✎❞◈⏸▣♡] .+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
+  row('atlas-world-change', 'change-held', 'その frame で保持した宣言：reason・種類・時刻・出所（15・28・29）', 'U', /^保持 \S+(?: \S+)? · \S+ · \S+ · 出所 .+$/u),
+  // (a reason may name its reader: `p-record: at`, apps collect/precord.mjs)
   row('atlas-world-change', 'step-heading', '予定の歩みの時刻（現在の upkeep の stale_at、分刻み）', 'U', /^予定 \d\d-\d\d \d\d:\d\dZ（観測が無ければ unknown）$/u),
   row('atlas-world-change', 'step-row', 'その時刻に観測が無ければ unknown になる条件と、その観測の時刻（21）', 'U', /^鮮度切れの予定 \S+ · 観測 .+$/u),
   row('supplied', 'supplied-label', '供給された箱の文（Agent の activity、入れ子の owner の名を含む）', 'U', ANY),
