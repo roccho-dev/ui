@@ -69,6 +69,10 @@ const lineWorlds = [
     { physical: true, lastObserved: true }, { held: true, upkeep: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
   plannedWorld(),
   parseAtlasWorldInput(crowdedGapWorld()),
+  // D1 (R c6343482688): GapA waits for the User, and the owner source held an evaluation back.
+  (() => { const raw = gapWorld({ judged: true });
+    raw.frames[2].held = [{ reason: 'owner-readback-missing', kind: null, recordedAt: '2026-10-17T01:50:00Z', source: { ref: 'roccho-dev/atlas-owner#1', commentId: 7, sha256: null } }];
+    return parseAtlasWorldInput(raw); })(),
 ];
 const seen = new Set();
 for (const world of lineWorlds) for (const frame of world.frames) {
