@@ -224,6 +224,18 @@ const P_RECORDS = [
   pRecord('p.receipt', 'p-7', { action: 'hq-refresh', target: 'v3', sha256: sha('7'), result: 'PASS', reverted: false }),
   pRecord('heartbeat', 'p-8', { run: 'alive', tunnel: 'alive', hq_loop: 'unknown', reaped: 0, rebuilt: 1 }, null),
 ];
+// `pRecords: 'series'` (adrs#647 W c6349826755, R c6349841686): as 'waiting', and at t5 P's series list, P's
+// replacement of p-1 by p-11 (p-1's text is then drawn in no frame) and a judgment sys1 waits for.
+const laterRecord = (kind, id, fields, series = 'atlas') => ({ ...pRecord(kind, id, fields, series), at: '2026-10-17T04:30:00Z',
+  source: { ref: 'hq:p-records.jsonl', sha256: sha('q'), line: Number(id.slice(2)) } });
+const P_RECORDS_T5 = [
+  { ...laterRecord('p.series', 'p-9', { entries: [
+    { id: 'atlas', canon: 'roccho-dev/adrs#647', goal: 'roccho-dev/adrs#647#c6313788372', R: 'r-session-0001', W: 'w-session-0001', host: 'versapro', state: 'open' },
+    { id: 'sys1', canon: 'roccho-dev/adrs#664', goal: null, R: null, W: null, host: 'versapro', state: 'waiting' },
+    { id: 'host', canon: 'roccho-dev/adrs#663', goal: null, R: null, W: null, host: 'local', state: 'closed' }] }, null), ref: null, source: { ref: 'hq:p-series.json', sha256: sha('s'), line: 1 } },
+  laterRecord('p.supersede', 'p-10', { replaces: 'p-1', by: 'p-11' }),
+  laterRecord('user.decision.requested', 'p-12', { question: 'H のやり直し', options: [], recommended: null, since: '2026-10-17T04:20:00Z', reask_due: null }, 'sys1'),
+];
 const P_RECORD_HELD = { reason: 'p-record: at', kind: null, recordedAt: '2026-10-17T03:50:00Z', source: { ref: 'hq:p-records.jsonl', commentId: null, sha256: sha('p') } };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
   judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false, retired = false, pRecords = false } = {}) => {
@@ -272,7 +284,8 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
         ...(upkeep && UPKEEP[item.id] ? { upkeep: structuredClone(UPKEEP[item.id]) } : {}),
         relations: [...item.relations, ...supplied.relations, ...declared.relations],
         ...(judged ? { adequacy: adequacyOf(item.id, item.gap.basis) } : {}), ...(held ? { held: structuredClone(HELD[item.id] ?? []) } : {}),
-        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS).map(record => pRecords === 'waiting' && record.id === 'p-2' ? { ...record, request: null } : record), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
+        ...(pRecords === 'series' && item.id === 't5' ? { p_records: structuredClone(P_RECORDS_T5) } : {}),
+        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS).map(record => ['waiting', 'series'].includes(pRecords) && record.id === 'p-2' ? { ...record, request: null } : record), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
     }),
   };
 };

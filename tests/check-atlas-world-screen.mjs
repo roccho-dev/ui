@@ -69,7 +69,7 @@ assert.deepEqual(worldViewport({ width: 800, height: 600 }), { graph: { x: 16, y
 // The table. A box is named by what gapView draws in it; any other box is the
 // producer's (supplied), and so is every box of a frame without a gap. Lines are read as gapView writes them, before the
 // layout wraps them; the stale present's heading as the projection writes it.
-const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed', 'history-hidden']);
+const GAP_BOXES = new Set(['purpose', 'purpose-adequacy', 'ideal-state', 'gap', 'current-state', 'gap-part', 'gap-closed', 'history-hidden', 'p-series']);
 const boxOf = (entity, frame) => !Object.hasOwn(frame, 'gap') ? 'supplied' : GAP_BOXES.has(entity.ref.kind) && (entity.ref.kind !== 'purpose' || entity.flags.includes('gap-view')) ? entity.ref.kind
   : entity.flags.includes('gap-view') ? (entity.flags.includes('physical-scope') ? 'physical' : 'scope-card')
     : entity.ref.kind === 'phase' ? 'phase' : 'supplied';
@@ -86,7 +86,7 @@ const REMOVED = [
 const lineWorlds = [
   ...worlds,
   ...[{}, { groups: true }, { groups: 'unplaced' }, { current: true, admission: true }, { newPurpose: true }, { sides: false, v5: false },
-    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }, { pRecords: 'waiting', judged: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
+    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }, { pRecords: 'waiting', judged: true }, { pRecords: 'series', judged: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
   plannedWorld(),
   parseAtlasWorldInput(crowdedGapWorld()),
   // D1 (R c6343482688): GapA waits for the User, and the owner source held an evaluation back.
@@ -118,7 +118,7 @@ for (const world of lineWorlds) for (const frame of world.frames) {
   // the present, each step past it.
   if (Object.hasOwn(frame, 'gap')) {
     const index = world.frames.indexOf(frame);
-    const lines = [gapModule.frameChangeLabel?.(world.frames.slice(0, index), frame) ?? '',
+    const lines = [gapModule.frameChangeLabel?.(world.frames.slice(0, index), frame, world.frames) ?? '',
       ...(timeline.forecastSteps?.(frame, null) ?? []).map(step => gapModule.forecastChangeLabel(step))].flatMap(text => text.split('\n')).filter(Boolean);
     check(frame.id + ': the changes have their lines (frameChangeLabel)', lines.length > 0);
     for (const line of lines) {
@@ -295,6 +295,37 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('P in boxes: 現在状態 has the latest heartbeat P recorded', current.includes('心拍（P の記録）：run 稼働 · tunnel 稼働 · HQ ループ 不明 · reap 0 · 張り直し 1 · 10-17 03:45Z'), current);
   check('P in boxes: 現在状態 counts the day\'s loop stops and the unneeded ones', current.includes('loop の停止（P の記録）：10-17 1 件（不要 1）'), current);
   check('P in boxes: nothing before P recorded it', !lines({ pRecords: true }, 't3', 'current-state').some(line => line.includes('P の記録')));
+}
+// P's series list and P's replacements (adrs#647 W c6349826755, R c6349841686): one card per series in the Scope
+// area, P's record, no session id; a replaced record's text is drawn in no frame, before the replacement too.
+{
+  const raw = () => gapWorld({ pRecords: 'series', judged: true });
+  const world = parseAtlasWorldInput(raw());
+  const at = id => world.frames.find(item => item.id === id);
+  const changeOf = id => { const index = world.frames.findIndex(item => item.id === id); return gapModule.frameChangeLabel(world.frames.slice(0, index), world.frames[index], world.frames).split('\n'); };
+  const drawnText = world.frames.flatMap(item => [...item.entities.flatMap(entity => [entity.label, entity.summary ?? '']),
+    gapModule.frameChangeLabel(world.frames.slice(0, world.frames.indexOf(item)), item, world.frames)]).join('\n');
+  check('replaced: p-1\'s text is drawn in no frame, before its replacement too', !drawnText.includes('試験の値'));
+  check('replaced: t4\'s changes show only that p-1 was replaced, and by what',
+    changeOf('t4').includes('⊘ 置き換えられた P の記録 p-1 → p-11 · 2026-10-17T03:45:00Z · P の記録（未照合） · 出所 hq:p-records.jsonl 行 1'), changeOf('t4'));
+  const gapA = id => at(id).entities.find(entity => entity.ref.kind === 'purpose-adequacy')?.label.split('\n') ?? [];
+  check('replaced: at t4 the judgment still waits, without its text', gapA('t4').includes('User の判断待ち：置き換えられた P の記録 p-1 → p-11（atlas・10-17 03:20Z から・P の記録）'), gapA('t4'));
+  check('replaced: from t5 it no longer waits; sys1\'s does', !gapA('t5').some(line => line.includes('p-1'))
+    && gapA('t5').includes('User の判断待ち：H のやり直し（sys1・10-17 04:20Z から・P の記録）'), gapA('t5'));
+  check('replaced: the replacement and the list are rows of t5\'s changes', changeOf('t5').includes('↷ 置き換え · p-1 → p-11 · atlas · 2026-10-17T04:30:00Z · P の記録（未照合） · 出所 roccho-dev/adrs#647')
+    && changeOf('t5').includes('☰ 系列の一覧 · 3 系列（atlas・sys1・host） · 系列なし · 2026-10-17T04:30:00Z · P の記録（未照合） · 出所 hq:p-series.json 行 1'), changeOf('t5'));
+  const cards = id => at(id).entities.filter(entity => entity.ref.kind === 'p-series');
+  check('series: no card before P\'s list, one per series from it', cards('t4').length === 0 && JSON.stringify(cards('t5').map(card => card.ref.id)) === '["atlas","sys1","host"]');
+  const sys1 = cards('t5').find(card => card.ref.id === 'sys1');
+  check('series: a card reads its name and record, state, waiting judgments, where its cost is, and that it is P\'s record',
+    sys1?.label === 'sys1（roccho-dev/adrs#664）\n状態 待ち\nUser の判断待ち 1 件（P の記録）\n費用：roccho-dev/adrs#664（数は正本、Atlas では UNKNOWN）\n系列の一覧（P の記録） · 10-17 04:30Z', sys1?.label);
+  check('series: no session id is drawn', !drawnText.includes('session-0001'));
+  const symbols = Object.fromEntries(project(world, at('t5')).scene.representations.filter(rep => rep.atlas?.ref?.kind === 'p-series').map(rep => [rep.atlas.ref.id, rep.atlas.status]));
+  check('series: ✋ where a judgment waits, ⟲ when closed, none otherwise', JSON.stringify(symbols) === JSON.stringify({ atlas: null, sys1: 'awaitingUser', host: 'history' }), symbols);
+  const refused = mutate => { const value = raw(); mutate(value.frames.find(item => item.id === 't5').p_records); try { parseAtlasWorldInput(value); return ''; } catch (error) { return error.message; } };
+  check('series: a series with another field is refused', refused(records => { records[0].entries[0].token = 'x'; }).includes('entries must be'));
+  check('series: two series with one id are refused', refused(records => { records[0].entries[1].id = 'atlas'; }).includes('entries must be'));
+  check('replaced: a replacement without what it replaces is refused', refused(records => { records[1].replaces = ''; }).includes('replaces must be non-empty text'));
 }
 // The panel's row says what the page draws: six lines, fixed (116 px,
 // atlas-ui.mjs), the rest scrolled inside it (S7c).
