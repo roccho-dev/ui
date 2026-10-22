@@ -468,9 +468,16 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
   // P's series list (p.series, the latest up to this frame): one card per series in the Scope area, made here, as
   // HQ's physical Scopes leave no supplied Scope drawn (W c6349826755). P's record: no session id is drawn.
   const seriesList = liveRecords.filter(item => item.kind === 'p.series').at(-1) ?? null;
+  // A series' latest node as P read it, and the latest state of each of its capabilities (R c6353944717).
+  const nodeOf = id => liveRecords.filter(record => record.kind === 'p.node' && record.series === id).at(-1) ?? null;
+  const capabilitiesOf = id => [...new Map(liveRecords.filter(record => record.kind === 'p.capability' && record.series === id)
+    .map(record => [record.capability, record])).values()];
   const seriesCards = (seriesList?.entries ?? []).map((item, index) => {
     const count = waiting.filter(record => record.series === item.id).length;
+    const node = nodeOf(item.id);
     return entity(ref('p-series', item.id), item.id + '（' + item.canon + '）\n状態 ' + SERIES_STATE_LABEL[item.state]
+      + (node ? '\nMMD：' + node.node + '（P の記録 · ' + dayClockText(node.at) + ' · 読んだ回 ' + node.seen + '）' : '')
+      + capabilitiesOf(item.id).map(record => '\n能力 ' + record.capability + '：' + CAPABILITY_LABEL[record.state] + '（根拠 ' + (record.evidence ?? 'なし') + '）').join('')
       + (count ? '\nUser の判断待ち ' + count + ' 件（P の記録）' : '') + '\n費用：' + item.canon + '（数は正本、Atlas では UNKNOWN）'
       + '\n系列の一覧（P の記録） · ' + dayClockText(seriesList.at), areas.scope, 900 + index,
     '系列 ' + item.id + ' · 正本 ' + item.canon + ' · ゴール ' + (item.goal ?? 'なし') + ' · host ' + item.host + ' · 出所 ' + seriesList.source.ref + ' 行 ' + seriesList.source.line,
@@ -492,6 +499,12 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
   const review = latest(item => item.kind === 'review.pasted');
   const criterion = latest(item => item.kind === 'user.criterion');
   const replaced = [...supersededIn([...earlier, frame])];
+  const recordSeries = kind => [...new Set(liveRecords.filter(record => record.kind === kind).map(record => record.series ?? '系列なし'))];
+  const nodeLines = recordSeries('p.node').map(id => id + ' ' + nodeOf(id === '系列なし' ? null : id).node);
+  const capabilityLines = recordSeries('p.capability').map(id => {
+    const states = capabilitiesOf(id === '系列なし' ? null : id).map(record => record.state);
+    return id + ' ' + CAPABILITY_STATES.filter(state => states.includes(state)).map(state => CAPABILITY_LABEL[state] + ' ' + states.filter(each => each === state).length).join('・');
+  });
   const summaryArea = presentation.areas.find(area => area.id !== areas.purpose && area.id !== areas.scope)?.id ?? areas.scope;
   const summary = pRecords.length ? entity(ref('p-summary', frame.id), ['P の報告の要約（P の記録・未照合）',
     seriesList ? '系列 ' + seriesList.entries.length + ' · 閉じた ' + closedSeries.length + (closedSeries.length ? '（' + closedSeries.map(item => item.id).join('・') + '）' : '') : '系列の一覧 無し',
@@ -505,6 +518,9 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
     criterion ? '直近の User の基準：「' + criterion.words + '」→ ' + criterion.binds + when(criterion) : '直近の User の基準 無し',
     replaced.length ? '置き換え ' + replaced.length + ' 件：' + replaced.map(([id, by]) => id + ' → ' + (by ?? 'なし')).join('・') : '置き換え 無し',
     seriesList ? '費用（数は正本、Atlas では UNKNOWN）：' + seriesList.entries.map(item => item.id + ' ' + item.canon).join(' · ') : '費用の在りか 不明（系列の一覧 無し）',
+    // Q14, Q13 (R c6353944717): P's latest per series; "無し" when P recorded none.
+    nodeLines.length ? 'MMD の今のノード：' + nodeLines.join(' · ') : 'MMD の今のノード 無し',
+    capabilityLines.length ? '能力：' + capabilityLines.join(' · ') : '能力 無し',
   ].join('\n'), summaryArea, 0, 'P の記録 ' + pRecords.length + ' 件から、この frame までの各種類の直近（P の主張、未照合）。各行の元は、その記録が入った frame の変化の欄にある。') : null;
   const pCurrentLines = (heartbeat ? '\n心拍（P の記録）：run ' + LIFE_LABEL[heartbeat.run] + ' · tunnel ' + LIFE_LABEL[heartbeat.tunnel]
     + ' · HQ ループ ' + LIFE_LABEL[heartbeat.hq_loop] + ' · reap ' + heartbeat.reaped + ' · 張り直し ' + heartbeat.rebuilt + ' · ' + dayClockText(heartbeat.at) : '')
@@ -823,6 +839,10 @@ const P_RECORD_FIELDS = Object.freeze({
   // (`entries`, not `series`: every record already has the common `series`, its own series or null)
   'p.series': ['entries'],
   'p.supersede': ['replaces', 'by'],
+  // adrs#647 W c6353935020, R c6353944717: a series' current MMD node as P read it (with where P read it), and one of
+  // a series' capabilities (Q14, Q13). P's claims; no judgment reads them.
+  'p.node': ['node', 'plan', 'seen'],
+  'p.capability': ['capability', 'state', 'evidence'],
 });
 // Each field's value, as apps collect/precord.mjs checks it: [check, what it must be].
 const isText = v => typeof v === 'string' && v.length > 0;
@@ -833,6 +853,14 @@ const COUNT = [v => Number.isSafeInteger(v) && v >= 0, 'a non-negative integer']
 const BOOL = [v => typeof v === 'boolean', 'true or false'];
 const ONE_OF = (...values) => [v => values.includes(v), values.join('|')];
 const LIFE = ONE_OF('alive', 'dead', 'unknown');
+// R c6353944717: where P read a node (a comment, or a loop round), and an exact evidence (an issue or PR, a comment, a
+// run id, a 40-hex commit); `verified` without one is refused (apps holds it before).
+const ISSUE_REF = [v => typeof v === 'string' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+#[1-9]\d*$/u.test(v), 'owner/repo#n'];
+const SEEN = [v => typeof v === 'string' && (/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+#[1-9]\d*#c\d+$/u.test(v) || /^round:\S+$/u.test(v)),
+  'owner/repo#n#c<id> or round:<id>'];
+const EVIDENCE = [v => typeof v === 'string' && (/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+#[1-9]\d*(#c\d+)?$/u.test(v) || /^run:\d+$/u.test(v) || /^[0-9a-f]{40}$/u.test(v)),
+  'owner/repo#n[#c<id>], run:<id> or a 40-hex commit'];
+export const CAPABILITY_STATES = Object.freeze(['verified', 'tool-only', 'untested', 'failed', 'unknown']);
 const P_RECORD_VALUES = Object.freeze({
   'user.decision.requested': { question: TEXT, options: [v => Array.isArray(v) && v.every(isText), 'a list of non-empty text'], recommended: orNull(TEXT), since: INSTANT, reask_due: orNull(INSTANT) },
   'user.decision.recorded': { request: orNull(TEXT), words: TEXT, changes: TEXT },
@@ -845,6 +873,8 @@ const P_RECORD_VALUES = Object.freeze({
   'p.series': { entries: [v => Array.isArray(v) && v.every(seriesItem) && new Set(v.map(item => item.id)).size === v.length,
     'a list of {id, canon, goal, R, W, host, state} with unique ids'] },
   'p.supersede': { replaces: TEXT, by: orNull(TEXT) },
+  'p.node': { node: TEXT, plan: orNull(ISSUE_REF), seen: SEEN },
+  'p.capability': { capability: TEXT, state: ONE_OF(...CAPABILITY_STATES), evidence: orNull(EVIDENCE) },
 });
 // One series of p-series-v1 (P c6349797904): R and W (session ids or a tool name) are kept but never drawn.
 const SERIES_KEYS = ['id', 'canon', 'goal', 'R', 'W', 'host', 'state'];
@@ -857,7 +887,9 @@ function seriesItem(v) {
 // The changes' marks for them: each differs from every journal mark and every state symbol (D5), except ✋,
 // which means here what it means on a box: a human's judgment is waiting.
 export const P_RECORD_MARK = Object.freeze({ 'user.decision.requested': '✋', 'user.decision.recorded': '◆', 'p.position': '✎',
-  'review.pasted': '❞', 'user.criterion': '◈', 'loop.stopped': '⏸', 'p.receipt': '▣', heartbeat: '♡', 'p.series': '☰', 'p.supersede': '↷' });
+  'review.pasted': '❞', 'user.criterion': '◈', 'loop.stopped': '⏸', 'p.receipt': '▣', heartbeat: '♡', 'p.series': '☰', 'p.supersede': '↷',
+  'p.node': '⌖', 'p.capability': '⚙' });
+const CAPABILITY_LABEL = Object.freeze({ verified: '確かめ済み', 'tool-only': 'tool のみ', untested: '未試験', failed: '失敗', unknown: '不明' });
 // A record P replaced (p.supersede) is never drawn with its text, in any frame, before the replacement too (R
 // c6349841686: the text may be what had to go). Only that it was replaced, and by what. The data is unchanged.
 export const SUPERSEDED_MARK = '⊘';
@@ -889,6 +921,8 @@ export const normalizePRecords = (value, at) => {
     // The values too, as apps reads them (R c6347788839): the ui's edge does not trust what it is sent.
     if (redacted) check(item.superseded_by === null || isText(item.superseded_by), where + '.superseded_by must be non-empty text or null');
     else for (const [key, [ok, expected]] of Object.entries(P_RECORD_VALUES[item.kind])) check(ok(item[key]), where + '.' + key + ' must be ' + expected);
+    // R c6353944717 condition 2: no "verified" without its evidence, ever drawn.
+    if (!redacted && item.kind === 'p.capability') check(item.state !== 'verified' || item.evidence !== null, where + '.evidence is required for verified');
     return json(item, where);
   });
   check(new Set(records.map(item => item.id)).size === records.length, at + ': duplicate p-record id');
@@ -912,6 +946,8 @@ const P_RECORD_BODY = Object.freeze({
     + ' · reap ' + r.reaped + ' · 張り直し ' + r.rebuilt,
   'p.series': r => '系列の一覧 · ' + r.entries.length + ' 系列（' + r.entries.map(item => item.id).join('・') + '）',
   'p.supersede': r => '置き換え · ' + r.replaces + ' → ' + (r.by ?? 'なし'),
+  'p.node': r => 'MMD のノード · ' + r.node + '（読んだ回 ' + r.seen + '）',
+  'p.capability': r => '能力 · ' + r.capability + ' · ' + CAPABILITY_LABEL[r.state] + '（根拠 ' + (r.evidence ?? 'なし') + '）',
 });
 // One of P's records as a row: its mark, what it says, its series, when P wrote it, that it is P's unverified
 // claim (R c6346274848: only a receipt matched against the HQ's log may say verified, and none is yet), and where.
