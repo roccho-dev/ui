@@ -454,11 +454,13 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
   // waiting closes when a recorded judgment names it or when it is replaced up to this frame.
   const superseded = supersededIn(all);
   const pRecords = [...earlier, frame].flatMap(item => item.p_records ?? []);
-  const replacedHere = supersededIn([...earlier, frame]);
-  const answered = new Set(pRecords.filter(item => item.kind === 'user.decision.recorded' && item.request !== null).map(item => item.request));
+  // Closed from the frame the replacement itself is placed in (a record sent without its text still waits until then).
+  const replacedHere = new Set(pRecords.filter(item => item.kind === 'p.supersede' && !Object.hasOwn(item, 'superseded_by')).map(item => item.replaces));
+  const answered = new Set(pRecords.filter(item => item.kind === 'user.decision.recorded' && typeof item.request === 'string').map(item => item.request));
   const waiting = pRecords.filter(item => item.kind === 'user.decision.requested' && !answered.has(item.id) && !replacedHere.has(item.id));
+  // A record sent without its text has no `since`: P's write time stands for it.
   const waitingLines = waiting.map(item => '\nUser の判断待ち：' + (superseded.has(item.id) ? supersededText(item.id, superseded.get(item.id)) : item.question)
-    + '（' + (item.series ?? '系列なし') + '・' + dayClockText(item.since) + ' から・P の記録）').join('');
+    + '（' + (item.series ?? '系列なし') + '・' + dayClockText(item.since ?? item.at) + ' から・P の記録）').join('');
   const liveRecords = pRecords.filter(item => !superseded.has(item.id));
   const heartbeat = liveRecords.filter(item => item.kind === 'heartbeat').at(-1) ?? null;
   const day = /^\d{4}-\d\d-\d\d/u.exec(frame.asOf)?.[0] ?? null;
@@ -829,15 +831,23 @@ export const P_RECORD_MARK = Object.freeze({ 'user.decision.requested': '✋', '
 // A record P replaced (p.supersede) is never drawn with its text, in any frame, before the replacement too (R
 // c6349841686: the text may be what had to go). Only that it was replaced, and by what. The data is unchanged.
 export const SUPERSEDED_MARK = '⊘';
-export const supersededIn = frames => new Map(frames.flatMap(item => item.p_records ?? []).filter(item => item.kind === 'p.supersede')
-  .map(item => [item.replaces, item.by]));
+// From P's replacements and from the records apps already sent without their text (`superseded_by`): the latter
+// tells it even before the replacement itself is placed in a frame, and is never undone (R c6350853997 condition 2).
+export const supersededIn = frames => {
+  const records = frames.flatMap(item => item.p_records ?? []);
+  return new Map([...records.filter(item => item.kind === 'p.supersede' && !Object.hasOwn(item, 'superseded_by')).map(item => [item.replaces, item.by]),
+    ...records.filter(item => Object.hasOwn(item, 'superseded_by')).map(item => [item.id, item.superseded_by])]);
+};
 const supersededText = (id, by) => '置き換えられた P の記録 ' + id + ' → ' + (by ?? 'なし');
 export const normalizePRecords = (value, at) => {
   check(Array.isArray(value), at + ' must be an array');
   const records = value.map((item, index) => {
     const where = at + '[' + index + ']';
     check(plain(item) && Object.hasOwn(P_RECORD_FIELDS, item.kind), where + '.kind must be a p-record-v1 kind');
-    exact(item, ['schema', 'id', 'kind', 'at', 'series', 'ref', 'authority', 'source', ...P_RECORD_FIELDS[item.kind]], where);
+    // A record P replaced comes without its own fields (adrs#647 W c6350841730, R c6350853997): the common ones, its
+    // source and `superseded_by` (the id that replaced it, or null) — that form only, closed.
+    const redacted = Object.hasOwn(item, 'superseded_by');
+    exact(item, ['schema', 'id', 'kind', 'at', 'series', 'ref', 'authority', 'source', ...(redacted ? ['superseded_by'] : P_RECORD_FIELDS[item.kind])], where);
     check(item.schema === 'p-record-v1', where + '.schema must be p-record-v1');
     check(item.authority === false, where + '.authority must be false (P\'s claim)');
     text(item.id, where + '.id');
@@ -847,7 +857,8 @@ export const normalizePRecords = (value, at) => {
     text(item.source.ref, where + '.source.ref');
     count(item.source.line, where + '.source.line');
     // The values too, as apps reads them (R c6347788839): the ui's edge does not trust what it is sent.
-    for (const [key, [ok, expected]] of Object.entries(P_RECORD_VALUES[item.kind])) check(ok(item[key]), where + '.' + key + ' must be ' + expected);
+    if (redacted) check(item.superseded_by === null || isText(item.superseded_by), where + '.superseded_by must be non-empty text or null');
+    else for (const [key, [ok, expected]] of Object.entries(P_RECORD_VALUES[item.kind])) check(ok(item[key]), where + '.' + key + ' must be ' + expected);
     return json(item, where);
   });
   check(new Set(records.map(item => item.id)).size === records.length, at + ': duplicate p-record id');
