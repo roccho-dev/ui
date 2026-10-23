@@ -16,6 +16,7 @@ import { UPDATE_STALLED, forecastSteps, stepIndex, timelinePosition, transportOf
   viewedText } from './src/atlas-timeline.mjs';
 import { searchAtlasWorld } from './src/atlas-world-search.mjs';
 import { forecastChangeLabel, frameChangeLabel } from './src/atlas-gap.mjs';
+import { LEGEND_HEADINGS, LEGEND_LINES } from './src/atlas-legend.mjs';
 
 const STYLE = `
 *{box-sizing:border-box}
@@ -451,6 +452,8 @@ body{margin:0;overflow:hidden}
 #atlas-world-search-bar button{flex:none;font:inherit}
 #atlas-world-search-bar #atlas-world-selection{flex:0 1 auto;min-width:0;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #atlas-world-change{box-sizing:border-box;flex:none;height:116px;overflow:auto;padding:4px 8px;font:13px/18px system-ui,sans-serif;background:#fff;border-bottom:1px solid #dee2e6;overflow-wrap:anywhere}
+#atlas-world-legend-panel{position:absolute;z-index:10;top:184px;right:8px;box-sizing:border-box;width:250px;max-height:calc(100% - 192px);overflow:auto;padding:6px 10px;font:12px/15px system-ui,sans-serif;background:#fff;border:1px solid #868e96;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+#atlas-world-legend-panel[hidden]{display:none}
 `;
 
 // A supplied World input the page refused: the last accepted one stays drawn.
@@ -489,14 +492,23 @@ export const mountAtlasWorldUI = ({
   // D4 (apps#73): a selection the frame shown does not draw says so here; when
   // it is absent, pressing opens, held, the received frame it was last in.
   const selectionLast = el('button', { type: 'button', id: 'atlas-world-selection', onclick: () => openSelectionLast() });
-  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, selectionLast, back, forward, toPresent);
+  // The legend (User c6351431152): never on the screen until "？" is pressed, then over the graph's right edge
+  // under the changes, so the status row, the changes and the first two columns stay readable (adrs#647 R c6355222463).
+  const legend = el('div', { id: 'atlas-world-legend-panel', role: 'region', 'aria-label': '凡例', hidden: '' },
+    ...LEGEND_LINES.map(line => el('div', { text: line, style: LEGEND_HEADINGS.has(line) ? 'font-weight:600;margin-top:2px' : null })));
+  const legendToggle = el('button', { type: 'button', id: 'atlas-world-legend', text: '？', title: '凡例', 'aria-label': '凡例',
+    'aria-expanded': 'false', 'aria-controls': 'atlas-world-legend-panel', onclick: () => {
+      legend.hidden = !legend.hidden;
+      legendToggle.setAttribute('aria-expanded', String(!legend.hidden));
+    } });
+  const searchBar = el('div', { id: 'atlas-world-search-bar' }, search, choices, searchCount, selectionLast, back, forward, toPresent, legendToggle);
   // S7c: the changes of the time shown, right under the time controls: the
   // frame's (atlas-gap.mjs frameChangeLabel) or, on a step past the present,
   // the step's (forecastChangeLabel), one line each; six lines high whatever
   // it holds, so the graph keeps its size, the rest scrolled inside it. The
   // graph never moves for it.
   const changes = el('div', { id: 'atlas-world-change', role: 'region', 'aria-label': 'この時点の変化' });
-  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, changes, container);
+  const screen = el('div', { id: 'atlas-world-screen' }, statusBar, searchBar, changes, container, legend);
   root.append(style, screen);
 
   const page = {
