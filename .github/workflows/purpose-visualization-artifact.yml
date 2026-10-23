@@ -30,10 +30,14 @@ jobs:
           node-version: 24
       - name: Install screenshot fonts
         run: |
-          # A mirror that stalls with no output is cut and tried again (adrs#647 R c6354549200: ui#389-#392 hung here until the 20-minute job limit).
-          retry() { for attempt in 1 2 3; do timeout --kill-after=10 "$1" "${@:2}" && return 0; echo "attempt $attempt of 3 failed or passed ${1}s: ${*:2}" >&2; sleep 5; done; return 1; }
-          retry 240 sudo apt-get -o Acquire::Retries=3 update
-          retry 300 sudo apt-get -o Acquire::Retries=3 install -y fonts-noto-cjk
+          # A mirror that stalls with no output is cut, and the next try uses the main archive (adrs#647 R c6354549200:
+          # ui#389-#392 hung here until the 20-minute job limit; ui#393 run 39879538603 showed the same mirror stalling 3
+          # times on the 61 MB font, so a plain retry does not help).
+          apt_try() { for attempt in 1 2 3; do timeout --kill-after=10 "$1" sudo apt-get -o Acquire::Retries=3 "${@:2}" && return 0
+            echo "attempt $attempt of 3 failed or passed ${1}s: apt-get ${*:2}; next try from archive.ubuntu.com" >&2
+            echo 'http://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null; timeout 240 sudo apt-get update || true; done; return 1; }
+          apt_try 240 update
+          apt_try 300 install -y fonts-noto-cjk
           fc-cache -f
       - name: Build runnable HTML through Nix-declared input contract
         run: |
