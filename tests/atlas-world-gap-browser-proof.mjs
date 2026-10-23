@@ -400,6 +400,18 @@ try {
       check('legend 1200×800: open, it covers no answer box, the status row or the changes, and the boxes stay where they were',
         Object.values(open.answers).every(box => !meet(box, open.panel)) && !meet(open.status, open.panel) && !meet(open.change, open.panel)
           && JSON.stringify(open.answers) === JSON.stringify(closed.answers), { panel: open.panel, answers: open.answers });
+      // Every legend symbol draws as a glyph in the page's font, not as the missing-glyph box (R c6355481524: ⌖ drew
+      // as tofu): each drawn on a canvas in the panel's font must differ from an unassigned code point's drawing.
+      const symbols = [...new Set(LEGEND_LINES.map(line => line.split(' ')[0]).filter(head => [...head].length === 1))];
+      const tofu = await page.evaluate(list => {
+        const font = getComputedStyle(document.getElementById('atlas-world-legend-panel')).font;
+        const draw = text => { const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
+          const context = canvas.getContext('2d'); context.font = font; context.fillStyle = '#000'; context.textBaseline = 'top'; context.fillText(text, 4, 4);
+          return Array.from(context.getImageData(0, 0, 32, 32).data).join(','); };
+        const missing = draw('\u{EFFFD}');
+        return list.filter(symbol => draw(symbol) === missing);
+      }, symbols);
+      check('legend 1200×800: every symbol draws as a glyph, none as the missing-glyph box', symbols.length === 29 && tofu.length === 0, { symbols: symbols.length, tofu });
       await page.getByRole('button', { name: '凡例', exact: true }).click();
       const again = await layout();
       check('legend 1200×800: "？" again closes it', again.panel === null && again.expanded === 'false', again.panel);

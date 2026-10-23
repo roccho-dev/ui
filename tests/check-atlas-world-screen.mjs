@@ -54,9 +54,9 @@ for (const world of worlds) for (const item of world.frames) for (const viewport
       check(item.id + ': D5 ' + rep.regionId + ' carries its state\'s symbol', rep.label.startsWith(ATLAS_STATUS[rep.atlas.status].symbol + ' · '), rep.label);
       drawnSymbols.set(rep.atlas.status, new Set([...(drawnSymbols.get(rep.atlas.status) ?? []), head]));
     } else if (rep.atlas.activity !== 'none') {
-      // Activity has its own symbols; only the unknown one shares `?`, which means unknown there too.
+      // Activity has its own symbols, none a state's (R c6355481524: activity unknown no longer shares `?`).
       drawnActivity.add(rep.atlas.activity);
-      check(item.id + ': D5 ' + rep.regionId + ' activity symbol is no state\'s', !STATUS_SYMBOLS.includes(head) || (rep.atlas.activity === 'unknown' && head === ATLAS_STATUS.unknown.symbol), rep.label);
+      check(item.id + ': D5 ' + rep.regionId + ' activity symbol is no state\'s', !STATUS_SYMBOLS.includes(head), rep.label);
     }
   }
 }
@@ -217,6 +217,16 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('legend: every drawn symbol has a line with its meaning', meaning.length === LEGEND_LINES.length
     && symbols.every(symbol => LEGEND_LINES.some(line => line.startsWith(symbol + ' ') && line.length > symbol.length + 1)),
     LEGEND_LINES.filter(line => line.includes('undefined')));
+  // One symbol, one meaning (R c6355481524, the User's 「迷わない」): no symbol in two places, but ※, which means a
+  // human's judgment waits wherever it is drawn (a box's state, P's record in the changes).
+  const places = new Map();
+  for (const symbol of symbols) places.set(symbol, (places.get(symbol) ?? 0) + 1);
+  check('legend: each symbol is drawn with one meaning (※ alone in two places, with the same meaning)',
+    [...places].every(([symbol, count]) => count === 1 || (symbol === '※' && count === 2)), [...places].filter(([, count]) => count > 1));
+  // Text glyphs in place of the ones only an emoji or a rare font draws (R c6355481524): JIS X 0208 or Latin-1.
+  check('legend: activity unknown ○, the MMD node §, a human\'s judgment ※, a loop stop ‖', ACTIVITY_TOKEN.unknown === '○' && P_RECORD_MARK['p.node'] === '§'
+    && ATLAS_STATUS.awaitingUser.symbol === '※' && P_RECORD_MARK['loop.stopped'] === '‖');
+  check('legend: no symbol is one only an emoji font draws (✋ ⏸ ⌖ gone)', !symbols.some(symbol => ['✋', '⏸', '⌖'].includes(symbol)), symbols);
   check('legend: one line per symbol and place (status 7, activity 3, records 7, P 12, ⊘ 1), headings and notes 8',
     LEGEND_LINES.length === 7 + 3 + 7 + 12 + 1 + 8, LEGEND_LINES.length);
 }
@@ -266,22 +276,22 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('P records: the heading counts the journal, the eight records and the one held', lines[0] === 'この時点の変化 ' + (journal + 9) + ' 件 · 保持 累計 1', lines[0]);
   const at = ' · 2026-10-17T03:45:00Z · P の記録（未照合） · 出所 ';
   for (const row of [
-    '✋ User の判断待ち · 試験の値 · 推奨 a · 10-17 03:20Z から · 聞き直し 10-24 03:20Z · atlas' + at + 'roccho-dev/adrs#647',
+    '※ User の判断待ち · 試験の値 · 推奨 a · 10-17 03:20Z から · 聞き直し 10-24 03:20Z · atlas' + at + 'roccho-dev/adrs#647',
     '◆ User の判断 · 「atlas go ahead」→ C5 段 1 を採る · atlas' + at + 'roccho-dev/adrs#647',
     '✎ P の自己訂正 · 逸脱 1 · atlas' + at + 'hq:p-records.jsonl 行 3',
     '❞ 貼られたレビュー · 評者不明 · readback なし · atlas' + at + 'roccho-dev/adrs#647',
     '◈ User の基準 · 「偽陽性がなく迷わずシンプル」→ 鍵の選び方 · 系列なし' + at + 'roccho-dev/adrs#647',
-    '⏸ loop の停止 · sys1.W · USER（不要）· 確認のため · P が再開 · sys1' + at + 'roccho-dev/adrs#647',
+    '‖ loop の停止 · sys1.W · USER（不要）· 確認のため · P が再開 · sys1' + at + 'roccho-dev/adrs#647',
     '▣ P の receipt · hq-refresh v3 · PASS · 戻していない · sha256 ' + '7'.repeat(64) + ' · atlas' + at + 'roccho-dev/adrs#647',
     '♡ 心拍 · run 稼働 · tunnel 稼働 · HQ ループ 不明 · reap 0 · 張り直し 1 · 系列なし' + at + 'roccho-dev/adrs#647',
   ]) check('P records: the row reads ' + row.slice(0, 12), lines.includes(row), lines);
   check('P records: no row of P\'s says it was verified', !lines.some(line => line.includes('照合済み')));
   check('P records: the record held back is a held row', lines.some(line => line.startsWith('保持 p-record: at · 種類不明 · ')), lines);
-  // The marks: every journal and P-record mark differs; only ✋ is also a state symbol, with the same meaning.
+  // The marks: every journal and P-record mark differs; only ※ is also a state symbol, with the same meaning.
   const marks = [...Object.values(gapModule.JOURNAL_MARK), ...Object.values(gapModule.P_RECORD_MARK ?? {})];
   check('P records: the change marks are all different', new Set(marks).size === marks.length, marks);
-  check('P records: only ✋ is also a state symbol, the human\'s judgment waiting', JSON.stringify(marks.filter(mark => STATUS_SYMBOLS.includes(mark))) === '["✋"]'
-    && ATLAS_STATUS.awaitingUser.symbol === '✋' && gapModule.P_RECORD_MARK?.['user.decision.requested'] === '✋', marks);
+  check('P records: only ※ is also a state symbol, the human\'s judgment waiting', JSON.stringify(marks.filter(mark => STATUS_SYMBOLS.includes(mark))) === '["※"]'
+    && ATLAS_STATUS.awaitingUser.symbol === '※' && gapModule.P_RECORD_MARK?.['user.decision.requested'] === '※', marks);
   // Closed per kind, P's claim only: anything else refuses the World as any unknown field does.
   const refused = mutate => { const value = raw(); mutate(value.frames[index].p_records); try { parseAtlasWorldInput(value); return ''; } catch (error) { return error.message; } };
   check('P records: an extra field is refused', refused(records => { records[0].note = 'x'; }).includes('unknown field note'));
@@ -305,7 +315,7 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('P in boxes: a judgment P recorded as waiting is on 目的↔理想の差 from its frame on', lines({ pRecords: 'waiting', judged: true }, 't4', 'purpose-adequacy').includes(WAITING)
     && !lines({ pRecords: 'waiting', judged: true }, 't3', 'purpose-adequacy').includes(WAITING), lines({ pRecords: 'waiting', judged: true }, 't4', 'purpose-adequacy'));
   check('P in boxes: a recorded judgment that names it closes it', !lines({ pRecords: true, judged: true }, 't4', 'purpose-adequacy').some(line => line.startsWith('User の判断待ち：')));
-  check('P in boxes: GapA\'s flags are its adequacy\'s alone (no ✋ or flag from P\'s record)',
+  check('P in boxes: GapA\'s flags are its adequacy\'s alone (no ※ or flag from P\'s record)',
     JSON.stringify(box({ pRecords: 'waiting', judged: true }, 't4', 'purpose-adequacy')?.flags) === JSON.stringify(box({ judged: true }, 't4', 'purpose-adequacy')?.flags));
   const current = lines({ pRecords: true }, 't4', 'current-state');
   check('P in boxes: 現在状態 has the latest heartbeat P recorded', current.includes('心拍（P の記録）：run 稼働 · tunnel 稼働 · HQ ループ 不明 · reap 0 · 張り直し 1 · 10-17 03:45Z'), current);
@@ -348,7 +358,7 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('node, capability: the conditions are as they were', JSON.stringify(parts({ pRecords: 'series', judged: true })) === JSON.stringify(parts({ judged: true })));
   check('series: no session id is drawn', !drawnText.includes('session-0001'));
   const symbols = Object.fromEntries(project(world, at('t5')).scene.representations.filter(rep => rep.atlas?.ref?.kind === 'p-series').map(rep => [rep.atlas.ref.id, rep.atlas.status]));
-  check('series: ✋ where a judgment waits, ⟲ when closed, none otherwise', JSON.stringify(symbols) === JSON.stringify({ atlas: null, sys1: 'awaitingUser', host: 'history' }), symbols);
+  check('series: ※ where a judgment waits, ⟲ when closed, none otherwise', JSON.stringify(symbols) === JSON.stringify({ atlas: null, sys1: 'awaitingUser', host: 'history' }), symbols);
   const refused = mutate => { const value = raw(); mutate(value.frames.find(item => item.id === 't5').p_records); try { parseAtlasWorldInput(value); return ''; } catch (error) { return error.message; } };
   check('series: a series with another field is refused', refused(records => { records[0].entries[0].token = 'x'; }).includes('entries must be'));
   check('series: two series with one id are refused', refused(records => { records[0].entries[1].id = 'atlas'; }).includes('entries must be'));
