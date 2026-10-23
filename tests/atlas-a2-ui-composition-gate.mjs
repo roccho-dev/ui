@@ -295,7 +295,9 @@ try {
     const bar = document.getElementById('atlas-world-search-bar');
     return {
       bodyChildren: [...document.body.children].filter(node => !['SCRIPT', 'STYLE'].includes(node.tagName)).map(node => node.id),
-      screenChildren: screen ? [...screen.children].map(node => node.id) : null,
+      // The legend panel (User c6351431152) is there but not shown until "？" is pressed.
+      screenChildren: screen ? [...screen.children].filter(node => node.getClientRects().length > 0).map(node => node.id) : null,
+      legendClosed: document.getElementById('atlas-world-legend-panel')?.hidden === true,
       statusChildren: status ? [...status.children].map(node => node.tagName.toLowerCase() + '#' + node.id) : null,
       barChildren: bar ? [...bar.children].map(node => node.tagName.toLowerCase() + '#' + node.id) : null,
       statusHeight: status?.offsetHeight ?? null,
@@ -307,10 +309,10 @@ try {
   });
   check('only the exact native status and search rows are visible HTML control surfaces',
     JSON.stringify(htmlSurface.bodyChildren) === JSON.stringify(['atlas-world-screen'])
-      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world-change', 'atlas-world'])
+      && JSON.stringify(htmlSurface.screenChildren) === JSON.stringify(['atlas-world-status-bar', 'atlas-world-search-bar', 'atlas-world-change', 'atlas-world']) && htmlSurface.legendClosed
       && JSON.stringify(htmlSurface.statusChildren) === JSON.stringify(['span#atlas-world-status'])
       && JSON.stringify(htmlSurface.barChildren) === JSON.stringify(['input#atlas-world-search', 'select#atlas-world-search-results', 'span#atlas-world-search-count',
-        'button#atlas-world-selection', 'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present'])
+        'button#atlas-world-selection', 'button#atlas-world-step-back', 'button#atlas-world-step-forward', 'button#atlas-world-present', 'button#atlas-world-legend'])
       && htmlSurface.statusHeight === 24 && htmlSurface.barHeight === 36, htmlSurface);
   check('the SVG draws the three areas only: no HUD, panel, strip or band region',
     JSON.stringify(htmlSurface.regionKinds) === JSON.stringify(['area', 'entity']) && htmlSurface.guides === 0

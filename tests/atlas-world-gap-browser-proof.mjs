@@ -77,6 +77,9 @@ const claims = compat ? null : arg('page-current') ? await servePage(arg('page-c
 const unbound = compat || !fixture || (arg('page') && !arg('page-unbound')) ? null : {
   none: arg('page-unbound') ? await servePage(arg('page-unbound')) : await serve('unbound', gapWorld({ unbound: true })),
 };
+// The legend (User c6351431152; adrs#647 R c6355222463): at 1200×800 with 1000 series, closed at first, opened by
+// "？" without hiding the answer boxes (P's summary, GapA), the status row or the changes.
+const legendWorld = compat || !fixture || arg('page') ? null : await serve('legend', gapWorld({ pRecords: 'scale', judged: true, through: 't5' }));
 const urlOf = server => 'http://127.0.0.1:' + server.address().port + '/';
 
 // What each fixture frame must read, as drawn (whitespace ignored).
@@ -364,10 +367,51 @@ try {
       await browser.close();
     }
   }
+  if (legendWorld) {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+      await page.goto(urlOf(legendWorld), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForFunction(() => document.documentElement.dataset.liveAtlasReady === 'true', null, { timeout: 60000 });
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const layout = () => page.evaluate(() => {
+        const atlas = window.liveAtlas, adapter = atlas.adapter, view = adapter.graph.getView();
+        const rect = node => { const box = node?.getBoundingClientRect?.(); return box && box.width > 0 ? { left: box.left, right: box.right, top: box.top, bottom: box.bottom } : null; };
+        const panel = document.getElementById('atlas-world-legend-panel');
+        const answers = Object.fromEntries(['p-summary', 'purpose-adequacy'].map(kind => {
+          const item = atlas.projection.scene.representations.find(each => each.atlas?.ref?.kind === kind);
+          return [kind, rect(item ? view.getState(adapter.cellsByRegionId.get(item.regionId))?.shape?.node : null)];
+        }));
+        return { graph: rect(document.getElementById('atlas-world')), panel: rect(panel), text: panel.textContent, whole: panel.scrollHeight <= panel.clientHeight,
+          expanded: document.getElementById('atlas-world-legend').getAttribute('aria-expanded'), toggle: rect(document.getElementById('atlas-world-legend')),
+          status: rect(document.getElementById('atlas-world-status-bar')), change: rect(document.getElementById('atlas-world-change')), answers };
+      });
+      const meet = (a, b) => Boolean(a && b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom);
+      const within = (box, area) => Boolean(box && area && box.left >= area.left - 1 && box.right <= area.right + 1 && box.top >= area.top - 1 && box.bottom <= area.bottom + 1);
+      const closed = await layout();
+      check('legend 1200×800: closed at first, its "？" on the search row inside the window', closed.panel === null && closed.expanded === 'false'
+        && closed.toggle && closed.toggle.right <= 1200, closed);
+      check('legend 1200×800: the answer boxes are inside the graph before it opens', Object.values(closed.answers).every(box => within(box, closed.graph)), closed.answers);
+      await page.getByRole('button', { name: '凡例', exact: true }).click();
+      const open = await layout();
+      const { LEGEND_LINES } = await import('../packages/control/src/atlas-legend.mjs');
+      check('legend 1200×800: "？" opens it inside the window, every line without scrolling', open.panel && open.expanded === 'true' && within(open.panel, { left: 0, right: 1200, top: 0, bottom: 800 })
+        && open.whole && LEGEND_LINES.every(line => open.text.includes(line)), open.panel);
+      check('legend 1200×800: open, it covers no answer box, the status row or the changes, and the boxes stay where they were',
+        Object.values(open.answers).every(box => !meet(box, open.panel)) && !meet(open.status, open.panel) && !meet(open.change, open.panel)
+          && JSON.stringify(open.answers) === JSON.stringify(closed.answers), { panel: open.panel, answers: open.answers });
+      await page.getByRole('button', { name: '凡例', exact: true }).click();
+      const again = await layout();
+      check('legend 1200×800: "？" again closes it', again.panel === null && again.expanded === 'false', again.panel);
+    } finally {
+      await browser.close();
+    }
+  }
 } catch (error) {
   interruption = String(error?.stack ?? error);
 } finally {
   await new Promise(resolve => all.close(resolve));
+  if (legendWorld) await new Promise(resolve => legendWorld.close(resolve));
   if (matched) await new Promise(resolve => matched.close(resolve));
   for (const [, server] of wording) await new Promise(resolve => server.close(resolve));
   if (claims) await new Promise(resolve => claims.close(resolve));

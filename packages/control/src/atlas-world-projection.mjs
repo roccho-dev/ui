@@ -26,6 +26,7 @@ const appearance = Object.freeze({
 });
 
 const token = Object.freeze({ now: '▶', recent: '•', unknown: '?', none: '' });
+export const ACTIVITY_TOKEN = token;
 
 // Supplied status flags, read as one display status. Checked in this order,
 // so a conflict or an unassigned unit is never shown as a plain unmet one.

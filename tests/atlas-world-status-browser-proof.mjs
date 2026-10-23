@@ -136,7 +136,7 @@ try {
       return { name, visible: Boolean(box && box.width > 0 && box.right <= window.innerWidth + 0.5) };
     }));
     check(width + 'px: ◀ 前へ, 次へ ▶ and 現在へ are visible buttons on the search row', controls.every(item => item.visible), controls);
-    const rowIds = await page.evaluate(() => [...document.querySelectorAll('#atlas-world-status-bar > *, #atlas-world-search-bar > *, #atlas-world-screen > #atlas-world-change')].map(item => item.id).sort());
+    const rowIds = await page.evaluate(() => [...document.querySelectorAll('#atlas-world-status-bar > *, #atlas-world-search-bar > *, #atlas-world-screen > #atlas-world-change, #atlas-world-screen > #atlas-world-legend-panel')].map(item => item.id).sort());
     check(width + 'px: the status and search rows hold the table\'s controls, no more', JSON.stringify(rowIds) === JSON.stringify(SCREEN_CONTROLS.map(item => item.id).sort()), rowIds);
     // Back: the previous frame, in the time text and the three areas.
     await page.getByRole('button', { name: '◀ 前へ' }).click();
