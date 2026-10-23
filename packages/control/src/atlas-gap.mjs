@@ -459,8 +459,11 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
   const answered = new Set(pRecords.filter(item => item.kind === 'user.decision.recorded' && typeof item.request === 'string').map(item => item.request));
   const waiting = pRecords.filter(item => item.kind === 'user.decision.requested' && !answered.has(item.id) && !replacedHere.has(item.id));
   // A record sent without its text has no `since`: P's write time stands for it.
-  const waitingLines = waiting.map(item => '\nUser の判断待ち：' + (superseded.has(item.id) ? supersededText(item.id, superseded.get(item.id)) : item.question)
-    + '（' + (item.series ?? '系列なし') + '・' + dayClockText(item.since ?? item.at) + ' から・P の記録）').join('');
+  // At most 5 lines in the box (1000 series, 1200×800: R c6354955491); the rest is counted, never dropped silently.
+  const WAITING_LINES = 5;
+  const waitingLines = waiting.slice(0, WAITING_LINES).map(item => '\nUser の判断待ち：' + (superseded.has(item.id) ? supersededText(item.id, superseded.get(item.id)) : item.question)
+    + '（' + (item.series ?? '系列なし') + '・' + dayClockText(item.since ?? item.at) + ' から・P の記録）').join('')
+    + (waiting.length > WAITING_LINES ? '\nUser の判断待ち 他 ' + (waiting.length - WAITING_LINES) + ' 件（P の記録、要約の箱と変化の欄で読める）' : '');
   const liveRecords = pRecords.filter(item => !superseded.has(item.id));
   const heartbeat = liveRecords.filter(item => item.kind === 'heartbeat').at(-1) ?? null;
   const day = /^\d{4}-\d\d-\d\d/u.exec(frame.asOf)?.[0] ?? null;
@@ -484,15 +487,23 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
     [...(count ? ['awaiting=user-decision'] : []), ...(item.state === 'closed' ? ['history-preserved'] : [])]);
   });
   // P's report at a glance (User c6351593265: each kind answered from the screen in 10 seconds; R c6352966769: on the
-  // first screen, 1500×900, no scroll, the latest frame): one box at the head of the area after the Scopes (the Agents'
-  // in the HQ World; order 0, the World is normalized again in the app and an order is non-negative), so 目的 and
+  // first screen, no scroll, the latest frame; User c6354186844: 1200×800, 1000 series): one box at the head of the
+  // Scopes (order 0, the World is normalized again in the app and an order is non-negative), so 目的 and
   // GapA stay where they are. Every line is P's record up to this frame, its latest of a
   // kind, "無し" when there is none; a replaced record is left out. Projected (P): each is also a row of the changes
   // of the frame it entered, which only ◀ 前へ reaches.
+  // At any scale (User c6354186844: 1000 series; c6354136626: 1200×800, no scroll) every line is bounded: counts first,
+  // at most the first three names (most first) and "他 k", P's free text clipped (its whole is in the changes and the
+  // search). Nothing is counted short: the totals are all of P's records up to the frame.
   const latest = kind => liveRecords.filter(item => kind(item)).at(-1) ?? null;
   const when = item => '（' + dayClockText(item.at) + '）';
+  // A clipped text keeps a summary line within two drawn lines (LABEL_MAX_PX), whatever P wrote.
+  const clip = (value, length = 14) => [...String(value)].length > length ? [...String(value)].slice(0, length).join('') + '…' : String(value);
+  const firstThree = (names, unit = '') => names.slice(0, 3).join('・') + (names.length > 3 ? ' 他 ' + (names.length - 3) + unit : '');
   const closedSeries = (seriesList?.entries ?? []).filter(item => item.state === 'closed');
-  const bySeries = [...new Set(waiting.map(item => item.series ?? '系列なし'))].map(id => id + ' ' + waiting.filter(item => (item.series ?? '系列なし') === id).length);
+  const waitingBySeries = [...new Set(waiting.map(item => item.series ?? '系列なし'))]
+    .map(id => [id, waiting.filter(item => (item.series ?? '系列なし') === id).length]).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const bySeries = waitingBySeries.map(([id, count]) => id + ' ' + count);
   const lastDecision = latest(item => item.kind === 'user.decision.recorded');
   const corrected = latest(item => item.kind === 'p.position' && item.position !== 'claim');
   const receipt = latest(item => item.kind === 'p.receipt');
@@ -500,27 +511,30 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
   const criterion = latest(item => item.kind === 'user.criterion');
   const replaced = [...supersededIn([...earlier, frame])];
   const recordSeries = kind => [...new Set(liveRecords.filter(record => record.kind === kind).map(record => record.series ?? '系列なし'))];
-  const nodeLines = recordSeries('p.node').map(id => id + ' ' + nodeOf(id === '系列なし' ? null : id).node);
-  const capabilityLines = recordSeries('p.capability').map(id => {
-    const states = capabilitiesOf(id === '系列なし' ? null : id).map(record => record.state);
-    return id + ' ' + CAPABILITY_STATES.filter(state => states.includes(state)).map(state => CAPABILITY_LABEL[state] + ' ' + states.filter(each => each === state).length).join('・');
-  });
-  const summaryArea = presentation.areas.find(area => area.id !== areas.purpose && area.id !== areas.scope)?.id ?? areas.scope;
+  const nodeRecords = recordSeries('p.node').map(id => nodeOf(id === '系列なし' ? null : id));
+  const lastNode = nodeRecords.reduce((last, item) => (!last || Date.parse(item.at) >= Date.parse(last.at) ? item : last), null);
+  const capabilityStates = recordSeries('p.capability').flatMap(id => capabilitiesOf(id === '系列なし' ? null : id).map(record => record.state));
+  // The second column (R c6354955491): at 1200 px the third starts near the right edge, so the box goes on top of Scope.
+  const summaryArea = areas.scope;
   const summary = pRecords.length ? entity(ref('p-summary', frame.id), ['P の報告の要約（P の記録・未照合）',
-    seriesList ? '系列 ' + seriesList.entries.length + ' · 閉じた ' + closedSeries.length + (closedSeries.length ? '（' + closedSeries.map(item => item.id).join('・') + '）' : '') : '系列の一覧 無し',
-    waiting.length ? 'User の判断待ち ' + waiting.length + ' 件：' + bySeries.join('・') : 'User の判断待ち 無し',
+    // What needs attention first (R c6354955491): judgments waiting, loop stops, the heartbeat.
+    waiting.length ? 'User の判断待ち ' + waiting.length + ' 件：' + firstThree(bySeries, ' 系列') : 'User の判断待ち 無し',
     day === null ? 'loop の停止 不明' : 'loop の停止 ' + day.slice(5) + ' ' + (stops.length ? stops.length + ' 件（不要 ' + stops.filter(item => item.needed === false).length + '）' : '無し'),
     heartbeat ? '心拍：run ' + LIFE_LABEL[heartbeat.run] + ' · tunnel ' + LIFE_LABEL[heartbeat.tunnel] + ' · HQ ループ ' + LIFE_LABEL[heartbeat.hq_loop] + when(heartbeat) : '心拍 無し',
-    lastDecision ? '直近の判断：「' + lastDecision.words + '」→ ' + lastDecision.changes + when(lastDecision) : '直近の判断 無し',
-    corrected ? '直近の撤回・訂正：' + (POSITION_LABEL[corrected.position] ?? corrected.position) + ' · ' + corrected.about + when(corrected) : '直近の撤回・訂正 無し',
-    receipt ? '直近の receipt：' + receipt.action + ' ' + receipt.target + ' · ' + receipt.result + ' · ' + (receipt.reverted ? '戻した' : '戻していない') + when(receipt) : '直近の receipt 無し',
-    review ? '直近のレビュー：' + (review.reviewer ?? '評者不明') + ' · readback ' + (review.readback ?? 'なし') + when(review) : '直近のレビュー 無し',
-    criterion ? '直近の User の基準：「' + criterion.words + '」→ ' + criterion.binds + when(criterion) : '直近の User の基準 無し',
-    replaced.length ? '置き換え ' + replaced.length + ' 件：' + replaced.map(([id, by]) => id + ' → ' + (by ?? 'なし')).join('・') : '置き換え 無し',
-    seriesList ? '費用（数は正本、Atlas では UNKNOWN）：' + seriesList.entries.map(item => item.id + ' ' + item.canon).join(' · ') : '費用の在りか 不明（系列の一覧 無し）',
-    // Q14, Q13 (R c6353944717): P's latest per series; "無し" when P recorded none.
-    nodeLines.length ? 'MMD の今のノード：' + nodeLines.join(' · ') : 'MMD の今のノード 無し',
-    capabilityLines.length ? '能力：' + capabilityLines.join(' · ') : '能力 無し',
+    seriesList ? '系列 ' + seriesList.entries.length + ' · 閉じた ' + closedSeries.length + (closedSeries.length ? '（' + firstThree(closedSeries.map(item => item.id)) + '）' : '') : '系列の一覧 無し',
+    lastDecision ? '直近の判断：「' + clip(lastDecision.words) + '」→ ' + clip(lastDecision.changes) + when(lastDecision) : '直近の判断 無し',
+    corrected ? '直近の撤回・訂正：' + (POSITION_LABEL[corrected.position] ?? corrected.position) + ' · ' + clip(corrected.about) + when(corrected) : '直近の撤回・訂正 無し',
+    receipt ? '直近の receipt：' + clip(receipt.action + ' ' + receipt.target) + ' · ' + receipt.result + ' · ' + (receipt.reverted ? '戻した' : '戻していない') + when(receipt) : '直近の receipt 無し',
+    review ? '直近のレビュー：' + clip(review.reviewer ?? '評者不明') + ' · readback ' + (review.readback ?? 'なし') + when(review) : '直近のレビュー 無し',
+    criterion ? 'User の基準：「' + clip(criterion.words) + '」→ ' + clip(criterion.binds) + when(criterion) : 'User の基準 無し',
+    replaced.length ? '置き換え ' + replaced.length + ' 件：' + firstThree(replaced.map(([id, by]) => id + ' → ' + (by ?? 'なし'))) : '置き換え 無し',
+    // Q14, Q13 (R c6353944717): how many series P recorded and the latest; the totals of capabilities.
+    lastNode ? 'MMD の今のノード：' + nodeRecords.length + ' 系列 · 直近 ' + (lastNode.series ?? '系列なし') + ' ' + clip(lastNode.node) + when(lastNode) : 'MMD の今のノード 無し',
+    capabilityStates.length ? '能力：' + CAPABILITY_STATES.filter(state => capabilityStates.includes(state)).map(state => CAPABILITY_LABEL[state] + ' ' + capabilityStates.filter(each => each === state).length).join('・')
+      + '（' + recordSeries('p.capability').length + ' 系列）' : '能力 無し',
+    // Q12: where a series' cost is (its record, on its card), not every series listed.
+    seriesList?.entries.length ? '費用：Atlas では UNKNOWN · 数は各系列の正本（例 ' + seriesList.entries[0].id + ' ' + clip(seriesList.entries[0].canon, 24) + '）'
+      :'費用の在りか 不明（系列の一覧 無し）',
   ].join('\n'), summaryArea, 0, 'P の記録 ' + pRecords.length + ' 件から、この frame までの各種類の直近（P の主張、未照合）。各行の元は、その記録が入った frame の変化の欄にある。') : null;
   const pCurrentLines = (heartbeat ? '\n心拍（P の記録）：run ' + LIFE_LABEL[heartbeat.run] + ' · tunnel ' + LIFE_LABEL[heartbeat.tunnel]
     + ' · HQ ループ ' + LIFE_LABEL[heartbeat.hq_loop] + ' · reap ' + heartbeat.reaped + ' · 張り直し ' + heartbeat.rebuilt + ' · ' + dayClockText(heartbeat.at) : '')
@@ -944,7 +958,8 @@ const P_RECORD_BODY = Object.freeze({
     + (r.sha256 === null ? '' : ' · sha256 ' + r.sha256),
   heartbeat: r => '心拍 · run ' + LIFE_LABEL[r.run] + ' · tunnel ' + LIFE_LABEL[r.tunnel] + ' · HQ ループ ' + LIFE_LABEL[r.hq_loop]
     + ' · reap ' + r.reaped + ' · 張り直し ' + r.rebuilt,
-  'p.series': r => '系列の一覧 · ' + r.entries.length + ' 系列（' + r.entries.map(item => item.id).join('・') + '）',
+  // The first three ids and the rest counted (R c6354955491: 1000 series keep the row one line); every series has its card.
+  'p.series': r => '系列の一覧 · ' + r.entries.length + ' 系列（' + r.entries.slice(0, 3).map(item => item.id).join('・') + (r.entries.length > 3 ? ' 他 ' + (r.entries.length - 3) : '') + '）',
   'p.supersede': r => '置き換え · ' + r.replaces + ' → ' + (r.by ?? 'なし'),
   'p.node': r => 'MMD のノード · ' + r.node + '（読んだ回 ' + r.seen + '）',
   'p.capability': r => '能力 · ' + r.capability + ' · ' + CAPABILITY_LABEL[r.state] + '（根拠 ' + (r.evidence ?? 'なし') + '）',
