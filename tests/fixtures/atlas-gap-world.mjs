@@ -235,6 +235,10 @@ const P_RECORDS_T5 = [
     { id: 'host', canon: 'roccho-dev/adrs#663', goal: null, R: null, W: null, host: 'local', state: 'closed' }] }, null), ref: null, source: { ref: 'hq:p-series.json', sha256: sha('s'), line: 1 } },
   laterRecord('p.supersede', 'p-10', { replaces: 'p-1', by: 'p-11' }),
   laterRecord('user.decision.requested', 'p-12', { question: 'H のやり直し', options: [], recommended: null, since: '2026-10-17T04:20:00Z', reask_due: null }, 'sys1'),
+  // adrs#647 R c6353944717: a node as P read it, and two capabilities (one verified with its evidence).
+  laterRecord('p.node', 'p-13', { node: 'D7', plan: 'roccho-dev/adrs#647', seen: 'roccho-dev/adrs#647#c6353944717' }),
+  laterRecord('p.capability', 'p-14', { capability: 'exec', state: 'verified', evidence: 'run:39864108348' }, 'sys1'),
+  laterRecord('p.capability', 'p-15', { capability: 'mcp', state: 'untested', evidence: null }, 'sys1'),
 ];
 // A record as apps sends it once P replaced it: the common fields, its source and superseded_by, nothing of its own.
 const redact = (record, by) => ({ schema: record.schema, id: record.id, kind: record.kind, at: record.at, series: record.series, ref: record.ref,

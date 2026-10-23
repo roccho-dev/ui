@@ -71,9 +71,14 @@ export const SCREEN_LINES = Object.freeze([
   row('p-summary', 'summary-latest', '種類ごとの直近（判断・撤回と訂正・receipt・レビュー・User の基準、Q7–Q10）', 'P',
     /^(直近の ?(判断|撤回・訂正|receipt|レビュー|User の基準)：.+（\d\d-\d\d \d\d:\d\dZ?）|直近の ?(判断|撤回・訂正|receipt|レビュー|User の基準) 無し)$/u, '(a) 変化の欄、◀ 前へ'),
   row('p-summary', 'summary-replaced', '置き換えの件数と、何が何に（Q11）', 'P', /^(置き換え \d+ 件：.+|置き換え 無し)$/u, '(a) 変化の欄、◀ 前へ'),
+  row('p-summary', 'summary-node', '系列ごとの MMD の今のノード（P の記録、Q14）', 'P', /^(MMD の今のノード：.+|MMD の今のノード 無し)$/u, '(a) 系列カードは scroll が要る'),
+  row('p-summary', 'summary-capability', '系列ごとの能力の状態の数（P の記録、Q13）', 'P', /^(能力：.+|能力 無し)$/u, '(a) 系列カードは scroll が要る'),
   row('p-summary', 'summary-cost', '費用の在りか：系列ごとの正本（数は UNKNOWN、Q12）', 'P', /^(費用（数は正本、Atlas では UNKNOWN）：.+|費用の在りか 不明（系列の一覧 無し）)$/u, '(a) 系列カードは scroll が要る'),
   // P's series list (p.series; adrs#647 W c6349826755, R c6349841686): one card per series, P's record; no session id.
   row('p-series', 'series-state', '系列の状態（進行中・閉じた・待ち）', 'U', /^状態 (進行中|閉じた|待ち)$/u),
+  // R c6353944717: the node as P read it (when, and where P read it), and each capability with its evidence.
+  row('p-series', 'series-node', 'その系列の MMD の今のノード：P の記録・時刻・読んだ回', 'U', /^MMD：.+（P の記録 · \d\d-\d\d \d\d:\d\dZ? · 読んだ回 \S+）$/u),
+  row('p-series', 'series-capability', 'その系列の能力：状態と根拠（P の記録）', 'U', /^能力 .+：(確かめ済み|tool のみ|未試験|失敗|不明)（根拠 \S+）$/u),
   row('p-series', 'series-waiting', 'その系列の User の判断待ちの件数（P の記録）', 'U', /^User の判断待ち \d+ 件（P の記録）$/u),
   row('p-series', 'series-cost', '費用の在りか：系列の正本（数は正本、Atlas では UNKNOWN）', 'U', /^費用：\S+（数は正本、Atlas では UNKNOWN）$/u),
   row('p-series', 'series-source', '系列の一覧が P の記録であることと、その時刻', 'U', /^系列の一覧（P の記録） · \d\d-\d\d \d\d:\d\dZ?$/u),
@@ -87,7 +92,7 @@ export const SCREEN_LINES = Object.freeze([
   row('atlas-world-change', 'change-entry', 'その frame に入った仕訳：種類・時刻・作者・出所・sha256（S7、模型 4 行目）', 'U',
     /^\S+ .+ · \d{4}-\d\d-\d\dT\S+ · 作者 .+ · 出所 .+ · sha256 \S+$/u),
   row('atlas-world-change', 'change-p-record', 'その frame に入った P の記録：印・中身・系列・P が書いた時刻・P の記録（未照合）・出所（adrs#647 c6346827237）', 'U',
-    /^[✋◆✎❞◈⏸▣♡☰↷] .+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
+    /^[✋◆✎❞◈⏸▣♡☰↷⌖⚙] .+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
   // adrs#647 R c6349841686: a record P replaced, in any frame, shows only that it was replaced and by what.
   row('atlas-world-change', 'change-p-superseded', 'P が置き換えた記録：id・置き換えた id・時刻・出所（本文は描かない）', 'U',
     /^⊘ 置き換えられた P の記録 \S+ → \S+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),

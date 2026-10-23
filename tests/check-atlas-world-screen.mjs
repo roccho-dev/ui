@@ -318,7 +318,18 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('series: no card before P\'s list, one per series from it', cards('t4').length === 0 && JSON.stringify(cards('t5').map(card => card.ref.id)) === '["atlas","sys1","host"]');
   const sys1 = cards('t5').find(card => card.ref.id === 'sys1');
   check('series: a card reads its name and record, state, waiting judgments, where its cost is, and that it is P\'s record',
-    sys1?.label === 'sys1（roccho-dev/adrs#664）\n状態 待ち\nUser の判断待ち 1 件（P の記録）\n費用：roccho-dev/adrs#664（数は正本、Atlas では UNKNOWN）\n系列の一覧（P の記録） · 10-17 04:30Z', sys1?.label);
+    sys1?.label === 'sys1（roccho-dev/adrs#664）\n状態 待ち\n能力 exec：確かめ済み（根拠 run:39864108348）\n能力 mcp：未試験（根拠 なし）\nUser の判断待ち 1 件（P の記録）'
+      + '\n費用：roccho-dev/adrs#664（数は正本、Atlas では UNKNOWN）\n系列の一覧（P の記録） · 10-17 04:30Z', sys1?.label);
+  // R c6353944717: the node with when and where P read it.
+  check('series: a card reads the node as P read it', cards('t5').find(card => card.ref.id === 'atlas')?.label.split('\n')
+    .includes('MMD：D7（P の記録 · 10-17 04:30Z · 読んだ回 roccho-dev/adrs#647#c6353944717）'), cards('t5').find(card => card.ref.id === 'atlas')?.label);
+  const refusedAtT5 = mutate => { const value = raw(); mutate(value.frames.find(item => item.id === 't5').p_records); try { parseAtlasWorldInput(value); return ''; } catch (error) { return error.message; } };
+  check('capability: verified without evidence is refused', refusedAtT5(records => { records.find(item => item.id === 'p-14').evidence = null; }).includes('evidence is required for verified'));
+  check('capability: a state outside the closed list is refused', refusedAtT5(records => { records.find(item => item.id === 'p-15').state = 'done'; }).includes('state must be'));
+  check('node: where P read it is required, in an exact form', refusedAtT5(records => { records.find(item => item.id === 'p-13').seen = 'yesterday'; }).includes('seen must be'));
+  // Condition 3: P's nodes and capabilities change no judgment.
+  const parts = options => (parseAtlasWorldInput(gapWorld(options)).frames.find(item => item.id === 't5').gap?.parts ?? []).map(part => [part.condition, part.state]);
+  check('node, capability: the conditions are as they were', JSON.stringify(parts({ pRecords: 'series', judged: true })) === JSON.stringify(parts({ judged: true })));
   check('series: no session id is drawn', !drawnText.includes('session-0001'));
   const symbols = Object.fromEntries(project(world, at('t5')).scene.representations.filter(rep => rep.atlas?.ref?.kind === 'p-series').map(rep => [rep.atlas.ref.id, rep.atlas.status]));
   check('series: ✋ where a judgment waits, ⟲ when closed, none otherwise', JSON.stringify(symbols) === JSON.stringify({ atlas: null, sys1: 'awaitingUser', host: 'history' }), symbols);
@@ -345,6 +356,8 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
     '直近の User の基準：「偽陽性がなく迷わずシンプル」→ 鍵の選び方（10-17 03:45Z）',
     '置き換え 1 件：p-1 → p-11',
     '費用（数は正本、Atlas では UNKNOWN）：atlas roccho-dev/adrs#647 · sys1 roccho-dev/adrs#664 · host roccho-dev/adrs#663',
+    'MMD の今のノード：atlas D7',
+    '能力：sys1 確かめ済み 1・未試験 1',
   ].join('\n'), t5?.label);
   check('summary: it is in the area after the Scopes, at its head', t5?.area === 'agents' && t5?.order === 0, t5 && [t5.area, t5.order]);
   // The app normalizes the World it is sent again: that must hold (an order must be non-negative there).
@@ -353,7 +366,7 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   try { again = parseAtlasWorldInput(JSON.parse(JSON.stringify(once))); } catch (error) { again = error.message; }
   check('summary: the drawn World normalizes again', typeof again === 'object' && again !== null, again);
   const t4 = summaryOf({ pRecords: true }, 't4')?.label.split('\n') ?? [];
-  check('summary: a kind there is none of reads 無し', ['系列の一覧 無し', '置き換え 無し', '費用の在りか 不明（系列の一覧 無し）'].every(line => t4.includes(line)), t4);
+  check('summary: a kind there is none of reads 無し', ['系列の一覧 無し', '置き換え 無し', '費用の在りか 不明（系列の一覧 無し）', 'MMD の今のノード 無し', '能力 無し'].every(line => t4.includes(line)), t4);
   check('summary: no box before P recorded anything', !summaryOf({ pRecords: true }, 't3') && !summaryOf({}, 't7'));
   const gapA = options => parseAtlasWorldInput(gapWorld(options)).frames.find(item => item.id === 't5').entities.find(entity => entity.ref.kind === 'purpose-adequacy');
   check('summary: GapA is as it was', JSON.stringify(gapA({ pRecords: 'series', judged: true })?.flags) === JSON.stringify(gapA({ judged: true })?.flags));
