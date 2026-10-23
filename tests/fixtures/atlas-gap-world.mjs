@@ -243,6 +243,28 @@ const P_RECORDS_T5 = [
 // A record as apps sends it once P replaced it: the common fields, its source and superseded_by, nothing of its own.
 const redact = (record, by) => ({ schema: record.schema, id: record.id, kind: record.kind, at: record.at, series: record.series, ref: record.ref,
   authority: false, source: record.source, superseded_by: by });
+// `pRecords: 'scale'` (User c6354186844: 1000 series; R c6354955491): as 'waiting' at t4, and at t5 a list of 1000
+// series (40 closed), 12 more judgments waiting over 6 series, 7 loop stops, nodes of 30 series and 50 capabilities.
+const P_RECORDS_SCALE = (() => {
+  const at = '2026-10-17T04:30:00Z';
+  let line = 100;
+  const record = (kind, fields, series = null) => ({ schema: 'p-record-v1', id: 'q-' + line, kind, at, series, ref: null, ...fields, authority: false,
+    source: { ref: 'hq:p-records.jsonl', sha256: sha('r'), line: line++ } });
+  const entries = Array.from({ length: 1000 }, (_, i) => ({ id: 's' + i, canon: 'roccho-dev/adrs#' + (1000 + i), goal: null, R: null, W: null,
+    host: 'versapro', state: i < 40 ? 'closed' : i % 50 === 0 ? 'waiting' : 'open' }));
+  const waiting = [['s100', 4], ['s101', 3], ['s102', 2], ['s103', 1], ['s104', 1], ['s105', 1]].flatMap(([series, n]) =>
+    Array.from({ length: n }, (_, k) => record('user.decision.requested', { question: series + ' の問い ' + (k + 1), options: [], recommended: null, since: '2026-10-17T04:10:00Z', reask_due: null }, series)));
+  return [
+    { ...record('p.series', { entries }), source: { ref: 'hq:p-series.json', sha256: sha('t'), line: 1 } },
+    ...waiting,
+    // A judgment P wrote long: the summary clips it to two drawn lines.
+    record('user.decision.recorded', { request: null, words: '一千の系列を一つの画面で読めるようにし、凡例は？の釦の後ろへ置き、数は正直に出す', changes: '要約の箱の各行を短く保ち、残りの数を数えて出す段を採る' }, 's100'),
+    ...Array.from({ length: 7 }, (_, k) => record('loop.stopped', { role: 's' + (200 + k) + '.W', round: k, next: 'USER', reason: '確認', needed: k % 2 === 0, action: null }, 's' + (200 + k))),
+    ...Array.from({ length: 30 }, (_, k) => record('p.node', { node: 'N' + k, plan: null, seen: 'round:s' + (300 + k) + '.R#' + k }, 's' + (300 + k))),
+    ...Array.from({ length: 50 }, (_, k) => record('p.capability', { capability: 'c' + k, state: ['verified', 'tool-only', 'untested', 'failed', 'unknown'][k % 5],
+      evidence: k % 5 === 0 ? 'run:' + (1000 + k) : null }, 's' + (400 + (k % 10)))),
+  ];
+})();
 const P_RECORD_HELD = { reason: 'p-record: at', kind: null, recordedAt: '2026-10-17T03:50:00Z', source: { ref: 'hq:p-records.jsonl', commentId: null, sha256: sha('p') } };
 export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose = false, groups = false, current = false, admission = false, unbound = false,
   judged = false, held = false, evaluator = false, physical = false, drafting = false, lastObserved = false, upkeep = false, retired = false, pRecords = false } = {}) => {
@@ -295,7 +317,8 @@ export const gapWorld = ({ through = 't7', v5 = true, sides = true, newPurpose =
         // `pRecords: 'redacted'` (adrs#647 W c6350841730, R c6350853997): apps already sends p-1 without its text,
         // replaced by p-11, while the replacement itself is in no frame yet (it entered after the last one).
         ...(pRecords === 'redacted' && item.id === 't5' ? { p_records: structuredClone(P_RECORDS_T5).filter(record => record.kind !== 'p.supersede') } : {}),
-        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS).map(record => ['waiting', 'series', 'redacted'].includes(pRecords) && record.id === 'p-2' ? { ...record, request: null } : record)
+        ...(pRecords === 'scale' && item.id === 't5' ? { p_records: structuredClone(P_RECORDS_SCALE) } : {}),
+        ...(pRecords && item.id === 't4' ? { p_records: structuredClone(P_RECORDS).map(record => ['waiting', 'series', 'redacted', 'scale'].includes(pRecords) && record.id === 'p-2' ? { ...record, request: null } : record)
           .map(record => pRecords === 'redacted' && record.id === 'p-1' ? redact(record, 'p-11') : record), held: [...(held ? structuredClone(HELD.t4 ?? []) : []), structuredClone(P_RECORD_HELD)] } : {}) };
     }),
   };
