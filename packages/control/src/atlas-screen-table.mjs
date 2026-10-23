@@ -23,6 +23,8 @@ export const SCREEN_LINES = Object.freeze([
   // P's records in the boxes (adrs#647 v2 c6346263403, R c6348033913): P's, never the User's evaluation.
   row('purpose-adequacy', 'adequacy-p-waiting', 'P が記録した User の判断待ち：問い・系列・いつから（判断の記録が名指すまで）', 'U',
     /^User の判断待ち：.+（.+・\d\d-\d\d \d\d:\d\dZ? から・P の記録）$/u),
+  row('purpose-adequacy', 'adequacy-p-waiting-more', '6 件目からの判断待ちの数（R c6354955491：1000 系列で箱が伸びない）', 'U',
+    /^User の判断待ち 他 \d+ 件（P の記録、要約の箱と変化の欄で読める）$/u),
   row('purpose-adequacy', 'adequacy-evaluator', '評価者の評価（未検証、23・24）', 'U', /^評価者の評価（未検証） .+$/u),
   row('ideal-state', 'ideal-heading', '見出し', 'U', /^理想状態$/u),
   row('ideal-state', 'ideal-version', '版・採択の印・移動・条件の数・改訂中（L1、11、14）', 'U',
@@ -69,11 +71,11 @@ export const SCREEN_LINES = Object.freeze([
   row('p-summary', 'summary-loop', 'その日の loop の停止と不要の数（Q4）', 'P', /^loop の停止 (\d\d-\d\d (\d+ 件（不要 \d+）|無し)|不明)$/u, '(a) 現在状態の行は scroll が要る'),
   row('p-summary', 'summary-heartbeat', '最新の心拍（Q5）', 'P', /^(心拍：run \S+ · tunnel \S+ · HQ ループ \S+（\d\d-\d\d \d\d:\d\dZ?）|心拍 無し)$/u, '(a) 同上'),
   row('p-summary', 'summary-latest', '種類ごとの直近（判断・撤回と訂正・receipt・レビュー・User の基準、Q7–Q10）', 'P',
-    /^(直近の ?(判断|撤回・訂正|receipt|レビュー|User の基準)：.+（\d\d-\d\d \d\d:\d\dZ?）|直近の ?(判断|撤回・訂正|receipt|レビュー|User の基準) 無し)$/u, '(a) 変化の欄、◀ 前へ'),
+    /^((直近の ?(判断|撤回・訂正|receipt|レビュー)|User の基準)：.+（\d\d-\d\d \d\d:\d\dZ?）|(直近の ?(判断|撤回・訂正|receipt|レビュー)|User の基準) 無し)$/u, '(a) 変化の欄、◀ 前へ'),
   row('p-summary', 'summary-replaced', '置き換えの件数と、何が何に（Q11）', 'P', /^(置き換え \d+ 件：.+|置き換え 無し)$/u, '(a) 変化の欄、◀ 前へ'),
   row('p-summary', 'summary-node', '系列ごとの MMD の今のノード（P の記録、Q14）', 'P', /^(MMD の今のノード：.+|MMD の今のノード 無し)$/u, '(a) 系列カードは scroll が要る'),
   row('p-summary', 'summary-capability', '系列ごとの能力の状態の数（P の記録、Q13）', 'P', /^(能力：.+|能力 無し)$/u, '(a) 系列カードは scroll が要る'),
-  row('p-summary', 'summary-cost', '費用の在りか：系列ごとの正本（数は UNKNOWN、Q12）', 'P', /^(費用（数は正本、Atlas では UNKNOWN）：.+|費用の在りか 不明（系列の一覧 無し）)$/u, '(a) 系列カードは scroll が要る'),
+  row('p-summary', 'summary-cost', '費用の在りか：系列ごとの正本（数は UNKNOWN、Q12）', 'P', /^(費用：Atlas では UNKNOWN · 数は各系列の正本（例 \S+ \S+）|費用の在りか 不明（系列の一覧 無し）)$/u, '(a) 系列カードは scroll が要る'),
   // P's series list (p.series; adrs#647 W c6349826755, R c6349841686): one card per series, P's record; no session id.
   row('p-series', 'series-state', '系列の状態（進行中・閉じた・待ち）', 'U', /^状態 (進行中|閉じた|待ち)$/u),
   // R c6353944717: the node as P read it (when, and where P read it), and each capability with its evidence.

@@ -86,7 +86,7 @@ const REMOVED = [
 const lineWorlds = [
   ...worlds,
   ...[{}, { groups: true }, { groups: 'unplaced' }, { current: true, admission: true }, { newPurpose: true }, { sides: false, v5: false },
-    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }, { pRecords: 'waiting', judged: true }, { pRecords: 'series', judged: true }, { pRecords: 'redacted', judged: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
+    { physical: true, lastObserved: true }, { held: true, upkeep: true }, { pRecords: true }, { pRecords: 'waiting', judged: true }, { pRecords: 'series', judged: true }, { pRecords: 'redacted', judged: true }, { pRecords: 'scale', judged: true }].map(options => parseAtlasWorldInput(gapWorld(options))),
   plannedWorld(),
   parseAtlasWorldInput(crowdedGapWorld()),
   // D1 (R c6343482688): GapA waits for the User, and the owner source held an evaluation back.
@@ -338,28 +338,44 @@ check('the controls are the status, the search, the selection (D4), ◀ 前へ /
   check('series: two series with one id are refused', refused(records => { records[0].entries[1].id = 'atlas'; }).includes('entries must be'));
   check('replaced: a replacement without what it replaces is refused', refused(records => { records[1].replaces = ''; }).includes('replaces must be non-empty text'));
 }
-// P's report at a glance (User c6351593265, R c6352966769): one box, first in the area after the Scopes, with the
+// P's report at a glance (User c6351593265, R c6352966769): one box, at the head of the Scopes, with the
 // latest of each kind up to the frame and "無し" for a kind there is none of; 目的 and GapA are where they were.
 {
   const summaryOf = (options, id) => parseAtlasWorldInput(gapWorld(options)).frames.find(item => item.id === id).entities.find(entity => entity.ref.kind === 'p-summary');
   const t5 = summaryOf({ pRecords: 'series', judged: true }, 't5');
-  check('summary: at t5 it reads every kind\'s latest', t5?.label === [
+  check('summary: at t5 it reads every kind\'s latest, what needs attention first', t5?.label === [
     'P の報告の要約（P の記録・未照合）',
-    '系列 3 · 閉じた 1（host）',
     'User の判断待ち 1 件：sys1 1',
     'loop の停止 10-17 1 件（不要 1）',
     '心拍：run 稼働 · tunnel 稼働 · HQ ループ 不明（10-17 03:45Z）',
+    '系列 3 · 閉じた 1（host）',
     '直近の判断：「atlas go ahead」→ C5 段 1 を採る（10-17 03:45Z）',
     '直近の撤回・訂正：自己訂正 · 逸脱 1（10-17 03:45Z）',
     '直近の receipt：hq-refresh v3 · PASS · 戻していない（10-17 03:45Z）',
     '直近のレビュー：評者不明 · readback なし（10-17 03:45Z）',
-    '直近の User の基準：「偽陽性がなく迷わずシンプル」→ 鍵の選び方（10-17 03:45Z）',
+    'User の基準：「偽陽性がなく迷わずシンプル」→ 鍵の選び方（10-17 03:45Z）',
     '置き換え 1 件：p-1 → p-11',
-    '費用（数は正本、Atlas では UNKNOWN）：atlas roccho-dev/adrs#647 · sys1 roccho-dev/adrs#664 · host roccho-dev/adrs#663',
-    'MMD の今のノード：atlas D7',
-    '能力：sys1 確かめ済み 1・未試験 1',
+    'MMD の今のノード：1 系列 · 直近 atlas D7（10-17 04:30Z）',
+    '能力：確かめ済み 1・未試験 1（1 系列）',
+    '費用：Atlas では UNKNOWN · 数は各系列の正本（例 atlas roccho-dev/adrs#647）',
   ].join('\n'), t5?.label);
-  check('summary: it is in the area after the Scopes, at its head', t5?.area === 'agents' && t5?.order === 0, t5 && [t5.area, t5.order]);
+  // At 1000 series (User c6354186844, R c6354955491): the same 14 lines, each bounded; nothing counted short.
+  const scale = summaryOf({ pRecords: 'scale', judged: true }, 't5')?.label.split('\n') ?? [];
+  check('scale: 14 lines at 1000 series', scale.length === 14, scale.length);
+  check('scale: the counts are all of them, at most three names and the rest counted', scale.includes('User の判断待ち 13 件：s100 4・s101 3・s102 2 他 4 系列')
+    && scale.includes('系列 1000 · 閉じた 40（s0・s1・s2 他 37）') && scale.includes('loop の停止 10-17 8 件（不要 4）')
+    && scale.includes('MMD の今のノード：30 系列 · 直近 s329 N29（10-17 04:30Z）') && scale.includes('能力：確かめ済み 10・tool のみ 10・未試験 10・失敗 10・不明 10（10 系列）'), scale);
+  const { wrapLabel } = await import('../packages/control/src/atlas-text.mjs');
+  check('scale: no line wraps to more than two', scale.every(line => wrapLabel(line).split('\n').length <= 2), scale.filter(line => wrapLabel(line).split('\n').length > 2));
+  const gapAScale = parseAtlasWorldInput(gapWorld({ pRecords: 'scale', judged: true })).frames.find(item => item.id === 't5').entities.find(entity => entity.ref.kind === 'purpose-adequacy')?.label.split('\n') ?? [];
+  const scaleWorld = parseAtlasWorldInput(gapWorld({ pRecords: 'scale', judged: true }));
+  const scaleIndex = scaleWorld.frames.findIndex(item => item.id === 't5');
+  const seriesRow = gapModule.frameChangeLabel(scaleWorld.frames.slice(0, scaleIndex), scaleWorld.frames[scaleIndex], scaleWorld.frames).split('\n').find(line => line.startsWith('☰ '));
+  check('scale: the series row names three and counts the rest', seriesRow?.startsWith('☰ 系列の一覧 · 1000 系列（s0・s1・s2 他 997） · '), seriesRow?.slice(0, 200));
+  check('scale: GapA shows 5 judgments waiting and counts the rest', gapAScale.filter(line => line.startsWith('User の判断待ち：')).length === 5
+    && gapAScale.includes('User の判断待ち 他 8 件（P の記録、要約の箱と変化の欄で読める）'), gapAScale);
+  // At 1200 px the area after the Scopes starts near the right edge (R c6354955491): the box is in the Scopes, the second column.
+  check('summary: it is in the Scopes, at its head', t5?.area === 'scopes' && t5?.order === 0, t5 && [t5.area, t5.order]);
   // The app normalizes the World it is sent again: that must hold (an order must be non-negative there).
   const once = parseAtlasWorldInput(gapWorld({ pRecords: 'series', judged: true }));
   let again = null;
