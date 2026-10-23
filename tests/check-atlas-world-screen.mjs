@@ -203,7 +203,23 @@ check('cases 15 and 29: the heading counts what was held up to the frame', heldT
 // S7: the time controls are three; 予定 ▸ and 仕訳 ▸ are gone. S7c: the
 // changes of the time shown are the panel right under them.
 check('the controls are the status, the search, the selection (D4), ◀ 前へ / 次へ ▶ / 現在へ and the changes', JSON.stringify(SCREEN_CONTROLS.map(item => item.id))
-  === JSON.stringify(['atlas-world-status', 'atlas-world-search', 'atlas-world-search-results', 'atlas-world-search-count', 'atlas-world-selection', 'atlas-world-step-back', 'atlas-world-step-forward', 'atlas-world-present', 'atlas-world-change']));
+  === JSON.stringify(['atlas-world-status', 'atlas-world-search', 'atlas-world-search-results', 'atlas-world-search-count', 'atlas-world-selection', 'atlas-world-step-back', 'atlas-world-step-forward', 'atlas-world-present', 'atlas-world-change',
+    'atlas-world-legend', 'atlas-world-legend-panel']));
+// The legend (User c6351431152): every symbol the screen draws has its meaning, each once, from the maps that draw it.
+{
+  const { LEGEND_HEADINGS, LEGEND_LINES } = await import('../packages/control/src/atlas-legend.mjs');
+  check('legend: each heading is one of its lines', [...LEGEND_HEADINGS].every(line => LEGEND_LINES.includes(line)), [...LEGEND_HEADINGS]);
+  const { ATLAS_STATUS, ACTIVITY_TOKEN } = await import('../packages/control/src/atlas-world-projection.mjs');
+  const { JOURNAL_MARK, P_RECORD_MARK, SUPERSEDED_MARK } = await import('../packages/control/src/atlas-gap.mjs');
+  const symbols = [...Object.values(ATLAS_STATUS).map(item => item.symbol), ...Object.values(ACTIVITY_TOKEN).filter(Boolean),
+    ...Object.values(JOURNAL_MARK), ...Object.values(P_RECORD_MARK), SUPERSEDED_MARK];
+  const meaning = LEGEND_LINES.filter(line => !line.includes('undefined'));
+  check('legend: every drawn symbol has a line with its meaning', meaning.length === LEGEND_LINES.length
+    && symbols.every(symbol => LEGEND_LINES.some(line => line.startsWith(symbol + ' ') && line.length > symbol.length + 1)),
+    LEGEND_LINES.filter(line => line.includes('undefined')));
+  check('legend: one line per symbol and place (status 7, activity 3, records 7, P 12, ⊘ 1), headings and notes 8',
+    LEGEND_LINES.length === 7 + 3 + 7 + 12 + 1 + 8, LEGEND_LINES.length);
+}
 // D4 (apps#73; adrs#647 W c6344580290, R c6345797392): a selection the frame
 // shown does not draw says so, under the same id: absent, with the received
 // frame it was last in; a history unit kept but not drawn (B1), as history.

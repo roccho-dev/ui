@@ -107,7 +107,8 @@ const seen = page => page.evaluate(() => {
   const listBox = list?.getBoundingClientRect();
   const rows = list && !list.hidden ? [...list.children].filter(row => inside(row.getBoundingClientRect(), listBox)).map(row => row.textContent) : [];
   return { boxes, others, status: document.getElementById('atlas-world-status')?.textContent ?? '', count: document.getElementById('atlas-world-search-count')?.textContent ?? '',
-    buttons: [...document.querySelectorAll('#atlas-world-search-bar button')].map(button => button.textContent), list: Boolean(list), rows,
+    // The legend's "？" (User c6351431152) is no time control.
+    buttons: [...document.querySelectorAll('#atlas-world-search-bar button:not(#atlas-world-legend)')].map(button => button.textContent), list: Boolean(list), rows,
     nonArea: atlas.projection.scene.representations.filter(item => !['area', 'entity'].includes(item.atlas?.kind)).length };
 });
 // The changes under the time controls: their whole text, and whether their

@@ -124,4 +124,7 @@ export const SCREEN_CONTROLS = Object.freeze([
   row('controls', 'atlas-world-step-forward', '次の frame と、現在の先の予定の歩み（stale_at に届く唯一の道、S7）', 'U', null),
   row('controls', 'atlas-world-present', '現在の frame', 'P', null, '(a) 無いと O(n) 回の操作'),
   row('controls', 'atlas-world-change', '表示中の時点の変化（S7c：時間の操作の直下、6 行（固定）、溢れた分は欄の中でスクロール）：行は box atlas-world-change の種類', 'U', null),
+  // The legend (User c6351431152; adrs#647 R c6355222463): closed until pressed; open, over the graph's right edge.
+  row('controls', 'atlas-world-legend', '凡例を開く・閉じる「？」', 'P', null, '(b) User c6351431152：凡例は常には出さず、？のボタンで出す'),
+  row('controls', 'atlas-world-legend-panel', '凡例：描く記号ごとの意味（atlas-legend.mjs、記号を描く表から作る）', 'P', null, '(b) User c6351431152'),
 ]);
