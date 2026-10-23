@@ -102,13 +102,17 @@ jobs:
           node-version: 24
       - name: Install Japanese screenshot fonts
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-noto-cjk
+          # A mirror that stalls with no output is cut and tried again (adrs#647 R c6354549200: ui#389-#392 hung here until the job limit).
+          retry() { for attempt in 1 2 3; do timeout --kill-after=10 "$1" "${@:2}" && return 0; echo "attempt $attempt of 3 failed or passed ${1}s: ${*:2}" >&2; sleep 5; done; return 1; }
+          retry 240 sudo apt-get -o Acquire::Retries=3 update
+          retry 300 sudo apt-get -o Acquire::Retries=3 install -y fonts-noto-cjk
           fc-cache -f
       - name: Install pinned browser proof tooling
         run: |
-          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
-          python3 -m playwright install --with-deps chromium
+          # A download that stalls with no output is cut and tried again (adrs#647 R c6354549200: ui#391-#392 hung here about 30 minutes).
+          retry() { for attempt in 1 2 3; do timeout --kill-after=10 "$1" "${@:2}" && return 0; echo "attempt $attempt of 3 failed or passed ${1}s: ${*:2}" >&2; sleep 5; done; return 1; }
+          retry 180 python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          retry 480 python3 -m playwright install --with-deps chromium
       - name: Expose pinned Chromium only as proof input
         run: |
           python3 - <<'PY' >> "$GITHUB_ENV"
@@ -138,8 +142,10 @@ jobs:
           node-version: 24
       - name: Install pinned browser proof tooling
         run: |
-          python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
-          python3 -m playwright install --with-deps chromium
+          # A download that stalls with no output is cut and tried again (adrs#647 R c6354549200: ui#391-#392 hung here about 30 minutes).
+          retry() { for attempt in 1 2 3; do timeout --kill-after=10 "$1" "${@:2}" && return 0; echo "attempt $attempt of 3 failed or passed ${1}s: ${*:2}" >&2; sleep 5; done; return 1; }
+          retry 180 python3 -m pip install --disable-pip-version-check --no-cache-dir "playwright==1.57.0"
+          retry 480 python3 -m playwright install --with-deps chromium
       - name: Expose pinned Chromium only as proof input
         run: |
           python3 - <<'PY' >> "$GITHUB_ENV"
@@ -250,8 +256,10 @@ jobs:
           node-version: 24
       - name: Install Japanese screenshot fonts
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-noto-cjk
+          # A mirror that stalls with no output is cut and tried again (adrs#647 R c6354549200: ui#389-#392 hung here until the job limit).
+          retry() { for attempt in 1 2 3; do timeout --kill-after=10 "$1" "${@:2}" && return 0; echo "attempt $attempt of 3 failed or passed ${1}s: ${*:2}" >&2; sleep 5; done; return 1; }
+          retry 240 sudo apt-get -o Acquire::Retries=3 update
+          retry 300 sudo apt-get -o Acquire::Retries=3 install -y fonts-noto-cjk
           fc-cache -f
       - run: node packages/a2ui-adapter-artifacts/scripts/build.mjs
         env:
