@@ -94,7 +94,7 @@ export const SCREEN_LINES = Object.freeze([
   row('atlas-world-change', 'change-entry', 'その frame に入った仕訳：種類・時刻・作者・出所・sha256（S7、模型 4 行目）', 'U',
     /^\S+ .+ · \d{4}-\d\d-\d\dT\S+ · 作者 .+ · 出所 .+ · sha256 \S+$/u),
   row('atlas-world-change', 'change-p-record', 'その frame に入った P の記録：印・中身・系列・P が書いた時刻・P の記録（未照合）・出所（adrs#647 c6346827237）', 'U',
-    /^[✋◆✎❞◈⏸▣♡☰↷⌖⚙] .+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
+    /^[※◆✎❞◈‖▣♡☰↷§⚙] .+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),
   // adrs#647 R c6349841686: a record P replaced, in any frame, shows only that it was replaced and by what.
   row('atlas-world-change', 'change-p-superseded', 'P が置き換えた記録：id・置き換えた id・時刻・出所（本文は描かない）', 'U',
     /^⊘ 置き換えられた P の記録 \S+ → \S+ · \d{4}-\d\d-\d\dT\S+ · P の記録（未照合） · 出所 .+$/u),

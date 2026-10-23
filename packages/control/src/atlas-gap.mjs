@@ -448,7 +448,7 @@ export const gapView = ({ frame, earlier, presentation, key, all = [...earlier, 
   const held = awaiting ? heldEvaluation([...earlier, frame], frame.adequacy.evidence?.recordedAt ?? null) : null;
   // P's records up to this frame (adrs#647 v2 c6346263403, R c6348033913): the User's judgments P recorded as
   // waiting, each until a recorded judgment names it, are lines of 目的↔理想の差 — P's record, never the User's
-  // evaluation (no ✋, no flag, nothing judged). The latest heartbeat and the frame day's loop stops are lines of
+  // evaluation (no ※, no flag, nothing judged). The latest heartbeat and the frame day's loop stops are lines of
   // 現在状態, also P's record (no observation of the HQ is made from them).
   // A record P replaced anywhere in the World (`all`) is never drawn with its text (R c6349841686); a judgment
   // waiting closes when a recorded judgment names it or when it is replaced up to this frame.
@@ -898,11 +898,13 @@ function seriesItem(v) {
     && (v.goal === null || (typeof v.goal === 'string' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+#[1-9]\d*#c\d+$/u.test(v.goal)))
     && (v.R === null || isText(v.R)) && (v.W === null || isText(v.W)) && isText(v.host) && ['open', 'closed', 'waiting'].includes(v.state);
 }
-// The changes' marks for them: each differs from every journal mark and every state symbol (D5), except ✋,
-// which means here what it means on a box: a human's judgment is waiting.
-export const P_RECORD_MARK = Object.freeze({ 'user.decision.requested': '✋', 'user.decision.recorded': '◆', 'p.position': '✎',
-  'review.pasted': '❞', 'user.criterion': '◈', 'loop.stopped': '⏸', 'p.receipt': '▣', heartbeat: '♡', 'p.series': '☰', 'p.supersede': '↷',
-  'p.node': '⌖', 'p.capability': '⚙' });
+// The changes' marks for them: each differs from every journal mark and every state symbol (D5), except ※,
+// which means here what it means on a box: a human's judgment is waiting. ‖ (JIS X 0208) for a loop stop, not the
+// emoji ⏸ (adrs#647 R c6355481524).
+export const P_RECORD_MARK = Object.freeze({ 'user.decision.requested': '※', 'user.decision.recorded': '◆', 'p.position': '✎',
+  'review.pasted': '❞', 'user.criterion': '◈', 'loop.stopped': '‖', 'p.receipt': '▣', heartbeat: '♡', 'p.series': '☰', 'p.supersede': '↷',
+  // § (Latin-1, in every font), not ⌖, which the proof's fonts drew as tofu (adrs#647 R c6355481524).
+  'p.node': '§', 'p.capability': '⚙' });
 const CAPABILITY_LABEL = Object.freeze({ verified: '確かめ済み', 'tool-only': 'tool のみ', untested: '未試験', failed: '失敗', unknown: '不明' });
 // A record P replaced (p.supersede) is never drawn with its text, in any frame, before the replacement too (R
 // c6349841686: the text may be what had to go). Only that it was replaced, and by what. The data is unchanged.

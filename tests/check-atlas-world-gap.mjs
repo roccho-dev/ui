@@ -441,12 +441,12 @@ admittedGapA.frames[3].adequacy.evidence.source.admission = 'observed_not_admitt
 const markedGapA = ofKind(parseAtlasWorldInput(admittedGapA), 't3', 'purpose-adequacy')[0];
 assert.deepEqual([markedGapA.label, markedGapA.flags], ['目的↔理想の差\n不明 · 過去の評価（版が違う）（未採択）' + AWAIT, gapAFlags('t3')], 'admission is a mark only');
 // D1 (apps#73; adrs#647 c6343466521, R c6343482688): GapA waiting for the User
-// is drawn ✋, not the ? of an unknown observation; every other reason keeps
+// is drawn ※ (was ✋; R c6355481524), not the ? of an unknown observation; every other reason keeps
 // its own mark. An evaluation the owner source held back after the latest
 // counted one says why (the User's next act).
 const symbolOf = (world, id) => projectAtlasWorld({ input: world, frame: world.frames.find(item => item.id === id), selected: 'none' })
   .scene.representations.find(rep => rep.atlas?.ref?.kind === 'purpose-adequacy').label.split(' · ')[0];
-for (const item of judged.frames) assert.equal(symbolOf(judged, item.id), AWAITING.has(item.id) ? '✋' : '?', item.id + ': GapA symbol');
+for (const item of judged.frames) assert.equal(symbolOf(judged, item.id), AWAITING.has(item.id) ? '※' : '?', item.id + ': GapA symbol');
 for (const [reason, state] of [['not-yet-while-matched', 'unknown'], ['achieved-while-open', 'unknown'], ['no-adequacy-verdict', 'unknown'], ['evaluated', 'unmet'],
   ['no-ideal', 'unknown'], ['purpose-ended', 'unknown']]) {
   const raw = gapWorld({ judged: true });

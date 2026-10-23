@@ -25,7 +25,9 @@ const appearance = Object.freeze({
   none: Object.freeze({ fillColor: '#ffffff', strokeColor: '#868e96', strokeWidth: 1.2, dashed: false }),
 });
 
-const token = Object.freeze({ now: '▶', recent: '•', unknown: '?', none: '' });
+// Activity unknown is ○, not the state's ? (adrs#647 R c6355481524: one symbol, one meaning). ○ is in JIS X 0208,
+// so every Japanese font draws it.
+const token = Object.freeze({ now: '▶', recent: '•', unknown: '○', none: '' });
 export const ACTIVITY_TOKEN = token;
 
 // Supplied status flags, read as one display status. Checked in this order,
@@ -41,7 +43,9 @@ export const ATLAS_STATUS = Object.freeze({
   unassigned: Object.freeze({ symbol: '∅', appearance: palette(1, { dashed: true }), flags: Object.freeze(['unassigned']) }),
   // D1 (apps#73): GapA waits for the User's evaluation; before `unknown`, so it wins over the `?` it also is.
   // …and a series' card with judgments P recorded as waiting (adrs#647 W c6349826755): the same meaning, a human's judgment.
-  awaitingUser: Object.freeze({ symbol: '✋', appearance: palette(0, { strokeWidth: 2 }), flags: Object.freeze(['awaiting=user-evaluation', 'awaiting=user-decision']) }),
+  // ※ (JIS X 0208, a text glyph in every Japanese font), not the emoji ✋, which the proof's fonts drew as tofu
+  // (adrs#647 R c6355481524: every symbol drawn as a glyph in the User's browser).
+  awaitingUser: Object.freeze({ symbol: '※', appearance: palette(0, { strokeWidth: 2 }), flags: Object.freeze(['awaiting=user-evaluation', 'awaiting=user-decision']) }),
   unknown: Object.freeze({ symbol: '?', appearance: palette(5, { dashed: true }),
     flags: Object.freeze(['scope_status=unknown', 'standing=unresolved', 'unknown', 'source=unknown', 'unexplained', 'purpose_standing=unknown']) }),
   unmet: Object.freeze({ symbol: '!', appearance: palette(3), flags: Object.freeze(['scope_status=unmet', 'purpose_standing=unmet']) }),
