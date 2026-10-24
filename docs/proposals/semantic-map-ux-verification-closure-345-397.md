@@ -1,9 +1,9 @@
-# Semantic Map：具体UXと既存Atlas要件の整合・検証閉包
+# Semantic Map：3者合意のUX・実装実証閉包
 
 Refs #345, #397. Consumer compatibility: [apps#73](https://github.com/roccho-dev/apps/issues/73), [ui#342](https://github.com/roccho-dev/ui/issues/342).
 
-**状態：OPENな設計提案。** 図・対応表の合意、実装の存在、実ブラウザ成功、採用、製品受入は別である。
-この文書は製品実装、依存追加、受理権限、merge、配備、Issue closeを許可しない。
+**状態：限定scopeの3者設計合意。実装・実証は未完了。** 図・対応表の合意、実装の存在、実ブラウザ成功、採用、製品受入は別である。
+実装はUserの明示指示に基づく下記同版scope・公開readback・P GOに限る。文書だけで依存・意味受理権限・merge・配備・Issue closeを追加しない。
 
 ## 目的と適用範囲
 
@@ -13,13 +13,13 @@ Atlas consumerでは、その前段として「どこが活動中・待機・停
 
 | 所有先 | この提案の扱い |
 | --- | --- |
-| #345 | 包含の詳細化、非包含の明示移動、元View・選択・camera等への復帰という未採用UX提案 |
+| #345 | 本scopeの汎用authoringで、包含詳細化・非包含の明示移動・元View／選択／cameraへの復帰を実装・実証 |
 | #397 / #205 / #207 / #171 / #278 | 既存の唯一のEditorCore・host・admissionと配置意図を使う差分評価。第二renderer・reducer・document owner・store・Undo経路を作らない |
 | #112 / #116 / #311 / #312 / #319 / #327 / #328 | 既存zoom／LOD・URL／History・projection／renderer・データ入口・Partの責務を保持 |
 | apps#73 / apps#72 / apps#85 | 実活動・Agent×Work×Scope×Purpose対応、観測・接続と22項目の製品統合受入。uiは観測事実を新設せず、供給された事実の表示を担う |
 | ADRS #647 | 意味・採否・適用範囲の正本。World、画面、検索、選択、CIは採用・Purpose achievedのauthorityにならない |
 
-Atlasの現行画面と、対応する汎用consumerで試す未採用拡張を分ける。
+Atlasの現行画面と、本scopeの汎用authoringで実装・実証する限定拡張を分ける。
 #345/#397を理由に、Atlasへ編集・Proposal Inspector・semcmp・Meltype統合を必須化しない。
 
 ## 参照元と確認範囲
@@ -58,6 +58,8 @@ ZIP内の未確認物や会話内の過去の成功主張も、今回の実装�
 
 ### 最初に映すもの
 
+Atlasに関する期待は元ownerの目標であり、本scopeでは既存供給表示の互換性を確認する。未達の活動機構・D3等を新設／受入済みにはしない。
+
 - 同時に扱うのは現在のView一枚。URLのfocus／depth・表示対象を優先し、その前に新しい一覧画面を挟まない。
 - 「一枚」は全要素を可視領域へ縮小して押し込む命令ではない。現行Worldの可読性・最小scale・panの規則を保持する。
 - AtlasはPurpose／Scope／Agent、目的↔理想の妥当性と理想↔現在の差、既存の状態／検索／時間行・変更欄を保つ。3領域を意味上の包含と同一視しない。
@@ -71,10 +73,10 @@ ZIP内の未確認物や会話内の過去の成功主張も、今回の実装�
 | 操作 | 具体的な期待と適用境界 |
 | --- | --- |
 | 塊／読める子を選ぶ | 根拠ある包含単位・Partを入口とする。subgraphは既存取込契約がID・所属を保持する場合だけ意味上の塊。装飾枠・近接・SVG一枚から包含を推測しない。選んだだけで実活動にしない |
-| 「中を見る」 | 対応consumerで同じ図の詳細へ進む未採用提案。小図の読める子は直接選べる。自動再グループ化で配置・IDを変えず、毎回全体fitへ戻さない |
-| 「関係」 | 対応consumerの未採用操作候補。選択対象自身＋根拠ある子孫を内側とし、片端だけが内側にある明示関係を入出両方向で表示。「内部も含む」で内部の明示関係も読む。包含を依存へ変換しない |
+| 「中を見る」 | 対応consumerで同じ図の詳細へ進む本scopeの実装・実証対象。小図の読める子は直接選べる。自動再グループ化で配置・IDを変えず、毎回全体fitへ戻さない |
+| 「関係」 | 本scopeの操作。選択対象自身＋根拠ある子孫を内側とし、片端だけが内側にある明示関係を入出両方向で表示。「内部も含む」で内部の明示関係も読む。包含を依存へ変換しない |
 | 候補を確認して「表示／開く」 | 元の起点・相手ID、関係種別、根拠、状態を確認し、明示操作で同図focus／別Viewへ。Pの子a2→b1をP→Qという新しい意味関係にしない |
-| 「根拠」 | 既存の表示・sourceリンクが対応するならそれを使う。汎用拡張候補は、選択→明示的な根拠操作→ID・版・観測時刻・sourceを必要時だけ確認→sourceリンクを開く／閉じて元Viewへ。常設Inspector・新共通パネル基盤を要求しない |
+| 「根拠」 | 既存の表示・sourceリンクが対応するならそれを使う。汎用authoringでは、選択→明示的な根拠操作→ID・版・観測時刻・sourceを必要時だけ確認→sourceリンクを開く／閉じて元Viewへ。常設Inspector・新共通パネル基盤を要求しない |
 | 根拠への現行到達がない | 検索で端点が見えただけではD3成功にしない。実際の表示操作・metadata・host portが未確認ならUNKNOWNとして既存ownerへ返す。Atlasへの新操作の採用を自動追加しない |
 | 画面履歴で戻る／進む | 元のView・対象・選択・focus・camera／zoomを契約内で復帰。候補範囲・絞込み・選択行の復元は追加提案。時間の3ボタンとは別で、時点の復元範囲は既存契約を確認する |
 | 時間の前へ／次へ／現在へ | その時点の状態・変更・履歴を表示し、過去HELDを新Snapshotで奪わない。未来の鮮度切れ予定を発生済み事実にしない。sliderや旧stripへ戻さない |
@@ -87,30 +89,33 @@ ZIP内の未確認物や会話内の過去の成功主張も、今回の実装�
 
 ## 完成形UX MMD
 
-実線はAtlas consumerの期待との互換性、破線は対応consumerで検討する未採用操作候補。どちらも実装成功の印ではない。
+実線は本scopeの汎用authoringの完成期待。タグとAtlas全体受入は今回の完成に昇格しない。図は実装成功の印ではない。
 
 ```mermaid
 flowchart TD
-    A["既存入口・指定URL"] --> B["Viewと表示時点を示す<br/>Atlasは既存の3領域構成を保持"]
-    B --> C["選択前から活動・待機・停止・不明・要判断<br/>供給された経路と省略範囲を視認"]
-    C --> S["塊・node・relationを選ぶ<br/>選択と実活動は別表現"]
-    B --> T["時間操作：前へ・次へ・現在へ<br/>過去HELD・現在・未来予定を区別"]
-    T --> B
-    B --> U["source更新・鮮度切れ"]
-    U --> V["HELD・選択ID・cameraを守る<br/>現在活動の強調だけ適切に解除"]
-    V --> B
-    S -.-> D["未採用拡張：中を見る／関係<br/>同じ図の詳細・外との実関係"]
-    D -.-> N["対象と根拠を確認<br/>明示focus／別Viewを開く"]
-    N -.-> H["画面履歴で戻る<br/>契約内の文脈を復元"]
-    H -.-> S
-    S -.-> E["未採用拡張：根拠を開く<br/>ID・版・観測時刻・sourceへ"]
-    E -.-> X["情報・到達操作が不足ならUNKNOWN<br/>D3の未解決を保持"]
-    S -.-> TAG["未採用候補：直接タグから探索<br/>正確な所属と取得範囲が必要"]
-    TAG -.-> N
-    S -.-> EDIT["対応consumerだけ既存編集へ"]
-    EDIT -.-> L["配置保存・既存Undo／Redo<br/>意味差分0"]
-    EDIT -.-> K["型付き候補を確認<br/>既存ownerが明示受理／却下"]
-    K -.->|訂正も同じ受理経路| K
+    IN["今の図を直接開く<br/>指定されたView・focusを優先"] --> VIEW["包含の塊と読める子を見る<br/>初期fitで指定文脈を上書きしない"]
+    VIEW --> SEL["node／edgeを選ぶ<br/>説明・現在地・元ID"]
+    SEL --> INSIDE["明示された子がある時だけ中を見る<br/>既知の祖先へ戻れる"]
+    INSIDE --> VIEW
+    SEL --> REL["関係を見る<br/>自身＋子孫の境界を出入両方向<br/>元edge／端点ID・供給record・版"]
+    REL --> PAGE["件数・残件を表示<br/>一度に50行、内部も含むを明示"]
+    PAGE --> PREVIEW["候補を確認して明示操作<br/>同図focus／端点の供給リンク"]
+    PREVIEW --> TARGET["正しい入力・対象を検証して表示<br/>欠落・失効・不一致は非成功"]
+    TARGET --> BACK["ブラウザ戻る／進む<br/>入力版・View・選択・cameraを復元"]
+    BACK --> VIEW
+    SEL -.-> TAG["タグ探索は未採用<br/>新索引・編集・継承は追加しない"]
+    VIEW --> EDIT["既存の直接操作<br/>配置意図／意味候補を区別"]
+    EDIT --> DRAFT["既存Undo／Redo・Review<br/>受理前accepted差分0"]
+    DRAFT --> REJECT["却下：残留なし"]
+    REJECT --> VIEW
+    DRAFT --> ACCEPT["明示Accept：local DecisionLog受理<br/>業務authorityの受理とは別"]
+    ACCEPT --> SMALL["小入力：既存URL経路"]
+    ACCEPT --> FILE["ファイル出力を明示<br/>開始と保存完了を混同しない"]
+    FILE --> OPEN["保存した同じファイルを開く<br/>入力・意味・配置・Viewを検証"]
+    SMALL --> VIEW
+    OPEN --> VIEW
+    VIEW --> ERROR["draft中の別View移動は可視拒否<br/>復元失敗時は要求先と保持中の図を区別"]
+    ATLAS["Atlas：既存の状態・時間・変更欄<br/>選択・省略表示の互換性"] -.-> OWNER["実観測・D3等の元owner残件を保持<br/>今回の汎用実証で全体PASSにしない"]
 ```
 
 常設Inspector、全edgeラベル、Before/After専用面、Voronoi必須、Proposal／Meltype統合を復活させない。
@@ -151,32 +156,29 @@ fresh reloadは保存結果を確認する検証に用い、通常の利用者�
 
 ```mermaid
 flowchart TD
-    A["exact判断・適用consumer・ui/apps版<br/>入力・表示時点・実行物との対応を固定"]
-    A --> DOC["文書とPR本文・MMD・元IDの照合<br/>提案・採用・実装・実証を区別"]
-    DOC --> READY["文書レビュー可能<br/>製品PASSとは別"]
-    A --> MAP["A1–D6を元IDで参照<br/>所有先・適用・証拠・不足を対応付け"]
-    MAP --> UI["Atlas供給データの表示互換性<br/>初期活動・鮮度・履歴・省略・根拠到達"]
-    A --> GEN["対象となる汎用consumerだけ<br/>初期表示・詳細化・関係往復・編集"]
-    GEN --> SAVE["配置の意味差分0・受理前accepted差分0<br/>保存・Undo／Redo・却下・fresh reload"]
-    UI --> NEG["該当する12／16反例・閲覧負例<br/>desktop・mobile・静止・動きなし"]
-    SAVE --> NEG
-    NEG --> SCALE["規模別の発見・復元の正しさ<br/>応答・描画・DOM・メモリ・通信量"]
-    A --> COST["具体的な不足がある場合だけ<br/>最小再利用案の費用・依存・責務を比較"]
-    SCALE --> PARENT["提案者もUserと同じ入口で操作<br/>初期可視領域と保存・復帰を確認"]
-    PARENT --> GATE{"適用対象の全経路AND<br/>固定版の実操作証拠が適合？"}
-    COST --> GATE
-    GATE -->|不足・不適合| GAP["UNKNOWN／FAILを所有先へ<br/>許可された対応後に再検証"]
-    GAP --> A
-    COST -->|案を棄却| NO["NO_GO：理由・残件・再開条件"]
-    NO -->|条件変更| A
-    GATE -->|適合| EVIDENCE["consumerの証拠を範囲限定で記録<br/>変更0／許可済み最小変更を区別"]
-    EVIDENCE -->|Atlas統合の受入は別| APP["実observer・通常source／SSE・実URL<br/>apps73所有の22項目と16反例"]
-    APP --> RESULT["所有先の統合判定を参照<br/>文書・CI・合成成功から代行しない"]
+    SOURCE["2会話の不足本文＋公開正本<br/>345・397・apps73・現行画面判断"] --> AGREEMENT["P・既存R・独立Wの主張と反証<br/>完成形・境界・入力・負例・予算を固定"]
+    AGREEMENT --> PUBLISH["同版policy・PR398全文・2 MMDを公開読戻し<br/>同版P GO後に実装開始"]
+    PUBLISH --> W["同じW：既存authoringの不足だけ接続<br/>新Core・store・schema・依存0"]
+    W --> FIXTURE["固定版・2入力・300／600・元番号負例<br/>Archyne同一論理fixtureと比較"]
+    FIXTURE --> BROWSER["通常入口の実gesture<br/>詳細・関係・往復・編集・却下・Undo"]
+    BROWSER --> SAVE["受理前差分0／配置の意味差分0<br/>実download読戻し→fresh通常Open"]
+    SAVE --> HISTORY["大容量A→B→C→戻る・進む・reload<br/>BFCacheに依存しない入力再検証"]
+    HISTORY --> SCALE["固定環境で応答・省略・20往復保持量<br/>quota・失敗・非同期競合も非成功として検証"]
+    SCALE --> COMPAT["graph／seq／map・Atlas既存供給表示互換<br/>元owner残件を今回の成功へ昇格しない"]
+    COMPAT --> PUBLIC["公開head／tree・実行物・入力・checkを照合"]
+    PUBLIC --> R["同じRが独立に実体・操作を再確認<br/>全適用経路AND・範囲内未完了0"]
+    R -->|不適合| FIX["Rが同じWへ是正を指示<br/>影響する証拠だけ再実行"]
+    FIX --> W
+    R -->|技術合格| P["Pが同じ入口・最終headを実操作<br/>往復・編集・却下／Undo・出力・再読込"]
+    P -->|不適合| FIX
+    P -->|実操作適合| DONE["限定scopeの実証完了を記録<br/>User受容・merge・deploy・closeは別"]
+    W -->|実権限・境界・native能力不足| GAP["Pへexact不足・残件・再開条件<br/>UNKNOWNをPASSにしない"]
+    GAP -->|許可内の解決| W
 ```
 
 ### 判定の境界
 
-- **文書レビュー可能**：元source、全22ID、変更した期待、未採用候補、適用owner、2者の反証、文書／本文のMMD整合が読める。このPRの成果範囲。
+- **文書レビュー可能**：元source、全22ID、変更した期待、未採用候補、適用owner、2者の反証、文書／本文のMMD整合が読める。実装前のcheckpointであり、PR全体の実証完了ではない。
 - **汎用consumerの実証**：対象fixture・公開契約・exact ui/treeとArchyne版を固定。実ブラウザの配置変更と接続変更を各1経路以上、型付き表現→保存→fresh reload→再投影まで確認。意味diff0、明示受理前accepted diff0、Undo／Redo・reject・訂正・未対応操作を区別する。
 - **Atlas供給データ表示の証拠**：適用したA1–D6のui側期待をfixtureと実際の可視領域で照合。既存status・時間・変更欄・省略表示・選択保持を壊さない。試験結果はその入力とconsumerの範囲に限定。
 - **Atlas製品統合受入**：apps#73が、実observer・通常source／SSE・Userの実URL・実機で判定する。exact apps/uiと配備実行物・入力・表示時点を照合し、合成データの成功と分ける。uiのCI・merged PR・READMEから代行しない。
@@ -198,15 +200,167 @@ graph／seq／map、desktop／mobile、静止・動きなしを適用範囲で�
 端末・画面寸法・代表Agent／Work／関係数・鮮度期限・最大表示遅延・理解設問と時間・性能予算を試験前に固定する。
 **「1問5秒以内」は元sourceでも未合意の案であり、このPRで採用しない。**
 
-## 2者の主張・相互反証と未解決
 
-同じ親とVersa Codexで、公開sourceとPRのexact headを対象に反復した。
-- 親：既存Inspectorの想定を外し、初期活動・時間／履歴・鮮度と元要件対応を補う。
-- Codex：22項目をuiの新しい統合受入正本へ移さない。検索focusだけではD3が閉じず、選択一本の強調ではD1を満たさない。
-- 親：元ownerの受入を分け、根拠操作を具体的な未採用候補として示し、現行到達はUNKNOWNに残す。
-- Codex：画面履歴で時点まで一律復元しない。省略の検索到達だけでD6完了にしない。現在活動の失効と選択／過去の保持を区別する。
-- 修正条件を反映した設計提案に条件付き合意。実装・採用・試験・製品受入への合意ではない。
+## P・R・Wの合意全文
 
-未解決は、D3の実操作、実活動経路の初期可視表示、freshness／HELD／履歴を含む実環境証拠、
-generic拡張のconsumer別capability、正確なタグ所属と遷移の既存契約である。
-製品コード・配備・元仕様／採否はこの文書変更では変えない。
+**合意版：ui-345-397-three-party-20261024-v3。状態は設計合意／実装・実証未完了。**
+適用policyは [ADRS exact版](https://github.com/roccho-dev/adrs/tree/26d1d4ab1addbe1d490093c8e0043ba10203ad24)。
+Userの「3者反復→合意全文をPR本文→実証完了までloop」に基づき、同版の読戻しとP GO後だけ作用する。
+この合意はmerge・deploy・Issue close・User最終受容を含まない。
+
+### 固定担当と責任
+
+| 担当 | 実在identity・責任 |
+| --- | --- |
+| P／D兼務 | Windows親chat `01a16a4a-4c84-71f3-9b48-867d1b78f92a`。目的・許可・scopeとpolicy、全文公開・読戻し、最終headの同入口実操作 |
+| R | Versa Codex `01a16a59-6970-7321-b7b4-c2bd31bec0f9`。従来の設計反証担当を継続。成果を作成せず、独立確認と同じWの是正・系列完成を担う |
+| W | Versa Codex `01a16dd8-f7ff-7701-ad3f-a75c486d7307`。今回新設し同scopeで継続。既存authoringの最小実装・試験・証拠を作る |
+
+製品W専用作業面は `/work/repos/ui.git/.worktrees/semantic-map-345-397-w-20261024`。
+PR398の専用branchへ直列で反映する。他担当のAtlas作業面・dirty files・processを触らない。
+別actor・別model・新認証・第二のqueue／監視基盤を増やさず、逆発火やturn終了後の無人継続を実証済みと扱わない。
+
+### 対象と非対象
+
+対象consumerは、既存Semantic Map authoringの通常 `index.js → entry.js` と、既存browser-example buildで配布する同じアプリ。
+テスト専用に豊かなhost／第二appを作らない。同じ実行物をW・R・Pが操作する。
+
+- #345の包含・説明・現在地・非包含の候補確認・明示移動・復帰を、このconsumerで実装し実証する。
+- #397は既存typed編集・layout・review・local DecisionLog・出力を接続し、固定Archyne版と同じ論理fixtureで能力・費用を比較する。新EditorCoreを作らない。
+- Atlasは、元A1–D6／16反例の追跡と**既存供給表示の互換性・本PR起因退行**を対象とする。欠けた活動機構やD3を今回新設せず、元apps#73／ui#342の残件とする。今回の範囲内0とAtlas全体0を混同しない。
+- 常設Inspector、全edgeラベル、旧HUD／strip、Proposal Inspector・semcmp・MeltypeのAtlas統合、タグ索引・タグ編集／継承、新schema・Core・renderer・reducer・store・DB・依存・authorityは追加しない。
+
+### 操作と意味
+
+1. 今の図を最初に映す。新一覧を挟まず、指定View・focus・cameraを後続fitで上書きしない。
+2. 明示された包含・Partだけを塊とする。node／edgeの選択は正確なIDで説明と対応し、同じ対象で説明・子への入口・横断リンクが共存できる。既知の祖先を示し、そこへ戻れる。領域配置・ラベル・SVG・module mountから親子や依存を作らない。
+3. 「中を見る」は子がある時だけ。同じcanvasのLOD／focusを使い、5階層以上と6階層への到達を、同時module mount深度上限4と別に確認する。
+4. 「関係」は自身＋source-backed子孫を内側とし、片端だけが内側の境界edgeを出入両方向で列挙する。内部包含を依存へ変換しない。「内部も含む」は別の明示選択。元edge・from/to IDと並行edgeを保持し、親P→Qという新しいedgeへ置換しない。
+5. 説明と関係は一つの必要時だけのsheet。1ページ50行まで、全件／残件数を示す。複数候補から勝手に1件を選ばない。hoverなしのtouch／keyboardにも対応する。
+6. 関係のrecord・入力版・map/headは、その入力が宣言した内容の証拠である。業務上の正しさ・独立観測・現在有効を保証しない。未供給のstate／観測時刻／provenanceは「未供給／UNKNOWN」。
+7. 同図なら実端点へfocus。別Viewは端点に供給されたhrefを別のリンクとして示し、利用者の操作後に入力・qualified対象・focusを検証して開く。qへの関係とqのリンク先Bへの関係を捏造しない。ページ表示だけで正しいID到達とは判定しない。
+8. layout移動／resize／group移動はID付き配置意図で、意味差分0。接続／再接続／削除／改名はID付き候補で、明示Accept前のaccepted差分0。Seqのactor／時刻移動をlayout-onlyと呼ばない。
+9. 既存Undo／Redo・Rejectを使い、却下後の残留、古い配置の別ID流用、stale候補の上書きを許さない。Acceptはこのconsumerのlocal DecisionLog受理だけで、外部業務admissionの移管ではない。
+10. draft／pending proposal中のdocument・View変更とFile Openは可視拒否し、既存Review／Accept／Rejectへ誘導する。自動受理・自動破棄・別draft cacheを作らない。camera・選択・sheet操作だけではDecisionを追加しない。
+
+### 保存・再読込・履歴の閉包
+
+既存URL上限8,192文字、compressed64KiB、expanded256KiBを維持する。
+PREPAREの実source／serialization計算では、現実的な300 region／600 relationは初期Envelope237,474 bytes、URL約46,349文字。
+layout後237,827、意味受理後238,198、追加20Decision後245,567 bytesで、いずれもURL上限を超えた。
+30／45の小入力も20Decision後URL8,061文字となった。これは容量不足の根拠であり、ブラウザ成功ではない。
+
+この不足にだけ、同じEnvelopeのportable file Open／Exportを追加する。File System Access APIを必須にせず、標準downloadとnative file inputを使う。
+
+| 作用 | 成功・失敗の意味 |
+| --- | --- |
+| Review | 同じEnvelope／scene／容量とstale guardを受理前に検査。URL化不能だけを理由に、検証済みfile経路のReview／Acceptを拒否しない |
+| Accept | local DecisionLogを明示受理。小入力の既存URL経路は保持。受理とhistory公開・disk保存は別作用 |
+| Export | accepted Envelopeだけを出力。draftは先に既存reviewへ。「出力開始」は開始の事実だけ。失敗／不明でも同じaccepted headを保持し、再出力でDecisionを重複追記しない |
+| 保存の実証 | 実download完了を待ち、実ファイルのEnvelope／head／records／Viewを読戻し、fresh browser contextの通常File Openで再構成。SRC表示・copy・download提供だけ・fixture再buildでは成功にしない |
+| File Open | 256KiB以内の入力をbounded readし、Envelope・scene・対象を検証して既存runtime／storeへ切替。取消・不正・過大・準備後の変更では現在を保持し非成功。旧documentの`#data`を残さない |
+| 大容量のURL | 新規contextへ大容量ファイルの意味をURLだけで運べるとは約束しない。保存ファイルを通常Openする。共有リンクの上限を隠さない |
+| Native history | 上限内のimmutable accepted Envelopeとqualified View／camera／選択を、既存browser historyの入力transportとして運ぶ。単一active runtime／storeが再検証して有効化し、別の可変store・stack・cache・編集履歴を作らない |
+| 初期load／popstate | map/head・Envelope・View・対象を再検証し、非同期復元のgenerationを守る。URLとsnapshotが矛盾すれば可視拒否し、黙って片方を選ばない |
+| 履歴追加 | 明示遷移だけがentryを増やす。camera／選択は現在entryの更新。draftや未受理候補をsnapshotへ混ぜず、無関係なhistory stateを保持する |
+| 旧版 | 検証できる旧headは歴史上の入力として版を示す。旧版閲覧とstale候補による更新を区別し、最新sourceへ黙って置換しない。外部権限・更新が再確認できない点はUNKNOWN |
+| 復元失敗 | popstate時には既に位置・URLが変化している。要求したentryと保持中documentを示し、不一致を復元成功にしない。「URL・履歴も不変」とは約束しない |
+| Accept後のhistory失敗 | honestly accepted headを保持し、同期失敗を示す。同じheadの履歴反映・file出力を可能にする。古いsnapshotを最新受理済みとしてreload成功にしない |
+| History容量・破損 | native quota／直列化失敗、snapshot欠落／破損・ID不一致・競合を非成功として処理する。BFCache任せやstorage fallbackを追加しない |
+
+大容量A→B→C→戻る×2・進む、BFCacheに依存しないreload、20往復を必須にする。
+fresh contextには前contextのhistoryがあると推定せず、実保存ファイルから開く。
+Historyによる再表示と、session外の保存・再現は別証拠である。
+Native historyのstate直列化は[HTML Standard](https://html.spec.whatwg.org/multipage/nav-history-apis.html)の既存機構であり、その存在だけで容量・UX成功とはしない。
+
+### 変更境界と比較
+
+既存 `authoring/main.js / entry.js / runtime.js / review.js / source.js / pages/app.html` と既存CSS、
+一つの小さな `authoring/navigation.js`、必要な既存shared authoring adapter／graph PinRegions変換の接続、
+同じアプリをpackする既存build hook、対象fixture・tests・本提案文書に限定する。
+初期layout取込・draft pin投影・reviewのsemantic/layout分離・reconnectは、sourceで見つかった修正候補であり、差分で必要性を反証する。
+不要な抽出・広い再編・第二Coreを先に行わない。
+
+Archyne `72249c94f76940ce2d4a0fc449b3fd218f239709` はpublic bare＋専用worktreeで固定し、
+upstream lockを変えず標準local依存・build・runtimeだけを使う有限比較を許可する。
+reference source／lock変更、commit／push、global install、auth変更を行わない。
+同じ論理fixtureの移動・辺追加／再接続／削除・改名・resize・group・Undo／Redo・fresh loadを両者で対照する。
+不足が既存ui接続で閉じるならArchyne codeをコピーしない。抽出が本当に必要ならscope判断へ戻し、MIT／NOTICEを保持する。
+追加・削除code、runtime依存、artifact bytes、試験時間、consumer影響を実測し、費用削減を推測しない。
+
+### 測定前に固定する入力・予算
+
+| 項目 | 固定条件 |
+| --- | --- |
+| 入力 | 無関係な製品階層・組織階層を同じ実装で扱う小入力各30 region／45 relation。代表300／600、深度6、degree100以上のhub、三つのlinked View。現実的label／summaryと20Decisionを含む容量条件を保持 |
+| 表示・上限 | primitive上限2,048、module深度4／mount32／mounted regions512等の既存上限を外さない。過大入力は正直な拒否。省略は件数・実到達を伴う |
+| 実行環境 | Versa Linux6.18.55、i5-2520M2.50GHz・2core／4logical、RAM8,047,416KiB。既存固定flake nixpkgs`567a49d1913ce81ac6e9582e3553dd90a955875f`、Node24.18.0、Playwright1.60.0／Chromium148.0.7778.96 revision1223、DejaVu2.37。実store pathと無throttle・背景負荷を測定前に記録し直列測定 |
+| 画面 | desktop1440×900／touch emulation390×844、DPR1、通常・reduced-motion・静止。実機mobile性能の主張はしない |
+| 応答 | 5 warmup後、selection／detail／focus各40操作・各viewport。入力dispatchからpaint済み期待結果までnearest-rank p95≤200ms |
+| 初期表示・save/reopen | fresh context各10回。初期表示と完全なaccept／export／完了download／fresh Openの各試行≤3秒。serialization・ready／paint境界も分ける |
+| 保持量 | 5 warmup往復後のDOM／post-GC heapを基準に、既存entry間の大容量20往復後、DOM増≤5%、heap増≤20MiB。新entry作成と有限quota失敗は別試験 |
+| 通信・費用 | runtime依存追加0、background prefetchなし。artifact bytes・操作ごとのrequest・code差分・試験時間を記録 |
+| 認識 | 現対象・包含・edge向き・戻り文脈の固定設問にPが正しく答えられること。5秒／15秒の認知SLAは採用しない |
+| Atlas互換入力 | 既存`ui.atlasWorldInput.v1`で60Agent／120Work／300relation・20frame、必要Purpose／Scopeを別に数える。小入力6／8／24も併記。既存baselineの適用行を実行前に固定 |
+| 鮮度 | 供給期限10秒・失効後1秒以内という入力条件を、既存baselineが消費する範囲で評価。欠けた一般活動機構を実装・受入済みにしない |
+
+予算失敗を、後からfixture縮小や適用外への変更で通さない。異なる端末・無限規模への保証もしない。
+
+### 全操作・負例・証拠
+
+必須操作は、初期／deep link、選択／説明／祖先／詳細、入出境界／内部toggle／parallel edge、
+同図focus／別View／戻る／進む、実drag／resize／group、辺追加／reconnect／delete／rename、
+Undo／Redo／Reject／local Accept、実file出力／fresh Open、graph／seq／map表示退行である。
+試験のstate inspectionはoracleに使えるが、editor API呼出しを利用者gestureの代用にしない。
+
+元番号は [#397本文](https://github.com/roccho-dev/ui/issues/397)の1–12、
+[#345比較案](https://github.com/roccho-dev/ui/issues/345#issuecomment-6167396567)の1–14、
+[recursive補足](https://github.com/roccho-dev/ui/issues/345#issuecomment-6372988615)の1–15、
+[apps73](https://github.com/roccho-dev/apps/issues/73#issuecomment-6338301727)の1–16を使う。
+各行へexact入力・期待・適用owner・実操作・結果を対応付け、重複scenarioの共有は許すが空の全件PASSを作らない。
+追加でhistory quota／直列化失敗、snapshot欠落／破損、旧`#data`との衝突、claimed headと選択ID不一致、
+遅れた非同期復元、新入力競合、Accept後のhistory失敗、export再試行時のDecision重複を確認する。
+権限拒否fixtureはUIの非成功処理だけを証明し、実認可serviceの証明にしない。
+
+Atlasの事前対応はA1–A5の供給ID・並行関係・活動／待機のtruthful unknown、
+B1–B5のbaseline lifecycle／history／HELD／service／restart、
+C1–C6のstate／provenance／freshness／conflict／coverage、
+D1–D6の初期表示／選択区別／既存根拠到達／文脈／静止／省略とする。
+D1・D3等の既存不足を元owner残件として保持し、PRで生んだ退行はWが直す。16反例も元番号で同じ境界を記す。
+
+Wは公開head／tree・入力・生成artifact・実gesture・typed records・受理前差分0・意味diff0・保存file・再読込・negative・timing・checksを結ぶ。
+Rは同じ公開実体とoracleを独立に読み、代表正常系・破壊系を再操作し、通常FAILを同じWへ戻して完成まで進める。
+Pは最終UI headと同じ入口で、初期→詳細／関係／往復→編集→Undo／Reject→明示受理→実出力→再読込を実操作する。
+UI head／入口が変われば影響する操作証拠を更新し、以前のGreenを流用しない。
+check証拠は実required set・run/job URL・対象head・結論を記す。未確認は未確認である。
+
+### 主張・反証を経て採用した判断
+
+| 主張 | 独立反証・修正 | 最終合意 |
+| --- | --- | --- |
+| P：既存機構の接続で小さくできる | R／W：standaloneとshared adapterの能力は別。実gesture接点・pin・review・保存の不足がある | 新Coreでなく、実入口の必要な接続だけを実装して検証 |
+| 既存Inspectorを再利用すればよい | IABと現行source：Worldの常設panelは退去済み | Atlasに復活させず、汎用authoringだけ必要時sheet |
+| 関係metadataがないのでschema拡張が必要か | P：recordと入力版が供給宣言の証拠。R：hrefは対象ID到達を保証しない | schema追加0。未供給はUNKNOWN、リンク正常系は実対象で実証 |
+| W：URL受理後replaceで保存 | R：失敗と受理の不一致が残る。P：通常Reviewには既に事前URL検査がある | R／Wが過大な「事前検査なし」を訂正。真の失敗境界だけを扱う |
+| URLで規模も閉じるか | W：実serializationで300／600は約4.6万文字、上限超過 | 縮小せずportable file Open／Export。開始・完了・fresh Openを分ける |
+| native writeとAcceptをatomicにすべきか | P：downloadのdisk ackはappが所有しない | disk跨ぎtransaction／必須FileSystemAccessを作らず、作用の事実を分離 |
+| P：historyにはidentityだけ | R／W：大容量sourceを復元できずBFCache任せになる | Pが制限を訂正。bounded immutable Envelopeを既存native historyの入力transportに使う |
+| historyにaccepted入力があると第二storeか | P：既存URLもaccepted Envelopeを運ぶ | R／Wがidentity-onlyを撤回。単一active ownerと再検証を条件に合意 |
+| 失敗時はURL・履歴も不変か | R／W：popstate時には既に位置が変化。旧headも即staleではない | 要求先と保持中入力の不一致を明示し、旧版閲覧とstale編集を分離 |
+| R：1000要素／50View等も必須か | P／W：既存上限との衝突・必要根拠不足 | Rが撤回。300／600等の有限条件を測定前固定 |
+| 22／16を今回全体受入へ移すか | R：ownerを混ぜると全体完成を偽る | 汎用正経路を閉じ、Atlas baseline互換と元owner残件を明記 |
+| 検索／タグを使えば追加0か | 既存検索は文字列一致で、正確所属や初期活動把握ではない | タグは未採用。D1／D6を検索で代替しない |
+
+### Loop・完成・停止条件
+
+全文合意と両MMDをPR398・文書へ公開し、同じexact版をP／R／Wが読戻してから、Pが同版GOを出す。
+その後はRが同じWへ通常の技術FAIL・修正・次工程を返し、合意内では毎回P許可を取り直さない。
+既存PR398一件を優先し、必要な別slice／PRは意味ある差分と依存を再合意してからにする。
+
+完成は、この有限consumer scopeの全適用経路AND、元番号対応、同じ公開treeのchecks、R独立確認、P同入口実操作が揃い、範囲内未完了0となった時だけ。
+`PASS_NO_CHANGE`は実装0の実証、`PASS_MINIMAL`は真の不足への最小修正と実E2Eがある場合に限る。
+`REUSE_AS_IS / EXTRACT_MINIMAL / NO_GO / UNKNOWN`の採否と、実証・User採用を混同しない。
+
+普通のFAILはR/W是正loop。native能力・source権限・依存・他writer競合・scope不足はPへexact不足と再開条件を返す。
+不明作用はread-only照合し、成功の盲再送や別actor／認証経路への逃げを行わない。
+元apps73の実observer／SSE／UserURL／実機・外部admission・User最終受容、merge／配備／Issue closeは、この完成判定に含めず残件ownerを保持する。
