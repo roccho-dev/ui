@@ -39,6 +39,8 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
   };
   const clean = () => check(!runtime.proposal && runtime.draftCount() === 0 && !scope.semanticMapReview?.pending?.(), 'Review: Accept or Reject before changing document or View');
   let generation = 0;
+  let committing = false;
+  const assertIdle = () => check(!committing, 'Navigation is restoring; retry after it completes');
   let restoring = false;
   let page = 0;
   let includeInternal = false;
@@ -69,7 +71,7 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
       const url = new URL(location.href); url.hash = ''; return url.href;
     }
   };
-  async function publish(envelope, { push = false, targetContext = context(), fileInput = false } = {}) {
+  async function preparePublication(envelope, { push = false, targetContext = context(), fileInput = false, request = generation } = {}) {
     envelopeText(envelope);
     const inspected = await inspectEnvelope(envelope);
     check(!inspected.envelope.proposal, 'Only accepted input can enter history');
@@ -79,12 +81,25 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
     const url = targetUrl.href;
     const entry = { schema: 'semantic-map-history-input/1', envelope: inspected.envelope,
       mapId: inspected.base.mapId, head: inspected.base.head, context: targetContext };
-    history[push ? 'pushState' : 'replaceState']({ ...history.state, [KEY]: entry }, '', url);
-    status.textContent = `${entry.mapId} / ${entry.head} · ${new URL(url).hash ? 'URL input' : 'file/history input; export a file to reopen elsewhere'}`;
-    status.dataset.kind = 'ok';
+    check(request === generation, 'Superseded history request');
+    return () => {
+      check(request === generation, 'Superseded history request');
+      history[push ? 'pushState' : 'replaceState']({ ...history.state, [KEY]: entry }, '', url);
+      status.textContent = `${entry.mapId} / ${entry.head} · ${new URL(url).hash ? 'URL input' : 'file/history input; export a file to reopen elsewhere'}`;
+      status.dataset.kind = 'ok';
+      return targetUrl.hash ? url : '';
+    };
   }
-  async function openEnvelope(envelope, { push = true, restoredContext = null, request = ++generation, fileInput = false } = {}) {
-    clean();
+  async function publish(envelope, options = {}) {
+    const request = options.request ?? ++generation;
+    const head = runtime.head, log = runtime.log, view = runtime.view;
+    const commit = await preparePublication(envelope, { ...options, request });
+    check(head === runtime.head && log === runtime.log && view === runtime.view, 'Accepted input changed during history preparation');
+    return commit();
+  }
+  async function openEnvelope(envelope, { push = true, restoredContext = null, request = null, fileInput = false } = {}) {
+    assertIdle(); clean();
+    request ??= ++generation;
     document.documentElement.dataset.semanticNavigation = 'loading';
     envelopeText(envelope);
     const prepared = await runtime.preflightInput(envelope);
@@ -95,13 +110,19 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
     structuredClone({ envelope: prepared.inspection.envelope, context: restoredContext });
     if (push) writeContext();
     const target = restoredContext ?? { camera: context().camera, selection: { regionIds: [], relationIds: [] } };
-    if (push) await publish(prepared.inspection.envelope, { push: true, targetContext: target, fileInput });
+    const publication = push ? await preparePublication(prepared.inspection.envelope,
+      { push: true, targetContext: target, fileInput, request }) : null;
     check(request === generation, 'Superseded input request');
-    runtime.commitInput(prepared);
+    assertIdle(); clean();
+    const previous = Object.fromEntries(['log', 'head', 'mapId', 'stateHash', 'records', 'proposal', 'view'].map(key => [key, runtime[key]]));
+    const previousContext = context();
+    const previousSession = editor.store.snapshotSession();
+    committing = true;
+    const wasInert = document.body.inert; document.body.inert = true;
     restoring = true;
     try {
+      runtime.commitInput(prepared);
       await editor.setView(runtime.view, prepared.validation?.modules);
-      check(request === generation, 'Superseded input request');
       await applyView(editor, runtime.view);
       check(request === generation, 'Superseded input request');
       if (restoredContext) {
@@ -110,14 +131,27 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
         editor.adapter.setSelection(restoredContext.selection);
       }
       inputChanged();
-    } finally { restoring = false; }
+      publication?.();
+    } catch (error) {
+      Object.assign(runtime, previous);
+      editor.store.restoreSession(previousSession);
+      try {
+        await editor.setView(previous.view);
+        editor.adapter.setCamera(previousContext.camera.scale, previousContext.camera.translateX, previousContext.camera.translateY);
+        editor.adapter.setSelection(previousContext.selection);
+        inputChanged();
+      } catch (restoreError) {
+        throw new Error(`${error.message}; retained input could not be painted: ${restoreError.message}`);
+      }
+      throw error;
+    } finally { restoring = false; committing = false; document.body.inert = wasInert; }
     if (push) writeContext();
     status.textContent = `${runtime.mapId} / ${runtime.head}`;
     document.documentElement.dataset.semanticNavigation = 'ready';
     sheet.hidden = true;
   }
   async function openHref(href) {
-    clean();
+    assertIdle(); clean();
     const request = ++generation;
     const url = new URL(href, location.href);
     check(['http:', 'https:'].includes(url.protocol) && !url.username && !url.password, 'Unsupported link');
@@ -139,7 +173,8 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
     await openEnvelope(envelope, { request });
   }
   async function focus(regionId, inside = false) {
-    clean();
+    assertIdle(); clean();
+    const request = ++generation;
     const previous = context();
     writeContext();
     const scene = editor.currentScene();
@@ -147,7 +182,7 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
     const b = item?.bounds ?? (runtime.view.pattern === 'graph/1'
       ? createGraphLayout(editor.store.domain, { pins: editor.store.layoutHints }).bounds.get(regionId) : null);
     check(b, `Target is not represented: ${regionId}`);
-    restoring = true;
+    restoring = true; committing = true;
     try {
       if (inside || !item) editor.focusBounds(b); else editor.focusRegion(regionId, Math.max(1, previous.camera.scale));
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -156,12 +191,12 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
       const view = { ...runtime.view, frame: { bbox: [viewport.x, viewport.y, viewport.width, viewport.height],
         viewport: [editor.adapter.container.clientWidth, editor.adapter.container.clientHeight], select: [regionId] } };
       const envelope = await runtime.envelope({ view });
-      await publish(envelope, { push: true });
+      await publish(envelope, { push: true, request });
       runtime.view = envelope.view;
     } catch (error) {
       editor.adapter.setCamera(previous.camera.scale, previous.camera.translateX, previous.camera.translateY);
       editor.adapter.setSelection(previous.selection); throw error;
-    } finally { restoring = false; }
+    } finally { restoring = false; committing = false; }
     sheet.hidden = true;
   }
   const button = (label, action) => {
@@ -228,6 +263,7 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
   editor.adapter.onSelectionChange(() => { writeContext(); if (!sheet.hidden) { page = 0; render(); } });
   editor.adapter.onCameraChange(() => { clearTimeout(contextTimer); contextTimer = setTimeout(writeContext, 160); });
   scope.addEventListener('popstate', async () => {
+    if (committing) { ++generation; fail(new Error('Requested history entry while restoration is in progress')); return; }
     const request = ++generation;
     restoring = true;
     try {
@@ -244,7 +280,12 @@ export async function installNavigation({ runtime, editor, applyView, inputChang
     const c = initial.context.camera; editor.adapter.setCamera(c.scale, c.translateX, c.translateY);
     editor.adapter.setSelection(initial.context.selection); restoring = false;
   } else if (!runtime.proposal) await publish(await runtime.envelope());
-  const api = Object.freeze({ ready: true, openEnvelope, openHref, publishAccepted: async () => publish(await runtime.envelope()), fail });
+  const api = Object.freeze({ ready: true, openEnvelope, openHref, assertIdle, publishAccepted: async () => {
+    assertIdle();
+    const request = ++generation;
+    const envelope = await runtime.envelope();
+    return publish(envelope, { request });
+  }, fail });
   scope.semanticMapNavigation = api;
   document.documentElement.dataset.semanticNavigation = 'ready';
   return api;

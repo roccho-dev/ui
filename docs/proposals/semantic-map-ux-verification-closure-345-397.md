@@ -205,6 +205,10 @@ graph／seq／map、desktop／mobile、静止・動きなしを適用範囲で�
 
 ### 現在の実装checkpoint（W、実証未完了）
 
+Rの初回source反証に対する是正：履歴入力は非同期検査後にgenerationを再検査し、描画復元後に同期公開する。復元中の別操作は可視拒否し、描画／履歴公開失敗時は既存store sessionとruntime・View・camera・selectionを戻す。native popstateは既に位置が変わるため、要求先と保持中入力の不一致を失敗として表示する。Pattern変更も同じ入力復元経路を使い、reload/back対象に含める。大容量入力では再現不能な現在位置をAfter URLとしてCopyしない。Reject後の履歴失敗は却下済み候補を再pending化しない。
+
+`navigation_browser_e2e.mjs`の追加検査は通常UIのPattern変更／reload／back、pending中の拒否、実dragからのReject＋history quota故障、再drag／Accept、Copyの容量区別、描画故障時の保持、遅延した旧入力のpush抑止を対象とする。故障注入は外部effect／renderer境界だけで行い、操作journeyのpointer/native file/downloadをAPIで置き換えない。これらは有限のcheckpointであり、全v3性能・mobile・編集操作・負例・Atlas互換・独立R／P gateの完了主張ではない。
+
 通常authoringに必要時のDetails／Relations、元IDを保持する入出境界列挙と50行paging、
 既存runtime／storeでの入力切替、bounded accepted Envelopeを使うnative history、
 accepted Envelopeのnative download／file Openを接続した。graph移動はPinRegionsへ変換し、

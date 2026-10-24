@@ -118,6 +118,7 @@ export class DecisionRuntime {
   }
 
   async preflightView(view) {
+    const head = this.head, log = this.log;
     invariant(!this.proposal, 'cannot change Pattern while a Proposal is pending');
     invariant(this.draftCount() === 0, 'cannot change Pattern while a Local Draft is active');
     const normalizedView = normalizeView(view);
@@ -127,7 +128,7 @@ export class DecisionRuntime {
       view: normalizedView,
     });
     const envelope = await createEnvelope(this.log, null, normalizedView);
-    return Object.freeze({ head: this.head, log: this.log, view: envelope.view, envelope, validation: validation ?? null });
+    return Object.freeze({ head, log, view: envelope.view, envelope, validation: validation ?? null });
   }
 
   commitView(preflight) {
@@ -143,6 +144,7 @@ export class DecisionRuntime {
   }
 
   async preflightInput(envelope) {
+    const baseHead = this.head, baseLog = this.log;
     invariant(!this.proposal && this.draftCount() === 0, 'Review Accept/Reject before opening another input');
     envelopeText(envelope);
     const inspection = await inspectEnvelope(envelope);
@@ -150,7 +152,7 @@ export class DecisionRuntime {
     const validation = await this.validateRecords?.(inspection.base.records, {
       mapId: inspection.base.mapId, head: inspection.base.head, view: inspection.envelope.view,
     });
-    return { baseHead: this.head, baseLog: this.log, inspection, validation };
+    return { baseHead, baseLog, inspection, validation };
   }
 
   commitInput(preflight) {

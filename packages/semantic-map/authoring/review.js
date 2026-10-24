@@ -179,6 +179,7 @@ async function install() {
     return previewProposal(proposal, { source: 'local', local: true, view: runtime.view, metadata, currentProofVerifier });
   }
   async function acceptPending() {
+    globalThis.semanticMapNavigation?.assertIdle();
     invariant(pending, 'no Proposal is pending');
     acceptButton.disabled = true;
     const accepted = pending;
@@ -188,7 +189,7 @@ async function install() {
       let publicationError = null;
       try {
         if (globalThis.semanticMapNavigation) {
-          await globalThis.semanticMapNavigation.publishAccepted(); url = location.href;
+          url = await globalThis.semanticMapNavigation.publishAccepted();
         } else if (transport()?.replace) url = await transport().replace(committed.envelope);
       } catch (error) { publicationError = error; }
       const result = Object.freeze({ ...committed, url });
@@ -212,15 +213,19 @@ async function install() {
     }
   }
   async function rejectPending() {
+    globalThis.semanticMapNavigation?.assertIdle();
     if (!pending) return false;
     rejectButton.disabled = true;
     const rejected = pending;
     try {
       const result = await runtime.reject({ local: rejected.local, view: rejected.beforeView });
-      if (globalThis.semanticMapNavigation) await globalThis.semanticMapNavigation.publishAccepted();
-      else if (transport()?.replace) await transport().replace(result.envelope);
       clear();
-      showStatus('Proposal rejected. DecisionLog did not change.', 'ok');
+      let publicationError = null;
+      try {
+        if (globalThis.semanticMapNavigation) await globalThis.semanticMapNavigation.publishAccepted();
+        else if (transport()?.replace) await transport().replace(result.envelope);
+      } catch (error) { publicationError = error; }
+      showStatus(publicationError ? `Proposal rejected; history synchronization failed: ${publicationError.message}` : 'Proposal rejected. DecisionLog did not change.', publicationError ? 'error' : 'ok');
       return true;
     } catch (error) {
       rejectButton.disabled = false;

@@ -87,17 +87,25 @@ function viewFromControls(currentView) {
 }
 function syncPatternControls(view) { patternSelect.value = view.pattern; seqPreset.value = presetFromView(view); seqPresetWrap.hidden = view.pattern !== 'seq/1'; }
 async function commitViewChange(runtime, editor, view) {
+  globalThis.semanticMapNavigation?.assertIdle();
   const previous = runtime.view;
+  let rendering = false;
   try {
     const preflight = await runtime.preflightView(view);
+    if (globalThis.semanticMapNavigation) {
+      await globalThis.semanticMapNavigation.openEnvelope(preflight.envelope);
+      syncPatternControls(runtime.view);
+      return preflight;
+    }
     const modules = preflight.validation?.modules ?? null;
+    rendering = true;
     await editor.setView(preflight.view, modules);
     const committed = runtime.commitView(preflight);
     syncPatternControls(runtime.view);
     return committed;
   } catch (error) {
     syncPatternControls(previous);
-    try {
+    if (rendering) try {
       const modules = await globalThis.semanticMapModuleResolver.resolve(editor.store.domain, { mapId: runtime.mapId, head: runtime.head, view: previous });
       await editor.setView(previous, modules);
     } catch (_) { /* best effort rollback */ }
