@@ -234,9 +234,12 @@ Reject／訂正、mobile／keyboard、graph／seq／map、large historyの20往�
 固定回数の性能／DOM／heap予算、Atlas baseline互換表と退行検査、費用比較、公開head checks、R独立確認とP同入口gate。
 普通の技術FAILは同じR/Wで是正し、ここを最終完成にしない。
 
-**合意版：ui-345-397-three-party-20261024-v3。状態は設計合意／実装・実証未完了。**
-適用policyは [ADRS exact版](https://github.com/roccho-dev/adrs/tree/26d1d4ab1addbe1d490093c8e0043ba10203ad24)。
-Userの「3者反復→合意全文をPR本文→実証完了までloop」に基づき、同版の読戻しとP GO後だけ作用する。
+**合意候補版：ui-345-397-three-party-20261024-v4。状態はPREPARE／公開readback・同版P GO待ち。実装・実証は未完了。**
+候補policyは [ADRS v4 exact版](https://github.com/roccho-dev/adrs/tree/231d94cbd9d8b9a7294874478f50d2d90b8bf801)。
+Userの「3者反復→合意全文をPR本文→実証完了までloop」に基づき、v4全文の公開readbackとPの明示的な同版GO後だけv4へ切り替える。
+それまでは既存の `ui-345-397-three-party-20261024-v3` と [v3 GOのexact policy](https://github.com/roccho-dev/adrs/tree/26d1d4ab1addbe1d490093c8e0043ba10203ad24) が現在の製品作業を規定し、registry HOLDを維持する。この文書の公開自体はv4 GOではない。
+v4の変更は下記の一つのderived generated file境界とその照合条件だけであり、UX・操作・予算・負例・owner残件・2 MMD・完成条件は変更しない。
+製品head `1ff6f9cc5bc93b4de4d9e35a10c22db3f078acbe` の五つのsource指摘への是正と有限試験はW報告済みだが、Rの独立review／再現は未完了であり、実装PASSを意味しない。
 この合意はmerge・deploy・Issue close・User最終受容を含まない。
 
 ### 固定担当と責任
@@ -308,7 +311,17 @@ Native historyのstate直列化は[HTML Standard](https://html.spec.whatwg.org/m
 
 既存 `authoring/main.js / entry.js / runtime.js / review.js / source.js / pages/app.html` と既存CSS、
 一つの小さな `authoring/navigation.js`、必要な既存shared authoring adapter／graph PinRegions変換の接続、
-同じアプリをpackする既存build hook、対象fixture・tests・本提案文書に限定する。
+同じアプリをpackする既存build hook、対象fixture・tests・本提案文書、次の一つのderived generated fileに限定する。
+
+v4 GO後に限り、`apps/artifact-shell/generated/capability-registry.mjs` を既存の
+`apps/artifact-shell/scripts/build-registry.mjs` の標準generatorで再生成する。
+対象は実際の最新sourceのfile descriptor（path／bytes／digest）とaggregate build digestだけとし、
+public capability、engine／interface、manifest、limits、その他のnon-build dataは変更しない。
+既存descriptor checkと独立照合で同じ公開treeのruntime closureとの一致、不変部分の一致を確認する。
+これはpackaging互換の派生metadataであり、新しい意味・admission・authority・依存を追加しない。
+generatorの変更、descriptorの手編集、stale候補のコピー、checkの迂回は禁止する。
+過去のcdb版候補は利用せず、将来の再生成時点の最新sourceを使い、影響source変更後にだけ再生成・照合を繰り返す。
+v4候補の文書公開はregistryの適用・生成を許可せず、同版GOまでHOLDする。CI workflowの変更は境界に追加しない。
 初期layout取込・draft pin投影・reviewのsemantic/layout分離・reconnectは、sourceで見つかった修正候補であり、差分で必要性を反証する。
 不要な抽出・広い再編・第二Coreを先に行わない。
 
