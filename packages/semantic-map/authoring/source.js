@@ -108,7 +108,7 @@ async function install() {
   closeButton.addEventListener('click', close);
   formatSelect.addEventListener('change', () => render().catch(() => {}));
   copyButton.addEventListener('click', () => copy().catch((error) => showStatus(error.message, 'error')));
-  document.getElementById('source-export').addEventListener('click', async () => {
+  document.getElementById('source-export')?.addEventListener('click', async () => {
     try {
       if (runtime.proposal || runtime.draftCount() > 0) {
         const review = await waitFor('semanticMapReview');
@@ -125,7 +125,7 @@ async function install() {
       showStatus(`Export initiated for ${head}. Browser completion and file reopen are not yet confirmed.`, 'ok');
     } catch (error) { showStatus(error.message, 'error'); }
   });
-  document.getElementById('source-file').addEventListener('change', async event => {
+  document.getElementById('source-file')?.addEventListener('change', async event => {
     const file = event.target.files?.[0];
     if (!file) return;
     const head = runtime.head, log = runtime.log;

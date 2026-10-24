@@ -670,7 +670,9 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     if (result) showToast('選択を削除しました');
   }
 
-  function openRegionLink(regionId, navigate = (url) => globalThis.semanticMapNavigation.openHref(url).catch(error => globalThis.semanticMapNavigation.fail(error)), base = location.href) {
+  function openRegionLink(regionId, navigate = (url) => globalThis.semanticMapNavigation
+    ? globalThis.semanticMapNavigation.openHref(url).catch(error => globalThis.semanticMapNavigation.fail(error))
+    : location.assign(url), base = location.href) {
     const representation = lastScene?.representations.find((item) => item.regionId === regionId);
     const href = representation?.href ?? store.domain.regions.get(regionId)?.href ?? null;
     if (!href) return null;

@@ -202,7 +202,7 @@ async function start() {
   if (!artifactModuleBridge.embedded) {
     enableEditorControls(); syncPatternControls(runtime.view);
     await Promise.all([import('./handoff.js'), import('./review.js'), import('./source.js')]);
-    await installNavigation({ runtime, editor, applyView, inputChanged: () => {
+    if (document.getElementById('navigation-sheet')) await installNavigation({ runtime, editor, applyView, inputChanged: () => {
       mapTitle.textContent = runtime.records.find(record => record.type === 'meta')?.title ?? 'Semantic Map';
       document.title = `${mapTitle.textContent} — Semantic Map`;
       syncPatternControls(runtime.view);
