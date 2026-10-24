@@ -3,6 +3,18 @@ import { mountActiveList } from './active-list.js';
 
 const semanticRegionId = cell => cell?.semantic?.sourceRegionId ?? cell?.semantic?.regionId ?? null;
 
+export const graphLayoutOperation = (operation, scene) => {
+  if (scene?.pattern !== 'graph/1') return operation;
+  if (operation.type === 'ResizeRegions') return { type: 'PinRegions', items: operation.items };
+  if (operation.type !== 'MoveRegions') return operation;
+  return { type: 'PinRegions', items: operation.regionIds.map(regionId => {
+    const item = scene.representations.find(item => item.sourceRegionId === regionId && item.mode !== 'boundary');
+    if (!item) throw new Error(`graph layout target is not visible: ${regionId}`);
+    const { x, y, width, height } = item.bounds;
+    return { regionId, bounds: [x + operation.dx, y + operation.dy, width, height] };
+  }) };
+};
+
 const textInput = target => target instanceof HTMLInputElement
   || target instanceof HTMLTextAreaElement
   || target instanceof HTMLSelectElement

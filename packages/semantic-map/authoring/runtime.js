@@ -1,5 +1,6 @@
 import { appendDecision, createDecision, createEnvelope, inspectEnvelope, normalizeView, verifyDecisionLog } from '../protocol/index.js';
 import { normalizeOperation } from '../domain/index.js';
+import { envelopeText } from './navigation.js';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(`semantic-runtime: ${message}`);
@@ -117,6 +118,7 @@ export class DecisionRuntime {
   }
 
   async preflightView(view) {
+    const head = this.head, log = this.log;
     invariant(!this.proposal, 'cannot change Pattern while a Proposal is pending');
     invariant(this.draftCount() === 0, 'cannot change Pattern while a Local Draft is active');
     const normalizedView = normalizeView(view);
@@ -126,7 +128,7 @@ export class DecisionRuntime {
       view: normalizedView,
     });
     const envelope = await createEnvelope(this.log, null, normalizedView);
-    return Object.freeze({ head: this.head, log: this.log, view: envelope.view, envelope, validation: validation ?? null });
+    return Object.freeze({ head, log, view: envelope.view, envelope, validation: validation ?? null });
   }
 
   commitView(preflight) {
@@ -141,6 +143,33 @@ export class DecisionRuntime {
     return this.commitView(await this.preflightView(view));
   }
 
+  async preflightInput(envelope) {
+    const baseHead = this.head, baseLog = this.log;
+    invariant(!this.proposal && this.draftCount() === 0, 'Review Accept/Reject before opening another input');
+    envelopeText(envelope);
+    const inspection = await inspectEnvelope(envelope);
+    invariant(!inspection.envelope.proposal, 'Open requires an accepted Envelope without a Proposal');
+    const validation = await this.validateRecords?.(inspection.base.records, {
+      mapId: inspection.base.mapId, head: inspection.base.head, view: inspection.envelope.view,
+    });
+    return { baseHead, baseLog, inspection, validation };
+  }
+
+  commitInput(preflight) {
+    invariant(preflight.baseHead === this.head && preflight.baseLog === this.log, 'Open preflight is stale');
+    invariant(!this.proposal && this.draftCount() === 0, 'Review Accept/Reject before opening another input');
+    const { base, envelope } = preflight.inspection;
+    this.store.replaceRecords(base.records, { notify: false });
+    this.log = base.log;
+    this.head = base.head;
+    this.mapId = base.mapId;
+    this.stateHash = base.stateHash;
+    this.records = base.records;
+    this.proposal = null;
+    this.view = envelope.view;
+    this.notify('input');
+  }
+
   async preflightAccept(proposal, { view = this.view } = {}) {
     const normalizedView = normalizeView(view);
     const appended = await appendDecision(this.log, proposal);
@@ -150,6 +179,7 @@ export class DecisionRuntime {
       view: normalizedView,
     });
     const envelope = await createEnvelope(appended.log, null, normalizedView);
+    envelopeText(envelope);
     return Object.freeze({
       head: this.head,
       log: this.log,

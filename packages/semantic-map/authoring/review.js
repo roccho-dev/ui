@@ -3,6 +3,9 @@ import { projectView } from '../protocol/index.js';
 import { createSemanticReviewModel } from './review-model.js';
 import { createSemanticReviewOverlay } from './review-overlay.js';
 import { copyText, waitFor, waitForApp } from './shared.js';
+import { splitStateRecords } from '../layout/state.js';
+import { splitDataPinRecords } from '../../data-pin/contract.mjs';
+import { envelopeText } from './navigation.js';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(`semantic-review: ${message}`);
@@ -65,7 +68,15 @@ async function install() {
   let lastAccepted = null;
 
   const transport = () => globalThis.semanticMapDataTransport ?? null;
-  const urlFor = async envelope => transport()?.create ? transport().create(envelope) : '';
+  const urlFor = async envelope => {
+    envelopeText(envelope);
+    try { return transport()?.create ? await transport().create(envelope) : ''; }
+    catch (error) {
+      if (/URL exceeds 8192|compressed payload exceeds 65536/.test(String(error.message))) return '';
+      throw error;
+    }
+  };
+  const domainOf = records => createSemanticMap(splitStateRecords(splitDataPinRecords(records).dataRecords).semanticRecords);
 
   function showStatus(message, kind = 'info') { status.textContent = message; status.dataset.kind = kind; }
   function open() {
@@ -108,8 +119,8 @@ async function install() {
     const rejection = await runtime.preflightReject({ local, view: beforeView });
     const beforeUrl = await urlFor(rejection.envelope);
     const afterUrl = await urlFor(preflight.envelope);
-    const beforeDomain = createSemanticMap(runtime.records);
-    const afterDomain = createSemanticMap(preview.records);
+    const beforeDomain = domainOf(runtime.records);
+    const afterDomain = domainOf(preview.records);
     const resolver = globalThis.semanticMapModuleResolver;
     const beforeModules = await resolver.resolve(beforeDomain, { mapId: runtime.mapId, head: runtime.head, view: beforeView });
     const afterModules = await resolver.resolve(afterDomain, { mapId: runtime.mapId, head: preview.head, view: afterView });
@@ -168,12 +179,19 @@ async function install() {
     return previewProposal(proposal, { source: 'local', local: true, view: runtime.view, metadata, currentProofVerifier });
   }
   async function acceptPending() {
+    globalThis.semanticMapNavigation?.assertIdle();
     invariant(pending, 'no Proposal is pending');
     acceptButton.disabled = true;
     const accepted = pending;
     try {
       const committed = await runtime.accept(accepted.proposal, { view: accepted.afterView });
-      const url = transport()?.replace ? await transport().replace(committed.envelope) : '';
+      let url = '';
+      let publicationError = null;
+      try {
+        if (globalThis.semanticMapNavigation) {
+          url = await globalThis.semanticMapNavigation.publishAccepted();
+        } else if (transport()?.replace) url = await transport().replace(committed.envelope);
+      } catch (error) { publicationError = error; }
       const result = Object.freeze({ ...committed, url });
       lastAccepted = Object.freeze({ ...accepted, result });
       pending = null;
@@ -183,9 +201,9 @@ async function install() {
       afterUrlOutput.textContent = url || 'Decision committed';
       afterUrlOutput.title = url;
       copyAfterButton.disabled = !url;
-      deliveryOutput.textContent = url ? '#data updated after Decision commit' : 'Decision committed';
+      deliveryOutput.textContent = publicationError ? 'Local Decision accepted; history synchronization failed. Export this same accepted head.' : 'Local Decision accepted; export a file for durable reopen.';
       deliveryOutput.dataset.kind = 'inline';
-      showStatus(`Decision appended. Head is ${result.decisionId}.`, 'ok');
+      showStatus(publicationError ? `Accepted ${result.decisionId}; not synchronized: ${publicationError.message}` : `Decision appended. Head is ${result.decisionId}.`, publicationError ? 'error' : 'ok');
       navigator.vibrate?.([12, 35, 18]);
       return result;
     } catch (error) {
@@ -195,14 +213,19 @@ async function install() {
     }
   }
   async function rejectPending() {
+    globalThis.semanticMapNavigation?.assertIdle();
     if (!pending) return false;
     rejectButton.disabled = true;
     const rejected = pending;
     try {
       const result = await runtime.reject({ local: rejected.local, view: rejected.beforeView });
-      if (transport()?.replace) await transport().replace(result.envelope);
       clear();
-      showStatus('Proposal rejected. DecisionLog did not change.', 'ok');
+      let publicationError = null;
+      try {
+        if (globalThis.semanticMapNavigation) await globalThis.semanticMapNavigation.publishAccepted();
+        else if (transport()?.replace) await transport().replace(result.envelope);
+      } catch (error) { publicationError = error; }
+      showStatus(publicationError ? `Proposal rejected; history synchronization failed: ${publicationError.message}` : 'Proposal rejected. DecisionLog did not change.', publicationError ? 'error' : 'ok');
       return true;
     } catch (error) {
       rejectButton.disabled = false;

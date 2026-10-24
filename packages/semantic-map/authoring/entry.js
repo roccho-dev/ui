@@ -8,6 +8,8 @@ import { DecisionRuntime } from './runtime.js';
 import { nextFrame, readJson } from './shared.js';
 import { createSemanticMapArtifactModuleBridge } from './artifact-module.js';
 import { translateSetTopologyOperation } from './set-topology-bridge.js';
+import { historyInput, installNavigation } from './navigation.js';
+import { splitDataPinRecords } from '../../data-pin/contract.mjs';
 
 const EMBED_INPUT_SCHEMA = 'semantic-map-embed-input/1';
 const EMBED_READY_SCHEMA = 'semantic-map-embed-ready/1';
@@ -65,6 +67,8 @@ function embeddedEnvelope(timeoutMs = 15_000) {
 
 async function bootstrapEnvelope(config) {
   if (config.input === PARENT_MESSAGE_INPUT) return embeddedEnvelope();
+  const historical = await historyInput();
+  if (historical) return historical.envelope;
   const transported = await globalThis.semanticMapDataTransport?.read?.();
   if (transported !== null && transported !== undefined) return (await inspectEnvelope(transported)).envelope;
   const initialText = document.getElementById('semantic-initial-state')?.textContent ?? '';
@@ -83,17 +87,25 @@ function viewFromControls(currentView) {
 }
 function syncPatternControls(view) { patternSelect.value = view.pattern; seqPreset.value = presetFromView(view); seqPresetWrap.hidden = view.pattern !== 'seq/1'; }
 async function commitViewChange(runtime, editor, view) {
+  globalThis.semanticMapNavigation?.assertIdle();
   const previous = runtime.view;
+  let rendering = false;
   try {
     const preflight = await runtime.preflightView(view);
+    if (globalThis.semanticMapNavigation) {
+      await globalThis.semanticMapNavigation.openEnvelope(preflight.envelope);
+      syncPatternControls(runtime.view);
+      return preflight;
+    }
     const modules = preflight.validation?.modules ?? null;
+    rendering = true;
     await editor.setView(preflight.view, modules);
     const committed = runtime.commitView(preflight);
     syncPatternControls(runtime.view);
     return committed;
   } catch (error) {
     syncPatternControls(previous);
-    try {
+    if (rendering) try {
       const modules = await globalThis.semanticMapModuleResolver.resolve(editor.store.domain, { mapId: runtime.mapId, head: runtime.head, view: previous });
       await editor.setView(previous, modules);
     } catch (_) { /* best effort rollback */ }
@@ -118,7 +130,7 @@ function installPatternControls(runtime, editor) {
 // domain is built from the semantic records alone - createSemanticMap accepts
 // only meta, region and relation - while the layout records are kept for the
 // view that can honour them.
-const semanticRecordsOf = records => splitStateRecords(records).semanticRecords;
+const semanticRecordsOf = records => splitStateRecords(splitDataPinRecords(records).dataRecords).semanticRecords;
 
 // A graph drawn with the pins the log itself carries. `createGraphLayout`
 // already places a pinned region at its stored bounds and leaves every other
@@ -172,10 +184,12 @@ async function start() {
   const setTopologyProjectionProfile = config.setTopologyProjectionProfile ?? 'horizontal';
   const editor = await createSemanticMapEditor(initialDomain, {
     view: runtime.view,
+    initialLayoutRecords: splitStateRecords(splitDataPinRecords(runtime.records).dataRecords).layoutRecords,
+    initialDataPinRecords: splitDataPinRecords(runtime.records).dataPinRecords,
     prepareOperation: operation => runtime.prepareLocalOperation(operation),
     projectPresentation: setTopologyProof
       ? domain => compileTwoSetTopologyPresentation(domain, { profile: setTopologyProjectionProfile })
-      : (domain, view) => graphPinPresentation(domain, view, layoutMap(splitStateRecords(runtime.records).layoutRecords, domain)),
+      : (domain, view, pins) => graphPinPresentation(domain, view, pins ?? layoutMap(splitStateRecords(runtime.records).layoutRecords, domain)),
     translateOperation: setTopologyProof ? translateSetTopologyOperation : undefined,
     moduleResolver,
     moduleContext: () => ({ mapId: runtime.mapId, head: runtime.head }),
@@ -196,6 +210,11 @@ async function start() {
   if (!artifactModuleBridge.embedded) {
     enableEditorControls(); syncPatternControls(runtime.view);
     await Promise.all([import('./handoff.js'), import('./review.js'), import('./source.js')]);
+    if (document.getElementById('navigation-sheet')) await installNavigation({ runtime, editor, applyView, inputChanged: () => {
+      mapTitle.textContent = runtime.records.find(record => record.type === 'meta')?.title ?? 'Semantic Map';
+      document.title = `${mapTitle.textContent} — Semantic Map`;
+      syncPatternControls(runtime.view);
+    } });
   }
   routeState.hidden = true;
   return Object.freeze({
