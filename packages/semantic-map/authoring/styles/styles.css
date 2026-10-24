@@ -181,3 +181,11 @@ html[data-presentation="chrome-free"] .status,
 html[data-presentation="chrome-free"] .toast,
 html[data-presentation="chrome-free"] .semantic-id-chip { display: none !important; }
 html[data-presentation="chrome-free"] .workspace { grid-row: 1; }
+.navigation-status { position: fixed; top: 72px; left: 12px; max-width: calc(100vw - 24px); font-size: 11px; overflow-wrap: anywhere; background: #fff; z-index: 3; }
+.navigation-status[data-kind="error"] { color: #a12020; }
+.navigation-sheet { position: fixed; inset: 12% 12px 12px auto; width: min(480px, calc(100vw - 24px)); padding: 16px; overflow: auto; background: #fff; border: 1px solid #adb9c5; border-radius: 12px; z-index: 30; box-shadow: 0 8px 32px #0003; }
+.navigation-sheet[hidden] { display: none; }
+.navigation-sheet p { overflow-wrap: anywhere; }
+.navigation-sheet button, .source-file-actions button { min-height: 40px; margin: 4px; }
+.navigation-relation { border-top: 1px solid #ccd6df; padding: 8px 0; }
+.source-file-actions { display: flex; flex-wrap: wrap; gap: 8px; }

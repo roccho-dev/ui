@@ -1,5 +1,6 @@
 import { canonicalJson } from '../protocol/index.js';
 import { copyText, utf8Bytes, waitFor, waitForApp } from './shared.js';
+import { envelopeText, MAX_ENVELOPE_BYTES } from './navigation.js';
 
 const FORMATS = Object.freeze({
   state: Object.freeze({ label: 'State JSONL', role: 'current-state' }),
@@ -107,6 +108,37 @@ async function install() {
   closeButton.addEventListener('click', close);
   formatSelect.addEventListener('change', () => render().catch(() => {}));
   copyButton.addEventListener('click', () => copy().catch((error) => showStatus(error.message, 'error')));
+  document.getElementById('source-export').addEventListener('click', async () => {
+    try {
+      if (runtime.proposal || runtime.draftCount() > 0) {
+        const review = await waitFor('semanticMapReview');
+        if (runtime.draftCount() > 0) await review.openDraft(); else review.open();
+        showStatus('Review Accept/Reject before exporting accepted input.', 'error'); return;
+      }
+      const head = runtime.head;
+      const text = envelopeText(await runtime.envelope());
+      if (head !== runtime.head || runtime.draftCount() > 0) throw new Error('Export preparation is stale');
+      const href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      const anchor = document.createElement('a'); anchor.href = href;
+      anchor.download = `semantic-map-${head.slice(7, 19)}.json`; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(href), 30_000);
+      showStatus(`Export initiated for ${head}. Browser completion and file reopen are not yet confirmed.`, 'ok');
+    } catch (error) { showStatus(error.message, 'error'); }
+  });
+  document.getElementById('source-file').addEventListener('change', async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const head = runtime.head, log = runtime.log;
+    try {
+      if (runtime.proposal || runtime.draftCount() > 0) throw new Error('Review Accept/Reject before opening another input');
+      if (file.size > MAX_ENVELOPE_BYTES) throw new Error('File exceeds 256 KiB');
+      const envelope = JSON.parse(await file.text());
+      if (head !== runtime.head || log !== runtime.log) throw new Error('File Open preparation is stale');
+      await globalThis.semanticMapNavigation.openEnvelope(envelope, { fileInput: true });
+      close();
+    } catch (error) { showStatus(error.message, 'error'); }
+    finally { event.target.value = ''; }
+  });
   layer.addEventListener('click', (event) => { if (event.target === layer) close(); });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !layer.hidden) close(); });
   app.store.onChange(() => { if (!layer.hidden) void render(); });

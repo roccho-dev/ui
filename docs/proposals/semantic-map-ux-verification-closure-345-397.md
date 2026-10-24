@@ -203,6 +203,33 @@ graph／seq／map、desktop／mobile、静止・動きなしを適用範囲で�
 
 ## P・R・Wの合意全文
 
+### 現在の実装checkpoint（W、実証未完了）
+
+通常authoringに必要時のDetails／Relations、元IDを保持する入出境界列挙と50行paging、
+既存runtime／storeでの入力切替、bounded accepted Envelopeを使うnative history、
+accepted Envelopeのnative download／file Openを接続した。graph移動はPinRegionsへ変換し、
+初期layoutとdraft pinの投影、reviewのsemantic／layout分離を補った。
+既存rendererの公開exportは既にshared authoring adapterを使っていたため、reconnectの重複hookは追加していない。
+
+再現commandは `node packages/semantic-map/tests/navigation_contract_test.mjs` と、既存の
+`semantic-map-browser-proof`環境での `node packages/semantic-map/tests/navigation_browser_e2e.mjs`、
+同commandの `--large` である。同じ通常browser-example実行物を使い、APIでgestureを代行しない。
+結果のsource revision・生成物receipt・実download・再読込結果は各runのreceiptへ記録する。
+34件の既存source suiteと、draft拒否／入力identity／旧URL矛盾／容量のfocused contract検査が通った。
+小30／45と代表300／600の初回browser経路では、明示cross-input往復・reload、pointer drag→PinRegions、
+意味差分0・受理前差分0、Undo／Redo、local Accept、完了downloadとfresh file Openでのrecords／layout再構成を確認した。
+これは初回sliceの証拠であり、下記合意の全項目PASSではない。最終headで再実行し、Rが独立確認する。
+
+Archyne exact版の変更なしlocked install／buildは成功。同じ論理30／45の包含＋relation入力は、
+group n5→child n6の辺で `org.eclipse.elk.core.UnsupportedGraphException` となり通常canvasを生成できなかった。
+sourceやfixtureの辺を削って成功へ変えず、比較はこの入力でのUNSUPPORTEDとして記録する。
+この入力上のArchyne gesture／save比較成功は主張しない。
+
+未完了：全source番号の負例対応と実操作、6階層・両方向edgeの完全oracle、pointer connect／reconnect／resize／group、
+Reject／訂正、mobile／keyboard、graph／seq／map、large historyの20往復・quota／競合、
+固定回数の性能／DOM／heap予算、Atlas baseline互換表と退行検査、費用比較、公開head checks、R独立確認とP同入口gate。
+普通の技術FAILは同じR/Wで是正し、ここを最終完成にしない。
+
 **合意版：ui-345-397-three-party-20261024-v3。状態は設計合意／実装・実証未完了。**
 適用policyは [ADRS exact版](https://github.com/roccho-dev/adrs/tree/26d1d4ab1addbe1d490093c8e0043ba10203ad24)。
 Userの「3者反復→合意全文をPR本文→実証完了までloop」に基づき、同版の読戻しとP GO後だけ作用する。

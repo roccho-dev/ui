@@ -1,8 +1,9 @@
 import { SemanticDomainStore, normalizeOperation } from '../domain/index.js';
 import { SemanticProjector, projectorThresholds } from '../projection/index.js';
 import { PATTERN_SEQ, normalizeView } from '../protocol/index.js';
-import { patternCapabilities, patternConfigKey, validatePatternDomain } from '../pattern/index.js';
+import { createGraphLayout, patternCapabilities, patternConfigKey, validatePatternDomain } from '../pattern/index.js';
 import { createMaxGraphAdapter } from '../renderer-maxgraph/index.js';
+import { graphLayoutOperation } from '../renderer-maxgraph/authoring/index.js';
 import { renderElementResourceComposition } from '../renderer-resource-dom/index.js';
 import { normalizeMeaningRecoveryResult } from './meaning-recovery.js';
 
@@ -270,19 +271,19 @@ function installTouchNavigation({ container, adapter, minimumScale }) {
 }
 
 export async function createSemanticMapEditor(initialDomain, options = {}) {
-  const store = new SemanticDomainStore(initialDomain);
+  const store = new SemanticDomainStore(initialDomain, options.initialLayoutRecords ?? [], options.initialDataPinRecords ?? []);
   const prepareOperation = options.prepareOperation ?? normalizeOperation;
   const readOnly = options.readOnly === true;
   const moduleResolver = options.moduleResolver ?? null;
   const moduleContext = options.moduleContext ?? (() => ({}));
   const projectPresentation = options.projectPresentation ?? (() => null);
-  const translateOperation = options.translateOperation ?? ((operation) => Object.freeze([operation]));
+  const translateOperation = options.translateOperation ?? ((operation) => [graphLayoutOperation(operation, lastScene)]);
   let currentView = normalizeView(options.view);
   let modules = options.initialModules ?? null;
   let moduleError = null;
   let moduleRevision = 0;
   let lastMeaningRecovery = null;
-  let lastPresentationProjection = projectPresentation(store.domain, currentView);
+  let lastPresentationProjection = projectPresentation(store.domain, currentView, store.layoutHints);
   const projector = new SemanticProjector(store.domain, modules, currentView, {
     presentationProjection: lastPresentationProjection,
   });
@@ -319,7 +320,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
   let spacePreviousTool = null;
 
   function refreshPresentationProjection() {
-    lastPresentationProjection = projectPresentation(store.domain, currentView);
+    lastPresentationProjection = projectPresentation(store.domain, currentView, store.layoutHints);
     projector.setPresentationProjection(lastPresentationProjection);
   }
 
@@ -521,7 +522,9 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
 
   function focusRegion(regionId, scale) {
     const representation = lastScene?.representations.find((item) => item.regionId === regionId);
-    const bounds = representation?.bounds ?? store.domain.regions.get(regionId)?.bounds;
+    const bounds = representation?.bounds ?? (currentView.pattern === 'graph/1'
+      ? createGraphLayout(store.domain, { pins: store.layoutHints }).bounds.get(regionId)
+      : store.domain.regions.get(regionId)?.bounds);
     if (!bounds) return false;
     focusAtWorld(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, scale);
     return true;
@@ -667,7 +670,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
     if (result) showToast('選択を削除しました');
   }
 
-  function openRegionLink(regionId, navigate = (url) => location.assign(url), base = location.href) {
+  function openRegionLink(regionId, navigate = (url) => globalThis.semanticMapNavigation.openHref(url).catch(error => globalThis.semanticMapNavigation.fail(error)), base = location.href) {
     const representation = lastScene?.representations.find((item) => item.regionId === regionId);
     const href = representation?.href ?? store.domain.regions.get(regionId)?.href ?? null;
     if (!href) return null;
@@ -753,6 +756,7 @@ export async function createSemanticMapEditor(initialDomain, options = {}) {
         deleteSelection();
         break;
       case 'enter':
+        if (event.target.closest?.('button, a, [role="dialog"]')) return;
       case 'f2':
         event.preventDefault();
         adapter.startEditingSelection();

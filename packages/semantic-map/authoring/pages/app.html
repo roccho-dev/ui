@@ -48,6 +48,8 @@
 <div aria-live="polite" class="toast" hidden id="toast" role="status"></div>
 <button class="semantic-id-chip" hidden id="semantic-id-chip" title="Copy stable element ID" type="button"><span class="id-kind" id="semantic-id-kind">ID</span><code id="semantic-id-value"></code><span aria-hidden="true" class="id-copy">⧉</span></button>
 <nav class="editor-dock" aria-label="Editor actions">
+<button data-state-control disabled id="navigation-details" type="button">Details</button>
+<button data-state-control disabled id="navigation-relations" type="button">Relations</button>
 <button data-state-control disabled id="add-node" title="Add node" type="button"><span aria-hidden="true">＋</span><span>追加</span></button>
 <button data-state-control disabled id="undo" title="Undo" type="button"><span aria-hidden="true">↶</span><span>戻す</span></button>
 <button data-state-control disabled id="redo" title="Redo" type="button"><span aria-hidden="true">↷</span><span>進む</span></button>
@@ -57,6 +59,11 @@
 </nav>
 </section>
 </main>
+<output id="navigation-status" class="navigation-status" aria-live="polite"></output>
+<section id="navigation-sheet" class="navigation-sheet" aria-label="Selection details and relations" role="dialog" hidden>
+<button id="navigation-close" type="button">Close</button>
+<div id="navigation-content"></div>
+</section>
 
 <div class="handoff-layer" hidden id="handoff-layer" role="presentation">
 <section aria-labelledby="handoff-title" aria-modal="true" class="handoff-sheet" role="dialog">
@@ -90,6 +97,10 @@
 <textarea aria-label="Source output" class="source-output" id="source-output" readonly spellcheck="false"></textarea>
 <output aria-live="polite" class="source-status" id="source-status">形式を選んでコピーできます。</output>
 <button class="source-copy" disabled id="source-copy" type="button">コピー</button>
+<div class="source-file-actions">
+<button id="source-export" type="button">Export accepted Envelope</button>
+<label>Open Envelope file<input id="source-file" type="file" accept="application/json,.json"></label>
+</div>
 </section>
 </div>
 

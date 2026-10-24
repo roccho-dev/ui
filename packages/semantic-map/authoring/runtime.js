@@ -1,5 +1,6 @@
 import { appendDecision, createDecision, createEnvelope, inspectEnvelope, normalizeView, verifyDecisionLog } from '../protocol/index.js';
 import { normalizeOperation } from '../domain/index.js';
+import { envelopeText } from './navigation.js';
 
 function invariant(condition, message) {
   if (!condition) throw new Error(`semantic-runtime: ${message}`);
@@ -141,6 +142,32 @@ export class DecisionRuntime {
     return this.commitView(await this.preflightView(view));
   }
 
+  async preflightInput(envelope) {
+    invariant(!this.proposal && this.draftCount() === 0, 'Review Accept/Reject before opening another input');
+    envelopeText(envelope);
+    const inspection = await inspectEnvelope(envelope);
+    invariant(!inspection.envelope.proposal, 'Open requires an accepted Envelope without a Proposal');
+    const validation = await this.validateRecords?.(inspection.base.records, {
+      mapId: inspection.base.mapId, head: inspection.base.head, view: inspection.envelope.view,
+    });
+    return { baseHead: this.head, baseLog: this.log, inspection, validation };
+  }
+
+  commitInput(preflight) {
+    invariant(preflight.baseHead === this.head && preflight.baseLog === this.log, 'Open preflight is stale');
+    invariant(!this.proposal && this.draftCount() === 0, 'Review Accept/Reject before opening another input');
+    const { base, envelope } = preflight.inspection;
+    this.store.replaceRecords(base.records, { notify: false });
+    this.log = base.log;
+    this.head = base.head;
+    this.mapId = base.mapId;
+    this.stateHash = base.stateHash;
+    this.records = base.records;
+    this.proposal = null;
+    this.view = envelope.view;
+    this.notify('input');
+  }
+
   async preflightAccept(proposal, { view = this.view } = {}) {
     const normalizedView = normalizeView(view);
     const appended = await appendDecision(this.log, proposal);
@@ -150,6 +177,7 @@ export class DecisionRuntime {
       view: normalizedView,
     });
     const envelope = await createEnvelope(appended.log, null, normalizedView);
+    envelopeText(envelope);
     return Object.freeze({
       head: this.head,
       log: this.log,
